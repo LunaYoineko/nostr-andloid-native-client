@@ -232,7 +232,11 @@ fun ComposeSheet(
     val before = text.substring(0, field.selection.start.coerceIn(0, text.length))
 
     // 過去に使ったハッシュタグ（最近順）。最近5件 + 前方一致レコメンドに使う。
-    val used = repo?.usedHashtagsFlow()?.collectAsState(emptyList())?.value ?: emptyList()
+    // [#250] Flow を remember しないと、入力1文字ごと（再コンポーズごと）に新しい Flow を
+    // 作って購読し直し、その都度 SQLite クエリが走る（実測 2000字入力で 500回超）。
+    // [#250] Flow を remember しないと、入力1文字ごと（再コンポーズごと）に新しい Flow を
+    // 作って購読し直し、その都度 SQLite クエリが走る（実測 2000字入力で 500回超）。
+    val used = (repo?.let { r -> remember(r) { r.usedHashtagsFlow() } })?.collectAsState(emptyList())?.value ?: emptyList()
     val activeTagPrefix: String? = run {
         val idx = before.lastIndexOf('#')
         if (idx < 0) return@run null
@@ -258,12 +262,17 @@ fun ComposeSheet(
         val frag = before.substring(idx + 1)
         if (frag.isNotEmpty() && frag.all { it.isLetterOrDigit() || it == '_' || it == '.' }) frag else null
     }
-    val mentionCandidates: List<Profile> = remember(activeMention) {
-        if (activeMention != null) repo?.searchProfiles(activeMention).orEmpty() else emptyList()
+    // [#250] メンション補完はメインスレッドで同期 DB を叩かない（キーボードのフリーズ対策）。
+    // 入力が続いている間はデバウンスし、確定した断片だけを Default で検索する。
+    var mentionCandidates by remember { mutableStateOf(emptyList<Profile>()) }
+    LaunchedEffect(activeMention) {
+        if (activeMention == null) { mentionCandidates = emptyList(); return@LaunchedEffect }
+        delay(120)   // 連続入力中は検索しない
+        mentionCandidates = repo?.searchProfiles(activeMention).orEmpty()
     }
 
     // 入力中のカスタム絵文字（カーソル直前の ":shortcode" 断片）。`:n` で n から始まる候補を出す。
-    val customEmojis = repo?.customEmojisFlow()?.collectAsState(emptyList())?.value ?: emptyList()
+    val customEmojis = (repo?.let { r -> remember(r) { r.customEmojisFlow() } })?.collectAsState(emptyList())?.value ?: emptyList()
     val activeEmoji: String? = run {
         val idx = before.lastIndexOf(':')
         if (idx < 0) return@run null

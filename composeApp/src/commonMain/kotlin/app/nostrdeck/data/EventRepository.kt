@@ -1481,14 +1481,16 @@ class EventRepository(
      * [M11] メンション補完用：キャッシュ済みプロフィールを name / handle(nip05) の前方一致で検索。
      * 大文字小文字を無視し、name が非空のものを優先して最大 [limit] 件返す（同期・キャッシュのみ）。
      */
-    fun searchProfiles(prefix: String, limit: Int = 8): List<Profile> {
+    suspend fun searchProfiles(prefix: String, limit: Int = 8): List<Profile> {
         val p = prefix.trim().lowercase()
         if (p.isEmpty()) return emptyList()
-        return q.allProfiles().executeAsList()
-            .filter { it.name.lowercase().startsWith(p) || it.handle.lowercase().startsWith(p) }
-            .sortedByDescending { it.name.isNotBlank() }
-            .take(limit)
-            .map { Profile(it.pubkey, it.name, it.handle, it.picture_url, it.updated_at) }
+        // [#250] SQL 側で前方一致 + LIMIT。従来は全プロフィールをメモリへ読んでから filter して
+        // おり、入力1文字ごとにメインスレッドが数十〜数百ms 止まっていた（キーボードのフリーズ）。
+        // 実行も Default へ退避してメインスレッドを塞がない。
+        return withContext(Dispatchers.Default) {
+            q.searchProfilesByPrefix(p, limit.toLong()).executeAsList()
+                .map { Profile(it.pubkey, it.name, it.handle, it.picture_url, it.updated_at) }
+        }
     }
 
     /** 自分がこの pubkey をフォロー中か（kind:3 の更新に追従）。 */

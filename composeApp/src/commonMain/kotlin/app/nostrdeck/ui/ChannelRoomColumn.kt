@@ -523,10 +523,14 @@ private fun Composer(
         val frag = before.substring(idx + 1)
         if (frag.isNotEmpty() && frag.all { it.isLetterOrDigit() || it == '_' || it == '.' }) frag else null
     }
-    val mentionCandidates = remember(activeMention) {
-        if (activeMention != null) repo?.searchProfiles(activeMention, limit = 4).orEmpty() else emptyList()
+    // [#250] ComposeSheet と同じ理由でメインスレッド同期 DB をやめ、デバウンス + Default 実行に。
+    var mentionCandidates by remember { mutableStateOf(emptyList<app.nostrdeck.model.Profile>()) }
+    LaunchedEffect(activeMention) {
+        if (activeMention == null) { mentionCandidates = emptyList(); return@LaunchedEffect }
+        kotlinx.coroutines.delay(120)
+        mentionCandidates = repo?.searchProfiles(activeMention, limit = 4).orEmpty()
     }
-    val customEmojis = repo?.customEmojisFlow()?.collectAsState(emptyList())?.value ?: emptyList()
+    val customEmojis = (repo?.let { r -> remember(r) { r.customEmojisFlow() } })?.collectAsState(emptyList())?.value ?: emptyList()
     val activeEmoji: String? = run {
         val idx = before.lastIndexOf(':')
         if (idx < 0) return@run null
