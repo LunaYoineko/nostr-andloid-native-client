@@ -39,6 +39,14 @@
     <string name="theme_system">Match OS</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+    <string name="theme_custom">Custom</string>
+    <string name="theme_custom_desc">Pick background, text and accent colors. The rest (surfaces, borders, secondary text) is derived automatically.</string>
+    <string name="theme_presets">Presets</string>
+    <string name="theme_color_bg">Background</string>
+    <string name="theme_color_text">Text</string>
+    <string name="theme_color_accent">Accent</string>
+    <string name="theme_contrast_warn">Low contrast (%1$s:1). Text may be hard to read — 4.5:1 or higher is recommended.</string>
+    <string name="common_apply">Apply</string>
     <string name="ui_scale_title">Display size</string>
     <string name="ui_scale_desc">Overall size of text, icons, and spacing.</string>
     <string name="ui_scale_small">Default</string>

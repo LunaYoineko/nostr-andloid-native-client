@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.Icons
@@ -131,6 +133,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import app.nostrdeck.state.NavDest
+import androidx.compose.ui.graphics.Color
 import app.nostrdeck.theme.DeckColors
 import app.nostrdeck.theme.DeckDimens
 import app.nostrdeck.theme.DeckSpace
@@ -871,12 +874,123 @@ private fun sectionTitle(sectionId: String): String = when (sectionId) {
     else -> ""
 }
 
+/**
+ * [#258] カスタムテーマ（テーマストア Phase1）。
+ * ユーザーが指定するのは **背景 / 文字 / アクセント の3色**だけで、surface・border・text2/3 等は
+ * customPalette() が導出する。名前付きプリセットからワンタップで流し込める。
+ * 本文コントラスト（背景×文字）が WCAG AA（4.5）未満なら警告を出す（読めない配色を防ぐ）。
+ */
+@Composable
+private fun CustomThemeBlock(
+    repo: app.nostrdeck.data.EventRepository,
+    prefs: app.nostrdeck.model.CustomThemePrefs,
+) {
+    val Prefs = app.nostrdeck.model.CustomThemePrefs
+    var bgHex by remember(prefs) { mutableStateOf(Prefs.toHex(prefs.bg)) }
+    var textHex by remember(prefs) { mutableStateOf(Prefs.toHex(prefs.text)) }
+    var accentHex by remember(prefs) { mutableStateOf(Prefs.toHex(prefs.accent)) }
+
+    Text(stringResource(Res.string.theme_custom_desc), color = DeckColors.Text3, fontSize = DeckType.Label)
+    Spacer(Modifier.size(DeckSpace.Md))
+
+    // プリセット（「ストア」の第一歩。タップで3色を流し込む）。
+    Text(stringResource(Res.string.theme_presets), color = DeckColors.Text2, fontSize = DeckType.Label)
+    Spacer(Modifier.size(DeckSpace.Xs))
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
+        items(Prefs.PRESETS.size) { i ->
+            val (name, p, _) = Prefs.PRESETS[i]
+            val selected = p.bg == prefs.bg && p.text == prefs.text && p.accent == prefs.accent
+            Column(
+                Modifier.clip(RoundedCornerShape(DeckRadius.Md))
+                    .background(if (selected) DeckColors.AccentWeak else DeckColors.Surface2)
+                    .clickable { repo.setCustomTheme(p) }
+                    .padding(DeckSpace.Sm),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                // 3色のスウォッチ（背景の上に文字色とアクセントの点を重ねてプレビュー）。
+                Box(
+                    Modifier.size(44.dp).clip(RoundedCornerShape(DeckRadius.Sm))
+                        .background(Color(p.bg)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Box(Modifier.size(10.dp).clip(CircleShape).background(Color(p.text)))
+                        Box(Modifier.size(10.dp).clip(CircleShape).background(Color(p.accent)))
+                    }
+                }
+                Spacer(Modifier.size(DeckSpace.Xs))
+                Text(name, color = DeckColors.Text2, fontSize = DeckType.Micro)
+            }
+        }
+    }
+    Spacer(Modifier.size(DeckSpace.Md))
+
+    // 3色の直接指定（#RRGGBB）。入力中は反映せず、確定（適用）で保存する。
+    @Composable
+    fun hexField(label: String, value: String, current: Int, onChange: (String) -> Unit) {
+        Text(label, color = DeckColors.Text2, fontSize = DeckType.Label)
+        Spacer(Modifier.size(DeckSpace.Xs))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(28.dp).clip(RoundedCornerShape(DeckRadius.Sm))
+                    .background(Color(Prefs.parseHex(value) ?: current)),
+            )
+            Spacer(Modifier.size(DeckSpace.Sm))
+            DeckTextField(
+                value = value,
+                onValueChange = { onChange(it.take(7)) },
+                modifier = Modifier.weight(1f),
+                placeholder = "#RRGGBB",
+            )
+        }
+        Spacer(Modifier.size(DeckSpace.Sm))
+    }
+    hexField(stringResource(Res.string.theme_color_bg), bgHex, prefs.bg) { bgHex = it }
+    hexField(stringResource(Res.string.theme_color_text), textHex, prefs.text) { textHex = it }
+    hexField(stringResource(Res.string.theme_color_accent), accentHex, prefs.accent) { accentHex = it }
+
+    // コントラスト警告（本文が読めるか）。適用前の入力値で評価する。
+    val bgVal = Prefs.parseHex(bgHex) ?: prefs.bg
+    val textVal = Prefs.parseHex(textHex) ?: prefs.text
+    val ratio = Prefs.contrastRatio(bgVal, textVal)
+    if (ratio < 4.5) {
+        Text(
+            stringResource(Res.string.theme_contrast_warn, ((ratio * 10).toInt() / 10.0).toString()),
+            color = DeckColors.Warn, fontSize = DeckType.Label,
+        )
+        Spacer(Modifier.size(DeckSpace.Sm))
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        val valid = Prefs.parseHex(bgHex) != null && Prefs.parseHex(textHex) != null &&
+            Prefs.parseHex(accentHex) != null
+        DeckButton(
+            stringResource(Res.string.common_apply),
+            enabled = valid,
+            onClick = {
+                repo.setCustomTheme(
+                    app.nostrdeck.model.CustomThemePrefs(
+                        bg = Prefs.parseHex(bgHex) ?: prefs.bg,
+                        text = Prefs.parseHex(textHex) ?: prefs.text,
+                        accent = Prefs.parseHex(accentHex) ?: prefs.accent,
+                    ),
+                )
+            },
+        )
+        Spacer(Modifier.size(DeckSpace.Sm))
+        DeckGhostButton(stringResource(Res.string.img_reset_defaults), onClick = {
+            repo.setCustomTheme(app.nostrdeck.model.CustomThemePrefs.DEFAULT)
+        })
+    }
+}
+
 // [#149] 表示系 enum のラベル解決（enum は文言を持たず、UI 層でリソースに割り当てる）。
 @Composable
 private fun themeModeLabel(m: app.nostrdeck.model.ThemeMode): String = when (m) {
     app.nostrdeck.model.ThemeMode.SYSTEM -> stringResource(Res.string.theme_system)
     app.nostrdeck.model.ThemeMode.LIGHT -> stringResource(Res.string.theme_light)
     app.nostrdeck.model.ThemeMode.DARK -> stringResource(Res.string.theme_dark)
+    app.nostrdeck.model.ThemeMode.CUSTOM -> stringResource(Res.string.theme_custom)
 }
 
 @Composable
@@ -939,6 +1053,7 @@ private fun AppearanceSettings() {
     val textScale by repo.textScaleFlow().collectAsState()
     val uiScale by repo.uiScaleFlow().collectAsState()
     val themeMode by repo.themeModeFlow().collectAsState()
+    val customTheme by repo.customThemeFlow().collectAsState()
 
     // [#152] テーマ（既定=ダーク）。SYSTEM は OS のダークモード追従。
     SectionCaption(stringResource(Res.string.theme_title))
@@ -947,6 +1062,11 @@ private fun AppearanceSettings() {
         app.nostrdeck.model.ThemeMode.entries.forEach { m ->
             ChoiceChip(themeModeLabel(m), selected = themeMode == m) { repo.setThemeMode(m) }
         }
+    }
+    // [#258] カスタムテーマ: 選択中だけ 3色の設定とプリセットを出す。
+    if (themeMode == app.nostrdeck.model.ThemeMode.CUSTOM) {
+        Spacer(Modifier.size(DeckSpace.Md))
+        CustomThemeBlock(repo, customTheme)
     }
     Spacer(Modifier.size(DeckSpace.Xl))
 

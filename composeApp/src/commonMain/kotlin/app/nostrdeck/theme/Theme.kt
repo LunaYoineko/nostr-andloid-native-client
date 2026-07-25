@@ -132,15 +132,23 @@ private val CenteredLineHeight = LineHeightStyle(
 )
 
 @Composable
-fun DeckTheme(themeMode: ThemeMode = ThemeMode.DARK, content: @Composable () -> Unit) {
+fun DeckTheme(
+    themeMode: ThemeMode = ThemeMode.DARK,
+    // [#258] CUSTOM のときに使う3色。null なら既定色。
+    customTheme: app.nostrdeck.model.CustomThemePrefs? = null,
+    content: @Composable () -> Unit,
+) {
     // [#152] テーマ分岐。既定はダーク（従来挙動）。SYSTEM は OS のダークモード追従。
+    // [#258] CUSTOM は背景色の輝度でダーク扱いかを判定（M3 スキームの選択に使う）。
+    val prefs = customTheme ?: app.nostrdeck.model.CustomThemePrefs.DEFAULT
     val dark = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
+        ThemeMode.CUSTOM -> app.nostrdeck.model.CustomThemePrefs.luminance(prefs.bg) < 0.5
     }
     // DeckColors（トークン参照）を現在のテーマに合わせる。値が変わる時のみ書き込む。
-    DeckColors.apply(dark)
+    if (themeMode == ThemeMode.CUSTOM) DeckColors.apply(customPalette(prefs)) else DeckColors.apply(dark)
     MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme) {
         // 各 Text() は fontSize/color を LocalTextStyle にマージして描くため、ここで
         // lineHeightStyle を既定に載せておけば全呼び出し箇所へ波及する（呼び出し側改修不要）。

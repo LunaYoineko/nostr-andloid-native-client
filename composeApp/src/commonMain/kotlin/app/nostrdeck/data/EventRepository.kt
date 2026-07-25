@@ -41,6 +41,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
+import app.nostrdeck.model.CustomThemePrefs
 import app.nostrdeck.model.ImageCompressionPrefs
 import app.nostrdeck.model.VideoCompressionPrefs
 import app.nostrdeck.model.DmConversation
@@ -274,6 +275,7 @@ class EventRepository(
         loadTextScale()
         // 表示サイズ（標準/大きめ/最大）を KV から復元。
         loadUiScale()
+        loadCustomTheme()
         loadImageCompression()
         loadVideoCompression()
         // テーマ（OSに合わせる/ライト/ダーク）を KV から復元。
@@ -3197,6 +3199,28 @@ class EventRepository(
         )
     }
 
+    // ---- [#258] カスタムテーマ（背景/文字/アクセントの3色）----
+
+    private val customThemeState = MutableStateFlow(CustomThemePrefs.DEFAULT)
+    /** カスタムテーマの3色（設定 > 表示）。ThemeMode.CUSTOM のときに適用される。 */
+    fun customThemeFlow(): StateFlow<CustomThemePrefs> = customThemeState
+
+    fun setCustomTheme(prefs: CustomThemePrefs) {
+        customThemeState.value = prefs
+        putSettingAsync(THEME_CUSTOM_BG, CustomThemePrefs.toHex(prefs.bg))
+        putSettingAsync(THEME_CUSTOM_TEXT, CustomThemePrefs.toHex(prefs.text))
+        putSettingAsync(THEME_CUSTOM_ACCENT, CustomThemePrefs.toHex(prefs.accent))
+    }
+
+    /** KV から復元（未設定/不正値は既定）。start() から呼ぶ。 */
+    private fun loadCustomTheme() {
+        customThemeState.value = CustomThemePrefs.from(
+            q.getSetting(THEME_CUSTOM_BG).executeAsOneOrNull(),
+            q.getSetting(THEME_CUSTOM_TEXT).executeAsOneOrNull(),
+            q.getSetting(THEME_CUSTOM_ACCENT).executeAsOneOrNull(),
+        )
+    }
+
     // ---- [#appearance] 表示サイズ（標準/大きめ/最大。標準=従来）----
 
     private val uiScaleState = MutableStateFlow(UiScale.SMALL)
@@ -3797,6 +3821,9 @@ class EventRepository(
         const val EMBED_PREFIX = "embed:"
         const val TEXT_SCALE_KEY = "ui:text_scale"   // [#appearance] 文字サイズ（s/m/l）
         const val UI_SCALE_KEY = "ui:ui_scale"       // [#appearance] 表示サイズ（s/m/l）
+        const val THEME_CUSTOM_BG = "ui:theme_custom_bg"         // [#258] カスタムテーマ 背景色
+        const val THEME_CUSTOM_TEXT = "ui:theme_custom_text"     // [#258] カスタムテーマ 文字色
+        const val THEME_CUSTOM_ACCENT = "ui:theme_custom_accent" // [#258] カスタムテーマ アクセント
         const val IMG_LOW_DIM_KEY = "media:img_low_dim"   // [#247] 画像圧縮「低」長辺px
         const val IMG_MID_DIM_KEY = "media:img_mid_dim"   // [#247] 画像圧縮「中」長辺px
         const val IMG_QUALITY_KEY = "media:img_quality"   // [#247] 画像圧縮 品質%（30-100）
