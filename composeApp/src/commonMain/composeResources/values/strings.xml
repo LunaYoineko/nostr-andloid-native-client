@@ -36,6 +36,15 @@
 
     <!-- Settings: appearance -->
     <string name="theme_title">Theme</string>
+    <string name="note_accent_title">Post type highlight</string>
+    <string name="note_accent_desc">Tints reposts, quotes, replies and reactions so they are easier to tell apart. Default is off (monochrome).</string>
+    <string name="note_accent_none">None</string>
+    <string name="note_accent_line">Side line</string>
+    <string name="note_accent_bg">Background</string>
+    <string name="note_kind_repost">Repost</string>
+    <string name="note_kind_quote">Quote</string>
+    <string name="note_kind_reply">Reply</string>
+    <string name="note_kind_reaction">Reaction</string>
     <string name="theme_system">Match OS</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>

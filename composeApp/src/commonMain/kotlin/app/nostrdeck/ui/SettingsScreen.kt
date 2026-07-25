@@ -131,6 +131,8 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
 import app.nostrdeck.state.NavDest
+import app.nostrdeck.model.NoteAccentStyle
+import app.nostrdeck.model.NoteAccentKind
 import app.nostrdeck.theme.DeckColors
 import app.nostrdeck.theme.DeckDimens
 import app.nostrdeck.theme.DeckSpace
@@ -879,6 +881,22 @@ private fun themeModeLabel(m: app.nostrdeck.model.ThemeMode): String = when (m) 
     app.nostrdeck.model.ThemeMode.DARK -> stringResource(Res.string.theme_dark)
 }
 
+// [#256][#257] 種別表示スタイル / 種別のラベル。
+@Composable
+private fun noteAccentStyleLabel(s: NoteAccentStyle): String = when (s) {
+    NoteAccentStyle.NONE -> stringResource(Res.string.note_accent_none)
+    NoteAccentStyle.LINE -> stringResource(Res.string.note_accent_line)
+    NoteAccentStyle.BACKGROUND -> stringResource(Res.string.note_accent_bg)
+}
+
+@Composable
+private fun noteAccentKindLabel(k: NoteAccentKind): String = when (k) {
+    NoteAccentKind.REPOST -> stringResource(Res.string.note_kind_repost)
+    NoteAccentKind.QUOTE -> stringResource(Res.string.note_kind_quote)
+    NoteAccentKind.REPLY -> stringResource(Res.string.note_kind_reply)
+    NoteAccentKind.REACTION -> stringResource(Res.string.note_kind_reaction)
+}
+
 @Composable
 private fun uiScaleLabel(s: app.nostrdeck.model.UiScale): String = when (s) {
     app.nostrdeck.model.UiScale.SMALL -> stringResource(Res.string.ui_scale_small)
@@ -939,6 +957,7 @@ private fun AppearanceSettings() {
     val textScale by repo.textScaleFlow().collectAsState()
     val uiScale by repo.uiScaleFlow().collectAsState()
     val themeMode by repo.themeModeFlow().collectAsState()
+    val noteAccent by repo.noteAccentStyleFlow().collectAsState()
 
     // [#152] テーマ（既定=ダーク）。SYSTEM は OS のダークモード追従。
     SectionCaption(stringResource(Res.string.theme_title))
@@ -946,6 +965,35 @@ private fun AppearanceSettings() {
     Row(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
         app.nostrdeck.model.ThemeMode.entries.forEach { m ->
             ChoiceChip(themeModeLabel(m), selected = themeMode == m) { repo.setThemeMode(m) }
+        }
+    }
+    Spacer(Modifier.size(DeckSpace.Xl))
+
+    // [#256][#257] ノート種別の視覚表示（なし/縦ライン/背景色）。既定 なし＝モノクロ基調のまま。
+    SectionCaption(stringResource(Res.string.note_accent_title))
+    Spacer(Modifier.size(DeckSpace.Xs))
+    Text(stringResource(Res.string.note_accent_desc), color = DeckColors.Text3, fontSize = DeckType.Label)
+    Spacer(Modifier.size(DeckSpace.Md))
+    Row(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
+        NoteAccentStyle.entries.forEach { st ->
+            ChoiceChip(noteAccentStyleLabel(st), selected = noteAccent == st) { repo.setNoteAccentStyle(st) }
+        }
+    }
+    // 種別→色の凡例（どの色が何を意味するか）。表示ONのときだけ出す。
+    if (noteAccent != NoteAccentStyle.NONE) {
+        Spacer(Modifier.size(DeckSpace.Md))
+        Column(verticalArrangement = Arrangement.spacedBy(DeckSpace.Xs)) {
+            NoteAccentKind.entries.forEach { k ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(DeckSpace.Md)
+                            .clip(RoundedCornerShape(DeckRadius.Sm))
+                            .background(DeckColors.kindColor(k)),
+                    )
+                    Spacer(Modifier.size(DeckSpace.Sm))
+                    Text(noteAccentKindLabel(k), color = DeckColors.Text2, fontSize = DeckType.Label)
+                }
+            }
         }
     }
     Spacer(Modifier.size(DeckSpace.Xl))

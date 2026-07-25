@@ -41,6 +41,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
+import app.nostrdeck.model.NoteAccentStyle
 import app.nostrdeck.model.ImageCompressionPrefs
 import app.nostrdeck.model.VideoCompressionPrefs
 import app.nostrdeck.model.DmConversation
@@ -274,6 +275,7 @@ class EventRepository(
         loadTextScale()
         // 表示サイズ（標準/大きめ/最大）を KV から復元。
         loadUiScale()
+        loadNoteAccentStyle()
         loadImageCompression()
         loadVideoCompression()
         // テーマ（OSに合わせる/ライト/ダーク）を KV から復元。
@@ -3197,6 +3199,22 @@ class EventRepository(
         )
     }
 
+    // ---- [#256][#257] ノート種別の視覚表示（なし/縦ライン/背景色）----
+
+    private val noteAccentState = MutableStateFlow(NoteAccentStyle.NONE)
+    /** 種別の視覚表示スタイル（設定 > 表示）。NoteItem が参照する。既定 NONE=従来の見た目。 */
+    fun noteAccentStyleFlow(): StateFlow<NoteAccentStyle> = noteAccentState
+
+    fun setNoteAccentStyle(style: NoteAccentStyle) {
+        noteAccentState.value = style
+        putSettingAsync(NOTE_ACCENT_STYLE_KEY, style.id)
+    }
+
+    /** KV から復元（未設定は NONE）。start() から呼ぶ。 */
+    private fun loadNoteAccentStyle() {
+        noteAccentState.value = NoteAccentStyle.fromId(q.getSetting(NOTE_ACCENT_STYLE_KEY).executeAsOneOrNull())
+    }
+
     // ---- [#appearance] 表示サイズ（標準/大きめ/最大。標準=従来）----
 
     private val uiScaleState = MutableStateFlow(UiScale.SMALL)
@@ -3797,6 +3815,7 @@ class EventRepository(
         const val EMBED_PREFIX = "embed:"
         const val TEXT_SCALE_KEY = "ui:text_scale"   // [#appearance] 文字サイズ（s/m/l）
         const val UI_SCALE_KEY = "ui:ui_scale"       // [#appearance] 表示サイズ（s/m/l）
+        const val NOTE_ACCENT_STYLE_KEY = "ui:note_accent"  // [#256][#257] 種別の視覚表示（none/line/bg）
         const val IMG_LOW_DIM_KEY = "media:img_low_dim"   // [#247] 画像圧縮「低」長辺px
         const val IMG_MID_DIM_KEY = "media:img_mid_dim"   // [#247] 画像圧縮「中」長辺px
         const val IMG_QUALITY_KEY = "media:img_quality"   // [#247] 画像圧縮 品質%（30-100）

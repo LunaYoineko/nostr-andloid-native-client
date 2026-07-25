@@ -35,6 +35,12 @@ data class DeckPalette(
     val boost: Color,
     val verified: Color,
     val warn: Color,
+    // [#256][#257] ノート種別の識別色（既定 OFF の任意機能。塗り/ラインの両方で使う）。
+    // 塗りに使うので彩度は低め。ライン描画時は同色をそのまま使う。
+    val kindRepost: Color,
+    val kindQuote: Color,
+    val kindReply: Color,
+    val kindReaction: Color,
 )
 
 /** ダーク（従来の配色そのまま）。 */
@@ -58,6 +64,11 @@ val DarkPalette = DeckPalette(
     boost = Color(0xFF4FA77A),
     verified = Color(0xFF4FA77A),
     warn = Color(0xFFC76B6B),
+    // [#256] 種別色（ダーク: 背景 0xFF0C0C10 に薄く乗る想定）
+    kindRepost = Color(0xFF2E7D52),    // 緑（リポスト）
+    kindQuote = Color(0xFF3A6EA5),     // 青（引用）
+    kindReply = Color(0xFF9A7B2E),     // 黄（リプライ）
+    kindReaction = Color(0xFFA34A5E),  // 赤（リアクション）
 )
 
 /** ライト（モノクロ基調をそのまま反転。アクティブ=ほぼ黒）。 */
@@ -80,6 +91,11 @@ val LightPalette = DeckPalette(
     boost = Color(0xFF2F7D55),
     verified = Color(0xFF2F7D55),
     warn = Color(0xFFB04A4A),
+    // [#256] 種別色（ライト: 白背景で見えるよう少し濃く）
+    kindRepost = Color(0xFF1F6B44),
+    kindQuote = Color(0xFF2C5C90),
+    kindReply = Color(0xFF7D6220),
+    kindReaction = Color(0xFF8E3A4E),
 )
 
 object DeckColors {
@@ -117,4 +133,18 @@ object DeckColors {
     val Boost get() = palette.value.boost
     val Verified get() = palette.value.verified
     val Warn get() = palette.value.warn
+
+    // [#256][#257] ノート種別の識別色。
+    val KindRepost get() = palette.value.kindRepost
+    val KindQuote get() = palette.value.kindQuote
+    val KindReply get() = palette.value.kindReply
+    val KindReaction get() = palette.value.kindReaction
+
+    /** [#256] 種別 → 識別色。 */
+    fun kindColor(kind: app.nostrdeck.model.NoteAccentKind): androidx.compose.ui.graphics.Color = when (kind) {
+        app.nostrdeck.model.NoteAccentKind.REPOST -> KindRepost
+        app.nostrdeck.model.NoteAccentKind.QUOTE -> KindQuote
+        app.nostrdeck.model.NoteAccentKind.REPLY -> KindReply
+        app.nostrdeck.model.NoteAccentKind.REACTION -> KindReaction
+    }
 }
