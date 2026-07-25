@@ -1504,6 +1504,9 @@ class EventRepository(
     /** 自分がこの pubkey をフォロー中か（kind:3 の更新に追従）。 */
     fun isFollowingFlow(pubkey: String): Flow<Boolean> = follows.map { pubkey in it }
 
+    /** [#264] フォロー中の pubkey 一覧（テーマストアの「フォロー中」絞り込み等）。 */
+    fun followsFlow(): StateFlow<List<String>> = follows
+
     /** フォロー追加（kind:3 を publish）。楽観的に follows へ反映。 */
     suspend fun follow(pubkey: String) {
         val cur = follows.value
