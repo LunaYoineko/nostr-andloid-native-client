@@ -17,7 +17,7 @@
 #   GCP_PLAY_SA_EMAIL        … Play Console に権限付与したサービスアカウントのメール
 #
 # versionCode は実行 ref のコミット数（単調増加。履歴 rewrite は厳禁）。
-# versionName は入力があればそれ、無ければ BASE_VERSION-beta.<versionCode>。
+# versionName は入力があればそれ、無ければ git tag(vX.Y.Z) 由来。
 name: Release Beta
 
 on:
@@ -28,7 +28,7 @@ on:
         required: false
         default: "alpha"
       version_name:
-        description: "versionName 上書き（空なら BASE_VERSION-beta.<コミット数>）"
+        description: "versionName 上書き（空なら git tag vX.Y.Z 由来）"
         required: false
         default: ""
       status:
@@ -43,9 +43,6 @@ permissions:
 concurrency:
   group: release-beta
   cancel-in-progress: false  # アップロード中の打ち切りは中途半端になるので直列化のみ
-
-env:
-  BASE_VERSION: "0.2.0"
 
 jobs:
   release:
@@ -77,9 +74,13 @@ jobs:
       - name: Compute version
         id: ver
         run: |
-          VC=$(git rev-list --count HEAD)
+          # [#252] versionName は git tag(vX.Y.Z) 由来（scripts/version.sh が単一の真実）。
+          VC=$(./scripts/version.sh --build)
           VN="${{ inputs.version_name }}"
-          if [ -z "$VN" ]; then VN="${BASE_VERSION}-beta.${VC}"; fi
+          if [ -z "$VN" ]; then VN=$(./scripts/version.sh --name); fi
+          if [ "$(./scripts/version.sh --on-tag)" != "1" ]; then
+            echo "::warning::HEAD が git tag 上にありません。versionName=$VN は直近タグ由来です（リリース版なら先に vX.Y.Z を打つこと）"
+          fi
           echo "code=$VC" >> "$GITHUB_OUTPUT"
           echo "name=$VN" >> "$GITHUB_OUTPUT"
           echo "versionCode=$VC versionName=$VN track=${{ inputs.track }} status=${{ inputs.status }}"
