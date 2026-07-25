@@ -1,4 +1,6 @@
-- Fixed the keyboard freezing while typing long text (much more responsive input)
-- Reduced data usage for video posts: choose Low/Mid/High (Low can cut over 70%)
-- Added image & video compression settings under Settings > Media servers
-- Minor bug fixes
+- New custom themes: build your own color scheme from 3 colors, with presets and a color picker
+- Theme store: publish your theme, or preview and apply themes shared by others
+- Post type highlights: tell reposts, quotes and replies apart with a side line or background tint (Settings > Appearance)
+- Custom default reaction: send any emoji instead of the heart
+- Fixed search returning only a handful of results
+- Cleaner media settings and scrolling fixes in Settings
