@@ -29,6 +29,7 @@ import io.ktor.util.encodeBase64
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import app.nostrdeck.ui.extractMedia
@@ -42,6 +43,7 @@ import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
 import app.nostrdeck.model.CustomThemePrefs
+import app.nostrdeck.model.ThemeEntry
 import app.nostrdeck.model.ImageCompressionPrefs
 import app.nostrdeck.model.VideoCompressionPrefs
 import app.nostrdeck.model.DmConversation
@@ -3219,6 +3221,87 @@ class EventRepository(
             q.getSetting(THEME_CUSTOM_TEXT).executeAsOneOrNull(),
             q.getSetting(THEME_CUSTOM_ACCENT).executeAsOneOrNull(),
         )
+    }
+
+    // ---- [#264] テーマの配布（NIP-78 kind:30078 + t タグで一覧取得）----
+
+    /**
+     * 配布テーマの一覧。イベント表の kind:30078（t=nostrism-theme）を ThemeEntry へ復元する。
+     * 同一 (pubkey, d) は最新1件だけ採用（addressable の重複除去）。
+     */
+    fun themeEntriesFlow(): Flow<List<ThemeEntry>> =
+        q.themeEvents(ThemeEntry.DISCOVERY_TAG).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                val seen = mutableSetOf<Pair<String, String>>()
+                rows.mapNotNull { row ->
+                    val tags = parseTags(row.tags_json)
+                    val d = tags.firstOrNull { it.size >= 2 && it[0] == "d" }?.get(1) ?: return@mapNotNull null
+                    // created_at 降順で来るので、最初に見た (pubkey,d) が最新。
+                    if (!seen.add(row.pubkey to d)) return@mapNotNull null
+                    parseThemeContent(row.content)?.copy(author = row.pubkey, dTag = d)
+                }
+            }
+            .flowOn(Dispatchers.Default)
+
+    /** 30078 の content(JSON) を ThemeEntry へ。想定外の形は null（壊れた配布物で落ちない）。 */
+    private fun parseThemeContent(content: String): ThemeEntry? = runCatching {
+        val o = json.parseToJsonElement(content).jsonObject
+        // 他アプリの 30078 を誤って読まないよう app を確認する。
+        val app = o["app"]?.jsonPrimitive?.contentOrNull
+        if (app != null && app != ThemeEntry.APP) return null
+        val name = o["name"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
+        val colors = o["colors"]?.jsonObject ?: return null
+        fun col(key: String): Int? =
+            CustomThemePrefs.parseHex(colors[key]?.jsonPrimitive?.contentOrNull)
+        val bg = col("bg") ?: return null
+        val text = col("text") ?: return null
+        val accent = col("accent") ?: return null
+        ThemeEntry(
+            name = name,
+            colors = CustomThemePrefs(bg, text, accent),
+            minAppVersion = o["minAppVersion"]?.jsonPrimitive?.contentOrNull ?: "0.3.0",
+            schema = o["schema"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: ThemeEntry.SCHEMA,
+        )
+    }.getOrNull()
+
+    /** 他ユーザーの配布テーマを取得する（t タグで検索。#d は完全一致しか引けないため）。 */
+    fun requestThemes() {
+        val subId = "themes"
+        subscribeAll(subId, Filter(kinds = listOf(30078), hashtags = listOf(ThemeEntry.DISCOVERY_TAG), limit = 200))
+        scope.launch { delay(10_000); unsubscribeAll(subId) }
+    }
+
+    /**
+     * 自分のテーマを配布イベントとして発行する（同名は d が同じなので上書き＝更新）。
+     * content は他クライアントからも読める素直な JSON。
+     */
+    suspend fun publishTheme(entry: ThemeEntry): Boolean = runCatching {
+        val content = buildJsonObject {
+            put("app", ThemeEntry.APP)
+            put("schema", entry.schema)
+            put("name", entry.name)
+            put("minAppVersion", entry.minAppVersion)
+            putJsonObject("colors") {
+                put("bg", CustomThemePrefs.toHex(entry.colors.bg))
+                put("text", CustomThemePrefs.toHex(entry.colors.text))
+                put("accent", CustomThemePrefs.toHex(entry.colors.accent))
+            }
+        }.toString()
+        publishSigned(
+            UnsignedEvent(
+                kind = 30078,
+                content = content,
+                tags = listOf(
+                    listOf("d", ThemeEntry.D_PREFIX + entry.slug()),
+                    listOf("t", ThemeEntry.DISCOVERY_TAG),   // 一覧取得用
+                    listOf("title", entry.name),
+                ),
+            ),
+        )
+        true
+    }.getOrElse {
+        println("Nostrism publishTheme failed: $it")
+        false
     }
 
     // ---- [#appearance] 表示サイズ（標準/大きめ/最大。標準=従来）----

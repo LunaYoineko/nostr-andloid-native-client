@@ -982,6 +982,178 @@ private fun CustomThemeBlock(
             repo.setCustomTheme(app.nostrdeck.model.CustomThemePrefs.DEFAULT)
         })
     }
+
+    // [#264] テーマストア（配布テーマの一覧 / 共有コード / 自分のテーマを公開）。
+    Spacer(Modifier.size(DeckSpace.Xl))
+    ThemeStoreBlock(repo, prefs)
+}
+
+/**
+ * [#264] テーマストア。配布テーマ（NIP-78 kind:30078 + t=nostrism-theme）の一覧・取得・適用と、
+ * 共有コードでの受け渡し、自分の3色をテーマとして公開する操作をまとめる。
+ *  - 作者名/アイコンは pubkey → kind:0 から解決する
+ *  - minAppVersion がアプリ版より新しいテーマは **警告バッジを出すが適用は許す**
+ *    （未知の色キーは無視されるので古いアプリでも壊れない）
+ */
+@Composable
+private fun ThemeStoreBlock(
+    repo: app.nostrdeck.data.EventRepository,
+    current: app.nostrdeck.model.CustomThemePrefs,
+) {
+    val scope = rememberCoroutineScope()
+    val toast = rememberToaster()
+    val entries by remember(repo) { repo.themeEntriesFlow() }.collectAsState(emptyList())
+    val clipboard = rememberClipboardCopy()
+    val paste = rememberClipboardPaste()
+    var code by remember { mutableStateOf("") }
+    var publishName by remember { mutableStateOf("") }
+    // [#162] onClick から使うトースト文言はコンポジション中に解決しておく。
+    val invalidCodeMsg = stringResource(Res.string.theme_code_invalid)
+    // 開いたら一覧を取り直す（他ユーザーの新しいテーマを拾う）。
+    LaunchedEffect(Unit) { repo.requestThemes() }
+
+    SectionCaption(stringResource(Res.string.theme_store_title))
+    Spacer(Modifier.size(DeckSpace.Xs))
+    Text(stringResource(Res.string.theme_store_desc), color = DeckColors.Text3, fontSize = DeckType.Label)
+    Spacer(Modifier.size(DeckSpace.Md))
+
+    // ---- 一覧 ----
+    if (entries.isEmpty()) {
+        Text(stringResource(Res.string.theme_store_empty), color = DeckColors.Text3, fontSize = DeckType.Sub)
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
+            entries.forEach { e -> ThemeStoreRow(e, current, onApply = { repo.setCustomTheme(e.colors) }) }
+        }
+    }
+
+    // ---- 共有コード ----
+    Spacer(Modifier.size(DeckSpace.Lg))
+    Text(stringResource(Res.string.theme_code_label), color = DeckColors.Text2, fontSize = DeckType.Label)
+    Spacer(Modifier.size(DeckSpace.Xs))
+    DeckTextField(
+        value = code,
+        onValueChange = { code = it },
+        modifier = Modifier.fillMaxWidth(),
+        placeholder = "nostrism-theme:1:Name:RRGGBB,RRGGBB,RRGGBB:0.3.0",
+    )
+    Spacer(Modifier.size(DeckSpace.Sm))
+    Row(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
+        // 貼り付け → 復元して適用。
+        DeckButton(
+            stringResource(Res.string.theme_code_import),
+            enabled = code.isNotBlank(),
+            onClick = {
+                val e = app.nostrdeck.model.ThemeEntry.decodeCode(code)
+                if (e == null) {
+                    toast(invalidCodeMsg)
+                } else {
+                    repo.setCustomTheme(e.colors)
+                    code = ""
+                }
+            },
+        )
+        DeckGhostButton(stringResource(Res.string.theme_code_paste), onClick = { paste()?.let { code = it.trim() } })
+        // 現在の3色をコードにしてコピー。
+        DeckGhostButton(stringResource(Res.string.theme_code_copy), onClick = {
+            val e = app.nostrdeck.model.ThemeEntry(
+                name = publishName.ifBlank { "MyTheme" },
+                colors = current,
+                minAppVersion = appVersionName,
+            )
+            clipboard(app.nostrdeck.model.ThemeEntry.encodeCode(e))
+        })
+    }
+
+    // ---- 公開 ----
+    Spacer(Modifier.size(DeckSpace.Lg))
+    Text(stringResource(Res.string.theme_publish_label), color = DeckColors.Text2, fontSize = DeckType.Label)
+    Spacer(Modifier.size(DeckSpace.Xs))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        DeckTextField(
+            value = publishName,
+            onValueChange = { publishName = it },
+            modifier = Modifier.weight(1f),
+            placeholder = stringResource(Res.string.theme_publish_name_hint),
+        )
+        Spacer(Modifier.size(DeckSpace.Sm))
+        val okMsg = stringResource(Res.string.theme_publish_ok)
+        val failMsg = stringResource(Res.string.theme_publish_failed)
+        DeckButton(
+            stringResource(Res.string.theme_publish),
+            enabled = publishName.isNotBlank(),
+            onClick = {
+                scope.launch {
+                    val ok = repo.publishTheme(
+                        app.nostrdeck.model.ThemeEntry(
+                            name = publishName.trim(),
+                            colors = current,
+                            minAppVersion = appVersionName,
+                        ),
+                    )
+                    toast(if (ok) okMsg else failMsg)
+                    if (ok) publishName = ""
+                }
+            },
+        )
+    }
+}
+
+/** [#264] ストア一覧の1行（スウォッチ / 名前 / 作者 / 版バッジ / 適用）。 */
+@Composable
+private fun ThemeStoreRow(
+    entry: app.nostrdeck.model.ThemeEntry,
+    current: app.nostrdeck.model.CustomThemePrefs,
+    onApply: () -> Unit,
+) {
+    val repo = LocalRepository.current
+    // 作者名は pubkey → kind:0。未取得なら短縮 npub のままにする（表示が空にならないよう）。
+    val author = entry.author
+    val profile by (author?.let { pk -> repo?.let { r -> remember(pk) { r.profileFlow(pk) } } }
+        ?: flowOf(null)).collectAsState(null)
+    LaunchedEffect(author) { author?.let { repo?.loadProfile(it) } }
+    val applied = entry.colors == current
+    // アプリ版がテーマの要求版より古いかどうか（警告バッジ用。適用は許す）。
+    val tooNew = app.nostrdeck.model.ThemeEntry.isOlderThan(appVersionName, entry.minAppVersion)
+
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(DeckRadius.Md))
+            .background(if (applied) DeckColors.AccentWeak else DeckColors.Surface2)
+            .clickable(onClick = onApply)
+            .padding(DeckSpace.Sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(40.dp).clip(RoundedCornerShape(DeckRadius.Sm)).background(Color(entry.colors.bg)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                Box(Modifier.size(9.dp).clip(CircleShape).background(Color(entry.colors.text)))
+                Box(Modifier.size(9.dp).clip(CircleShape).background(Color(entry.colors.accent)))
+            }
+        }
+        Spacer(Modifier.size(DeckSpace.Sm))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(entry.name, color = DeckColors.Text, fontSize = DeckType.Sub, maxLines = 1)
+                if (tooNew) {
+                    Spacer(Modifier.size(DeckSpace.Xs))
+                    // 「このテーマは v0.4.0 以降向け」= 適用はできるが見た目が完全でない可能性。
+                    Text(
+                        "⚠ v${entry.minAppVersion}+",
+                        color = DeckColors.Warn, fontSize = DeckType.Micro, maxLines = 1,
+                    )
+                }
+            }
+            val who = profile?.name?.takeIf { it.isNotBlank() }
+                ?: author?.take(8)?.let { "$it…" } ?: ""
+            if (who.isNotBlank()) {
+                Text(who, color = DeckColors.Text3, fontSize = DeckType.Micro, maxLines = 1)
+            }
+        }
+        if (applied) {
+            Text(stringResource(Res.string.saved_check), color = DeckColors.Text2, fontSize = DeckType.Micro)
+        }
+    }
 }
 
 // [#149] 表示系 enum のラベル解決（enum は文言を持たず、UI 層でリソースに割り当てる）。
