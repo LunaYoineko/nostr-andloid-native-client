@@ -29,6 +29,7 @@ import io.ktor.util.encodeBase64
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import app.nostrdeck.ui.extractMedia
@@ -42,6 +43,8 @@ import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
 import app.nostrdeck.model.NoteAccentStyle
+import app.nostrdeck.model.CustomThemePrefs
+import app.nostrdeck.model.ThemeEntry
 import app.nostrdeck.model.ImageCompressionPrefs
 import app.nostrdeck.model.VideoCompressionPrefs
 import app.nostrdeck.model.DmConversation
@@ -276,6 +279,7 @@ class EventRepository(
         // 表示サイズ（標準/大きめ/最大）を KV から復元。
         loadUiScale()
         loadNoteAccentStyle()
+        loadCustomTheme()
         loadImageCompression()
         loadVideoCompression()
         // テーマ（OSに合わせる/ライト/ダーク）を KV から復元。
@@ -1501,6 +1505,9 @@ class EventRepository(
 
     /** 自分がこの pubkey をフォロー中か（kind:3 の更新に追従）。 */
     fun isFollowingFlow(pubkey: String): Flow<Boolean> = follows.map { pubkey in it }
+
+    /** [#264] フォロー中の pubkey 一覧（テーマストアの「フォロー中」絞り込み等）。 */
+    fun followsFlow(): StateFlow<List<String>> = follows
 
     /** フォロー追加（kind:3 を publish）。楽観的に follows へ反映。 */
     suspend fun follow(pubkey: String) {
@@ -3215,6 +3222,109 @@ class EventRepository(
         noteAccentState.value = NoteAccentStyle.fromId(q.getSetting(NOTE_ACCENT_STYLE_KEY).executeAsOneOrNull())
     }
 
+    // ---- [#258] カスタムテーマ（背景/文字/アクセントの3色）----
+
+    private val customThemeState = MutableStateFlow(CustomThemePrefs.DEFAULT)
+    /** カスタムテーマの3色（設定 > 表示）。ThemeMode.CUSTOM のときに適用される。 */
+    fun customThemeFlow(): StateFlow<CustomThemePrefs> = customThemeState
+
+    fun setCustomTheme(prefs: CustomThemePrefs) {
+        customThemeState.value = prefs
+        putSettingAsync(THEME_CUSTOM_BG, CustomThemePrefs.toHex(prefs.bg))
+        putSettingAsync(THEME_CUSTOM_TEXT, CustomThemePrefs.toHex(prefs.text))
+        putSettingAsync(THEME_CUSTOM_ACCENT, CustomThemePrefs.toHex(prefs.accent))
+    }
+
+    /** KV から復元（未設定/不正値は既定）。start() から呼ぶ。 */
+    private fun loadCustomTheme() {
+        customThemeState.value = CustomThemePrefs.from(
+            q.getSetting(THEME_CUSTOM_BG).executeAsOneOrNull(),
+            q.getSetting(THEME_CUSTOM_TEXT).executeAsOneOrNull(),
+            q.getSetting(THEME_CUSTOM_ACCENT).executeAsOneOrNull(),
+        )
+    }
+
+    // ---- [#264] テーマの配布（NIP-78 kind:30078 + t タグで一覧取得）----
+
+    /**
+     * 配布テーマの一覧。イベント表の kind:30078（t=nostrism-theme）を ThemeEntry へ復元する。
+     * 同一 (pubkey, d) は最新1件だけ採用（addressable の重複除去）。
+     */
+    fun themeEntriesFlow(): Flow<List<ThemeEntry>> =
+        q.themeEvents(ThemeEntry.DISCOVERY_TAG).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                val seen = mutableSetOf<Pair<String, String>>()
+                rows.mapNotNull { row ->
+                    val tags = parseTags(row.tags_json)
+                    val d = tags.firstOrNull { it.size >= 2 && it[0] == "d" }?.get(1) ?: return@mapNotNull null
+                    // created_at 降順で来るので、最初に見た (pubkey,d) が最新。
+                    if (!seen.add(row.pubkey to d)) return@mapNotNull null
+                    parseThemeContent(row.content)?.copy(author = row.pubkey, dTag = d)
+                }
+            }
+            .flowOn(Dispatchers.Default)
+
+    /** 30078 の content(JSON) を ThemeEntry へ。想定外の形は null（壊れた配布物で落ちない）。 */
+    private fun parseThemeContent(content: String): ThemeEntry? = runCatching {
+        val o = json.parseToJsonElement(content).jsonObject
+        // 他アプリの 30078 を誤って読まないよう app を確認する。
+        val app = o["app"]?.jsonPrimitive?.contentOrNull
+        if (app != null && app != ThemeEntry.APP) return null
+        val name = o["name"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() } ?: return null
+        val colors = o["colors"]?.jsonObject ?: return null
+        fun col(key: String): Int? =
+            CustomThemePrefs.parseHex(colors[key]?.jsonPrimitive?.contentOrNull)
+        val bg = col("bg") ?: return null
+        val text = col("text") ?: return null
+        val accent = col("accent") ?: return null
+        ThemeEntry(
+            name = name,
+            colors = CustomThemePrefs(bg, text, accent),
+            minAppVersion = o["minAppVersion"]?.jsonPrimitive?.contentOrNull ?: "0.3.0",
+            schema = o["schema"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: ThemeEntry.SCHEMA,
+        )
+    }.getOrNull()
+
+    /** 他ユーザーの配布テーマを取得する（t タグで検索。#d は完全一致しか引けないため）。 */
+    fun requestThemes() {
+        val subId = "themes"
+        subscribeAll(subId, Filter(kinds = listOf(30078), hashtags = listOf(ThemeEntry.DISCOVERY_TAG), limit = 200))
+        scope.launch { delay(10_000); unsubscribeAll(subId) }
+    }
+
+    /**
+     * 自分のテーマを配布イベントとして発行する（同名は d が同じなので上書き＝更新）。
+     * content は他クライアントからも読める素直な JSON。
+     */
+    suspend fun publishTheme(entry: ThemeEntry): Boolean = runCatching {
+        val content = buildJsonObject {
+            put("app", ThemeEntry.APP)
+            put("schema", entry.schema)
+            put("name", entry.name)
+            put("minAppVersion", entry.minAppVersion)
+            putJsonObject("colors") {
+                put("bg", CustomThemePrefs.toHex(entry.colors.bg))
+                put("text", CustomThemePrefs.toHex(entry.colors.text))
+                put("accent", CustomThemePrefs.toHex(entry.colors.accent))
+            }
+        }.toString()
+        publishSigned(
+            UnsignedEvent(
+                kind = 30078,
+                content = content,
+                tags = listOf(
+                    listOf("d", ThemeEntry.D_PREFIX + entry.slug()),
+                    listOf("t", ThemeEntry.DISCOVERY_TAG),   // 一覧取得用
+                    listOf("title", entry.name),
+                ),
+            ),
+        )
+        true
+    }.getOrElse {
+        println("Nostrism publishTheme failed: $it")
+        false
+    }
+
     // ---- [#appearance] 表示サイズ（標準/大きめ/最大。標準=従来）----
 
     private val uiScaleState = MutableStateFlow(UiScale.SMALL)
@@ -3816,6 +3926,9 @@ class EventRepository(
         const val TEXT_SCALE_KEY = "ui:text_scale"   // [#appearance] 文字サイズ（s/m/l）
         const val UI_SCALE_KEY = "ui:ui_scale"       // [#appearance] 表示サイズ（s/m/l）
         const val NOTE_ACCENT_STYLE_KEY = "ui:note_accent"  // [#256][#257] 種別の視覚表示（none/line/bg）
+        const val THEME_CUSTOM_BG = "ui:theme_custom_bg"         // [#258] カスタムテーマ 背景色
+        const val THEME_CUSTOM_TEXT = "ui:theme_custom_text"     // [#258] カスタムテーマ 文字色
+        const val THEME_CUSTOM_ACCENT = "ui:theme_custom_accent" // [#258] カスタムテーマ アクセント
         const val IMG_LOW_DIM_KEY = "media:img_low_dim"   // [#247] 画像圧縮「低」長辺px
         const val IMG_MID_DIM_KEY = "media:img_mid_dim"   // [#247] 画像圧縮「中」長辺px
         const val IMG_QUALITY_KEY = "media:img_quality"   // [#247] 画像圧縮 品質%（30-100）

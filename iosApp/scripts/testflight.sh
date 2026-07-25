@@ -24,8 +24,14 @@ ROOT="$(cd .. && pwd)"
 : "${ASC_ISSUER_ID:?ASC_ISSUER_ID を設定してください（APIキーの Issuer ID）}"
 : "${ASC_KEY_PATH:?ASC_KEY_PATH を設定してください（AuthKey_*.p8 の絶対パス）}"
 
-BUILD_NUMBER="${BUILD_NUMBER:-$(git -C "$ROOT" rev-list --count HEAD)}"
-echo "==> build number: $BUILD_NUMBER / team: $TEAM_ID"
+# [#252] versionName は git tag(vX.Y.Z) 由来、build 番号はコミット数（scripts/version.sh と同一規則）。
+BUILD_NUMBER="${BUILD_NUMBER:-$("$ROOT/scripts/version.sh" --build)}"
+MARKETING_VERSION="${MARKETING_VERSION:-$("$ROOT/scripts/version.sh" --name)}"
+echo "==> version: $MARKETING_VERSION ($BUILD_NUMBER) / team: $TEAM_ID"
+if [ "$("$ROOT/scripts/version.sh" --on-tag)" != "1" ]; then
+  echo "    !! HEAD は git tag 上にありません（versionName=$MARKETING_VERSION は直近タグ由来）。"
+  echo "       リリース版なら先に  git tag vX.Y.Z && git push --tags  を実行してください。"
+fi
 
 # JAVA_HOME（Compose フレームワーク埋め込みの gradle 用）
 if [ -z "${JAVA_HOME:-}" ]; then
@@ -47,6 +53,7 @@ xcodebuild -project iosApp.xcodeproj -scheme iosApp -configuration Release \
   -archivePath "$ARCHIVE" \
   DEVELOPMENT_TEAM="$TEAM_ID" \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+  MARKETING_VERSION="$MARKETING_VERSION" \
   -allowProvisioningUpdates \
   -authenticationKeyPath "$ASC_KEY_PATH" \
   -authenticationKeyID "$ASC_KEY_ID" \

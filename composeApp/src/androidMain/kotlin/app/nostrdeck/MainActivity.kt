@@ -127,10 +127,14 @@ class MainActivity : ComponentActivity() {
             // [#152] ステータスバー/ナビバーのアイコン色をテーマに追従させる
             // （ライトテーマで白アイコンのままだと見えない）。
             val mode by repository.themeModeFlow().collectAsState()
+            // [#258] CUSTOM は背景色の輝度でダーク扱いかを決める（バーのアイコン色を合わせる）。
+            val custom by repository.customThemeFlow().collectAsState()
             val dark = when (mode) {
                 app.nostrdeck.model.ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
                 app.nostrdeck.model.ThemeMode.LIGHT -> false
                 app.nostrdeck.model.ThemeMode.DARK -> true
+                app.nostrdeck.model.ThemeMode.CUSTOM ->
+                    app.nostrdeck.model.CustomThemePrefs.luminance(custom.bg) < 0.5
             }
             androidx.compose.runtime.LaunchedEffect(dark) {
                 val t = android.graphics.Color.TRANSPARENT

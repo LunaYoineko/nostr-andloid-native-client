@@ -61,6 +61,15 @@ JOIN event_tag ON event.id = event_tag.event_id
 WHERE event.kind = 1 AND event_tag.tag = 't' AND event_tag.value = ?
 ORDER BY event.created_at DESC LIMIT 300;
 
+-- [#264] 配布テーマ（kind:30078 + t タグ nostrism-theme）の一覧。
+-- 同一 (pubkey, d) は addressable で上書きされるが、リレー由来の古い版も残り得るため
+-- created_at 降順で取り、呼び出し側で (pubkey,d) の最初の1件だけ採用する。
+themeEvents:
+SELECT event.* FROM event
+JOIN event_tag ON event.id = event_tag.event_id
+WHERE event.kind = 30078 AND event_tag.tag = 't' AND event_tag.value = ?
+ORDER BY event.created_at DESC LIMIT 200;
+
 -- ============ profile: kind:0。pubkey ごとに最新1件だけ（dedup） ============
 CREATE TABLE profile (
     pubkey      TEXT NOT NULL PRIMARY KEY,

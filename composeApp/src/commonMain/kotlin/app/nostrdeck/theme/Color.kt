@@ -2,6 +2,7 @@ package app.nostrdeck.theme
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 
 /**
  * designs/tokens.css と一対一で対応するカラートークン。
@@ -108,6 +109,11 @@ object DeckColors {
         if (palette.value !== target) palette.value = target
     }
 
+    /** [#258] カスタムテーマ（3色から導出したパレット）を適用する。 */
+    fun apply(custom: DeckPalette) {
+        if (palette.value != custom) palette.value = custom
+    }
+
     // surfaces
     val Bg get() = palette.value.bg
     val Surface get() = palette.value.surface
@@ -147,4 +153,45 @@ object DeckColors {
         app.nostrdeck.model.NoteAccentKind.REPLY -> KindReply
         app.nostrdeck.model.NoteAccentKind.REACTION -> KindReaction
     }
+}
+
+/**
+ * [#258] カスタムテーマ: 背景・文字・アクセントの3色から全トークンを導出する。
+ *
+ * 背景の輝度でダーク/ライトを判定し、surface 系は背景から段階的に明度をずらして作る
+ * （ダークなら明るく、ライトなら暗く）。text2/text3 は文字色を背景へ寄せて段階を作る。
+ * 種別色（kind*）と警告色は既存パレットの値を土台にする（ユーザーが指定するのは3色だけ）。
+ */
+fun customPalette(prefs: app.nostrdeck.model.CustomThemePrefs): DeckPalette {
+    val bg = Color(prefs.bg)
+    val text = Color(prefs.text)
+    val accent = Color(prefs.accent)
+    val dark = app.nostrdeck.model.CustomThemePrefs.luminance(prefs.bg) < 0.5
+    val basis = if (dark) DarkPalette else LightPalette
+
+    // 背景から surface 段階を作る（dark は白を、light は黒を少しずつ混ぜる）。
+    val mixTo = if (dark) Color.White else Color.Black
+    fun step(f: Float) = lerp(bg, mixTo, f)
+    // 文字色は背景側へ寄せて text2/text3 を作る（コントラストを段階的に落とす）。
+    fun textStep(f: Float) = lerp(text, bg, f)
+
+    return basis.copy(
+        bg = bg,
+        surface = step(0.04f),
+        surface2 = step(0.08f),
+        surface3 = step(0.13f),
+        border = step(0.16f),
+        borderStrong = step(0.24f),
+        text = text,
+        text2 = textStep(0.28f),
+        text3 = textStep(0.48f),
+        accent = accent,
+        accent2 = lerp(accent, bg, 0.25f),
+        // 選択チップ等の淡い下地。アクセントの薄被せ（背景に対して主張しすぎない濃さ）。
+        accentWeak = accent.copy(alpha = 0.14f),
+        // アクション系アイコンは文字色系で（モノクロ基調の踏襲）。
+        zap = textStep(0.05f),
+        repost = textStep(0.18f),
+        like = textStep(0.38f),
+    )
 }

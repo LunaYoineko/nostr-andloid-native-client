@@ -7,14 +7,19 @@
 - iOS → TestFlight
 
 > **AI へ**: 「リリースして」「ベータ出して」等を頼まれたら、この手順書のとおり実行すること。
-> リリースノート（ユーザー表示文）は**必ず**書く。バージョン採番は git のコミット数（単調増加）に依存するため、
+> リリースノート（ユーザー表示文）は**必ず**書く。build 番号は git のコミット数（単調増加）に依存するため、
 > **main の履歴を rewrite（force-push / squash / rebase）しないこと**（ストアが番号の減少・再利用を拒否する）。
+>
+> **配信後は必ず `scripts/release-info.sh` の出力をそのまま会話に貼ること**。
+> TestFlight の「テスト内容」記入など**人の操作が残る**ため、コピペできる形で渡す必要がある。
 
 ---
 
 ## 0. リリース前チェック（両プラットフォーム共通）
 
 1. リリースに含める変更が `main`（または配信対象 ref）に入っているか確認。
+1. **バージョンタグを打つ**（[#252]）: `git tag vX.Y.Z && git push --tags`
+   バグ修正=PATCH / 機能追加=MINOR / 破壊的変更=MAJOR。`scripts/version.sh --on-tag` が `1` になることを確認。
 2. **リリースノートを書く**（下記スタイル）。Android は `distribution/whatsnew/whatsnew-ja-JP` を更新してコミット。
    iOS の「テスト内容」も同じ文面を流用する。
 3. 破壊的変更・既知の不具合があれば、リリースノート末尾かテスト内容に明記。
@@ -100,14 +105,56 @@ cd iosApp
 
 ---
 
-## 3. バージョン採番のルール
-- **versionCode / build 番号 = 実行 ref の git コミット数**（`git rev-list --count HEAD`）。両ストア共通の考え方。
+## 3. バージョン採番のルール（[#252] セマンティックバージョニング）
+
+**単一の真実は `scripts/version.sh`**。Gradle / iOS / CI すべてがこの規則で導出する。
+
+| 項目 | 導出元 | 例 |
+|---|---|---|
+| versionName（表示版・両OS共通） | 直近の **git tag `vX.Y.Z`** | `0.3.0` |
+| versionCode / CFBundleVersion（build番号） | **コミット数** `git rev-list --count HEAD` | `436` |
+
+```bash
+scripts/version.sh            # "0.3.0 436 1"（name build on-tag）
+scripts/version.sh --name     # 0.3.0
+scripts/version.sh --build    # 436
+scripts/version.sh --on-tag   # 1=HEADがタグ上（リリース版） / 0=タグより進んでいる
+```
+
+### 番号の上げ方（リリース前に必ずタグを打つ）
+```bash
+git tag v0.3.1 && git push --tags     # ← これを忘れると前の版の versionName で配信される
+```
+- **PATCH**（`0.3.0` → `0.3.1`）: バグ修正のみ
+- **MINOR**（`0.3.1` → `0.4.0`）: 機能追加（後方互換）
+- **MAJOR**（`0.4.0` → `1.0.0`）: 破壊的変更・正式公開の節目
+
+タグを打たずに配信しようとすると、`testflight.sh` と CI が**警告を出す**（build 番号は進むので配信自体は通る）。
+バグ修正だけのリリースでも PATCH を上げてタグを打つ運用にする。
+
 - 単調増加が前提。**履歴 rewrite 厳禁**（減少・重複するとストアが拒否し、その番号は二度と使えない）。
-- Android の versionName 既定は `0.2.0-beta.<code>`（`workflow_dispatch` の `version_name` で上書き可）。
-  iOS の表示版は `iosApp/project.yml` の `MARKETING_VERSION`。
+- `workflow_dispatch` の `version_name` を渡せばタグを無視して任意の versionName にできる（緊急時のみ）。
 
 ## 4. なぜ main 自動配信をやめたか
 - 「あらゆるマージ＝配信」だと iOS 専用/ドキュメントだけの変更でも Android が出てしまう、リリース内容の
   再現性が低い、ホットフィックスを単独で出せない、等のリスクがあるため。
 - 代わりに **AI がこの手順書に沿って、リリースノート込みで明示実行**する運用にした。
   `main` から出す必要はなく、任意の ref を対象にできる。
+
+---
+
+## 5. 配信後（人の操作が残る部分）
+
+**`scripts/release-info.sh` を実行し、出力をそのまま会話へ貼る。**
+
+```bash
+scripts/release-info.sh
+```
+
+出力に含まれるもの:
+- バージョン / build 番号 / タグ状態（タグ未打ちなら警告）
+- リリースノート ja / en（コピペ用）
+- **iOS TestFlight「テスト内容（What to Test）」に貼る文面**（whatsnew + `distribution/whatsnew/test-focus-ja` の重点確認）
+- App Store Connect / Play Console での操作手順（build 番号入り）
+
+重点確認したい項目は `distribution/whatsnew/test-focus-ja` に書いておくと、テスト内容へ自動で連結される。
