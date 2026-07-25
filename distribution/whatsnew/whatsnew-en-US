@@ -1,3 +1,4 @@
-- Fixed profiles not refreshing (stale profiles for everyone after long-term use)
-- Fixed profile editing: you can now create and save your profile even for the first time; added "Edit profile" to Settings
+- Fixed the keyboard freezing while typing long text (much more responsive input)
+- Reduced data usage for video posts: choose Low/Mid/High (Low can cut over 70%)
+- Added image & video compression settings under Settings > Media servers
 - Minor bug fixes
