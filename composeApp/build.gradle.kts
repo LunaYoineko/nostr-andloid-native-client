@@ -134,6 +134,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    // [#264] BuildConfig.VERSION_NAME を使う（配布テーマの minAppVersion 判定）。
+    buildFeatures {
+        buildConfig = true
+    }
     signingConfigs {
         create("release") {
             if (keystorePropsFile.exists()) {
