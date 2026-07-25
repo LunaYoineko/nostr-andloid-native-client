@@ -61,6 +61,21 @@ JOIN event_tag ON event.id = event_tag.event_id
 WHERE event.kind = 1 AND event_tag.tag = 't' AND event_tag.value = ?
 ORDER BY event.created_at DESC LIMIT 300;
 
+-- [#259] キーワード検索: 本文の部分一致を SQL 側で直接引く（1語=1クエリ・呼び出し側で OR 合成）。
+-- 従来は recentNotes(600) = 「全ノートの最新600件」という共通の窓から Kotlin で絞っていたため、
+-- 他カラムの新着が流れ込むと検索該当イベントが窓外へ押し出され、結果が数件に減っていた。
+searchNotesByWord:
+SELECT * FROM event
+WHERE kind = 1 AND lower(content) LIKE ('%' || :word || '%')
+ORDER BY created_at DESC LIMIT :limit;
+
+-- [#259] 複数タグ（OR）。feedByHashtag の複数値版。
+feedByHashtagsAny:
+SELECT event.* FROM event
+JOIN event_tag ON event.id = event_tag.event_id
+WHERE event.kind = 1 AND event_tag.tag = 't' AND event_tag.value IN :tags
+ORDER BY event.created_at DESC LIMIT :limit;
+
 -- ============ profile: kind:0。pubkey ごとに最新1件だけ（dedup） ============
 CREATE TABLE profile (
     pubkey      TEXT NOT NULL PRIMARY KEY,

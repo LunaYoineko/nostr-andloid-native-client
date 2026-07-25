@@ -1550,22 +1550,39 @@ class EventRepository(
     }
 
     /**
-     * [#135] 複合検索のローカル読み出し。直近ノート + 指定著者のノートを母集合に、
-     * [matchesConditions] で AND/OR を適用する（検索リレーから届いた分もここに載る）。
+     * [#135] キーワード・タグフィードのローカル読み出し（条件は OR）。
+     *
+     * [#259] 以前は `recentNotes(600)`＝「**全ノートの最新600件**」という共通の窓から Kotlin 側で
+     * 絞り込んでいた。そのため他カラム（フォロー中/グローバル等）の新着が流れ込むと、検索リレーから
+     * 取得した該当イベントが窓の外へ押し出され、**検索を繰り返すほど結果が数件に減る**不具合があった。
+     * 窓をやめて、単語は `content LIKE`・タグは `event_tag` 索引で **SQL 側から直接**引き、
+     * 各クエリ結果を id で重複排除して新しい順に並べる（母集合が窓に依存しなくなる）。
      */
-    private fun compositeSearchRows(filter: ReqFilter): Flow<List<Event>> =
-        q.recentNotes(600L).asFlow().mapToList(Dispatchers.Default)
-            .map { rows -> rows.filter { matchesConditions(filter, it) }.take(200) }
-            .flowOn(Dispatchers.Default)
-
-    /** [#135] キーワード・タグフィードの判定（OR）。単語=本文の部分一致（大文字小文字無視）/ タグ=t タグ。 */
-    private fun matchesConditions(filter: ReqFilter, row: Event): Boolean {
-        if (filter.words.any { row.content.contains(it, ignoreCase = true) }) return true
-        if (filter.hashtags.isEmpty()) return false
-        val tagValues = parseTags(row.tags_json)
-            .filter { it.size >= 2 && it[0] == "t" }
-            .map { it[1].lowercase() }.toSet()
-        return filter.hashtags.any { it.lowercase() in tagValues }
+    private fun compositeSearchRows(filter: ReqFilter): Flow<List<Event>> {
+        val perQuery = SEARCH_ROWS_PER_QUERY
+        val sources = buildList<Flow<List<Event>>> {
+            filter.words.forEach { w ->
+                add(q.searchNotesByWord(w.lowercase(), perQuery).asFlow().mapToList(Dispatchers.Default))
+            }
+            if (filter.hashtags.isNotEmpty()) {
+                add(
+                    q.feedByHashtagsAny(filter.hashtags.map { it.lowercase() }, perQuery)
+                        .asFlow().mapToList(Dispatchers.Default),
+                )
+            }
+        }
+        if (sources.isEmpty()) return flowOf(emptyList())
+        if (sources.size == 1) {
+            return sources.first().map { it.take(SEARCH_ROWS_TOTAL) }.flowOn(Dispatchers.Default)
+        }
+        // 複数条件は OR。各クエリの結果を結合し、id で重複排除して新しい順に。
+        return combine(sources) { lists ->
+            lists.asSequence().flatMap { it.asSequence() }
+                .distinctBy { it.id }
+                .sortedByDescending { it.created_at }
+                .take(SEARCH_ROWS_TOTAL)
+                .toList()
+        }.flowOn(Dispatchers.Default)
     }
 
     private fun ReqFilter.toProtocol(limit: Int) = Filter(
@@ -3757,6 +3774,9 @@ class EventRepository(
         )
         // [#210] 検索の取得上限。ローカル LIKE 表示（feedBySearch, LIMIT 300）に十分載るよう多めに取る。
         const val SEARCH_FETCH_LIMIT = 300
+        // [#259] キーワード検索のローカル読み出し上限。1条件あたり / 合成後の総数。
+        const val SEARCH_ROWS_PER_QUERY = 300L
+        const val SEARCH_ROWS_TOTAL = 300
 
         /** NIP-28 チャンネル一覧の取得元（運用中のインデクサ。latest 順・上限つきを返す）。 */
         const val CHANNELS_ENDPOINT = "https://thread.nchan.vip/channels"
