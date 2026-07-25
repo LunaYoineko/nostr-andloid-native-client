@@ -32,6 +32,15 @@
 
     <!-- Settings: appearance -->
     <string name="theme_title">テーマ</string>
+    <string name="note_accent_title">種別の視覚表示</string>
+    <string name="note_accent_desc">リポスト・引用・リプライ・リアクションを色で区別します。既定は「なし」（モノクロ基調のまま）。</string>
+    <string name="note_accent_none">なし</string>
+    <string name="note_accent_line">縦ライン</string>
+    <string name="note_accent_bg">背景色</string>
+    <string name="note_kind_repost">リポスト</string>
+    <string name="note_kind_quote">引用</string>
+    <string name="note_kind_reply">リプライ</string>
+    <string name="note_kind_reaction">リアクション</string>
     <string name="theme_system">OSに合わせる</string>
     <string name="theme_light">ライト</string>
     <string name="theme_dark">ダーク</string>

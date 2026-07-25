@@ -42,6 +42,7 @@ import kotlin.coroutines.cancellation.CancellationException
 import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
+import app.nostrdeck.model.NoteAccentStyle
 import app.nostrdeck.model.CustomThemePrefs
 import app.nostrdeck.model.ThemeEntry
 import app.nostrdeck.model.ImageCompressionPrefs
@@ -277,6 +278,7 @@ class EventRepository(
         loadTextScale()
         // 表示サイズ（標準/大きめ/最大）を KV から復元。
         loadUiScale()
+        loadNoteAccentStyle()
         loadCustomTheme()
         loadImageCompression()
         loadVideoCompression()
@@ -3221,6 +3223,22 @@ class EventRepository(
         )
     }
 
+    // ---- [#256][#257] ノート種別の視覚表示（なし/縦ライン/背景色）----
+
+    private val noteAccentState = MutableStateFlow(NoteAccentStyle.NONE)
+    /** 種別の視覚表示スタイル（設定 > 表示）。NoteItem が参照する。既定 NONE=従来の見た目。 */
+    fun noteAccentStyleFlow(): StateFlow<NoteAccentStyle> = noteAccentState
+
+    fun setNoteAccentStyle(style: NoteAccentStyle) {
+        noteAccentState.value = style
+        putSettingAsync(NOTE_ACCENT_STYLE_KEY, style.id)
+    }
+
+    /** KV から復元（未設定は NONE）。start() から呼ぶ。 */
+    private fun loadNoteAccentStyle() {
+        noteAccentState.value = NoteAccentStyle.fromId(q.getSetting(NOTE_ACCENT_STYLE_KEY).executeAsOneOrNull())
+    }
+
     // ---- [#258] カスタムテーマ（背景/文字/アクセントの3色）----
 
     private val customThemeState = MutableStateFlow(CustomThemePrefs.DEFAULT)
@@ -3927,6 +3945,7 @@ class EventRepository(
         const val EMBED_PREFIX = "embed:"
         const val TEXT_SCALE_KEY = "ui:text_scale"   // [#appearance] 文字サイズ（s/m/l）
         const val UI_SCALE_KEY = "ui:ui_scale"       // [#appearance] 表示サイズ（s/m/l）
+        const val NOTE_ACCENT_STYLE_KEY = "ui:note_accent"  // [#256][#257] 種別の視覚表示（none/line/bg）
         const val THEME_CUSTOM_BG = "ui:theme_custom_bg"         // [#258] カスタムテーマ 背景色
         const val THEME_CUSTOM_TEXT = "ui:theme_custom_text"     // [#258] カスタムテーマ 文字色
         const val THEME_CUSTOM_ACCENT = "ui:theme_custom_accent" // [#258] カスタムテーマ アクセント

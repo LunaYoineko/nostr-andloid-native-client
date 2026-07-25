@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.sp
 import app.nostrdeck.crypto.Nip19
 import app.nostrdeck.crypto.currentUnixTime
 import app.nostrdeck.model.NoteUi
+import app.nostrdeck.model.NoteAccentStyle
+import app.nostrdeck.model.NoteAccentKind
 import app.nostrdeck.model.ReactionUi
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
@@ -127,10 +129,36 @@ fun NoteItem(
   val selFill = DeckColors.Surface2
   val selBar = DeckColors.Accent
   val base = if (onClick != null) modifier.fillMaxWidth().clickable(onClick = onClick) else modifier.fillMaxWidth()
-  val rootModifier = if (selected) base.drawBehind {
+  // [#256][#257] ノート種別の視覚表示（既定 NONE=従来の見た目）。
+  // 種別判定は NoteUi が持つ情報から: リポスト > 引用 > リアクション > リプライ の優先順で1つに決める
+  // （リポストされた引用など複数該当し得るため、外側の行為＝リポストを優先する）。
+  val accentStyle by (repo?.noteAccentStyleFlow()?.collectAsState() ?: remember { mutableStateOf(NoteAccentStyle.NONE) })
+  val accentKind: NoteAccentKind? = when {
+      note.repostedBy != null -> NoteAccentKind.REPOST
+      note.quoted != null -> NoteAccentKind.QUOTE
+      note.event.kind == 7 -> NoteAccentKind.REACTION
+      note.isReply -> NoteAccentKind.REPLY
+      else -> null
+  }
+  val accentColor = accentKind?.let { DeckColors.kindColor(it) }
+  val withAccent = if (accentColor == null || accentStyle == NoteAccentStyle.NONE) {
+      base
+  } else {
+      base.drawBehind {
+          when (accentStyle) {
+              // 塗りは薄く（本文の可読性を落とさない）。ライトでもダークでも同じ alpha で成立する濃さ。
+              NoteAccentStyle.BACKGROUND -> drawRect(accentColor.copy(alpha = 0.14f))
+              // ラインは選択バー(3dp)と紛れないよう 2dp・左端。
+              NoteAccentStyle.LINE -> drawRect(color = accentColor, size = Size(2.dp.toPx(), size.height))
+              NoteAccentStyle.NONE -> Unit
+          }
+      }
+  }
+  // 選択ハイライトは種別表示より前面（キー操作のフィードバックを潰さない）。
+  val rootModifier = if (selected) withAccent.drawBehind {
       drawRect(selFill)
       drawRect(color = selBar, size = Size(3.dp.toPx(), size.height))
-  } else base
+  } else withAccent
   Column(rootModifier) {
     note.repostedBy?.let {  // [M8-repost] 🔁 {name} がリポスト
         RepostHeader(it.name, Modifier.padding(start = DeckSpace.Md, top = DeckSpace.Sm))

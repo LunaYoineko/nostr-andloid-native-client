@@ -89,6 +89,27 @@ data class VideoCompressionPrefs(
 }
 
 /**
+ * [#256][#257] ノート種別の視覚表示スタイル（設定 > 表示）。
+ * 既定は NONE（モノクロ基調のまま。従来の見た目そのもの）。
+ *  - LINE       : ノート左端に細い縦ラインを引く（控えめ）
+ *  - BACKGROUND : ノート全体を薄く塗る（はっきり区別）
+ */
+enum class NoteAccentStyle(val id: String) {
+    NONE("none"),
+    LINE("line"),
+    BACKGROUND("bg");
+
+    companion object {
+        fun fromId(id: String?): NoteAccentStyle = entries.firstOrNull { it.id == id } ?: NONE
+    }
+}
+
+/**
+ * [#256] 視覚表示の対象となるノート種別。色は DeckPalette の kind* から取る。
+ */
+enum class NoteAccentKind { REPOST, QUOTE, REPLY, REACTION }
+
+/**
  * [#152] テーマ（設定 > 表示）。既定はダーク（従来挙動そのまま）。
  * SYSTEM は OS のダークモード設定に追従する。
  */
