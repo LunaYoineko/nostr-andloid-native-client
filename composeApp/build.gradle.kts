@@ -61,6 +61,7 @@ kotlin {
             implementation(libs.sqldelight.coroutines)
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor)
+            implementation(libs.colorpicker.compose)   // [#268] HSVカラーピッカー
             implementation(libs.secp256k1)
             implementation(libs.kotlincrypto.sha2)
             implementation(libs.multiplatform.settings)
