@@ -386,21 +386,25 @@ private fun ColorEditRow(
             }
         }
         Spacer(Modifier.size(DeckSpace.Sm))
-        HsvColorPicker(
-            modifier = Modifier.fillMaxWidth().height(200.dp),
-            controller = controller,
-            initialColor = Color(value),
-            onColorChanged = { envelope ->
-                if (envelope.fromUser) onChange(envelope.color.copy(alpha = 1f).toArgb())
-            },
-        )
-        Spacer(Modifier.size(DeckSpace.Sm))
-        BrightnessSlider(
-            modifier = Modifier.fillMaxWidth().height(24.dp)
-                .clip(RoundedCornerShape(DeckRadius.Full)),
-            controller = controller,
-            initialColor = Color(value),
-        )
+        // 幅いっぱいにするとホイール外の余白までタッチを奪いシートがスクロールできなくなるため、
+        // ピッカーは固定幅で中央に置き、左右をスクロール可能な余白として残す。
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            HsvColorPicker(
+                modifier = Modifier.size(220.dp),
+                controller = controller,
+                initialColor = Color(value),
+                onColorChanged = { envelope ->
+                    if (envelope.fromUser) onChange(envelope.color.copy(alpha = 1f).toArgb())
+                },
+            )
+            Spacer(Modifier.size(DeckSpace.Sm))
+            BrightnessSlider(
+                modifier = Modifier.width(220.dp).height(24.dp)
+                    .clip(RoundedCornerShape(DeckRadius.Full)),
+                controller = controller,
+                initialColor = Color(value),
+            )
+        }
     }
     Spacer(Modifier.size(DeckSpace.Sm))
 }
