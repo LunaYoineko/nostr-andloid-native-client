@@ -39,8 +39,10 @@
     <string name="theme_custom_desc">背景・文字・アクセントの3色を選ぶと、面・境界線・補助文字は自動で導出されます。</string>
     <string name="theme_presets">プリセット</string>
     <string name="theme_store_title">テーマストア</string>
-    <string name="section_theme_store">テーマストア</string>
-    <string name="theme_store_hint">他の人のテーマは「設定 &gt; テーマストア」から探して適用できます。</string>
+    <string name="theme_customize_open">色をカスタマイズ</string>
+    <string name="theme_customize_title">色をカスタマイズ</string>
+    <string name="theme_store_open">テーマストアから取得</string>
+    <string name="theme_store_open_sub">他の人が公開したテーマを探す</string>
     <string name="theme_search_hint">テーマ名・作者名で検索</string>
     <string name="theme_search_no_match">条件に合うテーマがありません。</string>
     <string name="theme_scope_all">すべて</string>

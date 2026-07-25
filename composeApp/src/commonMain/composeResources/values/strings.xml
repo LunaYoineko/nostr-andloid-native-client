@@ -43,8 +43,10 @@
     <string name="theme_custom_desc">Pick background, text and accent colors. The rest (surfaces, borders, secondary text) is derived automatically.</string>
     <string name="theme_presets">Presets</string>
     <string name="theme_store_title">Theme store</string>
-    <string name="section_theme_store">Theme store</string>
-    <string name="theme_store_hint">Browse and apply themes from others in Settings &gt; Theme store.</string>
+    <string name="theme_customize_open">Customize colors</string>
+    <string name="theme_customize_title">Customize colors</string>
+    <string name="theme_store_open">Get from theme store</string>
+    <string name="theme_store_open_sub">Browse themes published by others</string>
     <string name="theme_search_hint">Search by theme or author name</string>
     <string name="theme_search_no_match">No themes match your search.</string>
     <string name="theme_scope_all">All</string>

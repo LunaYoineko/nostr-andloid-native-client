@@ -41,6 +41,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.RadioButton
@@ -197,9 +203,6 @@ private val paletteGroups = listOf(
     Res.string.group_customize to listOf(
         SItem("reaction", Res.string.section_reaction, Icons.Outlined.FavoriteBorder),
         SItem("appearance", Res.string.section_appearance, Icons.Outlined.Visibility),
-        // [#264] テーマストアは独立セクション。「カスタム」を選ぶ前に見られるようにする
-        // （従来は表示>カスタム選択時のみ現れ、ストアを見てから決められなかった）。
-        SItem("themestore", Res.string.section_theme_store, Icons.Outlined.Palette),
     ),
     Res.string.group_connection to listOf(
         // [#246] kind:0 編集への導線。従来は自分プロフィールの「編集」ボタン経由のみで
@@ -323,7 +326,6 @@ private fun SettingsContent(sectionId: String, state: DeckState, onBack: (() -> 
                 "media" -> MediaSettings()
                 "data" -> DataSettings()
                 "appearance" -> AppearanceSettings()
-                "themestore" -> ThemeStoreSettings()
                 else -> Text(stringResource(Res.string.section_unimplemented), color = DeckColors.Text3, fontSize = DeckType.Sub)
             }
         }
@@ -871,7 +873,6 @@ private fun sectionTitle(sectionId: String): String = when (sectionId) {
     "media" -> stringResource(Res.string.section_media)
     "reaction" -> stringResource(Res.string.section_reaction)
     "appearance" -> stringResource(Res.string.section_appearance)
-    "themestore" -> stringResource(Res.string.section_theme_store)
     "data" -> stringResource(Res.string.section_data)
     "about" -> stringResource(Res.string.section_about)
     "mute" -> stringResource(Res.string.section_mute)
@@ -881,171 +882,257 @@ private fun sectionTitle(sectionId: String): String = when (sectionId) {
 }
 
 /**
- * [#258] カスタムテーマ（テーマストア Phase1）。
- * ユーザーが指定するのは **背景 / 文字 / アクセント の3色**だけで、surface・border・text2/3 等は
- * customPalette() が導出する。名前付きプリセットからワンタップで流し込める。
- * 本文コントラスト（背景×文字）が WCAG AA（4.5）未満なら警告を出す（読めない配色を防ぐ）。
+ * [#267] 設定画面の「タップでモーダルを開く」行。左に見本/アイコン、右に > を出して
+ * その場で編集する行（チップ/入力）と区別する。
  */
 @Composable
-private fun CustomThemeBlock(
-    repo: app.nostrdeck.data.EventRepository,
+private fun SettingsNavRow(
+    label: String,
+    sublabel: String? = null,
+    leading: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(DeckRadius.Md))
+            .background(DeckColors.Surface2)
+            .clickable(onClick = onClick)
+            .padding(DeckSpace.Md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (leading != null) {
+            leading()
+            Spacer(Modifier.size(DeckSpace.Sm))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(label, color = DeckColors.Text, fontSize = DeckType.Sub)
+            if (!sublabel.isNullOrBlank()) {
+                Text(sublabel, color = DeckColors.Text3, fontSize = DeckType.Micro, maxLines = 1)
+            }
+        }
+        Text("›", color = DeckColors.Text3, fontSize = DeckType.Title)
+    }
+}
+
+/** [#267] 3色の見本（背景の上に文字サンプルとアクセントのピル）。行の左に置く。 */
+@Composable
+private fun ThemeMiniCard(prefs: app.nostrdeck.model.CustomThemePrefs) {
+    Box(
+        Modifier.size(width = 56.dp, height = 40.dp)
+            .clip(RoundedCornerShape(DeckRadius.Sm))
+            .background(Color(prefs.bg)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Aa", color = Color(prefs.text), fontSize = DeckType.Label)
+            Spacer(Modifier.size(DeckSpace.Xs))
+            Box(
+                Modifier.size(width = 14.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Color(prefs.accent)),
+            )
+        }
+    }
+}
+
+/** [#264] 適用直後の「元に戻す」バー。モーダル内と設定画面の両方で使う。 */
+@Composable
+private fun ThemeUndoBar(name: String, onUndo: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(DeckRadius.Md))
+            .background(DeckColors.Surface3).padding(DeckSpace.Sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(Res.string.theme_applied_fmt, name),
+            color = DeckColors.Text2, fontSize = DeckType.Label, modifier = Modifier.weight(1f),
+        )
+        DeckTextButton(stringResource(Res.string.theme_undo), onClick = onUndo)
+    }
+}
+
+/**
+ * [#267] カスタムテーマ編集モーダル。3色（背景/文字/アクセント）とプリセットをここに閉じ込め、
+ * 設定画面が入力欄で埋まらないようにする。残りのトークンは customPalette() が導出する。
+ * 背景×文字のコントラストが 4.5 未満なら警告を出す（読めない配色を防ぐ）。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ThemeCustomizeSheet(
     prefs: app.nostrdeck.model.CustomThemePrefs,
+    onApply: (app.nostrdeck.model.CustomThemePrefs, String) -> Unit,
+    onOpenStore: () -> Unit,
+    undoName: String,
+    canUndo: Boolean,
+    onUndo: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     val Prefs = app.nostrdeck.model.CustomThemePrefs
     var bgHex by remember(prefs) { mutableStateOf(Prefs.toHex(prefs.bg)) }
     var textHex by remember(prefs) { mutableStateOf(Prefs.toHex(prefs.text)) }
     var accentHex by remember(prefs) { mutableStateOf(Prefs.toHex(prefs.accent)) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // [#162] onClick（非 Composable）から使う文言はコンポジション中に解決しておく。
+    val customLabel = stringResource(Res.string.theme_custom)
 
-    Text(stringResource(Res.string.theme_custom_desc), color = DeckColors.Text3, fontSize = DeckType.Label)
-    Spacer(Modifier.size(DeckSpace.Md))
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DeckColors.Surface) {
+      // [#196] Dialog/Popup は LocalDensity を再供給するため、老眼スケールを再適用する。
+      DeckScaled {
+        Column(
+            Modifier.fillMaxWidth().fillMaxHeight(0.92f)
+                .padding(horizontal = DeckSpace.Md).navigationBarsPadding()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            TitleText(stringResource(Res.string.theme_customize_title))
+            Spacer(Modifier.size(DeckSpace.Xs))
+            Text(stringResource(Res.string.theme_custom_desc), color = DeckColors.Text3, fontSize = DeckType.Label)
+            Spacer(Modifier.size(DeckSpace.Md))
 
-    // プリセット（「ストア」の第一歩。タップで3色を流し込む）。
-    Text(stringResource(Res.string.theme_presets), color = DeckColors.Text2, fontSize = DeckType.Label)
-    Spacer(Modifier.size(DeckSpace.Xs))
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
-        items(Prefs.PRESETS.size) { i ->
-            val (name, p, _) = Prefs.PRESETS[i]
-            val selected = p.bg == prefs.bg && p.text == prefs.text && p.accent == prefs.accent
-            Column(
-                Modifier.clip(RoundedCornerShape(DeckRadius.Md))
-                    .background(if (selected) DeckColors.AccentWeak else DeckColors.Surface2)
-                    .clickable { repo.setCustomTheme(p) }
-                    .padding(DeckSpace.Sm),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                // 3色のスウォッチ（背景の上に文字色とアクセントの点を重ねてプレビュー）。
-                Box(
-                    Modifier.size(44.dp).clip(RoundedCornerShape(DeckRadius.Sm))
-                        .background(Color(p.bg)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Box(Modifier.size(10.dp).clip(CircleShape).background(Color(p.text)))
-                        Box(Modifier.size(10.dp).clip(CircleShape).background(Color(p.accent)))
+            if (canUndo) {
+                ThemeUndoBar(undoName, onUndo)
+                Spacer(Modifier.size(DeckSpace.Md))
+            }
+
+            // プリセット（タップで3色を流し込む）。
+            Text(stringResource(Res.string.theme_presets), color = DeckColors.Text2, fontSize = DeckType.Label)
+            Spacer(Modifier.size(DeckSpace.Xs))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
+                items(Prefs.PRESETS.size) { i ->
+                    val (name, p, _) = Prefs.PRESETS[i]
+                    val selected = p == prefs
+                    Column(
+                        Modifier.clip(RoundedCornerShape(DeckRadius.Md))
+                            .background(if (selected) DeckColors.AccentWeak else DeckColors.Surface2)
+                            .clickable { onApply(p, name) }
+                            .padding(DeckSpace.Sm),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        ThemeMiniCard(p)
+                        Spacer(Modifier.size(DeckSpace.Xs))
+                        Text(name, color = DeckColors.Text2, fontSize = DeckType.Micro)
                     }
                 }
-                Spacer(Modifier.size(DeckSpace.Xs))
-                Text(name, color = DeckColors.Text2, fontSize = DeckType.Micro)
             }
-        }
-    }
-    Spacer(Modifier.size(DeckSpace.Md))
+            Spacer(Modifier.size(DeckSpace.Lg))
 
-    // 3色の直接指定（#RRGGBB）。入力中は反映せず、確定（適用）で保存する。
-    @Composable
-    fun hexField(label: String, value: String, current: Int, onChange: (String) -> Unit) {
-        Text(label, color = DeckColors.Text2, fontSize = DeckType.Label)
-        Spacer(Modifier.size(DeckSpace.Xs))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(28.dp).clip(RoundedCornerShape(DeckRadius.Sm))
-                    .background(Color(Prefs.parseHex(value) ?: current)),
-            )
-            Spacer(Modifier.size(DeckSpace.Sm))
-            DeckTextField(
-                value = value,
-                onValueChange = { onChange(it.take(7)) },
-                modifier = Modifier.weight(1f),
-                placeholder = "#RRGGBB",
-            )
-        }
-        Spacer(Modifier.size(DeckSpace.Sm))
-    }
-    hexField(stringResource(Res.string.theme_color_bg), bgHex, prefs.bg) { bgHex = it }
-    hexField(stringResource(Res.string.theme_color_text), textHex, prefs.text) { textHex = it }
-    hexField(stringResource(Res.string.theme_color_accent), accentHex, prefs.accent) { accentHex = it }
+            // 3色の直接指定（#RRGGBB）。入力中は反映せず「適用」で確定する。
+            @Composable
+            fun hexField(label: String, value: String, current: Int, onChange: (String) -> Unit) {
+                Text(label, color = DeckColors.Text2, fontSize = DeckType.Label)
+                Spacer(Modifier.size(DeckSpace.Xs))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(28.dp).clip(RoundedCornerShape(DeckRadius.Sm))
+                            .background(Color(Prefs.parseHex(value) ?: current)),
+                    )
+                    Spacer(Modifier.size(DeckSpace.Sm))
+                    DeckTextField(
+                        value = value,
+                        onValueChange = { onChange(it.take(7)) },
+                        modifier = Modifier.weight(1f),
+                        placeholder = "#RRGGBB",
+                    )
+                }
+                Spacer(Modifier.size(DeckSpace.Sm))
+            }
+            hexField(stringResource(Res.string.theme_color_bg), bgHex, prefs.bg) { bgHex = it }
+            hexField(stringResource(Res.string.theme_color_text), textHex, prefs.text) { textHex = it }
+            hexField(stringResource(Res.string.theme_color_accent), accentHex, prefs.accent) { accentHex = it }
 
-    // コントラスト警告（本文が読めるか）。適用前の入力値で評価する。
-    val bgVal = Prefs.parseHex(bgHex) ?: prefs.bg
-    val textVal = Prefs.parseHex(textHex) ?: prefs.text
-    val ratio = Prefs.contrastRatio(bgVal, textVal)
-    if (ratio < 4.5) {
-        Text(
-            stringResource(Res.string.theme_contrast_warn, ((ratio * 10).toInt() / 10.0).toString()),
-            color = DeckColors.Warn, fontSize = DeckType.Label,
-        )
-        Spacer(Modifier.size(DeckSpace.Sm))
-    }
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        val valid = Prefs.parseHex(bgHex) != null && Prefs.parseHex(textHex) != null &&
-            Prefs.parseHex(accentHex) != null
-        DeckButton(
-            stringResource(Res.string.common_apply),
-            enabled = valid,
-            onClick = {
-                repo.setCustomTheme(
-                    app.nostrdeck.model.CustomThemePrefs(
-                        bg = Prefs.parseHex(bgHex) ?: prefs.bg,
-                        text = Prefs.parseHex(textHex) ?: prefs.text,
-                        accent = Prefs.parseHex(accentHex) ?: prefs.accent,
-                    ),
+            // コントラスト警告（本文が読めるか）。入力値で評価する。
+            val bgVal = Prefs.parseHex(bgHex) ?: prefs.bg
+            val textVal = Prefs.parseHex(textHex) ?: prefs.text
+            val ratio = Prefs.contrastRatio(bgVal, textVal)
+            if (ratio < 4.5) {
+                Text(
+                    stringResource(Res.string.theme_contrast_warn, ((ratio * 10).toInt() / 10.0).toString()),
+                    color = DeckColors.Warn, fontSize = DeckType.Label,
                 )
-            },
-        )
-        Spacer(Modifier.size(DeckSpace.Sm))
-        DeckGhostButton(stringResource(Res.string.img_reset_defaults), onClick = {
-            repo.setCustomTheme(app.nostrdeck.model.CustomThemePrefs.DEFAULT)
-        })
-    }
+                Spacer(Modifier.size(DeckSpace.Sm))
+            }
 
-    // [#264] テーマストアは独立セクション（設定 > カスタマイズ > テーマストア）へ移した。
-    // ここにはストアへの案内だけ置く。
-    Spacer(Modifier.size(DeckSpace.Md))
-    Text(stringResource(Res.string.theme_store_hint), color = DeckColors.Text3, fontSize = DeckType.Label)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val valid = Prefs.parseHex(bgHex) != null && Prefs.parseHex(textHex) != null &&
+                    Prefs.parseHex(accentHex) != null
+                DeckButton(
+                    stringResource(Res.string.common_apply),
+                    enabled = valid,
+                    onClick = {
+                        onApply(
+                            app.nostrdeck.model.CustomThemePrefs(
+                                bg = Prefs.parseHex(bgHex) ?: prefs.bg,
+                                text = Prefs.parseHex(textHex) ?: prefs.text,
+                                accent = Prefs.parseHex(accentHex) ?: prefs.accent,
+                            ),
+                            customLabel,
+                        )
+                    },
+                )
+                Spacer(Modifier.size(DeckSpace.Sm))
+                DeckGhostButton(stringResource(Res.string.img_reset_defaults), onClick = {
+                    onApply(app.nostrdeck.model.CustomThemePrefs.DEFAULT, customLabel)
+                })
+            }
+
+            // ストアへの導線（ここからも辿れるようにする）。
+            Spacer(Modifier.size(DeckSpace.Lg))
+            SettingsNavRow(
+                label = stringResource(Res.string.theme_store_open),
+                sublabel = stringResource(Res.string.theme_store_open_sub),
+                leading = {
+                    Icon(
+                        Icons.Outlined.Palette, contentDescription = null,
+                        tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconMd),
+                    )
+                },
+                onClick = onOpenStore,
+            )
+            Spacer(Modifier.size(DeckSpace.Xl))
+        }
+      }
+    }
 }
 
 /**
- * [#264] テーマストア（独立セクション）。配布テーマ（NIP-78 kind:30078 + t=nostrism-theme）の
- * 一覧・検索・適用と、共有コードでの受け渡し、自分の3色の公開をまとめる。
- *
- * UX の要点:
- *  - **試して戻せる**: タップは即プレビュー適用だが、直前の色を保持して「元に戻す」を出す
- *    （自分で調整した色を失わないため。取り消せないと気軽に試せない）
- *  - **Custom でなくても入れる**: ストアから適用したら自動で ThemeMode.CUSTOM へ切り替える
- *  - **探せる**: 名前/作者の検索・すべて/フォロー中/自分の絞り込み・新着/名前の並び替え
- *  - 上限に達したら件数と共に明示する（黙って切らない）
+ * [#264][#267] テーマストアのモーダル。配布テーマ（NIP-78 kind:30078 + t=nostrism-theme）の
+ * 検索・一覧・適用、共有コードの受け渡し、自分のテーマの公開をここに閉じ込める。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ThemeStoreSettings() {
-    val repo = LocalRepository.current
-    if (repo == null) {
-        Text(stringResource(Res.string.settings_unavailable), color = DeckColors.Text3, fontSize = DeckType.Sub)
-        return
-    }
+private fun ThemeStoreSheet(
+    repo: app.nostrdeck.data.EventRepository,
+    current: app.nostrdeck.model.CustomThemePrefs,
+    onApply: (app.nostrdeck.model.CustomThemePrefs, String) -> Unit,
+    undoName: String,
+    canUndo: Boolean,
+    onUndo: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     val scope = rememberCoroutineScope()
     val toast = rememberToaster()
-    val current by repo.customThemeFlow().collectAsState()
-    val themeMode by repo.themeModeFlow().collectAsState()
     val entries by remember(repo) { repo.themeEntriesFlow() }.collectAsState(emptyList())
     val follows by repo.followsFlow().collectAsState()
     val me by repo.loggedInPubkey().collectAsState(null)
     val clipboard = rememberClipboardCopy()
     val paste = rememberClipboardPaste()
+    val names = LocalProfileNames.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var query by remember { mutableStateOf("") }
-    var scope0 by remember { mutableStateOf(StoreScope.ALL) }
+    var storeScope by remember { mutableStateOf(StoreScope.ALL) }
     var sort by remember { mutableStateOf(StoreSort.NEWEST) }
     var code by remember { mutableStateOf("") }
     var publishName by remember { mutableStateOf("") }
-    // [#264] 「元に戻す」用に直前の色を保持する（null = 戻せる状態でない）。
-    var undoPrefs by remember { mutableStateOf<app.nostrdeck.model.CustomThemePrefs?>(null) }
-    var undoName by remember { mutableStateOf("") }
     val invalidCodeMsg = stringResource(Res.string.theme_code_invalid)
 
     LaunchedEffect(Unit) { repo.requestThemes() }
-
-    // 作者名でも検索・表示するため、一覧に出ている作者のプロフィールを取っておく
-    // （表示名の解決は既存の LocalProfileNames に載る）。
+    // 作者名で検索・表示するためプロフィールを取っておく（表示名は LocalProfileNames に載る）。
     LaunchedEffect(entries) { entries.mapNotNull { it.author }.distinct().forEach { repo.loadProfile(it) } }
-    val names = LocalProfileNames.current
 
-    // 絞り込み → 検索 → 並び替え。すべてローカルで完結する（件数は多くないため）。
-    val shown = remember(entries, query, scope0, sort, follows, me, names) {
+    val shown = remember(entries, query, storeScope, sort, follows, me, names) {
         val q = query.trim().lowercase()
         entries.asSequence()
             .filter { e ->
-                when (scope0) {
+                when (storeScope) {
                     StoreScope.ALL -> true
                     StoreScope.FOLLOWING -> e.author != null && e.author in follows
                     StoreScope.MINE -> e.author != null && e.author == me
@@ -1060,172 +1147,148 @@ private fun ThemeStoreSettings() {
             .toList()
     }
 
-    SectionCaption(stringResource(Res.string.theme_store_title))
-    Spacer(Modifier.size(DeckSpace.Xs))
-    Text(stringResource(Res.string.theme_store_desc), color = DeckColors.Text3, fontSize = DeckType.Label)
-    Spacer(Modifier.size(DeckSpace.Md))
-
-    // ---- 検索 / 絞り込み / 並び替え ----
-    DeckTextField(
-        value = query,
-        onValueChange = { query = it },
-        modifier = Modifier.fillMaxWidth(),
-        placeholder = stringResource(Res.string.theme_search_hint),
-    )
-    Spacer(Modifier.size(DeckSpace.Sm))
-    Row(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
-        StoreScope.entries.forEach { sc ->
-            ChoiceChip(storeScopeLabel(sc), selected = scope0 == sc) { scope0 = sc }
-        }
-    }
-    Spacer(Modifier.size(DeckSpace.Sm))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(stringResource(Res.string.theme_sort_label), color = DeckColors.Text3, fontSize = DeckType.Label)
-        Spacer(Modifier.size(DeckSpace.Sm))
-        StoreSort.entries.forEach { so ->
-            ChoiceChip(storeSortLabel(so), selected = sort == so) { sort = so }
-            Spacer(Modifier.size(DeckSpace.Xs))
-        }
-        Spacer(Modifier.weight(1f))
-        // 件数（絞り込み後 / 総数）。上限に達していたら明示する。
-        Text(
-            if (shown.size == entries.size) "${entries.size}" else "${shown.size}/${entries.size}",
-            color = DeckColors.Text3, fontSize = DeckType.Micro,
-        )
-    }
-    if (entries.size >= THEME_LIST_CAP) {
-        Spacer(Modifier.size(DeckSpace.Xs))
-        Text(
-            stringResource(Res.string.theme_list_capped, THEME_LIST_CAP.toString()),
-            color = DeckColors.Text3, fontSize = DeckType.Micro,
-        )
-    }
-    Spacer(Modifier.size(DeckSpace.Md))
-
-    // ---- 元に戻すバー（プレビュー中のみ）----
-    if (undoPrefs != null) {
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(DeckRadius.Md))
-                .background(DeckColors.Surface3).padding(DeckSpace.Sm),
-            verticalAlignment = Alignment.CenterVertically,
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DeckColors.Surface) {
+      DeckScaled {
+        Column(
+            Modifier.fillMaxWidth().fillMaxHeight(0.92f)
+                .padding(horizontal = DeckSpace.Md).navigationBarsPadding(),
         ) {
-            Text(
-                stringResource(Res.string.theme_applied_fmt, undoName),
-                color = DeckColors.Text2, fontSize = DeckType.Label, modifier = Modifier.weight(1f),
-            )
-            DeckTextButton(stringResource(Res.string.theme_undo), onClick = {
-                undoPrefs?.let { repo.setCustomTheme(it) }
-                undoPrefs = null
-            })
-        }
-        Spacer(Modifier.size(DeckSpace.Md))
-    }
+            TitleText(stringResource(Res.string.theme_store_title))
+            Spacer(Modifier.size(DeckSpace.Xs))
+            Text(stringResource(Res.string.theme_store_desc), color = DeckColors.Text3, fontSize = DeckType.Label)
+            Spacer(Modifier.size(DeckSpace.Md))
 
-    // ---- 一覧 ----
-    if (entries.isEmpty()) {
-        Text(stringResource(Res.string.theme_store_empty), color = DeckColors.Text3, fontSize = DeckType.Sub)
-    } else if (shown.isEmpty()) {
-        Text(stringResource(Res.string.theme_search_no_match), color = DeckColors.Text3, fontSize = DeckType.Sub)
-    } else {
-        Column(verticalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
-            shown.forEach { e ->
-                ThemeStoreRow(
-                    entry = e,
-                    current = current,
-                    authorName = e.author?.let { names[it] },
-                    onApply = {
-                        // 直前の色を退避してから適用（プレビュー）。Custom でなければ自動で切り替える。
-                        undoPrefs = current
-                        undoName = e.name
-                        repo.setCustomTheme(e.colors)
-                        if (themeMode != app.nostrdeck.model.ThemeMode.CUSTOM) {
-                            repo.setThemeMode(app.nostrdeck.model.ThemeMode.CUSTOM)
+            DeckTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = stringResource(Res.string.theme_search_hint),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            )
+            Spacer(Modifier.size(DeckSpace.Sm))
+            Row(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
+                StoreScope.entries.forEach { sc ->
+                    ChoiceChip(storeScopeLabel(sc), selected = storeScope == sc) { storeScope = sc }
+                }
+            }
+            Spacer(Modifier.size(DeckSpace.Sm))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(Res.string.theme_sort_label), color = DeckColors.Text3, fontSize = DeckType.Label)
+                Spacer(Modifier.size(DeckSpace.Sm))
+                StoreSort.entries.forEach { so ->
+                    ChoiceChip(storeSortLabel(so), selected = sort == so) { sort = so }
+                    Spacer(Modifier.size(DeckSpace.Xs))
+                }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    if (shown.size == entries.size) "${entries.size}" else "${shown.size}/${entries.size}",
+                    color = DeckColors.Text3, fontSize = DeckType.Micro,
+                )
+            }
+            if (entries.size >= THEME_LIST_CAP) {
+                Spacer(Modifier.size(DeckSpace.Xs))
+                Text(
+                    stringResource(Res.string.theme_list_capped, THEME_LIST_CAP.toString()),
+                    color = DeckColors.Text3, fontSize = DeckType.Micro,
+                )
+            }
+            Spacer(Modifier.size(DeckSpace.Md))
+
+            if (canUndo) {
+                ThemeUndoBar(undoName, onUndo)
+                Spacer(Modifier.size(DeckSpace.Md))
+            }
+
+            // 一覧は残り高さを占有してスクロールさせる（下の共有コード/公開は固定）。
+            Column(
+                Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(DeckSpace.Sm),
+            ) {
+                if (entries.isEmpty()) {
+                    Text(stringResource(Res.string.theme_store_empty), color = DeckColors.Text3, fontSize = DeckType.Sub)
+                } else if (shown.isEmpty()) {
+                    Text(stringResource(Res.string.theme_search_no_match), color = DeckColors.Text3, fontSize = DeckType.Sub)
+                } else {
+                    shown.forEach { e ->
+                        ThemeStoreRow(
+                            entry = e,
+                            current = current,
+                            authorName = e.author?.let { names[it] },
+                            onApply = { onApply(e.colors, e.name) },
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = DeckColors.Border)
+            Spacer(Modifier.size(DeckSpace.Sm))
+            // ---- 共有コード ----
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DeckTextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = stringResource(Res.string.theme_code_label),
+                )
+                Spacer(Modifier.size(DeckSpace.Sm))
+                DeckButton(
+                    stringResource(Res.string.theme_code_import),
+                    enabled = code.isNotBlank(),
+                    onClick = {
+                        val e = app.nostrdeck.model.ThemeEntry.decodeCode(code)
+                        if (e == null) toast(invalidCodeMsg) else { onApply(e.colors, e.name); code = "" }
+                    },
+                )
+            }
+            Spacer(Modifier.size(DeckSpace.Xs))
+            Row(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
+                DeckGhostButton(stringResource(Res.string.theme_code_paste), onClick = { paste()?.let { code = it.trim() } })
+                DeckGhostButton(stringResource(Res.string.theme_code_copy), onClick = {
+                    clipboard(
+                        app.nostrdeck.model.ThemeEntry.encodeCode(
+                            app.nostrdeck.model.ThemeEntry(
+                                name = publishName.ifBlank { "MyTheme" },
+                                colors = current,
+                                minAppVersion = appVersionName,
+                            ),
+                        ),
+                    )
+                })
+            }
+            Spacer(Modifier.size(DeckSpace.Sm))
+            // ---- 公開 ----
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                DeckTextField(
+                    value = publishName,
+                    onValueChange = { publishName = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = stringResource(Res.string.theme_publish_name_hint),
+                )
+                Spacer(Modifier.size(DeckSpace.Sm))
+                val okMsg = stringResource(Res.string.theme_publish_ok)
+                val failMsg = stringResource(Res.string.theme_publish_failed)
+                DeckButton(
+                    stringResource(Res.string.theme_publish),
+                    enabled = publishName.isNotBlank(),
+                    onClick = {
+                        scope.launch {
+                            val ok = repo.publishTheme(
+                                app.nostrdeck.model.ThemeEntry(
+                                    name = publishName.trim(),
+                                    colors = current,
+                                    minAppVersion = appVersionName,
+                                ),
+                            )
+                            toast(if (ok) okMsg else failMsg)
+                            if (ok) publishName = ""
                         }
                     },
                 )
             }
+            Spacer(Modifier.size(DeckSpace.Md))
         }
+      }
     }
-
-    // ---- 共有コード ----
-    Spacer(Modifier.size(DeckSpace.Lg))
-    Text(stringResource(Res.string.theme_code_label), color = DeckColors.Text2, fontSize = DeckType.Label)
-    Spacer(Modifier.size(DeckSpace.Xs))
-    DeckTextField(
-        value = code,
-        onValueChange = { code = it },
-        modifier = Modifier.fillMaxWidth(),
-        placeholder = "nostrism-theme:1:Name:RRGGBB,RRGGBB,RRGGBB:0.3.0",
-    )
-    Spacer(Modifier.size(DeckSpace.Sm))
-    Row(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
-        DeckButton(
-            stringResource(Res.string.theme_code_import),
-            enabled = code.isNotBlank(),
-            onClick = {
-                val e = app.nostrdeck.model.ThemeEntry.decodeCode(code)
-                if (e == null) {
-                    toast(invalidCodeMsg)
-                } else {
-                    undoPrefs = current
-                    undoName = e.name
-                    repo.setCustomTheme(e.colors)
-                    if (themeMode != app.nostrdeck.model.ThemeMode.CUSTOM) {
-                        repo.setThemeMode(app.nostrdeck.model.ThemeMode.CUSTOM)
-                    }
-                    code = ""
-                }
-            },
-        )
-        DeckGhostButton(stringResource(Res.string.theme_code_paste), onClick = { paste()?.let { code = it.trim() } })
-        DeckGhostButton(stringResource(Res.string.theme_code_copy), onClick = {
-            clipboard(
-                app.nostrdeck.model.ThemeEntry.encodeCode(
-                    app.nostrdeck.model.ThemeEntry(
-                        name = publishName.ifBlank { "MyTheme" },
-                        colors = current,
-                        minAppVersion = appVersionName,
-                    ),
-                ),
-            )
-        })
-    }
-
-    // ---- 公開 ----
-    Spacer(Modifier.size(DeckSpace.Lg))
-    Text(stringResource(Res.string.theme_publish_label), color = DeckColors.Text2, fontSize = DeckType.Label)
-    Spacer(Modifier.size(DeckSpace.Xs))
-    Text(stringResource(Res.string.theme_publish_note), color = DeckColors.Text3, fontSize = DeckType.Micro)
-    Spacer(Modifier.size(DeckSpace.Xs))
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        DeckTextField(
-            value = publishName,
-            onValueChange = { publishName = it },
-            modifier = Modifier.weight(1f),
-            placeholder = stringResource(Res.string.theme_publish_name_hint),
-        )
-        Spacer(Modifier.size(DeckSpace.Sm))
-        val okMsg = stringResource(Res.string.theme_publish_ok)
-        val failMsg = stringResource(Res.string.theme_publish_failed)
-        DeckButton(
-            stringResource(Res.string.theme_publish),
-            enabled = publishName.isNotBlank(),
-            onClick = {
-                scope.launch {
-                    val ok = repo.publishTheme(
-                        app.nostrdeck.model.ThemeEntry(
-                            name = publishName.trim(),
-                            colors = current,
-                            minAppVersion = appVersionName,
-                        ),
-                    )
-                    toast(if (ok) okMsg else failMsg)
-                    if (ok) publishName = ""
-                }
-            },
-        )
-    }
-    Spacer(Modifier.size(DeckSpace.Xl))
 }
 
 /** [#264] ストアの絞り込み範囲。 */
@@ -1383,6 +1446,45 @@ private fun AppearanceSettings() {
     val uiScale by repo.uiScaleFlow().collectAsState()
     val themeMode by repo.themeModeFlow().collectAsState()
     val customTheme by repo.customThemeFlow().collectAsState()
+    // [#267] カスタム設定とストアはモーダルで開く（設定画面に平べったく並べない）。
+    var showCustomize by remember { mutableStateOf(false) }
+    var showStore by remember { mutableStateOf(false) }
+    // [#264] 適用の取り消し。モーダルを閉じても効くよう状態はこの画面が持つ。
+    var undoPrefs by remember { mutableStateOf<app.nostrdeck.model.CustomThemePrefs?>(null) }
+    var undoName by remember { mutableStateOf("") }
+    // 適用の共通処理: 直前の色を退避し、Custom でなければ自動で切り替える。
+    val applyTheme: (app.nostrdeck.model.CustomThemePrefs, String) -> Unit = { p, name ->
+        undoPrefs = customTheme
+        undoName = name
+        repo.setCustomTheme(p)
+        if (themeMode != app.nostrdeck.model.ThemeMode.CUSTOM) {
+            repo.setThemeMode(app.nostrdeck.model.ThemeMode.CUSTOM)
+        }
+    }
+    val doUndo: () -> Unit = { undoPrefs?.let { repo.setCustomTheme(it) }; undoPrefs = null }
+
+    if (showCustomize) {
+        ThemeCustomizeSheet(
+            prefs = customTheme,
+            onApply = applyTheme,
+            onOpenStore = { showCustomize = false; showStore = true },
+            undoName = undoName,
+            canUndo = undoPrefs != null,
+            onUndo = doUndo,
+            onDismiss = { showCustomize = false },
+        )
+    }
+    if (showStore) {
+        ThemeStoreSheet(
+            repo = repo,
+            current = customTheme,
+            onApply = applyTheme,
+            undoName = undoName,
+            canUndo = undoPrefs != null,
+            onUndo = doUndo,
+            onDismiss = { showStore = false },
+        )
+    }
 
     // [#152] テーマ（既定=ダーク）。SYSTEM は OS のダークモード追従。
     SectionCaption(stringResource(Res.string.theme_title))
@@ -1392,10 +1494,35 @@ private fun AppearanceSettings() {
             ChoiceChip(themeModeLabel(m), selected = themeMode == m) { repo.setThemeMode(m) }
         }
     }
-    // [#258] カスタムテーマ: 選択中だけ 3色の設定とプリセットを出す。
+    // [#267] カスタム選択時は設定項目を画面に平べったく並べず、モーダルへ入れる。
+    // ここには「色をカスタマイズ」「テーマストアから取得」の2導線だけを置き、目的を明確にする。
     if (themeMode == app.nostrdeck.model.ThemeMode.CUSTOM) {
         Spacer(Modifier.size(DeckSpace.Md))
-        CustomThemeBlock(repo, customTheme)
+        SettingsNavRow(
+            label = stringResource(Res.string.theme_customize_open),
+            sublabel = app.nostrdeck.model.CustomThemePrefs.toHex(customTheme.bg) + " / " +
+                app.nostrdeck.model.CustomThemePrefs.toHex(customTheme.text) + " / " +
+                app.nostrdeck.model.CustomThemePrefs.toHex(customTheme.accent),
+            leading = { ThemeMiniCard(customTheme) },
+            onClick = { showCustomize = true },
+        )
+        Spacer(Modifier.size(DeckSpace.Sm))
+        SettingsNavRow(
+            label = stringResource(Res.string.theme_store_open),
+            sublabel = stringResource(Res.string.theme_store_open_sub),
+            leading = {
+                Icon(
+                    Icons.Outlined.Palette, contentDescription = null,
+                    tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconMd),
+                )
+            },
+            onClick = { showStore = true },
+        )
+        // [#264] 取り消しはモーダルを閉じた後も効くよう、この画面にも出す。
+        if (undoPrefs != null) {
+            Spacer(Modifier.size(DeckSpace.Sm))
+            ThemeUndoBar(undoName) { undoPrefs?.let { repo.setCustomTheme(it) }; undoPrefs = null }
+        }
     }
     Spacer(Modifier.size(DeckSpace.Xl))
 
