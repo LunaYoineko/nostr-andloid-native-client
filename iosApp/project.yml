@@ -14,7 +14,9 @@ settings:
     SWIFT_VERSION: "5.0"
     # 表示バージョンとビルド番号。TestFlight は build 番号の単調増加が必須なので、
     # アップロード時に scripts/testflight.sh が -PbuildNumber 相当で CURRENT_PROJECT_VERSION を上書きする。
-    MARKETING_VERSION: "0.1.0"
+    # [#252] 実際の配信値は scripts/version.sh（git tag vX.Y.Z 由来）から testflight.sh が
+    # MARKETING_VERSION= で上書きする。ここの値は Xcode で直接ビルドしたときのフォールバック。
+    MARKETING_VERSION: "0.3.0"
     CURRENT_PROJECT_VERSION: "1"
 
 targets:

@@ -9,6 +9,19 @@ val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
 }
 
+// [#252] バージョン運用: versionName は git tag `vX.Y.Z` 由来、versionCode はコミット数。
+// scripts/version.sh と同じ規則。CI は -PversionName/-PversionCode で明示上書きする。
+fun gitOutput(vararg args: String): String? = runCatching {
+    val proc = ProcessBuilder(*args).directory(rootDir).redirectErrorStream(false).start()
+    val out = proc.inputStream.bufferedReader().readText().trim()
+    if (proc.waitFor() == 0 && out.isNotEmpty()) out else null
+}.getOrNull()
+
+val gitVersionName: String =
+    gitOutput("git", "describe", "--tags", "--abbrev=0", "--match", "v[0-9]*")
+        ?.removePrefix("v") ?: "0.0.0"
+val gitVersionCode: Int = gitOutput("git", "rev-list", "--count", "HEAD")?.toIntOrNull() ?: 1
+
 plugins {
     alias(libs.plugins.multiplatform)
     alias(libs.plugins.android.application)
@@ -126,10 +139,10 @@ android {
         applicationId = "net.shino3.nostrism"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        // CI(ベータ自動リリース)は -PversionCode/-PversionName で上書きする
-        // （versionCode は main のコミット数由来で単調増加）。ローカルは既定値のまま。
-        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
-        versionName = (project.findProperty("versionName") as String?) ?: "0.1.0"
+        // [#252] 既定は git 由来（tag=versionName / コミット数=versionCode）。
+        // CI や手元で固定したい場合は -PversionCode/-PversionName で上書きできる。
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: gitVersionCode
+        versionName = (project.findProperty("versionName") as String?) ?: gitVersionName
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
