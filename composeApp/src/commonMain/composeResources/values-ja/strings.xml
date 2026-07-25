@@ -35,6 +35,14 @@
     <string name="theme_system">OSに合わせる</string>
     <string name="theme_light">ライト</string>
     <string name="theme_dark">ダーク</string>
+    <string name="theme_custom">カスタム</string>
+    <string name="theme_custom_desc">背景・文字・アクセントの3色を選ぶと、面・境界線・補助文字は自動で導出されます。</string>
+    <string name="theme_presets">プリセット</string>
+    <string name="theme_color_bg">背景</string>
+    <string name="theme_color_text">文字</string>
+    <string name="theme_color_accent">アクセント</string>
+    <string name="theme_contrast_warn">コントラストが低いです（%1$s:1）。読みにくい可能性があります — 4.5:1 以上を推奨。</string>
+    <string name="common_apply">適用</string>
     <string name="ui_scale_title">表示サイズ</string>
     <string name="ui_scale_desc">文字・アイコン・余白を含む画面全体の大きさ。</string>
     <string name="ui_scale_small">標準</string>
