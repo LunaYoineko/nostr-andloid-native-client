@@ -259,6 +259,7 @@
     <string name="reaction_default_desc">各投稿のリアクションボタンの形を選べます。押すとこの内容で送信されます。（絵文字ピッカーからは別の絵文字を何度でも付けられます）</string>
     <string name="reaction_heart">ハート</string>
     <string name="reaction_star">スター</string>
+    <string name="reaction_other">その他の絵文字</string>
     <string name="settings_unavailable">設定を利用できません</string>
     <string name="colsync_title">カラム構成のリレー保存</string>
     <string name="colsync_desc">リレーに保存済みのカラム構成（kind:30078 / NIP-78）があれば常に取り込みます（新しい方が優先）。このトグルを有効にすると、この端末でのカラム変更もリレーへ保存され、他の端末・クライアントから参照できます。無効（既定）なら読み取り専用です。

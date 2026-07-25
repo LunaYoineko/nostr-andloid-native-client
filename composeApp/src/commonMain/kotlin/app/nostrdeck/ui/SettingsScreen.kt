@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Mood
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.StarBorder
@@ -936,7 +937,12 @@ private fun ReactionSettings() {
         return
     }
     val def by repo.defaultReactionFlow().collectAsState()
-    val isStar = def.first == "⭐" || def.first == "★"
+    val (defContent, defImage) = def
+    // [#255] ♡/☆ は従来どおり維持し、それ以外（任意の絵文字・カスタム絵文字）は「その他」扱い。
+    val isHeart = defContent == "+" || defContent == "❤️"
+    val isStar = defContent == "⭐" || defContent == "★"
+    val isOther = !isHeart && !isStar
+    var showPicker by remember { mutableStateOf(false) }
 
     SectionCaption(stringResource(Res.string.reaction_default_title))
     Spacer(Modifier.size(DeckSpace.Xs))
@@ -947,8 +953,64 @@ private fun ReactionSettings() {
     Spacer(Modifier.size(DeckSpace.Md))
 
     Row(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Md)) {
-        ReactionChoice(Icons.Filled.Favorite, stringResource(Res.string.reaction_heart), selected = !isStar) { repo.setDefaultReaction("+", null) }
+        ReactionChoice(Icons.Filled.Favorite, stringResource(Res.string.reaction_heart), selected = isHeart) { repo.setDefaultReaction("+", null) }
         ReactionChoice(Icons.Filled.Star, stringResource(Res.string.reaction_star), selected = isStar) { repo.setDefaultReaction("⭐", null) }
+        // [#255] 任意の絵文字/カスタム絵文字を選ぶ。選択中はその絵文字（カスタムは画像）を表示する。
+        CustomReactionChoice(
+            content = if (isOther) defContent else null,
+            imageUrl = if (isOther) defImage else null,
+            selected = isOther,
+            onClick = { showPicker = true },
+        )
+    }
+
+    if (showPicker) {
+        ReactionPickerSheet(
+            onPick = { content, imageUrl ->
+                repo.setDefaultReaction(content, imageUrl)
+                showPicker = false
+            },
+            onDismiss = { showPicker = false },
+        )
+    }
+}
+
+/**
+ * [#255] デフォルトリアクションの「その他の絵文字」チョイス。
+ * 未選択時は追加アイコン、選択中は選んだ絵文字（カスタム絵文字なら画像）を表示する。
+ */
+@Composable
+private fun CustomReactionChoice(
+    content: String?,
+    imageUrl: String?,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.clip(RoundedCornerShape(DeckRadius.Md))
+            .background(if (selected) DeckColors.AccentWeak else DeckColors.Surface2)
+            .clickable(onClick = onClick)
+            .padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        when {
+            // カスタム絵文字（NIP-30）は画像で表示。
+            selected && !imageUrl.isNullOrBlank() -> AsyncImage(
+                model = imageUrl,
+                contentDescription = content,
+                modifier = Modifier.size(20.dp),
+            )
+            selected && !content.isNullOrBlank() -> Text(content, fontSize = DeckType.Sub)
+            else -> Icon(
+                Icons.Outlined.Mood, contentDescription = null,
+                tint = DeckColors.Text3, modifier = Modifier.size(20.dp),
+            )
+        }
+        Spacer(Modifier.size(DeckSpace.Xs))
+        Text(
+            stringResource(Res.string.reaction_other),
+            color = if (selected) DeckColors.Text else DeckColors.Text3, fontSize = DeckType.Sub,
+        )
     }
 }
 
