@@ -29,6 +29,8 @@ import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.MailOutline
@@ -49,6 +51,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
@@ -310,7 +313,9 @@ private fun SettingsContent(sectionId: String, state: DeckState, onBack: (() -> 
         // 一覧系（自前 LazyColumn を持つ）以外は、セクション全体をスクロール可能にする。
         // 「ログイン方法」等のフォームが画面に収まらず操作できない問題の解消（全セクション既定でスクロール）。
         // dmrelays は #74 で LazyColumn → Column(forEach) にしたため、既定スクロール側に移した。
-        val selfScroll = sectionId in setOf("favs", "bookmarks", "mute", "media")
+        // media は #269 でサーバ一覧をモーダル内 Column(forEach) にしたため、既定スクロール側に移した。
+        // 右ペインは「はみ出したらスクロール」が既定。自前の全画面リストを持つ3つだけ例外。
+        val selfScroll = sectionId in setOf("favs", "bookmarks", "mute")
         val contentMod = Modifier.weight(1f).fillMaxWidth()
             .let { if (selfScroll) it else it.verticalScroll(rememberScrollState()) }
         Column(contentMod) {
@@ -333,8 +338,9 @@ private fun SettingsContent(sectionId: String, state: DeckState, onBack: (() -> 
 }
 
 /**
- * [M11] メディアサーバー（NIP-96 画像アップロード先）。有効なサーバを上から順に試す。
- * 認証は NIP-98。追加/削除/有効切替が可能。
+ * [M11][#269] メディア（アップロード）設定。目的の違う「アップロード先サーバー」と
+ * 「アップロード時の圧縮」を別モーダルに分離し、設定画面には導線行だけを置く
+ * （テーマ設定 #267 と同じパターン）。現在値はサブラベルで一覧できる。
  */
 @Composable
 private fun MediaSettings() {
@@ -344,41 +350,118 @@ private fun MediaSettings() {
         return
     }
     val servers by repo.mediaServersFlow().collectAsState(emptyList())
+    val imgPrefs by repo.imageCompressionFlow().collectAsState()
+    val vPrefs by repo.videoCompressionFlow().collectAsState()
+    var showServers by remember { mutableStateOf(false) }
+    var showCompress by remember { mutableStateOf(false) }
+
+    val selectedUrl = servers.firstOrNull { it.enabled != 0L }?.url
+    SettingsNavRow(
+        label = stringResource(Res.string.media_servers_open),
+        sublabel = selectedUrl ?: stringResource(Res.string.media_no_server),
+        leading = {
+            Icon(
+                Icons.Outlined.CloudUpload, contentDescription = null,
+                tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconMd),
+            )
+        },
+        onClick = { showServers = true },
+    )
+    Spacer(Modifier.size(DeckSpace.Sm))
+    var compressSub = stringResource(
+        Res.string.media_compress_sub_fmt,
+        imgPrefs.lowMaxDim.toString(), imgPrefs.midMaxDim.toString(), imgPrefs.quality.toString(),
+    )
+    if (videoCompressionSupported) {
+        compressSub += " " + stringResource(
+            Res.string.video_compress_sub_fmt,
+            vPrefs.lowHeight.toString(), vPrefs.midHeight.toString(),
+        )
+    }
+    SettingsNavRow(
+        label = stringResource(Res.string.media_compress_open),
+        sublabel = compressSub,
+        leading = {
+            Icon(
+                Icons.Outlined.Tune, contentDescription = null,
+                tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconMd),
+            )
+        },
+        onClick = { showCompress = true },
+    )
+
+    if (showServers) MediaServersSheet(repo, onDismiss = { showServers = false })
+    if (showCompress) MediaCompressionSheet(repo, onDismiss = { showCompress = false })
+}
+
+/**
+ * [#269] 設定モーダルの共通スキャフォールド。タイトル + ×（明示的に閉じる）を持ち、
+ * 中身がはみ出したらモーダル内でスクロールする。高さは中身に合わせる（空白で埋めない）。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsSheet(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DeckColors.Surface) {
+        // [#196] Dialog/Popup は LocalDensity を再供給するため、老眼スケールを再適用する。
+        DeckScaled {
+            Column(
+                Modifier.fillMaxWidth()
+                    .padding(horizontal = DeckSpace.Md)
+                    .navigationBarsPadding().imePadding()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TitleText(title, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Outlined.Close, contentDescription = stringResource(Res.string.common_close),
+                            tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconLg),
+                        )
+                    }
+                }
+                content()
+                Spacer(Modifier.size(DeckSpace.Xl))
+            }
+        }
+    }
+}
+
+/**
+ * [M11][#269] アップロード先サーバー（NIP-96/NIP-98）のモーダル。追加・選択・削除・候補。
+ * シート自体がスクロールするため一覧は Column(forEach)（件数は少ない）。
+ */
+@Composable
+private fun MediaServersSheet(repo: app.nostrdeck.data.EventRepository, onDismiss: () -> Unit) {
+    val servers by repo.mediaServersFlow().collectAsState(emptyList())
     var input by remember { mutableStateOf("") }
     var confirmRemove by remember { mutableStateOf<String?>(null) }
+    var showMediaPresets by remember { mutableStateOf(false) }
 
-    // [#247] 画像圧縮パラメータ（低/中の長辺px + 品質%）。既定: 640/1200/85。
-    ImageCompressionBlock(repo)
-    Spacer(Modifier.size(DeckSpace.Lg))
-    HorizontalDivider(color = DeckColors.Border)
-    Spacer(Modifier.size(DeckSpace.Lg))
-
-    SectionCaption(stringResource(Res.string.media_title))
-    Spacer(Modifier.size(DeckSpace.Xs))
-    Text(
-        stringResource(Res.string.media_desc),
-        color = DeckColors.Text3, fontSize = DeckType.Label,
-    )
-    Spacer(Modifier.size(DeckSpace.Md))
-
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        DeckTextField(
-            value = input, onValueChange = { input = it },
-            placeholder = "https://…", modifier = Modifier.weight(1f),
+    SettingsSheet(title = stringResource(Res.string.media_title), onDismiss = onDismiss) {
+        Text(
+            stringResource(Res.string.media_desc),
+            color = DeckColors.Text3, fontSize = DeckType.Label,
         )
-        Spacer(Modifier.size(DeckSpace.Sm))
-        DeckButton(stringResource(Res.string.common_add), onClick = { repo.addMediaServer(input); input = "" }, enabled = input.isNotBlank())
-    }
+        Spacer(Modifier.size(DeckSpace.Md))
 
-    Spacer(Modifier.size(DeckSpace.Md))
-    HorizontalDivider(color = DeckColors.Border)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            DeckTextField(
+                value = input, onValueChange = { input = it },
+                placeholder = "https://…", modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.size(DeckSpace.Sm))
+            DeckButton(stringResource(Res.string.common_add), onClick = { repo.addMediaServer(input); input = "" }, enabled = input.isNotBlank())
+        }
 
-    // アップロード先は1つだけ選ぶ（ラジオ）。選択したサーバのみ有効化し、他は無効に落とす。
-    // 旧データで複数 enabled の場合は「最初の有効サーバ」を選択中として表示
-    // （アップロードは有効サーバを上から試す＝先頭が実際の送信先なので表示と実態が一致）。
-    val selectedUrl = servers.firstOrNull { it.enabled != 0L }?.url
-    LazyColumn(Modifier.fillMaxWidth()) {
-        items(servers, key = { it.url }) { s ->
+        Spacer(Modifier.size(DeckSpace.Md))
+        HorizontalDivider(color = DeckColors.Border)
+
+        // アップロード先は1つだけ選ぶ（ラジオ）。選択したサーバのみ有効化し、他は無効に落とす。
+        // 旧データで複数 enabled の場合は「最初の有効サーバ」を選択中として表示
+        // （アップロードは有効サーバを上から試す＝先頭が実際の送信先なので表示と実態が一致）。
+        val selectedUrl = servers.firstOrNull { it.enabled != 0L }?.url
+        servers.forEach { s ->
             val selected = s.url == selectedUrl
             Row(
                 Modifier.fillMaxWidth()
@@ -400,19 +483,18 @@ private fun MediaSettings() {
             }
             HorizontalDivider(color = DeckColors.Border)
         }
-    }
 
-    // [#relay-recs] 候補は一覧の「下」に折りたたみで（リレー設定と体裁を揃える）。
-    var showMediaPresets by remember { mutableStateOf(false) }
-    Spacer(Modifier.size(DeckSpace.Md))
-    DeckTextButton(
-        if (showMediaPresets) stringResource(Res.string.recs_close) else stringResource(Res.string.recs_open),
-        onClick = { showMediaPresets = !showMediaPresets },
-    )
-    if (showMediaPresets) {
-        Spacer(Modifier.size(DeckSpace.Sm))
-        val registeredMedia = servers.map { normalizePresetUrl(it.url) }.toSet()
-        PresetPicker(MEDIA_PRESETS, registeredMedia, onAdd = { repo.addMediaServer(it) })
+        // [#relay-recs] 候補は一覧の「下」に折りたたみで（リレー設定と体裁を揃える）。
+        Spacer(Modifier.size(DeckSpace.Md))
+        DeckTextButton(
+            if (showMediaPresets) stringResource(Res.string.recs_close) else stringResource(Res.string.recs_open),
+            onClick = { showMediaPresets = !showMediaPresets },
+        )
+        if (showMediaPresets) {
+            Spacer(Modifier.size(DeckSpace.Sm))
+            val registeredMedia = servers.map { normalizePresetUrl(it.url) }.toSet()
+            PresetPicker(MEDIA_PRESETS, registeredMedia, onAdd = { repo.addMediaServer(it) })
+        }
     }
 
     // 削除は破壊的操作なので確認を挟む。
@@ -424,6 +506,14 @@ private fun MediaSettings() {
             onConfirm = { repo.removeMediaServer(url); confirmRemove = null },
             onDismiss = { confirmRemove = null },
         )
+    }
+}
+
+/** [#247][#269] アップロード時の圧縮（画像/動画）のモーダル。 */
+@Composable
+private fun MediaCompressionSheet(repo: app.nostrdeck.data.EventRepository, onDismiss: () -> Unit) {
+    SettingsSheet(title = stringResource(Res.string.img_compress_title), onDismiss = onDismiss) {
+        ImageCompressionBlock(repo)
     }
 }
 
@@ -443,8 +533,7 @@ private fun ImageCompressionBlock(repo: app.nostrdeck.data.EventRepository) {
     var vMid by remember(vPrefs) { mutableStateOf(vPrefs.midHeight.toString()) }
     var saved by remember { mutableStateOf(false) }
 
-    SectionCaption(stringResource(Res.string.img_compress_title))
-    Spacer(Modifier.size(DeckSpace.Xs))
+    // [#269] 見出しはモーダル（MediaCompressionSheet）のタイトルが担うため、ここは説明から始める。
     Text(stringResource(Res.string.img_compress_desc), color = DeckColors.Text3, fontSize = DeckType.Label)
     // [#248] 動画（対応プラットフォームのみ表示: Android/iOS）。
     if (videoCompressionSupported) {

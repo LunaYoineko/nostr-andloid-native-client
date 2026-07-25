@@ -70,6 +70,13 @@
     <string name="theme_close">閉じる</string>
     <string name="theme_picker_toggle">カラーピッカー</string>
     <string name="theme_contrast_warn_accent">アクセントのコントラストが低いです（%1$s:1）。ボタンやリンクが見えにくい可能性があります — 3:1 以上を推奨。</string>
+
+    <!-- Settings: media (modal navigation) [#269] -->
+    <string name="media_servers_open">アップロード先サーバー</string>
+    <string name="media_no_server">未設定</string>
+    <string name="media_compress_open">アップロード時の圧縮</string>
+    <string name="media_compress_sub_fmt">低 %1$spx · 中 %2$spx · 品質 %3$s%</string>
+    <string name="video_compress_sub_fmt">· 動画 %1$sp/%2$sp</string>
     <string name="theme_code_label">共有コード</string>
     <string name="theme_code_import">取り込む</string>
     <string name="theme_code_paste">貼り付け</string>

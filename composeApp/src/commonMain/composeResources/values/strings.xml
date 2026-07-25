@@ -74,6 +74,13 @@
     <string name="theme_close">Close</string>
     <string name="theme_picker_toggle">Color picker</string>
     <string name="theme_contrast_warn_accent">Low accent contrast (%1$s:1). Buttons and links may be hard to see — 3:1 or higher is recommended.</string>
+
+    <!-- Settings: media (modal navigation) [#269] -->
+    <string name="media_servers_open">Upload server</string>
+    <string name="media_no_server">No server selected</string>
+    <string name="media_compress_open">Upload compression</string>
+    <string name="media_compress_sub_fmt">Low %1$spx · Mid %2$spx · quality %3$s%</string>
+    <string name="video_compress_sub_fmt">· video %1$sp/%2$sp</string>
     <string name="theme_code_label">Share code</string>
     <string name="theme_code_import">Import</string>
     <string name="theme_code_paste">Paste</string>
