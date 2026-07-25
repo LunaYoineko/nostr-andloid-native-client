@@ -206,6 +206,7 @@
     <string name="reaction_default_desc">Choose the shape of the reaction button on posts; pressing it sends this. (You can always pick other emoji from the emoji picker.)</string>
     <string name="reaction_heart">Heart</string>
     <string name="reaction_star">Star</string>
+    <string name="reaction_other">Other emoji</string>
     <string name="settings_unavailable">Settings are unavailable</string>
     <string name="colsync_title">Save deck layout to relays</string>
     <string name="colsync_desc">If a deck layout saved to relays (kind:30078 / NIP-78) exists, it is always imported (newest wins). Enabling this also saves changes made on this device to relays so other devices/clients can read them. When off (default), it is read-only.
