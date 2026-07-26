@@ -21,10 +21,6 @@ import app.nostrdeck.theme.DeckColors
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckRadius
 import app.nostrdeck.theme.DeckType
-import coil3.compose.AsyncImage
-import coil3.compose.LocalPlatformContext
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 
 /**
  * [M8-react] ノート下の集約リアクション chip 群（NIP-25/30）。
@@ -50,13 +46,8 @@ private fun ReactionChip(reaction: ReactionUi) {
             modifier = Modifier.padding(horizontal = DeckSpace.Sm, vertical = DeckSpace.Xs),
         ) {
             if (reaction.imageUrl != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalPlatformContext.current)
-                        .data(ImageProxy.proxied(reaction.imageUrl, width = 48, quality = 80, animated = true))
-                        .crossfade(true).build(),
-                    contentDescription = reaction.display,
-                    modifier = Modifier.size(16.dp),
-                )
+                // [#277] iOS/Desktop でも GIF/アニメ WebP を動かすため共通コンポーネントへ。
+                AnimatedEmoji(reaction.imageUrl, contentDescription = reaction.display, modifier = Modifier.size(16.dp))
             } else {
                 SectionCaption(reaction.display)
             }

@@ -49,10 +49,6 @@ import org.jetbrains.compose.resources.stringResource
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckType
 import app.nostrdeck.theme.DeckWeight
-import coil3.compose.AsyncImage
-import coil3.compose.LocalPlatformContext
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 
 /**
  * [M10-notif] 通知（単一フィード・全幅）。自分(#p)宛のリプライ/メンション/リアクション/リポストを
@@ -228,13 +224,8 @@ private fun LeftIndicator(n: NotificationUi) {
     when {
         // NIP-30 カスタム絵文字: 固定サイズの画像。
         n.kind == NotificationKind.REACTION && n.reactionImageUrl != null ->
-            AsyncImage(
-                model = ImageRequest.Builder(LocalPlatformContext.current)
-                    .data(ImageProxy.proxied(n.reactionImageUrl, width = 64, quality = 80, animated = true))
-                    .crossfade(true).build(),
-                contentDescription = n.reaction,
-                modifier = top.size(reactionGlyph),
-            )
+            // [#277] iOS/Desktop でも GIF/アニメ WebP を動かすため共通コンポーネントへ。
+            AnimatedEmoji(n.reactionImageUrl, contentDescription = n.reaction, modifier = top.size(reactionGlyph))
         // 通常の unicode 絵文字: 高さを固定すると descender が切れるので Text を自然サイズで描く。
         n.kind == NotificationKind.REACTION ->
             Text(n.reaction ?: "❤️", fontSize = DeckType.EmojiLg, maxLines = 1, modifier = top)
