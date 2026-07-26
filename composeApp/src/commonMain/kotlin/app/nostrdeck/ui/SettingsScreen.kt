@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.MailOutline
@@ -119,6 +120,18 @@ import nostr_deck_client.composeapp.generated.resources.section_data
 import nostr_deck_client.composeapp.generated.resources.section_dm_relays
 import nostr_deck_client.composeapp.generated.resources.section_favs
 import nostr_deck_client.composeapp.generated.resources.section_media
+import nostr_deck_client.composeapp.generated.resources.section_wallet
+import nostr_deck_client.composeapp.generated.resources.nwc_title
+import nostr_deck_client.composeapp.generated.resources.nwc_desc
+import nostr_deck_client.composeapp.generated.resources.nwc_hint
+import nostr_deck_client.composeapp.generated.resources.nwc_connect
+import nostr_deck_client.composeapp.generated.resources.nwc_connected
+import nostr_deck_client.composeapp.generated.resources.nwc_disconnect
+import nostr_deck_client.composeapp.generated.resources.nwc_disconnect_confirm_title
+import nostr_deck_client.composeapp.generated.resources.nwc_disconnect_confirm_text
+import nostr_deck_client.composeapp.generated.resources.nwc_methods_fmt
+import nostr_deck_client.composeapp.generated.resources.common_paste
+import nostr_deck_client.composeapp.generated.resources.common_saving
 import nostr_deck_client.composeapp.generated.resources.section_mute
 import nostr_deck_client.composeapp.generated.resources.section_reaction
 import nostr_deck_client.composeapp.generated.resources.section_relays
@@ -218,6 +231,7 @@ private val paletteGroups = listOf(
         SItem("relays", Res.string.section_relays, Icons.Outlined.Cloud),
         SItem("dmrelays", Res.string.section_dm_relays, Icons.Outlined.MailOutline),
         SItem("media", Res.string.section_media, Icons.Outlined.CloudUpload),
+        SItem("wallet", Res.string.section_wallet, Icons.Outlined.Bolt),
     ),
     Res.string.group_system to listOf(
         SItem("data", Res.string.section_data, Icons.Outlined.Storage),
@@ -332,6 +346,7 @@ private fun SettingsContent(sectionId: String, state: DeckState, onBack: (() -> 
                 "dmrelays" -> DmRelaySettings()
                 "reaction" -> ReactionSettings()
                 "media" -> MediaSettings()
+                "wallet" -> WalletSettings()
                 "data" -> DataSettings()
                 "appearance" -> AppearanceSettings()
                 else -> Text(stringResource(Res.string.section_unimplemented), color = DeckColors.Text3, fontSize = DeckType.Sub)
@@ -517,6 +532,86 @@ private fun MediaServersSheet(repo: app.nostrdeck.data.EventRepository, onDismis
 private fun MediaCompressionSheet(repo: app.nostrdeck.data.EventRepository, onDismiss: () -> Unit) {
     SettingsSheet(title = stringResource(Res.string.img_compress_title), onDismiss = onDismiss) {
         ImageCompressionBlock(repo)
+    }
+}
+
+/**
+ * [#7] ウォレット接続（NWC / NIP-47）。接続文字列を登録すると Zap をアプリ内で完結できる。
+ * 送金は毎回確認（ZapSheet 側でダイアログ）。secret は各OSのセキュア領域に保存される。
+ */
+@Composable
+private fun WalletSettings() {
+    val nwc by app.nostrdeck.wallet.NwcManager.stateFlow.collectAsState()
+    val scope = rememberCoroutineScope()
+    val paste = rememberClipboardPaste()
+    var input by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var confirmDisconnect by remember { mutableStateOf(false) }
+
+    SectionCaption(stringResource(Res.string.nwc_title))
+    Spacer(Modifier.size(DeckSpace.Xs))
+    Text(stringResource(Res.string.nwc_desc), color = DeckColors.Text3, fontSize = DeckType.Label)
+    Spacer(Modifier.size(DeckSpace.Md))
+
+    val s = nwc
+    if (s != null) {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(DeckRadius.Md))
+                .background(DeckColors.Surface2).padding(DeckSpace.Md),
+        ) {
+            Text(
+                stringResource(Res.string.nwc_connected),
+                color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Strong,
+            )
+            Spacer(Modifier.size(DeckSpace.Xs))
+            HintText("relay: ${s.relayUrl}")
+            HintText("wallet: ${s.walletPubkey.take(12)}…")
+            s.lud16?.let { HintText("lud16: $it") }
+            s.methods?.let { HintText(stringResource(Res.string.nwc_methods_fmt, it)) }
+        }
+        Spacer(Modifier.size(DeckSpace.Md))
+        DeckGhostButton(stringResource(Res.string.nwc_disconnect), onClick = { confirmDisconnect = true })
+    } else {
+        DeckTextField(
+            value = input, onValueChange = { input = it },
+            placeholder = "nostr+walletconnect://…", modifier = Modifier.fillMaxWidth(),
+        )
+        error?.let {
+            Spacer(Modifier.size(DeckSpace.Sm))
+            Text(it, color = DeckColors.Warn, fontSize = DeckType.Label)
+        }
+        Spacer(Modifier.size(DeckSpace.Sm))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            DeckButton(
+                if (busy) stringResource(Res.string.common_saving) else stringResource(Res.string.nwc_connect),
+                enabled = input.isNotBlank() && !busy,
+                onClick = {
+                    busy = true; error = null
+                    scope.launch {
+                        runCatching { app.nostrdeck.wallet.NwcManager.connect(input.trim()) }
+                            .onSuccess { input = "" }
+                            .onFailure { error = it.message ?: "connect failed" }
+                        busy = false
+                    }
+                },
+            )
+            Spacer(Modifier.size(DeckSpace.Sm))
+            DeckGhostButton(stringResource(Res.string.common_paste), onClick = { paste()?.let { input = it.trim() } })
+        }
+        Spacer(Modifier.size(DeckSpace.Md))
+        HintText(stringResource(Res.string.nwc_hint))
+    }
+
+    if (confirmDisconnect) {
+        DeckConfirmDialog(
+            title = stringResource(Res.string.nwc_disconnect_confirm_title),
+            text = stringResource(Res.string.nwc_disconnect_confirm_text),
+            confirmLabel = stringResource(Res.string.nwc_disconnect),
+            destructive = true,
+            onConfirm = { app.nostrdeck.wallet.NwcManager.disconnect(); confirmDisconnect = false },
+            onDismiss = { confirmDisconnect = false },
+        )
     }
 }
 
@@ -1024,6 +1119,7 @@ private fun sectionTitle(sectionId: String): String = when (sectionId) {
     "relays" -> stringResource(Res.string.section_relays)
     "dmrelays" -> stringResource(Res.string.section_dm_relays)
     "media" -> stringResource(Res.string.section_media)
+    "wallet" -> stringResource(Res.string.section_wallet)
     "reaction" -> stringResource(Res.string.section_reaction)
     "appearance" -> stringResource(Res.string.section_appearance)
     "data" -> stringResource(Res.string.section_data)

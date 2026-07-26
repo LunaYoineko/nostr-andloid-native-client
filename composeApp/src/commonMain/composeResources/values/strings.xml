@@ -90,16 +90,35 @@
     <string name="media_compress_open">Upload compression</string>
     <string name="media_compress_sub_fmt">Low %1$spx · Mid %2$spx · quality %3$s%</string>
     <string name="video_compress_sub_fmt">· video %1$sp/%2$sp</string>
+
+    <!-- Wallet connection (NWC / NIP-47) [#7] -->
+    <string name="section_wallet">Wallet</string>
+    <string name="nwc_title">Wallet connection (NWC)</string>
+    <string name="nwc_desc">Connect a Lightning wallet via Nostr Wallet Connect (NIP-47) to complete Zaps inside the app. Every payment asks for confirmation.</string>
+    <string name="nwc_hint">Get a connection string from your wallet (e.g. Alby Hub, Coinos). The secret is stored in this device’s secure storage.</string>
+    <string name="nwc_connect">Connect</string>
+    <string name="nwc_connected">Wallet connected</string>
+    <string name="nwc_disconnect">Disconnect</string>
+    <string name="nwc_disconnect_confirm_title">Disconnect wallet?</string>
+    <string name="nwc_disconnect_confirm_text">The saved connection (including its secret) is removed from this device.</string>
+    <string name="nwc_methods_fmt">supported: %1$s</string>
+    <string name="nwc_via">Pays in-app from your connected wallet (asks every time).</string>
+    <string name="nwc_pay_confirm_title">Send from wallet</string>
+    <string name="nwc_pay_confirm_fmt">Send ⚡ %1$s sats to %2$s?</string>
+    <string name="nwc_pay_confirm">Send</string>
+    <string name="nwc_pay_failed_fmt">Payment failed: %1$s</string>
+    <string name="nwc_paid">Zap sent ⚡</string>
+    <string name="nwc_open_external">Open in external wallet</string>
     <string name="theme_code_label">Share code</string>
     <string name="theme_code_import">Import</string>
     <string name="theme_code_paste">Paste</string>
     <string name="theme_code_copy">Copy these colors</string>
-    <string name="theme_code_invalid">That share code isn\'t valid.</string>
+    <string name="theme_code_invalid">That share code isn’t valid.</string>
     <string name="theme_publish_label">Publish your theme</string>
     <string name="theme_publish_name_hint">Theme name</string>
     <string name="theme_publish">Publish</string>
     <string name="theme_publish_ok">Theme published.</string>
-    <string name="theme_publish_failed">Couldn\'t publish the theme.</string>
+    <string name="theme_publish_failed">Couldn’t publish the theme.</string>
     <string name="theme_color_bg">Background</string>
     <string name="theme_color_text">Text</string>
     <string name="theme_color_accent">Accent</string>

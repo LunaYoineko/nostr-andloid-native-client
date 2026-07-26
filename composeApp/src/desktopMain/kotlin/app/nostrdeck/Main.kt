@@ -36,6 +36,9 @@ private val appDir: File = File(System.getProperty("user.home"), ".nostrism").ap
 private val repository: EventRepository by lazy {
     // 注意(spike): DesktopKeyVault は当面 nsec を平文ファイル保管。Phase2 で macOS Keychain 等へ。
     SignerProvider.useVault(DesktopKeyVault(File(appDir, "key.bin")))
+    // [#7] NWC（ウォレット接続）。保存済み接続があれば復元する。
+    app.nostrdeck.wallet.NwcManager.init(appScope, app.nostrdeck.wallet.DesktopNwcStore(appDir))
+    app.nostrdeck.wallet.NwcManager.restore()
     val db = createDatabase(DriverFactory(File(appDir, "nostr.db")))
     val relays = defaultRelaysFor(Locale.getDefault().language)
     EventRepository(db, appScope, relays).apply { start() }
