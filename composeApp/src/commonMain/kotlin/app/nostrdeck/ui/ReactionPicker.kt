@@ -52,10 +52,6 @@ import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckRadius
 import app.nostrdeck.theme.DeckType
 import app.nostrdeck.theme.DeckWeight
-import coil3.compose.AsyncImage
-import coil3.compose.LocalPlatformContext
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 import kotlinx.coroutines.flow.flowOf
 
 /**
@@ -235,11 +231,6 @@ private fun RecentEmojiButton(emoji: UsedEmoji, onClick: () -> Unit) {
 
 @Composable
 private fun EmojiImage(url: String, desc: String) {
-    AsyncImage(
-        model = ImageRequest.Builder(LocalPlatformContext.current)
-            .data(ImageProxy.proxied(url, width = 64, quality = 80, animated = true))
-            .crossfade(true).build(),
-        contentDescription = desc,
-        modifier = Modifier.size(24.dp),
-    )
+    // [#277] iOS/Desktop でも GIF/アニメ WebP を動かすため共通コンポーネントへ。
+    AnimatedEmoji(url, contentDescription = desc, modifier = Modifier.size(24.dp))
 }

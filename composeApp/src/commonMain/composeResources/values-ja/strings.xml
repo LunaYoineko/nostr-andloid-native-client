@@ -105,6 +105,11 @@
     <string name="nwc_pay_failed_fmt">送金に失敗しました: %1$s</string>
     <string name="nwc_paid">Zapを送金しました ⚡</string>
     <string name="nwc_open_external">外部ウォレットで開く</string>
+
+    <!-- Thread detail: focus note stats [#270] -->
+    <string name="thread_stat_replies_fmt">リプライ %1$s</string>
+    <string name="thread_stat_reposts_fmt">リポスト %1$s</string>
+    <string name="thread_stat_reactions_fmt">リアクション %1$s</string>
     <string name="theme_code_label">共有コード</string>
     <string name="theme_code_import">取り込む</string>
     <string name="theme_code_paste">貼り付け</string>

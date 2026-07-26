@@ -39,10 +39,6 @@ import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckRadius
 import app.nostrdeck.theme.DeckType
 import app.nostrdeck.theme.DeckWeight
-import coil3.compose.AsyncImage
-import coil3.compose.LocalPlatformContext
-import coil3.request.ImageRequest
-import coil3.request.crossfade
 
 /**
  * [M8-collapse] 長文ノートを折りたたみ、開閉する。
@@ -70,19 +66,13 @@ fun CollapsibleText(
         noteAnnotated(text, { names[it] }, emojis, nav, linkColor = linkColor)
     }
     // NIP-30 カスタム絵文字のインライン描画（shortcode→画像）。
-    val ctx = LocalPlatformContext.current
     val inline = remember(emojis) {
         emojis.entries.associate { (code, url) ->
             "emoji:$code" to InlineTextContent(
                 Placeholder(width = 1.4.em, height = 1.4.em, placeholderVerticalAlign = PlaceholderVerticalAlign.Center),
             ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(ctx)
-                        .data(ImageProxy.proxied(url, width = 64, quality = 80, animated = true)).crossfade(true).build(),
-                    contentDescription = ":$code:",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(20.dp),
-                )
+                // [#277] iOS/Desktop でも GIF/アニメ WebP を動かすため共通コンポーネントへ。
+                AnimatedEmoji(url, contentDescription = ":$code:", modifier = Modifier.size(20.dp))
             }
         }
     }

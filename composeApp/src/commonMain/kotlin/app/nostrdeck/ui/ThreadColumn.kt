@@ -30,7 +30,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.nostrdeck.model.ColumnSpec
+import app.nostrdeck.model.NoteEngagement
 import app.nostrdeck.model.NoteUi
+import app.nostrdeck.model.ReactionUi
 import app.nostrdeck.model.ThreadEntry
 import app.nostrdeck.model.ZapUi
 import app.nostrdeck.theme.DeckColors
@@ -56,6 +58,9 @@ fun ThreadColumn(
     menu: ColumnMenuActions? = null,
     onBack: (() -> Unit)? = null,
     zaps: List<ZapUi> = emptyList(),
+    // [#270] 起点（フォーカス）ノートの反応集計。リアクション内訳とリプライ/リポスト数。
+    focusReactions: List<ReactionUi> = emptyList(),
+    focusEngagement: NoteEngagement? = null,
     onReply: (NoteUi) -> Unit = {},
     onQuote: (NoteUi) -> Unit = {},
     onAuthorClick: ((String) -> Unit)? = null,
@@ -70,7 +75,12 @@ fun ThreadColumn(
         HorizontalDivider(color = DeckColors.Border)
         LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
             items(entries, key = { it.note.event.id }) { entry ->
-                ThreadRow(entry, onReply = { onReply(entry.note) }, onQuote = { onQuote(entry.note) }, onAuthorClick = onAuthorClick)
+                ThreadRow(
+                    entry,
+                    reactions = if (entry.isFocused) focusReactions else emptyList(),
+                    engagement = if (entry.isFocused) focusEngagement else null,
+                    onReply = { onReply(entry.note) }, onQuote = { onQuote(entry.note) }, onAuthorClick = onAuthorClick,
+                )
             }
             // Zap を「リプライ風」に列挙（誰がいくら Zap したか＋コメント）。
             if (zaps.isNotEmpty()) {
@@ -99,7 +109,14 @@ fun ThreadColumn(
 }
 
 @Composable
-private fun ThreadRow(entry: ThreadEntry, onReply: () -> Unit, onQuote: () -> Unit = {}, onAuthorClick: ((String) -> Unit)? = null) {
+private fun ThreadRow(
+    entry: ThreadEntry,
+    reactions: List<ReactionUi> = emptyList(),
+    engagement: NoteEngagement? = null,
+    onReply: () -> Unit,
+    onQuote: () -> Unit = {},
+    onAuthorClick: ((String) -> Unit)? = null,
+) {
     val bg = when {
         entry.isFocused -> DeckColors.AccentWeak
         entry.isRoot -> DeckColors.Accent.copy(alpha = 0.05f)
@@ -116,6 +133,32 @@ private fun ThreadRow(entry: ThreadEntry, onReply: () -> Unit, onQuote: () -> Un
             )
         }
         NoteItem(entry.note, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick)
+        FocusNoteStats(reactions, engagement)
+    }
+}
+
+/**
+ * [#270] 起点ノートの反応集計。リプライ/リポスト/リアクション合計の1行と、
+ * 絵文字ごとの内訳 chip（ReactionRow）。反応が無ければ何も描かない。
+ */
+@Composable
+private fun FocusNoteStats(reactions: List<ReactionUi>, engagement: NoteEngagement?) {
+    val replies = engagement?.replies ?: 0
+    val reposts = engagement?.reposts ?: 0
+    val reactionTotal = reactions.sumOf { it.count }
+    if (replies == 0 && reposts == 0 && reactionTotal == 0) return
+
+    Column(Modifier.fillMaxWidth().padding(start = DeckSpace.Md, end = DeckSpace.Md, bottom = DeckSpace.Sm)) {
+        val parts = buildList {
+            if (replies > 0) add(stringResource(Res.string.thread_stat_replies_fmt, replies.toString()))
+            if (reposts > 0) add(stringResource(Res.string.thread_stat_reposts_fmt, reposts.toString()))
+            if (reactionTotal > 0) add(stringResource(Res.string.thread_stat_reactions_fmt, reactionTotal.toString()))
+        }
+        Text(parts.joinToString(" · "), color = DeckColors.Text3, fontSize = DeckType.Label)
+        if (reactions.isNotEmpty()) {
+            Spacer(Modifier.width(DeckSpace.Xs))
+            ReactionRow(reactions, Modifier.padding(top = DeckSpace.Xs))
+        }
     }
 }
 

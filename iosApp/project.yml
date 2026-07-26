@@ -18,6 +18,10 @@ settings:
     # MARKETING_VERSION= で上書きする。ここの値は Xcode で直接ビルドしたときのフォールバック。
     MARKETING_VERSION: "0.3.0"
     CURRENT_PROJECT_VERSION: "1"
+    # [#221] Apple Silicon Mac への「iPhone/iPad アプリとして提供」を無効化。
+    # Mac は Compose Desktop 版（GitHub Releases の dmg）に一本化し、TestFlight の
+    # 配信対象から macOS を外す（この設定以後にアップロードしたビルドから反映）。
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
 
 targets:
   iosApp:

@@ -109,6 +109,11 @@
     <string name="nwc_pay_failed_fmt">Payment failed: %1$s</string>
     <string name="nwc_paid">Zap sent ⚡</string>
     <string name="nwc_open_external">Open in external wallet</string>
+
+    <!-- Thread detail: focus note stats [#270] -->
+    <string name="thread_stat_replies_fmt">%1$s replies</string>
+    <string name="thread_stat_reposts_fmt">%1$s reposts</string>
+    <string name="thread_stat_reactions_fmt">%1$s reactions</string>
     <string name="theme_code_label">Share code</string>
     <string name="theme_code_import">Import</string>
     <string name="theme_code_paste">Paste</string>

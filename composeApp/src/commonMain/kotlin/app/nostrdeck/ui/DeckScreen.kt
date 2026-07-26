@@ -410,7 +410,12 @@ private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyList
             if (repo != null && focusId != null) {
                 DisposableEffect(spec.id) {
                     repo.subscribeThread(spec.id, focusId)
-                    onDispose { repo.unsubscribeColumn(spec.id) }
+                    // [#270] 起点ノートへの反応（kind:7/6/16）も購読して集計を出す。
+                    repo.subscribeNoteEngagement("${spec.id}_engage", focusId)
+                    onDispose {
+                        repo.unsubscribeColumn(spec.id)
+                        repo.unsubscribeColumn("${spec.id}_engage")
+                    }
                 }
                 val allEntries = remember(spec.id) { repo.threadFeed(focusId) }
                     .collectAsState(emptyList()).value
@@ -420,8 +425,14 @@ private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyList
                 // 起点ノートへの Zap を購読して「リプライ風」に列挙する。
                 SubscribeZaps(repo, spec.id, listOf(focusId))
                 val zaps = remember(spec.id) { repo.zapsForNote(focusId) }.collectAsState(emptyList()).value
+                // [#270] 起点ノートのリアクション内訳とリプライ/リポスト数。
+                val focusReactions = remember(spec.id) { repo.noteReactionsFlow(focusId) }
+                    .collectAsState(emptyList()).value
+                val focusEngagement = remember(spec.id) { repo.noteEngagementFlow(focusId) }
+                    .collectAsState(null).value
                 ThreadColumn(
                     spec, entries, modifier, listState, menu = menu, zaps = zaps,
+                    focusReactions = focusReactions, focusEngagement = focusEngagement,
                     onReply = { note -> state.replyTo = note.event; state.showCompose = true },
                     onQuote = { note -> state.quoting = note.event; state.showCompose = true },
                     onAuthorClick = { pk -> state.openProfile(pk) },
