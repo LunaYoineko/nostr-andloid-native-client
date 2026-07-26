@@ -142,6 +142,13 @@ data class ReactionUi(
     val imageUrl: String? = null,
 )
 
+/** [#270] 投稿詳細に出す対象ノートへの反応数（リプライ/リポスト）。 */
+@Immutable
+data class NoteEngagement(
+    val replies: Int = 0,
+    val reposts: Int = 0,
+)
+
 /**
  * 自分のカスタム絵文字1件（NIP-30/NIP-51）。kind:10030 の emoji タグ・参照先 kind:30030 から解決。
  * リアクション送信時は content=":[shortcode]:"、tags に ["emoji", shortcode, url] を付ける。
