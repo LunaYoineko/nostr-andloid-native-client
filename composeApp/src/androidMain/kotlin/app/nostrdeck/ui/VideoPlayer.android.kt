@@ -79,10 +79,10 @@ private object VideoPlaybackArbiter {
  * Composable 破棄時にプレイヤーを解放してリークを防ぐ。
  */
 @Composable
-actual fun VideoPlayer(url: String, posterUrl: String?, modifier: Modifier) {
+actual fun VideoPlayer(url: String, posterUrl: String?, blurhash: String?, modifier: Modifier) {
     var activated by remember(url) { mutableStateOf(false) }
     if (!activated) {
-        VideoPoster(url, posterUrl, onPlay = { activated = true }, modifier = modifier)
+        VideoPoster(url, posterUrl, blurhash, onPlay = { activated = true }, modifier = modifier)
     } else {
         ActiveVideoPlayer(url, modifier)
     }
@@ -95,7 +95,7 @@ actual fun VideoPlayer(url: String, posterUrl: String?, modifier: Modifier) {
  * ダウンロードしてしまうため使わない）。取得失敗時は黒地 + ▶ のまま。
  */
 @Composable
-private fun VideoPoster(url: String, posterUrl: String?, onPlay: () -> Unit, modifier: Modifier) {
+private fun VideoPoster(url: String, posterUrl: String?, blurhash: String?, onPlay: () -> Unit, modifier: Modifier) {
     var poster by remember(url) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     if (posterUrl == null) {
         LaunchedEffect(url) {
@@ -110,11 +110,19 @@ private fun VideoPoster(url: String, posterUrl: String?, onPlay: () -> Unit, mod
             }
         }
     }
+    // [#140] imeta の blurhash があれば、ポスター/フレーム取得までの黒地の代わりに敷く。
+    val blurPainter = rememberBlurhashPainter(blurhash)
     Box(
         modifier.fillMaxWidth().aspectRatio(16f / 9f)
             .clip(RoundedCornerShape(DeckRadius.Md)).background(Color.Black)
             .clickable(onClick = onPlay),
     ) {
+        if (blurPainter != null && poster == null) {
+            Image(
+                painter = blurPainter, contentDescription = null,
+                contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+            )
+        }
         if (posterUrl != null) {
             AsyncImage(
                 model = posterUrl,

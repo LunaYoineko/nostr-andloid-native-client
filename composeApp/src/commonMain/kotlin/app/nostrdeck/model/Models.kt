@@ -124,6 +124,7 @@ data class NoteUi(
     val mineReposted: Boolean = false, // [M8-counts] 自分がリポスト済み
     val isReply: Boolean = false,      // [M9-profile] kind:1 が #e を持つ返信か（プロフィールのタブ振り分け用）
     val customEmojis: Map<String, String> = emptyMap(), // [M10] NIP-30 本文カスタム絵文字 shortcode→画像URL
+    val imeta: Map<String, ImetaInfo> = emptyMap(),     // [#140] NIP-92 メディアURL→(thumb/dim/blurhash)。プレースホルダ用
     val contentWarning: String? = null, // [#5] NIP-36 content-warning（非nullなら表示前に折りたたむ。""=理由なし）
 )
 

@@ -212,10 +212,14 @@ fun NoteItem(
             // 画像: 1枚=単一 / 複数=グリッド / 10枚以上=カルーセル。タップで Lightbox。
             if (note.images.isNotEmpty()) {
                 Spacer(Modifier.size(DeckSpace.Sm))
-                NoteImages(note.images)
+                NoteImages(note.images, imeta = note.imeta)
             }
             // [M14] リンク埋め込み（YouTube/Spotify/OGP）。設定で表示可否/画像読込を制御。
-            LinkEmbeds(note.text ?: note.event.content, tags = note.event.tags, modifier = Modifier.padding(top = DeckSpace.Sm))
+            // [#140] imeta はタイムライン経路だと event.tags が空のため NoteUi.imeta から渡す。
+            LinkEmbeds(
+                note.text ?: note.event.content, tags = note.event.tags,
+                imeta = note.imeta, modifier = Modifier.padding(top = DeckSpace.Sm),
+            )
             // [#217] 本文が参照する naddr(kind:30023 長文記事)を OGP 風カードで展開。
             NoteNaddrEmbeds(note.text ?: note.event.content)
             }

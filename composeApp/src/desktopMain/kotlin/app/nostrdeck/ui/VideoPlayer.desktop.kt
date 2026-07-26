@@ -16,7 +16,9 @@ import app.nostrdeck.theme.DeckType
 
 // [#218] Desktop: 動画インライン再生は Phase2（VLCJ 等）。当面プレースホルダのみ。
 @Composable
-actual fun VideoPlayer(url: String, posterUrl: String?, modifier: Modifier) {
+actual fun VideoPlayer(url: String, posterUrl: String?, blurhash: String?, modifier: Modifier) {
+    // [#140] imeta の blurhash があれば下地に敷く（雰囲気だけでも伝わるように）。
+    val blurPainter = rememberBlurhashPainter(blurhash)
     Box(
         modifier
             .fillMaxWidth()
@@ -25,6 +27,13 @@ actual fun VideoPlayer(url: String, posterUrl: String?, modifier: Modifier) {
             .background(DeckColors.Surface2),
         contentAlignment = Alignment.Center,
     ) {
+        blurPainter?.let {
+            androidx.compose.foundation.Image(
+                painter = it, contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+        }
         Text("動画（デスクトップ未対応）", color = DeckColors.Text3, fontSize = DeckType.Caption)
     }
 }

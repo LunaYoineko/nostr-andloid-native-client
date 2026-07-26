@@ -2900,6 +2900,9 @@ class EventRepository(
             event = NostrEvent(row.id, row.pubkey, row.kind.toInt(), row.created_at, row.content, emptyList(), row.sig),
             author = Profile(row.pubkey, name, prof?.handle ?: "", prof?.picture_url, lud16 = prof?.lud16),
             text = text, images = images, isReply = isReply, customEmojis = emojis, contentWarning = cw,
+            // [#140] event.tags は再コンポーズ最適化のため空で持つ（従来仕様）。表示に必要な
+            // imeta（dim/blurhash/thumb）だけをここで抽出して NoteUi に載せる。
+            imeta = app.nostrdeck.model.imetaInfo(tags),
         )
     }
 
@@ -3033,6 +3036,7 @@ class EventRepository(
             event = ev,
             author = Profile(ev.pubkey, name, prof?.handle ?: "", prof?.picture_url),
             text = text, images = images,
+            imeta = app.nostrdeck.model.imetaInfo(ev.tags),   // [#140]
         )
     }
 

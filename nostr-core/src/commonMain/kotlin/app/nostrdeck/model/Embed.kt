@@ -63,19 +63,31 @@ fun detectEmbeds(content: String, max: Int = 4): List<LinkEmbed> {
 }
 
 /**
- * [NIP-92] imeta タグから「メディア URL → サムネイル URL」の対応を取り出す。
- * imeta は ["imeta", "url https://…", "thumb https://…", "blurhash …", …] の形式で、
- * 2要素目以降が「キー 値」の空白区切り。thumb が無ければ image で代用する。
- * アップローダー(nostr.build 等)が生成したサムネをそのまま使えるので、
- * 動画から1フレーム取得するより速く通信も少ない。
+ * [NIP-92][#140] imeta タグ1件分のメタデータ。
+ * @param thumb サムネイル URL（thumb が無ければ image で代用）
+ * @param dim 原寸の (幅, 高さ)。読み込み前からアスペクト比を確保し、レイアウトのガタつきを防ぐ
+ * @param blurhash 読み込み中のぼかしプレースホルダ（[Blurhash.decode] で展開）
  */
-fun imetaThumbs(tags: List<List<String>>): Map<String, String> {
-    val out = HashMap<String, String>()
+data class ImetaInfo(
+    val thumb: String? = null,
+    val dim: Pair<Int, Int>? = null,
+    val blurhash: String? = null,
+)
+
+/**
+ * [NIP-92] imeta タグから「メディア URL → メタデータ」の対応を取り出す。
+ * imeta は ["imeta", "url https://…", "thumb https://…", "blurhash …", "dim 1920x1080", …] の形式で、
+ * 2要素目以降が「キー 値」の空白区切り。
+ */
+fun imetaInfo(tags: List<List<String>>): Map<String, ImetaInfo> {
+    val out = HashMap<String, ImetaInfo>()
     for (tag in tags) {
         if (tag.firstOrNull() != "imeta") continue
         var url: String? = null
         var thumb: String? = null
         var image: String? = null
+        var dim: Pair<Int, Int>? = null
+        var blurhash: String? = null
         for (field in tag.drop(1)) {
             val sp = field.indexOf(' ')
             if (sp <= 0) continue
@@ -85,13 +97,32 @@ fun imetaThumbs(tags: List<List<String>>): Map<String, String> {
                 "url" -> url = value
                 "thumb" -> thumb = value
                 "image" -> image = value
+                "dim" -> dim = parseDim(value)
+                "blurhash" -> blurhash = value
             }
         }
         val u = url ?: continue
-        (thumb ?: image)?.let { out[u] = it }
+        out[u] = ImetaInfo(thumb = thumb ?: image, dim = dim, blurhash = blurhash)
     }
     return out
 }
+
+/** "1920x1080" → (1920, 1080)。不正・0以下は null。 */
+private fun parseDim(s: String): Pair<Int, Int>? {
+    val x = s.indexOf('x')
+    if (x <= 0) return null
+    val w = s.substring(0, x).toIntOrNull() ?: return null
+    val h = s.substring(x + 1).toIntOrNull() ?: return null
+    return if (w > 0 && h > 0) w to h else null
+}
+
+/**
+ * [NIP-92] imeta タグから「メディア URL → サムネイル URL」の対応を取り出す（[imetaInfo] の薄いラッパ）。
+ * アップローダー(nostr.build 等)が生成したサムネをそのまま使えるので、
+ * 動画から1フレーム取得するより速く通信も少ない。
+ */
+fun imetaThumbs(tags: List<List<String>>): Map<String, String> =
+    imetaInfo(tags).mapNotNull { (u, m) -> m.thumb?.let { u to it } }.toMap()
 
 private fun isSpotify(url: String): Boolean =
     Regex("""^https?://open\.spotify\.com/""", RegexOption.IGNORE_CASE).containsMatchIn(url)
