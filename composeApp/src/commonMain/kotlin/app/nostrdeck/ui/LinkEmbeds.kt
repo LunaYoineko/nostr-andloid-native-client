@@ -50,11 +50,18 @@ import coil3.compose.AsyncImage
  * [tags] はイベントのタグ列。NIP-92 imeta のサムネイルを動画ポスターに使う。
  */
 @Composable
-fun LinkEmbeds(content: String, tags: List<List<String>> = emptyList(), modifier: Modifier = Modifier) {
+fun LinkEmbeds(
+    content: String,
+    tags: List<List<String>> = emptyList(),
+    // [#140] タイムライン経路は event.tags が空のため、NoteUi 側で抽出済みの imeta を渡せる。
+    // null なら tags から抽出する（チャンネル等の従来経路）。
+    imeta: Map<String, app.nostrdeck.model.ImetaInfo>? = null,
+    modifier: Modifier = Modifier,
+) {
     val repo = LocalRepository.current
     val prefs by (repo?.embedPrefsFlow()?.collectAsState() ?: remember { mutableStateOf(EmbedPrefs()) })
     val embeds = remember(content) { detectEmbeds(content) }
-    val imetaThumbs = remember(tags) { imetaThumbs(tags) }
+    val meta = imeta ?: remember(tags) { app.nostrdeck.model.imetaInfo(tags) }
     val visible = embeds.filter {
         when (it.kind) {
             EmbedKind.YOUTUBE -> prefs.youtube
@@ -70,7 +77,10 @@ fun LinkEmbeds(content: String, tags: List<List<String>> = emptyList(), modifier
                 EmbedKind.YOUTUBE -> YouTubeEmbed(e.url, e.youtubeId!!)
                 EmbedKind.SPOTIFY -> OgpEmbed(e.url, loadImage = true)   // Spotify も OGP カードで表現
                 EmbedKind.OGP -> OgpEmbed(e.url, loadImage = prefs.ogpImages)
-                EmbedKind.VIDEO -> VideoPlayer(e.url, posterUrl = imetaThumbs[e.url])  // 動画直リンクはインライン再生
+                EmbedKind.VIDEO -> VideoPlayer(
+                    e.url, posterUrl = meta[e.url]?.thumb,
+                    blurhash = meta[e.url]?.blurhash,   // [#140] ポスター未取得の間のぼかし
+                )
             }
         }
     }

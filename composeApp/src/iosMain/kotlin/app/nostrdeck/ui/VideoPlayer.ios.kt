@@ -1,5 +1,6 @@
 package app.nostrdeck.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -43,22 +44,30 @@ import platform.Foundation.NSURL
  * Composable 破棄時に一時停止してリソースを解放する。
  */
 @Composable
-actual fun VideoPlayer(url: String, posterUrl: String?, modifier: Modifier) {
+actual fun VideoPlayer(url: String, posterUrl: String?, blurhash: String?, modifier: Modifier) {
     var activated by remember(url) { mutableStateOf(false) }
     if (!activated) {
-        VideoPoster(posterUrl, onPlay = { activated = true }, modifier = modifier)
+        VideoPoster(posterUrl, blurhash, onPlay = { activated = true }, modifier = modifier)
     } else {
         ActiveVideoPlayer(url, modifier)
     }
 }
 
 @Composable
-private fun VideoPoster(posterUrl: String?, onPlay: () -> Unit, modifier: Modifier) {
+private fun VideoPoster(posterUrl: String?, blurhash: String?, onPlay: () -> Unit, modifier: Modifier) {
+    // [#140] imeta の blurhash があれば、ポスター読み込みまでの黒地の代わりに敷く。
+    val blurPainter = rememberBlurhashPainter(blurhash)
     Box(
         modifier.fillMaxWidth().aspectRatio(16f / 9f)
             .clip(RoundedCornerShape(DeckRadius.Md)).background(Color.Black)
             .clickable(onClick = onPlay),
     ) {
+        blurPainter?.let {
+            Image(
+                painter = it, contentDescription = null,
+                contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
+            )
+        }
         if (posterUrl != null) {
             AsyncImage(
                 model = posterUrl,

@@ -75,26 +75,46 @@ import kotlinx.coroutines.launch
  * Lightbox は複数画像のスワイプ移動・ピンチズーム・パンに対応する。
  */
 @Composable
-fun NoteImages(urls: List<String>, modifier: Modifier = Modifier) {
+fun NoteImages(
+    urls: List<String>,
+    modifier: Modifier = Modifier,
+    // [#140] NIP-92 imeta（URL→dim/blurhash）。dim は1枚表示のアスペクト比確保、
+    // blurhash は読み込み中のぼかしプレースホルダに使う。
+    imeta: Map<String, app.nostrdeck.model.ImetaInfo> = emptyMap(),
+) {
     // タップした画像の index（null=閉）。Lightbox は urls 全体を受け取り前後にスワイプできる。
     var lightboxIndex by remember { mutableStateOf<Int?>(null) }
     val open: (Int) -> Unit = { lightboxIndex = it }
 
     when {
         urls.isEmpty() -> Unit
-        urls.size == 1 -> Thumb(
-            urls[0], proxyWidth = 800,
-            modifier = modifier.fillMaxWidth().height(200.dp), onClick = { open(0) },
-        )
-        urls.size >= 10 -> ImageCarousel(urls, modifier, open)
-        else -> ImageGrid(urls, modifier, open)
+        urls.size == 1 -> {
+            // [#140] dim があれば実アスペクト比で領域を確保（読み込み完了時のガタつき・
+            // 不自然なクロップを防ぐ）。極端な縦長/横長はタイムラインを占有しない範囲に丸める。
+            val info = imeta[urls[0]]
+            val ratio = info?.dim?.let { (w, h) -> (w.toFloat() / h).coerceIn(0.75f, 2.0f) }
+            Thumb(
+                urls[0], proxyWidth = 800,
+                modifier = if (ratio != null) modifier.fillMaxWidth().aspectRatio(ratio)
+                else modifier.fillMaxWidth().height(200.dp),
+                blurhash = info?.blurhash,
+                onClick = { open(0) },
+            )
+        }
+        urls.size >= 10 -> ImageCarousel(urls, imeta, modifier, open)
+        else -> ImageGrid(urls, imeta, modifier, open)
     }
 
     lightboxIndex?.let { idx -> Lightbox(urls, idx) { lightboxIndex = null } }
 }
 
 @Composable
-private fun ImageGrid(urls: List<String>, modifier: Modifier, onClick: (Int) -> Unit) {
+private fun ImageGrid(
+    urls: List<String>,
+    imeta: Map<String, app.nostrdeck.model.ImetaInfo>,
+    modifier: Modifier,
+    onClick: (Int) -> Unit,
+) {
     val cols = when (urls.size) { 2, 4 -> 2; else -> 3 }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         urls.chunked(cols).forEachIndexed { rowIdx, rowUrls ->
@@ -103,7 +123,9 @@ private fun ImageGrid(urls: List<String>, modifier: Modifier, onClick: (Int) -> 
                     val index = rowIdx * cols + colIdx
                     Thumb(
                         url, proxyWidth = 400,
-                        modifier = Modifier.weight(1f).aspectRatio(1f), onClick = { onClick(index) },
+                        modifier = Modifier.weight(1f).aspectRatio(1f),
+                        blurhash = imeta[url]?.blurhash,
+                        onClick = { onClick(index) },
                     )
                 }
                 // 端数行は空セルで列幅をそろえる。
@@ -114,25 +136,43 @@ private fun ImageGrid(urls: List<String>, modifier: Modifier, onClick: (Int) -> 
 }
 
 @Composable
-private fun ImageCarousel(urls: List<String>, modifier: Modifier, onClick: (Int) -> Unit) {
+private fun ImageCarousel(
+    urls: List<String>,
+    imeta: Map<String, app.nostrdeck.model.ImetaInfo>,
+    modifier: Modifier,
+    onClick: (Int) -> Unit,
+) {
     Row(
         modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         urls.forEachIndexed { index, url ->
-            Thumb(url, proxyWidth = 280, modifier = Modifier.size(140.dp), onClick = { onClick(index) })
+            Thumb(
+                url, proxyWidth = 280, modifier = Modifier.size(140.dp),
+                blurhash = imeta[url]?.blurhash, onClick = { onClick(index) },
+            )
         }
     }
 }
 
 @Composable
-private fun Thumb(url: String, proxyWidth: Int, modifier: Modifier, onClick: () -> Unit) {
+private fun Thumb(
+    url: String,
+    proxyWidth: Int,
+    modifier: Modifier,
+    blurhash: String? = null,
+    onClick: () -> Unit,
+) {
+    // [#140] blurhash があれば読み込み中/失敗時にぼかしを敷く（無ければ従来の単色背景）。
+    val placeholder = rememberBlurhashPainter(blurhash)
     AsyncImage(
         model = ImageRequest.Builder(LocalPlatformContext.current)
             .data(ImageProxy.proxied(url, width = proxyWidth, quality = 75, animated = true))
             .crossfade(true).build(),
         contentDescription = null,
         contentScale = ContentScale.Crop,
+        placeholder = placeholder,
+        error = placeholder,
         modifier = modifier
             .clip(RoundedCornerShape(DeckRadius.Md))
             .background(DeckColors.Surface2)
