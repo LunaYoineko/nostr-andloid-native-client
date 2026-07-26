@@ -3588,6 +3588,42 @@ class EventRepository(
         subscribeAll(subId, Filter(kinds = listOf(9735), eTags = noteIds.take(300), limit = 500))
     }
 
+    // ---- [#270] 投稿詳細の反応集計（リアクション内訳 / リプライ・リポスト数） ----
+
+    /** 対象ノートのリアクション内訳（絵文字ごとの数。カスタム絵文字は画像URL付き）。多い順。 */
+    fun noteReactionsFlow(noteId: String): Flow<List<ReactionUi>> =
+        q.reactionsForNote(noteId).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                rows.groupBy {
+                    val r = normalizeReaction(it.content, parseTags(it.tags_json))
+                    r.display to r.imageUrl
+                }.map { (k, list) -> ReactionUi(k.first, k.first, list.size, k.second) }
+                    .sortedByDescending { it.count }
+            }
+            .flowOn(Dispatchers.Default)
+
+    /** 対象ノートへのリプライ数・リポスト数（kind:1 / kind:6,16 を kind 別に集計）。 */
+    fun noteEngagementFlow(noteId: String): Flow<app.nostrdeck.model.NoteEngagement> =
+        q.engagementCountsForNote(noteId).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                var replies = 0
+                var reposts = 0
+                rows.forEach { r ->
+                    when (r.kind) {
+                        1L -> replies = r.cnt.toInt()
+                        6L, 16L -> reposts += r.cnt.toInt()
+                    }
+                }
+                app.nostrdeck.model.NoteEngagement(replies = replies, reposts = reposts)
+            }
+            .flowOn(Dispatchers.Default)
+
+    /** 対象ノートへの反応（kind:7/6/16）を購読する。リプライ(kind:1)は subscribeThread が担う。 */
+    fun subscribeNoteEngagement(subId: String, noteId: String) {
+        if (!openColumns.add(subId)) return
+        subscribeAll(subId, Filter(kinds = listOf(7, 6, 16), eTags = listOf(noteId), limit = 500))
+    }
+
     // ---- [M12] NIP-17 プライベートDM（gift wrap kind:1059 → seal kind:13 → rumor kind:14） ----
 
     private val processedWraps = mutableSetOf<String>()

@@ -803,7 +803,12 @@ fun ThreadDetail(state: DeckState, eventId: String) {
     val subId = "overlay_thread_$eventId"
     androidx.compose.runtime.DisposableEffect(eventId) {
         repo?.subscribeThread(subId, eventId)
-        onDispose { repo?.unsubscribeColumn(subId) }
+        // [#270] 起点ノートへの反応（kind:7/6/16）も購読して集計を出す。
+        repo?.subscribeNoteEngagement("${subId}_engage", eventId)
+        onDispose {
+            repo?.unsubscribeColumn(subId)
+            repo?.unsubscribeColumn("${subId}_engage")
+        }
     }
     val spec = remember(eventId) {
         ColumnSpec(
@@ -830,8 +835,14 @@ fun ThreadDetail(state: DeckState, eventId: String) {
     androidx.compose.runtime.LaunchedEffect(eventId) { repo?.subscribeZaps("${subId}_zaps", listOf(eventId)) }
     val zaps = repo?.let { remember(eventId) { it.zapsForNote(eventId) } }
         ?.collectAsState(emptyList())?.value ?: emptyList()
+    // [#270] 起点ノートのリアクション内訳とリプライ/リポスト数。
+    val focusReactions = repo?.let { remember(eventId) { it.noteReactionsFlow(eventId) } }
+        ?.collectAsState(emptyList())?.value ?: emptyList()
+    val focusEngagement = repo?.let { remember(eventId) { it.noteEngagementFlow(eventId) } }
+        ?.collectAsState(null)?.value
     ThreadColumn(
         spec, entries, Modifier.fillMaxSize(), zaps = zaps,
+        focusReactions = focusReactions, focusEngagement = focusEngagement,
         onBack = { state.popDetail() },
         onReply = { state.replyTo = it.event; state.showCompose = true },
         onQuote = { state.quoting = it.event; state.showCompose = true },

@@ -90,6 +90,11 @@
     <string name="media_compress_open">Upload compression</string>
     <string name="media_compress_sub_fmt">Low %1$spx · Mid %2$spx · quality %3$s%</string>
     <string name="video_compress_sub_fmt">· video %1$sp/%2$sp</string>
+
+    <!-- Thread detail: focus note stats [#270] -->
+    <string name="thread_stat_replies_fmt">%1$s replies</string>
+    <string name="thread_stat_reposts_fmt">%1$s reposts</string>
+    <string name="thread_stat_reactions_fmt">%1$s reactions</string>
     <string name="theme_code_label">Share code</string>
     <string name="theme_code_import">Import</string>
     <string name="theme_code_paste">Paste</string>
