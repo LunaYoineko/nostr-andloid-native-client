@@ -15,6 +15,8 @@ import app.nostrdeck.data.defaultRelaysFor
 import app.nostrdeck.db.DriverFactory
 import app.nostrdeck.db.createDatabase
 import app.nostrdeck.signer.DesktopKeyVault
+import app.nostrdeck.signer.KeyVault
+import app.nostrdeck.signer.MacKeychainKeyVault
 import app.nostrdeck.signer.SignerProvider
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -33,9 +35,34 @@ private val appScope = CoroutineScope(
 // アプリで1つ。データは ~/.nostrism/ 配下（DB と鍵）。
 private val appDir: File = File(System.getProperty("user.home"), ".nostrism").apply { mkdirs() }
 
+/**
+ * [#221] 鍵保管の選択。macOS は Keychain（security CLI）。それ以外の OS は従来のファイル保管。
+ * 旧・平文ファイル(key.bin)が残っていれば Keychain へ移行し、移行を確認してから平文を消す。
+ */
+private fun buildKeyVault(): KeyVault {
+    val isMac = System.getProperty("os.name").orEmpty().lowercase().contains("mac")
+    val legacy = File(appDir, "key.bin")
+    if (!isMac) return DesktopKeyVault(legacy)
+
+    val kc = MacKeychainKeyVault()
+    if (legacy.exists() && legacy.length() == 32L) {
+        runCatching {
+            if (!kc.hasKey()) kc.importPrivateKey(legacy.readBytes())
+            // Keychain 側と同じ鍵であることを読み戻しで確認してから平文を消す。
+            // （別鍵が既に Keychain にある場合は上書きも削除もしない＝鍵を失わない）
+            if (kc.privateKey().contentEquals(legacy.readBytes())) {
+                legacy.delete()
+                println("Nostrism [#221] key migrated to macOS Keychain; plaintext key.bin removed")
+            } else {
+                println("Nostrism [#221] Keychain already holds a different key; key.bin left in place")
+            }
+        }.onFailure { println("Nostrism [#221] keychain migration failed: $it") }
+    }
+    return kc
+}
+
 private val repository: EventRepository by lazy {
-    // 注意(spike): DesktopKeyVault は当面 nsec を平文ファイル保管。Phase2 で macOS Keychain 等へ。
-    SignerProvider.useVault(DesktopKeyVault(File(appDir, "key.bin")))
+    SignerProvider.useVault(buildKeyVault())
     val db = createDatabase(DriverFactory(File(appDir, "nostr.db")))
     val relays = defaultRelaysFor(Locale.getDefault().language)
     EventRepository(db, appScope, relays).apply { start() }
