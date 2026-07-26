@@ -15,6 +15,7 @@ import platform.CoreCrypto.CC_SHA256_DIGEST_LENGTH
 import platform.CoreCrypto.kCCAlgorithmAES
 import platform.CoreCrypto.kCCBlockSizeAES128
 import platform.CoreCrypto.kCCDecrypt
+import platform.CoreCrypto.kCCEncrypt
 import platform.CoreCrypto.kCCHmacAlgSHA256
 import platform.CoreCrypto.kCCOptionPKCS7Padding
 import platform.CoreCrypto.kCCSuccess
@@ -63,6 +64,41 @@ actual fun aesCbcDecrypt(key: ByteArray, iv: ByteArray, ciphertext: ByteArray): 
             }
         }
         check(status == kCCSuccess) { "AES-CBC decrypt failed: CCCryptorStatus=$status" }
+        out.copyOf(moved.value.toInt())
+    }
+}
+
+/**
+ * AES-256-CBC 暗号化（NIP-04。NWC 用）。復号と同じ CCCrypt を kCCEncrypt で使う。
+ * 出力はパディングで最大1ブロック伸びるため、余裕を持って確保し実書き出し長で切り詰める。
+ */
+@OptIn(ExperimentalForeignApi::class)
+actual fun aesCbcEncrypt(key: ByteArray, iv: ByteArray, plaintext: ByteArray): ByteArray {
+    val bufSize = plaintext.size + kCCBlockSizeAES128.toInt()
+    val out = ByteArray(bufSize)
+    // CCCrypt は入力長0を許すが usePinned が空配列で失敗するため、ダミー1バイトを pin して実長0を渡す。
+    val inBuf = if (plaintext.isEmpty()) ByteArray(1) else plaintext
+    return memScoped {
+        val moved = alloc<ULongVar>()
+        val status = key.usePinned { kp ->
+            iv.usePinned { ivp ->
+                inBuf.usePinned { cp ->
+                    out.usePinned { op ->
+                        CCCrypt(
+                            kCCEncrypt,
+                            kCCAlgorithmAES,
+                            kCCOptionPKCS7Padding,
+                            kp.addressOf(0), key.size.convert(),
+                            ivp.addressOf(0),
+                            cp.addressOf(0), plaintext.size.convert(),
+                            op.addressOf(0), bufSize.convert(),
+                            moved.ptr,
+                        )
+                    }
+                }
+            }
+        }
+        check(status == kCCSuccess) { "AES-CBC encrypt failed: CCCryptorStatus=$status" }
         out.copyOf(moved.value.toInt())
     }
 }

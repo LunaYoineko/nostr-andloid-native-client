@@ -41,6 +41,9 @@ private val appScope = CoroutineScope(
 // 鍵保管は iOS Keychain（KeychainKeyVault）。鍵未設定なら App() のログインゲートで生成/取り込み。
 private val repository: EventRepository by lazy {
     SignerProvider.useVault(KeychainKeyVault())
+    // [#7] NWC（ウォレット接続）。保存済み接続があれば復元する。
+    app.nostrdeck.wallet.NwcManager.init(appScope, app.nostrdeck.wallet.KeychainNwcStore())
+    app.nostrdeck.wallet.NwcManager.restore()
     val db = createDatabase(DriverFactory())
     EventRepository(db, appScope, DEFAULT_RELAYS).apply { start() }
 }

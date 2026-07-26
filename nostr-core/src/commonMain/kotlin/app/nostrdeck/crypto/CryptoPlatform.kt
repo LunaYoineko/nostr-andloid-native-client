@@ -11,5 +11,8 @@ expect fun currentUnixTime(): Long
 /** AES-256-CBC 復号（NIP-04 レガシー暗号の読み出し用）。PKCS#5/7 パディング。 */
 expect fun aesCbcDecrypt(key: ByteArray, iv: ByteArray, ciphertext: ByteArray): ByteArray
 
+/** AES-256-CBC 暗号化（NIP-04。NWC など NIP-04 必須プロトコルの書き出し用）。PKCS#5/7 パディング。 */
+expect fun aesCbcEncrypt(key: ByteArray, iv: ByteArray, plaintext: ByteArray): ByteArray
+
 /** HMAC-SHA256（NIP-44 の HKDF/MAC に使用）。 */
 expect fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray

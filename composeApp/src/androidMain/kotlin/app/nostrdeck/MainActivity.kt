@@ -114,6 +114,9 @@ class MainActivity : ComponentActivity() {
         NosskeyHost.provider = AndroidNosskey(applicationContext)
         // [#41] NIP-46（bunker）マネージャを初期化（appScope + 永続化ストア注入）。
         Nip46Manager.init(appScope, SharedPrefsNip46Store(applicationContext))
+        // [#7] NWC（ウォレット接続）。保存済み接続があれば復元する。
+        app.nostrdeck.wallet.NwcManager.init(appScope, app.nostrdeck.wallet.KeystoreNwcStore(applicationContext))
+        app.nostrdeck.wallet.NwcManager.restore()
         // 保存済みの外部/保護セッションを復元（優先: NIP-55 → NIP-46 →（無ければ）Nosskey は identity のみ）。
         if (!AndroidExternalSigner.restore(applicationContext) && !Nip46Manager.restore()) {
             AndroidNosskey.restore(applicationContext)

@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,12 +73,17 @@ private fun ZapSheetImpl(
     val repo = LocalRepository.current
     val uri = LocalUriHandler.current
     val scope = rememberCoroutineScope()
+    val toast = rememberToaster()
 
     var amount by remember { mutableStateOf(100L) }
     var custom by remember { mutableStateOf("") }
     var comment by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // [#7] NWC: invoice 取得後に毎回確認ダイアログを出し、確定で pay_invoice する。
+    val nwc by app.nostrdeck.wallet.NwcManager.stateFlow.collectAsState()
+    var confirmInvoice by remember { mutableStateOf<String?>(null) }
+    var lastInvoice by remember { mutableStateOf<String?>(null) }
 
     val effectiveAmount = custom.toLongOrNull()?.takeIf { it > 0 } ?: amount
 
@@ -123,6 +129,18 @@ private fun ZapSheetImpl(
             error?.let {
                 Spacer(Modifier.size(DeckSpace.Sm))
                 Text(it, color = DeckColors.Warn, fontSize = DeckType.Caption)
+                // [#7] NWC 送金失敗時の逃げ道: 取得済み invoice を外部ウォレットで開ける。
+                lastInvoice?.let { inv ->
+                    Spacer(Modifier.size(DeckSpace.Sm))
+                    DeckTextButton(stringResource(Res.string.nwc_open_external), onClick = {
+                        runCatching { uri.openUri("lightning:$inv") }
+                    })
+                }
+            }
+            // [#7] ウォレット接続済みならアプリ内送金であることを示す（送金は毎回確認）。
+            if (nwc != null) {
+                Spacer(Modifier.size(DeckSpace.Sm))
+                Text(stringResource(Res.string.nwc_via), color = DeckColors.Text3, fontSize = DeckType.Label)
             }
             Spacer(Modifier.size(DeckSpace.Md))
 
@@ -145,6 +163,10 @@ private fun ZapSheetImpl(
                             busy = false
                             if (invoice.isNullOrBlank()) {
                                 error = getString(Res.string.zap_invoice_failed)
+                            } else if (app.nostrdeck.wallet.NwcManager.isConfigured) {
+                                // [#7] NWC: 毎回確認ダイアログを経てアプリ内で支払う。
+                                lastInvoice = invoice
+                                confirmInvoice = invoice
                             } else {
                                 // 外部の Lightning ウォレットへ。対応アプリが無い環境では失敗する。
                                 val opened = runCatching { uri.openUri("lightning:$invoice") }.isSuccess
@@ -155,5 +177,31 @@ private fun ZapSheetImpl(
                 }
             }
         }
+    }
+
+    // [#7] NWC の送金確認（毎回）。確定で pay_invoice、失敗はシートにエラー表示＋外部ウォレットの逃げ道。
+    confirmInvoice?.let { inv ->
+        DeckConfirmDialog(
+            title = stringResource(Res.string.nwc_pay_confirm_title),
+            text = stringResource(Res.string.nwc_pay_confirm_fmt, effectiveAmount.toString(), recipientName),
+            confirmLabel = stringResource(Res.string.nwc_pay_confirm),
+            onConfirm = {
+                confirmInvoice = null
+                busy = true; error = null
+                scope.launch {
+                    runCatching { app.nostrdeck.wallet.NwcManager.payInvoice(inv) }
+                        .onSuccess {
+                            busy = false
+                            toast(getString(Res.string.nwc_paid))
+                            onDismiss()
+                        }
+                        .onFailure { t ->
+                            busy = false
+                            error = getString(Res.string.nwc_pay_failed_fmt, t.message ?: "")
+                        }
+                }
+            },
+            onDismiss = { confirmInvoice = null },
+        )
     }
 }

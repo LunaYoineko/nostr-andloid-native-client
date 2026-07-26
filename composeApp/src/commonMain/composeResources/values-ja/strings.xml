@@ -87,6 +87,25 @@
     <string name="media_compress_sub_fmt">低 %1$spx · 中 %2$spx · 品質 %3$s%</string>
     <string name="video_compress_sub_fmt">· 動画 %1$sp/%2$sp</string>
 
+    <!-- Wallet connection (NWC / NIP-47) [#7] -->
+    <string name="section_wallet">ウォレット</string>
+    <string name="nwc_title">ウォレット接続（NWC）</string>
+    <string name="nwc_desc">Nostr Wallet Connect（NIP-47）でLightningウォレットを接続すると、Zapをアプリ内で完結できます。送金は毎回確認します。</string>
+    <string name="nwc_hint">接続文字列はウォレット側（Alby Hub、Coinos など）で発行できます。secret はこの端末のセキュア領域に保存されます。</string>
+    <string name="nwc_connect">接続</string>
+    <string name="nwc_connected">ウォレット接続済み</string>
+    <string name="nwc_disconnect">接続を解除</string>
+    <string name="nwc_disconnect_confirm_title">ウォレット接続を解除しますか？</string>
+    <string name="nwc_disconnect_confirm_text">保存済みの接続情報（secret を含む）をこの端末から削除します。</string>
+    <string name="nwc_methods_fmt">対応メソッド: %1$s</string>
+    <string name="nwc_via">接続済みウォレットからアプリ内で送金します（毎回確認）。</string>
+    <string name="nwc_pay_confirm_title">ウォレットから送金</string>
+    <string name="nwc_pay_confirm_fmt">%2$s に ⚡ %1$s sats を送金します。よろしいですか？</string>
+    <string name="nwc_pay_confirm">送金する</string>
+    <string name="nwc_pay_failed_fmt">送金に失敗しました: %1$s</string>
+    <string name="nwc_paid">Zapを送金しました ⚡</string>
+    <string name="nwc_open_external">外部ウォレットで開く</string>
+
     <!-- Thread detail: focus note stats [#270] -->
     <string name="thread_stat_replies_fmt">リプライ %1$s</string>
     <string name="thread_stat_reposts_fmt">リポスト %1$s</string>

@@ -63,6 +63,9 @@ private fun buildKeyVault(): KeyVault {
 
 private val repository: EventRepository by lazy {
     SignerProvider.useVault(buildKeyVault())
+    // [#7] NWC（ウォレット接続）。保存済み接続があれば復元する。
+    app.nostrdeck.wallet.NwcManager.init(appScope, app.nostrdeck.wallet.DesktopNwcStore(appDir))
+    app.nostrdeck.wallet.NwcManager.restore()
     val db = createDatabase(DriverFactory(File(appDir, "nostr.db")))
     val relays = defaultRelaysFor(Locale.getDefault().language)
     EventRepository(db, appScope, relays).apply { start() }
