@@ -4,7 +4,8 @@
 リリースは **AI エージェント（または人）が、この手順書に従って明示的に実行**する。
 
 - Android → Play Console クローズドテスト（`alpha` トラック）
-- iOS → TestFlight
+- iOS → TestFlight（**macOS への提供はしない**。[#221] で `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD=NO`）
+- macOS → **GitHub Releases**（Compose Desktop の dmg。`scripts/release-mac.sh`）
 
 > **AI へ**: 「リリースして」「ベータ出して」等を頼まれたら、この手順書のとおり実行すること。
 > リリースノート（ユーザー表示文）は**必ず**書く。build 番号は git のコミット数（単調増加）に依存するため、
@@ -105,7 +106,30 @@ cd iosApp
 
 ---
 
-## 3. バージョン採番のルール（[#252] セマンティックバージョニング）
+## 3. macOS（GitHub Releases / dmg）
+
+**[#221] Mac は Compose Desktop 版を GitHub Releases で配布する**（App Store には出さない。
+iOS アプリの TestFlight も macOS へは提供しない設定にしてある）。
+
+### 手順
+```bash
+# タグ済み（version.sh --on-tag = 1）の状態で:
+scripts/release-mac.sh
+#   packageDmg → Nostrism-<version>-macos.dmg にリネーム →
+#   GitHub Release v<version> を作成（無ければ。ノートは whatsnew-ja-JP）→ dmg を添付。
+# ビルド確認だけなら: DRY_RUN=1 scripts/release-mac.sh
+```
+
+### 注意
+- **未署名 dmg**（Developer ID 署名/公証は #221 の残タスク）。ダウンロードした利用者は
+  初回のみ「右クリック→開く」（または `xattr -dr com.apple.quarantine`）が必要。
+  リリースノートにその旨を書き添えること。
+- dmg 内部の packageVersion は jpackage の制約（MAJOR>0）で 1.0.0 固定。
+  実バージョンはファイル名（`Nostrism-<version>-macos.dmg`）とアプリ内表示で判別する。
+
+---
+
+## 4. バージョン採番のルール（[#252] セマンティックバージョニング）
 
 **単一の真実は `scripts/version.sh`**。Gradle / iOS / CI すべてがこの規則で導出する。
 
@@ -135,7 +159,7 @@ git tag v0.3.1 && git push --tags     # ← これを忘れると前の版の ve
 - 単調増加が前提。**履歴 rewrite 厳禁**（減少・重複するとストアが拒否し、その番号は二度と使えない）。
 - `workflow_dispatch` の `version_name` を渡せばタグを無視して任意の versionName にできる（緊急時のみ）。
 
-## 4. なぜ main 自動配信をやめたか
+## 5. なぜ main 自動配信をやめたか
 - 「あらゆるマージ＝配信」だと iOS 専用/ドキュメントだけの変更でも Android が出てしまう、リリース内容の
   再現性が低い、ホットフィックスを単独で出せない、等のリスクがあるため。
 - 代わりに **AI がこの手順書に沿って、リリースノート込みで明示実行**する運用にした。
@@ -143,7 +167,7 @@ git tag v0.3.1 && git push --tags     # ← これを忘れると前の版の ve
 
 ---
 
-## 5. 配信後（人の操作が残る部分）
+## 6. 配信後（人の操作が残る部分）
 
 **`scripts/release-info.sh` を実行し、出力をそのまま会話へ貼る。**
 
