@@ -19,6 +19,16 @@ actual fun aesCbcDecrypt(key: ByteArray, iv: ByteArray, ciphertext: ByteArray): 
     return cipher.doFinal(ciphertext)
 }
 
+actual fun aesCbcEncrypt(key: ByteArray, iv: ByteArray, plaintext: ByteArray): ByteArray {
+    val cipher = javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding")
+    cipher.init(
+        javax.crypto.Cipher.ENCRYPT_MODE,
+        javax.crypto.spec.SecretKeySpec(key, "AES"),
+        javax.crypto.spec.IvParameterSpec(iv),
+    )
+    return cipher.doFinal(plaintext)
+}
+
 actual fun hmacSha256(key: ByteArray, data: ByteArray): ByteArray {
     val mac = javax.crypto.Mac.getInstance("HmacSHA256")
     mac.init(javax.crypto.spec.SecretKeySpec(key, "HmacSHA256"))
