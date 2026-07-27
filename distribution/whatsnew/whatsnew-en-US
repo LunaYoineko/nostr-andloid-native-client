@@ -1,5 +1,3 @@
-- In-app Zaps: connect a Lightning wallet via NWC (Settings > Wallet) and pay with a per-payment confirmation — external wallets still work
-- Post detail now shows the reaction breakdown (per-emoji counts) plus reply and repost counts
-- Images keep their real aspect ratio, with blurred placeholders while loading
-- Animated GIF custom emoji now render on iOS
+- Fixed the compose sheet overlapping the clock/status bar at the top
+- Keyboard shortcuts expanded: j/k selection now works in thread and notification columns, and b bookmarks the selected post
 - Minor improvements and fixes
