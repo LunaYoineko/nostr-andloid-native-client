@@ -123,6 +123,7 @@ private fun kbColumnSelection(
             KbAction.REPLY -> onReply(note)
             KbAction.REPOST -> onRepost(note)
             KbAction.REACT -> scope.launch { repo?.reactWithDefault(note.event) }
+            KbAction.BOOKMARK -> scope.launch { repo?.toggleBookmark(note.event.id) }   // [#222]
         }
         state.kbAction = null
     }
@@ -430,9 +431,18 @@ private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyList
                     .collectAsState(emptyList()).value
                 val focusEngagement = remember(spec.id) { repo.noteEngagementFlow(focusId) }
                     .collectAsState(null).value
+                // [#222] スレッドカラムも j/k 選択と r/t/f/b/Enter を使えるようにする。
+                val selIdx = kbColumnSelection(
+                    state, spec.id, entries.size, listState,
+                    resolve = { i -> entries.getOrNull(i)?.note },
+                    onOpen = { note -> state.openThreadDetail(note.event.id) },
+                    onReply = { note -> state.replyTo = note.event; state.showCompose = true },
+                    onRepost = { note -> state.quoting = note.event; state.showCompose = true },
+                )
                 ThreadColumn(
                     spec, entries, modifier, listState, menu = menu, zaps = zaps,
                     focusReactions = focusReactions, focusEngagement = focusEngagement,
+                    selectedIndex = selIdx,
                     onReply = { note -> state.replyTo = note.event; state.showCompose = true },
                     onQuote = { note -> state.quoting = note.event; state.showCompose = true },
                     onAuthorClick = { pk -> state.openProfile(pk) },

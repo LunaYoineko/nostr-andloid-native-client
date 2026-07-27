@@ -16,7 +16,7 @@ import app.nostrdeck.model.build
 enum class NavDest { HOME, SEARCH, NOTIFICATIONS, DM, CHANNELS, SETTINGS }
 
 /** [#14] キーボードショートカットで選択中の投稿に対して行うアクション。 */
-enum class KbAction { OPEN, REPLY, REPOST, REACT }
+enum class KbAction { OPEN, REPLY, REPOST, REACT, BOOKMARK }
 
 /**
  * 全幅で重ねる詳細ルート（どの宛先からでもプロフィール/スレッドを開ける）。

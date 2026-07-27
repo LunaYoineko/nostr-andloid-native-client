@@ -76,6 +76,7 @@ fun handleDeckKey(state: DeckState, event: KeyEvent, onReload: () -> Unit = {}):
         Key.R -> requestAction(state, focusId, KbAction.REPLY)
         Key.T -> requestAction(state, focusId, KbAction.REPOST)
         Key.F -> requestAction(state, focusId, KbAction.REACT)
+        Key.B -> requestAction(state, focusId, KbAction.BOOKMARK)   // [#222]
         Key.N -> { state.replyTo = null; state.quoting = null; state.showCompose = true }
         Key.Slash -> if (shift) {   // ? = Shift+/
             state.showShortcutsHelp = !state.showShortcutsHelp
@@ -130,6 +131,7 @@ private val SHORTCUTS: List<Pair<String, String>> = listOf(
     "r" to "返信",
     "t" to "リポスト",
     "f" to "いいね / リアクション",
+    "b" to "ブックマーク追加/解除",
     "n" to "新規投稿",
     "⌘/Ctrl + Enter" to "投稿する（作成中）",
     "/" to "検索",

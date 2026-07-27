@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
@@ -61,6 +62,8 @@ fun ThreadColumn(
     // [#270] 起点（フォーカス）ノートの反応集計。リアクション内訳とリプライ/リポスト数。
     focusReactions: List<ReactionUi> = emptyList(),
     focusEngagement: NoteEngagement? = null,
+    // [#222] キーボード選択中の行 index（-1=非選択）。
+    selectedIndex: Int = -1,
     onReply: (NoteUi) -> Unit = {},
     onQuote: (NoteUi) -> Unit = {},
     onAuthorClick: ((String) -> Unit)? = null,
@@ -74,11 +77,12 @@ fun ThreadColumn(
         )
         HorizontalDivider(color = DeckColors.Border)
         LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
-            items(entries, key = { it.note.event.id }) { entry ->
+            itemsIndexed(entries, key = { _, it -> it.note.event.id }) { index, entry ->
                 ThreadRow(
                     entry,
                     reactions = if (entry.isFocused) focusReactions else emptyList(),
                     engagement = if (entry.isFocused) focusEngagement else null,
+                    selected = index == selectedIndex,   // [#222]
                     onReply = { onReply(entry.note) }, onQuote = { onQuote(entry.note) }, onAuthorClick = onAuthorClick,
                 )
             }
@@ -113,6 +117,7 @@ private fun ThreadRow(
     entry: ThreadEntry,
     reactions: List<ReactionUi> = emptyList(),
     engagement: NoteEngagement? = null,
+    selected: Boolean = false,   // [#222] キーボード選択ハイライト
     onReply: () -> Unit,
     onQuote: () -> Unit = {},
     onAuthorClick: ((String) -> Unit)? = null,
@@ -132,7 +137,7 @@ private fun ThreadRow(
                 modifier = Modifier.padding(start = DeckSpace.Md, top = DeckSpace.Sm),
             )
         }
-        NoteItem(entry.note, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick)
+        NoteItem(entry.note, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick, selected = selected)
         FocusNoteStats(reactions, engagement)
     }
 }
