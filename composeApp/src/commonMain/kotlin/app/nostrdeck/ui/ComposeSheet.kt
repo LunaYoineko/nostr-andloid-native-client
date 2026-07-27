@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -391,12 +391,14 @@ fun ComposeSheet(
     ) {
       // [#196] Dialog は LocalDensity を再供給するので、老眼スケールを再適用する。
       DeckScaled {
-        // 画面上部に固定して浮くカード。imePadding で（ドッキング型）キーボード分だけ領域を詰める。
+        // 画面上部に固定して浮くカード。safeDrawingPadding で「ステータスバー/ノッチ + IME」の
+        // 両方を避ける（[#226] iOS 実機でカード上端が時計/セーフエリアへ潜り込んでいた。
+        // 旧 imePadding はキーボードしか避けないため上端が無防備だった）。
         // フローティングキーボードは下端に浮くだけなので、上寄せのこのカードには重ならない。
         // コンテンツが Dialog ウィンドウ全面を占めるため dismissOnClickOutside は発火しない。
         // オーバーレイ（カード外）のタップは自前で拾って attemptClose する。
         BoxWithConstraints(
-            Modifier.fillMaxSize().imePadding()
+            Modifier.fillMaxSize().safeDrawingPadding()
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
