@@ -46,10 +46,31 @@ import app.nostrdeck.theme.DeckWeight
  * 選択中の投稿へのアクション(OPEN/REPLY/REPOST/REACT)は [DeckState.kbAction] に要求を積み、
  * 対象カラム(RenderColumn)が自分の可視リストで実行して null に戻す（データはカラム側にあるため）。
  *
+ * [#275] macOS で日本語IMEが有効だと、文字キーの KeyDown が IME に吸われて届かず
+ * KeyUp しか来ない（実測）。そこで Down/Up の両取りにする:
+ *  - KeyDown を処理できたキーは記録し、対応する KeyUp は黙って消費（二重発火防止）
+ *  - KeyDown が来なかったキー（IME に吸われた）は KeyUp 側で発火する
+ * 英数入力時の挙動（キーリピート含む）は従来と変わらない。
+ *
  * @return このキーを消費したら true。
  */
-fun handleDeckKey(state: DeckState, event: KeyEvent, onReload: () -> Unit = {}): Boolean {
-    if (event.type != KeyEventType.KeyDown) return false
+fun handleDeckKey(state: DeckState, event: KeyEvent, onReload: () -> Unit = {}): Boolean =
+    when (event.type) {
+        KeyEventType.KeyDown -> {
+            val consumed = handleDeckKeyDown(state, event, onReload)
+            if (consumed) downHandledKeys.add(event.key)
+            consumed
+        }
+        KeyEventType.KeyUp ->
+            if (downHandledKeys.remove(event.key)) true
+            else handleDeckKeyDown(state, event, onReload)
+        else -> false
+    }
+
+/** [#275] KeyDown を処理できたキー（対応する KeyUp を黙って消費するため）。 */
+private val downHandledKeys = mutableSetOf<Key>()
+
+private fun handleDeckKeyDown(state: DeckState, event: KeyEvent, onReload: () -> Unit): Boolean {
     // 投稿作成シート表示中は全キーをそちら（テキスト入力）に譲る。
     if (state.showCompose) return false
 
