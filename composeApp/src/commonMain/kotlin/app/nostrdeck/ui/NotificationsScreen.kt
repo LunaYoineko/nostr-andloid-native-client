@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Reply
@@ -32,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
@@ -123,6 +125,10 @@ fun NotificationsColumn(
     }
     val all = remember(spec.id) { repo.notificationsFeed() }.collectAsState().value
     val items = if (revealMuted || mute == null) all else all.filterNot { mute.muted(it) }
+    // [#222] 通知カラムも j/k 選択と Enter/o（対象を開く）に対応する。
+    val selIdx = kbNotificationSelection(state, spec.id, items.size, listState) { i ->
+        items.getOrNull(i)?.let { openNotificationTarget(state, it) }
+    }
     Column(modifier.background(DeckColors.Surface)) {
         ColumnHeader(
             title = spec.title, subtitle = spec.subtitle,
@@ -132,16 +138,49 @@ fun NotificationsColumn(
         HorizontalDivider(color = DeckColors.Border)
         NotificationsBody(
             items, listState,
+            selectedIndex = selIdx,
             onNoticeClick = { n -> openNotificationTarget(state, n) },
             onActorClick = { pk -> state.openProfile(pk) },
         )
     }
 }
 
+/**
+ * [#222] 通知カラムのキーボード選択配線。件数の通知・選択スクロール追従・OPEN の実行を担う。
+ * REPLY/REPOST/REACT/BOOKMARK は通知行では対象が確定しないため黙って破棄する
+ * （破棄しないと kbAction が残り続ける）。
+ */
+@Composable
+private fun kbNotificationSelection(
+    state: DeckState,
+    columnId: String,
+    count: Int,
+    listState: LazyListState,
+    onOpen: (Int) -> Unit,
+): Int {
+    val focused = state.kbFocusColumnId == columnId
+    val raw = state.kbSelected[columnId] ?: -1
+    val selectedIndex = if (focused && state.kbActive && raw in 0 until count) raw else -1
+
+    androidx.compose.runtime.LaunchedEffect(columnId, count) { state.kbCount[columnId] = count }
+    androidx.compose.runtime.LaunchedEffect(selectedIndex) {
+        if (selectedIndex >= 0) runCatching { listState.animateScrollToItem(selectedIndex) }
+    }
+    androidx.compose.runtime.LaunchedEffect(state.kbAction) {
+        val act = state.kbAction ?: return@LaunchedEffect
+        if (act.first != columnId) return@LaunchedEffect
+        val idx = state.kbSelected[columnId] ?: -1
+        if (act.second == app.nostrdeck.state.KbAction.OPEN && idx in 0 until count) onOpen(idx)
+        state.kbAction = null
+    }
+    return selectedIndex
+}
+
 @Composable
 private fun NotificationsBody(
     items: List<NotificationUi>,
     listState: LazyListState,
+    selectedIndex: Int = -1,   // [#222] キーボード選択中の行（-1=非選択）
     onNoticeClick: (NotificationUi) -> Unit,
     onActorClick: (String) -> Unit,
 ) {
@@ -151,9 +190,10 @@ private fun NotificationsBody(
         }
     } else {
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            items(items, key = { it.id }) { n ->
+            itemsIndexed(items, key = { _, it -> it.id }) { index, n ->
                 NoticeRow(
                     n,
+                    selected = index == selectedIndex,
                     onClick = { onNoticeClick(n) },
                     onActorClick = { onActorClick(n.actor.pubkey) },
                 )
@@ -164,9 +204,19 @@ private fun NotificationsBody(
 
 /** [M10] 通知1行（通知一覧 / ホームタイムラインのインライン通知で共用）。 */
 @Composable
-fun NoticeRow(n: NotificationUi, onClick: () -> Unit, onActorClick: () -> Unit) {
+fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit, onActorClick: () -> Unit) {
+    // [#222] キーボード選択ハイライト（NoteItem と同じ: 背景 Surface2 + 左 3dp アクセントバー）。
+    val selFill = DeckColors.Surface2
+    val selBar = DeckColors.Accent
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(DeckSpace.Md),
+        Modifier.fillMaxWidth()
+            .drawBehind {
+                if (selected) {
+                    drawRect(color = selFill)
+                    drawRect(color = selBar, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height))
+                }
+            }
+            .clickable(onClick = onClick).padding(DeckSpace.Md),
         verticalAlignment = Alignment.Top,
     ) {
         // 左の種別指標: リアクションは絵文字そのもの／返信・メンション・リポストはアイコン
