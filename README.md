@@ -5,6 +5,14 @@ Kotlin + **Compose Multiplatform**（Android / iOS / iPad）。
 
 設計の根拠と全体像は **[whiteboard.md](./whiteboard.md)** に集約。
 デザインモック（HTML）は **[designs/index.html](./designs/index.html)**（ブラウザで開く）。
+リリース手順（Play / TestFlight / GitHub Releases）は **[docs/RELEASING.md](./docs/RELEASING.md)**。
+
+## ダウンロード
+
+- **Android / macOS**: [Releases](../../releases) からプレビュー版（APK / dmg）
+  ※ Play 版とは署名が異なるため相互に上書き更新できません。dmg は未署名（初回は右クリック→開く）
+- **Android（テスター向け）**: Play クローズドテスト
+- **iOS**: TestFlight
 
 ---
 
