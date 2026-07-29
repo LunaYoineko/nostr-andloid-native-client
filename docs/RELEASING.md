@@ -5,7 +5,10 @@
 
 - Android → Play Console クローズドテスト（`alpha` トラック）
 - iOS → TestFlight（**macOS への提供はしない**。[#221] で `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD=NO`）
-- macOS → **GitHub Releases**（Compose Desktop の dmg。`scripts/release-mac.sh`）
+- macOS / Android → **GitHub Releases**（**プレビュー配布**。dmg + APK。`scripts/release-github.sh`）
+
+**3系統は毎回セットで出す**（同じタグ・同じ build 番号）。GitHub Releases は
+「ストアのテスターでない人にも手早く触ってもらう」ためのプレビュー用で、ストア配信の代わりではない。
 
 > **AI へ**: 「リリースして」「ベータ出して」等を頼まれたら、この手順書のとおり実行すること。
 > リリースノート（ユーザー表示文）は**必ず**書く。build 番号は git のコミット数（単調増加）に依存するため、
@@ -16,14 +19,26 @@
 
 ---
 
-## 0. リリース前チェック（両プラットフォーム共通）
+## 0. リリース前チェック（全プラットフォーム共通）
 
 1. リリースに含める変更が `main`（または配信対象 ref）に入っているか確認。
 1. **バージョンタグを打つ**（[#252]）: `git tag vX.Y.Z && git push --tags`
    バグ修正=PATCH / 機能追加=MINOR / 破壊的変更=MAJOR。`scripts/version.sh --on-tag` が `1` になることを確認。
 2. **リリースノートを書く**（下記スタイル）。Android は `distribution/whatsnew/whatsnew-ja-JP` を更新してコミット。
-   iOS の「テスト内容」も同じ文面を流用する。
+   iOS の「テスト内容」も同じ文面を流用し、GitHub Releases のノートにも使われる。
 3. 破壊的変更・既知の不具合があれば、リリースノート末尾かテスト内容に明記。
+
+### 実行順（1タグ = 3系統。同じ build 番号で揃える）
+```bash
+# 1. Android（Play クローズドテスト）… §1
+gh workflow run release-beta.yml --ref main -f track=alpha -f status=completed
+# 2. iOS（TestFlight）… §2   ※1と並行実行してよい
+cd iosApp && ./scripts/testflight.sh; cd ..
+# 3. GitHub Releases（プレビュー配布: dmg + APK）… §3
+scripts/release-github.sh
+# 4. 人へ渡す情報を出力（TestFlight のテスト内容など）… §6
+scripts/release-info.sh
+```
 
 ### リリースノートの書き方
 - **日本語が主**（アプリの主対象）。ユーザー目線で「何が良くなったか」を簡潔に。実装用語は避ける。
@@ -106,26 +121,34 @@ cd iosApp
 
 ---
 
-## 3. macOS（GitHub Releases / dmg）
+## 3. GitHub Releases（プレビュー配布: macOS dmg + Android APK）
 
-**[#221] Mac は Compose Desktop 版を GitHub Releases で配布する**（App Store には出さない。
-iOS アプリの TestFlight も macOS へは提供しない設定にしてある）。
+**位置づけ: プレビュー配布**。ストアのテスターに登録していない人へ「とりあえず触ってもらう」ための
+配布口で、Play/TestFlight の代わりではない（**両方出す**）。
+[#221] Mac 版はここが唯一の配布口（App Store には出さない。TestFlight の macOS 提供も切ってある）。
 
 ### 手順
 ```bash
-# タグ済み（version.sh --on-tag = 1）の状態で:
-scripts/release-mac.sh
-#   packageDmg → Nostrism-<version>-macos.dmg にリネーム →
-#   GitHub Release v<version> を作成（無ければ。ノートは whatsnew-ja-JP）→ dmg を添付。
-# ビルド確認だけなら: DRY_RUN=1 scripts/release-mac.sh
+# Play/TestFlight と同じタグ・同じ build 番号で（version.sh --on-tag = 1 の状態で）:
+scripts/release-github.sh
+#   dmg（packageDmg）と APK（assembleRelease）をビルド → Nostrism-<version>-{macos.dmg,android.apk}
+#   → Release v<version> を作成/更新（ノート = whatsnew-ja-JP + 配布物ごとの注意を自動生成）→ 添付。
+# ビルド確認だけ    : DRY_RUN=1 scripts/release-github.sh
+# 片方だけ          : SKIP_MAC=1 / SKIP_ANDROID=1
 ```
 
-### 注意
-- **未署名 dmg**（Developer ID 署名/公証は #221 の残タスク）。ダウンロードした利用者は
-  初回のみ「右クリック→開く」（または `xattr -dr com.apple.quarantine`）が必要。
-  リリースノートにその旨を書き添えること。
+### 注意（Release ノートにも自動で入るが、意味を理解しておくこと）
+- **Android APK は Play 版と署名が違う**（こちらは*アップロード鍵*、Play 配信版は Play App Signing の
+  *アプリ署名鍵*）。したがって**相互に上書き更新できない**。入れ替えるにはアンインストールが必要で、
+  ローカルデータ（鍵・DB）も消える。Play のテスターには Play 版の更新を案内する。
+- **dmg は未署名**（Developer ID 署名/公証は #221 の残タスク）。利用者は初回のみ
+  「右クリック→開く」（または `xattr -dr com.apple.quarantine`）が必要。
 - dmg 内部の packageVersion は jpackage の制約（MAJOR>0）で 1.0.0 固定。
   実バージョンはファイル名（`Nostrism-<version>-macos.dmg`）とアプリ内表示で判別する。
+- APK ビルドでは `lintVital*` を除外している（AGP と Kotlin のバージョン差で lint 解析が
+  クラッシュするため。コードは CI で全ターゲット検証済み）。恒常化するなら lint 側の整合を取る。
+- versionCode/Name はスクリプトが `version.sh` の値を `-PversionCode/-PversionName` で渡す。
+  手で `assembleRelease` すると既定値（1 / 0.1.0）になるので注意。
 
 ---
 
