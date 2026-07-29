@@ -75,11 +75,14 @@ fun AppModalSheet(
                         indication = null,
                         onClick = onDismiss,
                     ),
-                contentAlignment = Alignment.BottomCenter,
+                // [#284] 上寄せ。下端固定だと「ボトムシート」に見えてスワイプで閉じられると
+                // 誤解させる（実際にはドラッグしない）。投稿モーダル(ComposeSheet)と同じ作法に揃える。
+                contentAlignment = Alignment.TopCenter,
             ) {
                 // [#226] セーフエリア（ステータスバー/ノッチ）と IME を避ける。
                 Column(
                     Modifier.safeDrawingPadding()
+                        .padding(vertical = DeckSpace.Md)
                         .widthIn(max = 560.dp)
                         .heightIn(max = maxHeight - DeckSpace.Xl)
                         .clip(RoundedCornerShape(DeckRadius.Lg))
