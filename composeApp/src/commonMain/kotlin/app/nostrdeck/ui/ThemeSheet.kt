@@ -91,6 +91,8 @@ import nostr_deck_client.composeapp.generated.resources.theme_publish
 import nostr_deck_client.composeapp.generated.resources.theme_publish_failed
 import nostr_deck_client.composeapp.generated.resources.theme_publish_name_hint
 import nostr_deck_client.composeapp.generated.resources.theme_publish_note
+import nostr_deck_client.composeapp.generated.resources.theme_publish_open
+import nostr_deck_client.composeapp.generated.resources.theme_publish_moved
 import nostr_deck_client.composeapp.generated.resources.theme_publish_ok
 import nostr_deck_client.composeapp.generated.resources.theme_scope_all
 import nostr_deck_client.composeapp.generated.resources.theme_scope_following
@@ -165,7 +167,7 @@ internal fun ThemeSheet(
     ) {
         Box(Modifier.weight(1f, fill = false)) {
             when (page) {
-                ThemePage.CUSTOMIZE -> ThemeCustomizePage(draft, setDraft)
+                ThemePage.CUSTOMIZE -> ThemeCustomizePage(repo, draft, setDraft)
                 ThemePage.STORE -> ThemeStorePage(repo, current, draft, setDraft)
             }
         }
@@ -243,12 +245,20 @@ private fun ThemePreviewCard(prefs: CustomThemePrefs) {
 /** カスタマイズページ: プリセットと3色の編集（hex + カラーピッカー）。すべて下書きにのみ反映。 */
 @Composable
 private fun ThemeCustomizePage(
+    repo: app.nostrdeck.data.EventRepository,
     draft: CustomThemePrefs,
     onDraft: (CustomThemePrefs, String?) -> Unit,
 ) {
     val Prefs = CustomThemePrefs
     // 展開中のピッカー（0=背景 1=文字 2=アクセント）。同時に1つだけ開く。
     var pickerFor by remember { mutableStateOf<Int?>(null) }
+    // [#286] 公開はここから1タップで（旧: ストアタブの折りたたみに埋もれていて気付けなかった）。
+    val scope = rememberCoroutineScope()
+    val toast = rememberToaster()
+    var showPublish by remember { mutableStateOf(false) }
+    var publishName by remember { mutableStateOf("") }
+    val publishOkMsg = stringResource(Res.string.theme_publish_ok)
+    val publishFailMsg = stringResource(Res.string.theme_publish_failed)
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Text(stringResource(Res.string.theme_custom_desc), color = DeckColors.Text3, fontSize = DeckType.Label)
@@ -312,7 +322,42 @@ private fun ThemeCustomizePage(
         DeckGhostButton(stringResource(Res.string.img_reset_defaults), onClick = {
             onDraft(CustomThemePrefs.DEFAULT, null)
         })
+
+        // [#286] この配色をそのままテーマストアへ公開する導線。
+        Spacer(Modifier.size(DeckSpace.Lg))
+        HorizontalDivider(color = DeckColors.Border)
+        Spacer(Modifier.size(DeckSpace.Md))
+        Text(stringResource(Res.string.theme_publish_note), color = DeckColors.Text3, fontSize = DeckType.Label)
+        Spacer(Modifier.size(DeckSpace.Sm))
+        DeckButton(
+            stringResource(Res.string.theme_publish_open),
+            onClick = { showPublish = true },
+        )
         Spacer(Modifier.size(DeckSpace.Xl))
+    }
+
+    // 名前だけ聞いて公開する（配色は編集中の下書きをそのまま使う）。
+    if (showPublish) {
+        DeckInputDialog(
+            title = stringResource(Res.string.theme_publish_open),
+            placeholder = stringResource(Res.string.theme_publish_name_hint),
+            value = publishName,
+            onValueChange = { publishName = it },
+            confirmLabel = stringResource(Res.string.theme_publish),
+            confirmEnabled = publishName.isNotBlank(),
+            onConfirm = {
+                val name = publishName.trim()
+                showPublish = false
+                scope.launch {
+                    val ok = repo.publishTheme(
+                        ThemeEntry(name = name, colors = draft, minAppVersion = appVersionName),
+                    )
+                    toast(if (ok) publishOkMsg else publishFailMsg)
+                    if (ok) publishName = ""
+                }
+            },
+            onDismiss = { showPublish = false },
+        )
     }
 }
 
@@ -592,36 +637,8 @@ private fun ThemeStorePage(
                 })
             }
             Spacer(Modifier.size(DeckSpace.Sm))
-            Text(stringResource(Res.string.theme_publish_note), color = DeckColors.Text3, fontSize = DeckType.Label)
-            Spacer(Modifier.size(DeckSpace.Xs))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                DeckTextField(
-                    value = publishName,
-                    onValueChange = { publishName = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = stringResource(Res.string.theme_publish_name_hint),
-                )
-                Spacer(Modifier.size(DeckSpace.Sm))
-                val okMsg = stringResource(Res.string.theme_publish_ok)
-                val failMsg = stringResource(Res.string.theme_publish_failed)
-                DeckButton(
-                    stringResource(Res.string.theme_publish),
-                    enabled = publishName.isNotBlank(),
-                    onClick = {
-                        scope.launch {
-                            val ok = repo.publishTheme(
-                                ThemeEntry(
-                                    name = publishName.trim(),
-                                    colors = draft,
-                                    minAppVersion = appVersionName,
-                                ),
-                            )
-                            toast(if (ok) okMsg else failMsg)
-                            if (ok) publishName = ""
-                        }
-                    },
-                )
-            }
+            // [#286] 公開は「カスタマイズ」タブのボタンへ移した（ここに埋もれて気付けなかったため）。
+            Text(stringResource(Res.string.theme_publish_moved), color = DeckColors.Text3, fontSize = DeckType.Label)
             Spacer(Modifier.size(DeckSpace.Sm))
         }
     }
