@@ -8,11 +8,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,13 +27,10 @@ import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -124,7 +119,6 @@ internal enum class ThemePage { CUSTOMIZE, STORE }
  * プリセット/ストア行/色編集/共有コードの選択はシート内の下書き（draft）とプレビューカードにのみ
  * 反映し、「適用」を押して初めてアプリ全体へ反映する。タブでカスタマイズ⇄ストアを行き来できる。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ThemeSheet(
     repo: app.nostrdeck.data.EventRepository,
@@ -136,7 +130,6 @@ internal fun ThemeSheet(
     onUndo: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var page by remember { mutableStateOf(initialPage) }
     // 下書き（プレビュー対象）。適用/Undo で全体の色が変わったら追従させる。
     var draft by remember { mutableStateOf(current) }
@@ -146,31 +139,13 @@ internal fun ThemeSheet(
     // [#162] onClick（非 Composable）から使う文言はコンポジション中に解決しておく。
     val customLabel = stringResource(Res.string.theme_custom)
 
-    // [#284] sheetGesturesEnabled=false: シート自身のドラッグを切る。有効だと中身のスクロールと
-    // ドラッグが競合し、下スワイプで**シートごと閉じて下書きが消える**（Material3 の
-    // nested-scroll 仕様。スクロール端まで来た余剰デルタがシートに渡り Hidden へ飛ぶ）。
-    // 閉じる操作は × / スクリムタップ / 戻るで確保している。
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        sheetGesturesEnabled = false,
-        containerColor = DeckColors.Surface,
-    ) {
-      // [#196] Dialog/Popup は LocalDensity を再供給するため、老眼スケールを再適用する。
-      DeckScaled {
-        Column(
-            Modifier.fillMaxWidth().fillMaxHeight(0.92f)
-                .padding(horizontal = DeckSpace.Md).navigationBarsPadding(),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TitleText(stringResource(Res.string.theme_title), modifier = Modifier.weight(1f))
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        Icons.Outlined.Close, contentDescription = stringResource(Res.string.theme_close),
-                        tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconLg),
-                    )
-                }
-            }
+    // [#284] ボトムシートをやめ Dialog ベースの全画面モーダルへ（シートのドラッグと中身の
+    // スクロールが競合して UI が不安定になるため）。タブ/プレビューはヘッダー固定、
+    // 各ページだけがスクロールする。
+    AppModalSheet(
+        title = stringResource(Res.string.theme_title),
+        onDismiss = onDismiss,
+        headerExtra = {
             Row(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
                 ChoiceChip(stringResource(Res.string.theme_tab_customize), selected = page == ThemePage.CUSTOMIZE) {
                     page = ThemePage.CUSTOMIZE
@@ -186,28 +161,27 @@ internal fun ThemeSheet(
             Spacer(Modifier.size(DeckSpace.Xs))
             ThemePreviewCard(draft)
             Spacer(Modifier.size(DeckSpace.Md))
-
-            Box(Modifier.weight(1f)) {
-                when (page) {
-                    ThemePage.CUSTOMIZE -> ThemeCustomizePage(draft, setDraft)
-                    ThemePage.STORE -> ThemeStorePage(repo, current, draft, setDraft)
-                }
+        },
+    ) {
+        Box(Modifier.weight(1f, fill = false)) {
+            when (page) {
+                ThemePage.CUSTOMIZE -> ThemeCustomizePage(draft, setDraft)
+                ThemePage.STORE -> ThemeStorePage(repo, current, draft, setDraft)
             }
-
-            Spacer(Modifier.size(DeckSpace.Sm))
-            if (canUndo) {
-                ThemeUndoBar(undoName, onUndo)
-                Spacer(Modifier.size(DeckSpace.Sm))
-            }
-            DeckButton(
-                stringResource(Res.string.common_apply),
-                enabled = draft != current,
-                modifier = Modifier.fillMaxWidth(),
-                onClick = { onApply(draft, draftName ?: customLabel) },
-            )
-            Spacer(Modifier.size(DeckSpace.Md))
         }
-      }
+
+        Spacer(Modifier.size(DeckSpace.Sm))
+        if (canUndo) {
+            ThemeUndoBar(undoName, onUndo)
+            Spacer(Modifier.size(DeckSpace.Sm))
+        }
+        DeckButton(
+            stringResource(Res.string.common_apply),
+            enabled = draft != current,
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { onApply(draft, draftName ?: customLabel) },
+        )
+        Spacer(Modifier.size(DeckSpace.Md))
     }
 }
 
