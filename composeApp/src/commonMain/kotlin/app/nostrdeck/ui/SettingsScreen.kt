@@ -420,7 +420,14 @@ private fun MediaSettings() {
 @Composable
 private fun SettingsSheet(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DeckColors.Surface) {
+    // [#284] シート自身のドラッグは切る（中身のスクロールと競合し、下スワイプで閉じてしまうため）。
+    // 閉じる操作は × / スクリムタップ / 戻るで確保している。詳細は ThemeSheet のコメント参照。
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        sheetGesturesEnabled = false,
+        containerColor = DeckColors.Surface,
+    ) {
         // [#196] Dialog/Popup は LocalDensity を再供給するため、老眼スケールを再適用する。
         DeckScaled {
             Column(

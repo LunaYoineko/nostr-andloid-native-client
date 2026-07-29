@@ -146,7 +146,16 @@ internal fun ThemeSheet(
     // [#162] onClick（非 Composable）から使う文言はコンポジション中に解決しておく。
     val customLabel = stringResource(Res.string.theme_custom)
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DeckColors.Surface) {
+    // [#284] sheetGesturesEnabled=false: シート自身のドラッグを切る。有効だと中身のスクロールと
+    // ドラッグが競合し、下スワイプで**シートごと閉じて下書きが消える**（Material3 の
+    // nested-scroll 仕様。スクロール端まで来た余剰デルタがシートに渡り Hidden へ飛ぶ）。
+    // 閉じる操作は × / スクリムタップ / 戻るで確保している。
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        sheetGesturesEnabled = false,
+        containerColor = DeckColors.Surface,
+    ) {
       // [#196] Dialog/Popup は LocalDensity を再供給するため、老眼スケールを再適用する。
       DeckScaled {
         Column(
