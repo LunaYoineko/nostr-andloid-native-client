@@ -1,3 +1,3 @@
-- Fixed the compose sheet overlapping the clock/status bar at the top
-- Keyboard shortcuts expanded: j/k selection now works in thread and notification columns, and b bookmarks the selected post
-- Minor improvements and fixes
+- Reworked the theme settings screen: scrolling now works properly and it no longer closes on you mid-scroll
+- Publishing to the theme store is now one tap from the Customize screen (just enter a name)
+- Media settings now use the same screen style
