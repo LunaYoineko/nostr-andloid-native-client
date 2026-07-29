@@ -67,9 +67,11 @@
     <string name="theme_list_capped">Showing up to %1$s themes.</string>
     <string name="theme_applied_fmt">Applied “%1$s”</string>
     <string name="theme_undo">Undo</string>
-    <string name="theme_publish_note">Publishes your current 3 colors as a theme. Publishing again with the same name updates it.</string>
+    <string name="theme_publish_note">Publish these colors as a theme so others can find and use them. Publishing again with the same name updates it.</string>
+    <string name="theme_publish_open">Publish to theme store</string>
+    <string name="theme_publish_moved">To publish your own theme, use "Publish to theme store" on the Customize tab.</string>
     <string name="theme_store_desc">Themes published by others (NIP-78). Tap one to preview it, then tap Apply. Themes made for a newer app version are marked — you can still apply them.</string>
-    <string name="theme_store_empty">No themes found yet. Import a share code, or publish yours from the section below.</string>
+    <string name="theme_store_empty">No themes found yet. Publish yours from the Customize tab, or import a share code below.</string>
     <string name="theme_tab_customize">Customize</string>
     <string name="theme_tab_store">Store</string>
     <string name="theme_preview_label">Preview — nothing changes until you tap Apply.</string>
@@ -77,7 +79,7 @@
     <string name="theme_preview_sample_body">This is a sample post. Check how your colors look here.</string>
     <string name="theme_preview_sample_action">Button</string>
     <string name="theme_loading">Loading themes…</string>
-    <string name="theme_share_section">Share code &amp; publish</string>
+    <string name="theme_share_section">Share code</string>
     <string name="theme_in_use">In use</string>
     <string name="theme_previewing">Previewing</string>
     <string name="theme_close">Close</string>

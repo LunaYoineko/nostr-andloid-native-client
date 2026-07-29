@@ -46,8 +46,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.text.input.ImeAction
@@ -415,32 +413,16 @@ private fun MediaSettings() {
 /**
  * [#269] 設定モーダルの共通スキャフォールド。タイトル + ×（明示的に閉じる）を持ち、
  * 中身がはみ出したらモーダル内でスクロールする。高さは中身に合わせる（空白で埋めない）。
+ * [#284] ボトムシート→Dialog ベース（[AppModalSheet]）へ。ドラッグとスクロールの競合を無くす。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsSheet(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = DeckColors.Surface) {
-        // [#196] Dialog/Popup は LocalDensity を再供給するため、老眼スケールを再適用する。
-        DeckScaled {
-            Column(
-                Modifier.fillMaxWidth()
-                    .padding(horizontal = DeckSpace.Md)
-                    .navigationBarsPadding().imePadding()
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TitleText(title, modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            Icons.Outlined.Close, contentDescription = stringResource(Res.string.common_close),
-                            tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconLg),
-                        )
-                    }
-                }
-                content()
-                Spacer(Modifier.size(DeckSpace.Xl))
-            }
+    AppModalSheet(title = title, onDismiss = onDismiss) {
+        Column(
+            Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()),
+        ) {
+            content()
+            Spacer(Modifier.size(DeckSpace.Xl))
         }
     }
 }
