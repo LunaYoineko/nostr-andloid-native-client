@@ -45,7 +45,7 @@ NAME=$(scripts/version.sh --name)
 BUILD=$(scripts/version.sh --build)
 ON_TAG=$(scripts/version.sh --on-tag)
 if [ "$ON_TAG" != "1" ]; then
-  echo "⚠ HEAD がバージョンタグ上ではありません（version=$NAME）。先に \`git tag vX.Y.Z && git push --tags\` を実行してください" >&2
+  echo "⚠ HEAD がバージョンタグ上ではありません（version=${NAME}）。先に \`git tag vX.Y.Z && git push --tags\` を実行してください" >&2
   # DRY_RUN はビルド確認用なのでタグ無しでも続行する。
   [ "${DRY_RUN:-0}" = "1" ] || exit 1
 fi
@@ -94,14 +94,14 @@ NOTES=$(mktemp)
   echo "### ダウンロード（プレビュー配布）"
   echo
   if [ "$SKIP_ANDROID" != "1" ]; then
-    echo "- **Android**: \`Nostrism-$NAME-android.apk\`（直接インストール用）"
+    echo "- **Android**: \`Nostrism-${NAME}-android.apk\`（直接インストール用）"
     echo "  ⚠️ Play 版（クローズドテスト）とは**署名が異なる**ため、上書き更新はできません。入れ替える場合は一度アンインストールしてください（データも消えます）。Play でテスト参加中の方は Play 版の更新をお使いください。"
   fi
   if [ "$SKIP_MAC" != "1" ]; then
     echo "- **macOS**: \`Nostrism-$NAME-macos.dmg\`"
     echo "  ⚠️ 現在未署名です。初回起動時は Finder で**右クリック→開く**を選択してください。"
   fi
-  echo "- **iOS**: TestFlight（build $BUILD）で配信しています。"
+  echo "- **iOS**: TestFlight（build ${BUILD}）で配信しています。"
 } > "$NOTES"
 
 if gh release view "$TAG" >/dev/null 2>&1; then
