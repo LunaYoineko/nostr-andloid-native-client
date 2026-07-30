@@ -1,5 +1,4 @@
-- Reworked the theme settings screen: scrolling now works properly and it no longer closes on you mid-scroll
-- Publishing to the theme store is now one tap from the Customize screen (just enter a name)
-- Media settings now use the same screen style
-- Fixed the compose sheet overlapping the clock/status bar at the top
-- Keyboard shortcuts: j/k selection in thread and notification columns, b to bookmark
+- Replies and quote reposts now look different: replies show the parent as a one-line "◁ …" preview, quotes keep the card
+- Reposts are now shown as "🔁 (avatar) name"
+- Notifications show which of your posts they refer to, as a one-line preview
+- Fixed themes published by other people not appearing in the theme store
