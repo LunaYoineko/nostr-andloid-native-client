@@ -160,8 +160,8 @@ fun NoteItem(
       drawRect(color = selBar, size = Size(3.dp.toPx(), size.height))
   } else withAccent
   Column(rootModifier) {
-    note.repostedBy?.let {  // [M8-repost] 🔁 {name} がリポスト
-        RepostHeader(it.name, Modifier.padding(start = DeckSpace.Md, top = DeckSpace.Sm))
+    note.repostedBy?.let {  // [M8-repost][#254] 🔁 (アバター) 名前
+        RepostHeader(it, Modifier.padding(start = DeckSpace.Md, top = DeckSpace.Sm))
     }
     // [#254] 返信(NIP-10)の返信元は**アバター/名前の上**に1行プレビュー（◁ 名前: 本文…）。
     // 「◁ 返信元の内容」→「(アイコン) 名前…」の順に読めるようにする。リポストヘッダと同じ位置。
