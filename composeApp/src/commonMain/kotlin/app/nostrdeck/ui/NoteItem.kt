@@ -169,6 +169,8 @@ fun NoteItem(
         ReplyContextLine(
             name = parent.author.name,
             content = parent.text ?: parent.event.content,
+            avatarSeed = parent.event.pubkey,
+            avatarUrl = parent.author.pictureUrl,
             modifier = Modifier.padding(start = DeckSpace.Md, end = DeckSpace.Md, top = DeckSpace.Sm),
         )
     }

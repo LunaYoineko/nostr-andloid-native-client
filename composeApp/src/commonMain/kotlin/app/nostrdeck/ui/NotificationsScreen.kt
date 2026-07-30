@@ -82,6 +82,8 @@ fun NotificationsScreen(state: DeckState) {
             items, rememberLazyListState(),
             onNoticeClick = { n -> openNotificationTarget(state, n) },
             onActorClick = { pk -> state.openProfile(pk) },
+            // [#254] 引っ張って更新: REQ を張り直してリレーから取り直す。
+            onRefresh = { repo.unsubscribeColumn("notifications"); repo.subscribeNotifications("notifications") },
         )
     }
 }
@@ -141,6 +143,8 @@ fun NotificationsColumn(
             selectedIndex = selIdx,
             onNoticeClick = { n -> openNotificationTarget(state, n) },
             onActorClick = { pk -> state.openProfile(pk) },
+            // [#254] 引っ張って更新: REQ を張り直してリレーから取り直す。
+            onRefresh = { repo.unsubscribeColumn(spec.id); repo.subscribeNotifications(spec.id) },
         )
     }
 }
@@ -183,20 +187,23 @@ private fun NotificationsBody(
     selectedIndex: Int = -1,   // [#222] キーボード選択中の行（-1=非選択）
     onNoticeClick: (NotificationUi) -> Unit,
     onActorClick: (String) -> Unit,
+    onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新
 ) {
-    if (items.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(Res.string.notif_empty), color = DeckColors.Text3, fontSize = DeckType.Sub)
-        }
-    } else {
-        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-            itemsIndexed(items, key = { _, it -> it.id }) { index, n ->
-                NoticeRow(
-                    n,
-                    selected = index == selectedIndex,
-                    onClick = { onNoticeClick(n) },
-                    onActorClick = { onActorClick(n.actor.pubkey) },
-                )
+    RefreshableBox(onRefresh) {
+        if (items.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(stringResource(Res.string.notif_empty), color = DeckColors.Text3, fontSize = DeckType.Sub)
+            }
+        } else {
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                itemsIndexed(items, key = { _, it -> it.id }) { index, n ->
+                    NoticeRow(
+                        n,
+                        selected = index == selectedIndex,
+                        onClick = { onNoticeClick(n) },
+                        onActorClick = { onActorClick(n.actor.pubkey) },
+                    )
+                }
             }
         }
     }

@@ -3622,6 +3622,50 @@ class EventRepository(
             }
             .flowOn(Dispatchers.Default)
 
+    /**
+     * [#254] 対象ノートのリアクション内訳＋した人（新しい順・pubkey 重複なし）。多い順。
+     * 名前未取得の人は kind:0 を要求しつつ npub 短縮で出す（届き次第 DB Flow で差し替わる）。
+     */
+    fun noteReactionPeopleFlow(noteId: String): Flow<List<app.nostrdeck.model.ReactionGroupUi>> =
+        q.reactionsForNoteWithAuthors(noteId).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                rows.filter { it.pname.isNullOrBlank() }.map { it.pubkey }.distinct().forEach { requestProfile(it) }
+                rows.groupBy {
+                    val r = normalizeReaction(it.content, parseTags(it.tags_json))
+                    r.display to r.imageUrl
+                }.map { (k, list) ->
+                    app.nostrdeck.model.ReactionGroupUi(
+                        display = k.first, imageUrl = k.second,
+                        people = list.distinctBy { it.pubkey }.map { row ->
+                            Profile(
+                                pubkey = row.pubkey,
+                                name = row.pname?.takeIf { it.isNotBlank() } ?: shortNpub(row.pubkey),
+                                handle = "", pictureUrl = row.ppicture,
+                            )
+                        },
+                    )
+                }.sortedByDescending { it.people.size }
+            }
+            .flowOn(Dispatchers.Default)
+
+    /** [#254] 対象ノートをリポストした人（新しい順・重複なし）。 */
+    fun noteRepostersFlow(noteId: String): Flow<List<Profile>> =
+        q.repostersForNote(noteId).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                rows.filter { it.pname.isNullOrBlank() }.forEach { requestProfile(it.pubkey) }
+                rows.map { row ->
+                    Profile(
+                        pubkey = row.pubkey,
+                        name = row.pname?.takeIf { it.isNotBlank() } ?: shortNpub(row.pubkey),
+                        handle = "", pictureUrl = row.ppicture,
+                    )
+                }
+            }
+            .flowOn(Dispatchers.Default)
+
+    private fun shortNpub(pubkey: String): String =
+        runCatching { Nip19.hexToNpub(pubkey).take(12) + "…" }.getOrDefault(pubkey.take(12))
+
     /** 対象ノートへのリプライ数・リポスト数（kind:1 / kind:6,16 を kind 別に集計）。 */
     fun noteEngagementFlow(noteId: String): Flow<app.nostrdeck.model.NoteEngagement> =
         q.engagementCountsForNote(noteId).asFlow().mapToList(Dispatchers.Default)

@@ -536,10 +536,13 @@ fun ComposeSheet(
                 // 返信先/引用元は入力フォームの外、下部に固定して文脈を明示する（境界は余白で）。
                 // [#254] 返信は1行プレビュー（◁ 名前: 本文…）、引用は従来のカード。
                 if (replyTo != null) {
+                    val replyProfile = LocalRepository.current?.profileFlow(replyTo.pubkey)
+                        ?.collectAsState(null)?.value
                     ReplyContextLine(
-                        name = LocalRepository.current?.profileFlow(replyTo.pubkey)
-                            ?.collectAsState(null)?.value?.name?.takeIf { it.isNotBlank() },
+                        name = replyProfile?.name?.takeIf { it.isNotBlank() },
                         content = replyTo.content,
+                        avatarSeed = replyTo.pubkey,
+                        avatarUrl = replyProfile?.pictureUrl,
                         modifier = Modifier.padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
                     )
                 } else if (quoting != null) {

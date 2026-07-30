@@ -150,6 +150,14 @@ data class NoteEngagement(
     val reposts: Int = 0,
 )
 
+/** [#254] 投稿詳細: リアクション1種（絵文字）と、した人の一覧（新しい順・重複なし）。 */
+@Immutable
+data class ReactionGroupUi(
+    val display: String,
+    val imageUrl: String? = null,
+    val people: List<Profile> = emptyList(),
+)
+
 /**
  * 自分のカスタム絵文字1件（NIP-30/NIP-51）。kind:10030 の emoji タグ・参照先 kind:30030 から解決。
  * リアクション送信時は content=":[shortcode]:"、tags に ["emoji", shortcode, url] を付ける。
