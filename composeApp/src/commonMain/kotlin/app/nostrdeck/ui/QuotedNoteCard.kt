@@ -1,6 +1,13 @@
 package app.nostrdeck.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -67,5 +74,30 @@ fun QuotedNoteCard(note: NoteUi, modifier: Modifier = Modifier) {
             maxLines = 4,
             overflow = TextOverflow.Ellipsis,
         )
+        // [#254] 画像付き投稿の引用が「殻」に見えないよう、先頭1枚だけサムネイル表示。
+        // 2枚目以降は右下バッジで枚数を示す（フルのグリッドは引用元を開いてから）。
+        note.images.firstOrNull()?.let { img ->
+            Spacer(Modifier.size(DeckSpace.Xs))
+            Box {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalPlatformContext.current)
+                        .data(ImageProxy.proxied(img, width = 640, quality = 80)).crossfade(true).build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(DeckRadius.Sm)),
+                )
+                if (note.images.size > 1) {
+                    Text(
+                        "+${note.images.size - 1}",
+                        color = DeckColors.Text,
+                        fontSize = DeckType.Label,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(DeckSpace.Xs)
+                            .clip(RoundedCornerShape(DeckRadius.Sm))
+                            .background(DeckColors.Bg.copy(alpha = 0.75f))
+                            .padding(horizontal = DeckSpace.Xs, vertical = 1.dp),
+                    )
+                }
+            }
+        }
     }
 }

@@ -201,6 +201,8 @@ data class NotificationUi(
     val text: String? = null,
     val targetSnippet: String? = null,
     val targetNoteId: String? = null,
+    /** [#254] 対象（自分の投稿）の著者。通知の1行プレビューにアバターを出すために解決済みで持つ。 */
+    val targetAuthor: Profile? = null,
     /** 対象が NIP-28 チャンネルメッセージ(kind:42)なら、そのチャンネル id（タップで開く先）。 */
     val targetChannelId: String? = null,
     /** ZAP 通知の金額(sats)。 */

@@ -166,11 +166,14 @@ fun NoteItem(
     // [#254] 返信(NIP-10)の返信元は**アバター/名前の上**に1行プレビュー（◁ 名前: 本文…）。
     // 「◁ 返信元の内容」→「(アイコン) 名前…」の順に読めるようにする。リポストヘッダと同じ位置。
     note.replyParent?.let { parent ->
+        // [#254] 引用カード同様、タップで親ノート（返信元）を開ける。
+        val nav = LocalNoteNav.current
         ReplyContextLine(
             name = parent.author.name,
             content = parent.text ?: parent.event.content,
             avatarSeed = parent.event.pubkey,
             avatarUrl = parent.author.pictureUrl,
+            onClick = nav?.let { { it.onEvent(parent.event.id) } },
             modifier = Modifier.padding(start = DeckSpace.Md, end = DeckSpace.Md, top = DeckSpace.Sm),
         )
     }

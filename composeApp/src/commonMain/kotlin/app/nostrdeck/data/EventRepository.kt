@@ -1292,6 +1292,8 @@ class EventRepository(
         // 対象イベント本体（抜粋＋種別判定に使う）。
         val targetEvent = target?.let { q.eventById(it).executeAsOneOrNull() }
         val snippet = targetEvent?.let { (extractMedia(it.content).first ?: it.content).take(80) }
+        // [#254] 対象の著者（通知行の1行プレビューにアバターを出す）。
+        val targetAuthor = targetEvent?.let { profileFor(it.pubkey, byPubkey) }
         // 対象が kind:42（パブリックチャット）なら、そのルート #e＝チャンネル id をリンク先に。
         val channelId = targetEvent
             ?.takeIf { it.kind.toInt() == 42 }
@@ -1299,7 +1301,7 @@ class EventRepository(
         return when (row.kind.toInt()) {
             9735 -> NotificationUi(
                 row.id, NotificationKind.ZAP, actor, row.created_at,
-                zapSats = zapAmountSats(tags), targetNoteId = target, targetSnippet = snippet,
+                zapSats = zapAmountSats(tags), targetNoteId = target, targetSnippet = snippet, targetAuthor = targetAuthor,
                 targetChannelId = channelId,
             )
             7 -> {
@@ -1307,10 +1309,12 @@ class EventRepository(
                 val rx = normalizeReaction(row.content, tags)
                 NotificationUi(row.id, NotificationKind.REACTION, actor, row.created_at,
                     reaction = rx.display, reactionImageUrl = rx.imageUrl,
-                    targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId)
+                    targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId,
+                    targetAuthor = targetAuthor)
             }
             6, 16 -> NotificationUi(row.id, NotificationKind.REPOST, actor, row.created_at,
-                targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId)
+                targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId,
+                targetAuthor = targetAuthor)
             else -> {
                 val isReply = tags.any { it.size >= 2 && it[0] == "e" }
                 NotificationUi(
@@ -1318,6 +1322,7 @@ class EventRepository(
                     actor, row.created_at,
                     text = extractMedia(row.content).first ?: row.content,
                     targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId,
+                    targetAuthor = targetAuthor,
                 )
             }
         }

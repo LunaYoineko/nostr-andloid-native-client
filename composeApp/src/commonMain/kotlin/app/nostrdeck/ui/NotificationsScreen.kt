@@ -228,7 +228,13 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
       // [#254] 通知の対象（＝自分の投稿）は タイムラインの返信と同じ 1行プレビューで先頭に出す。
       // 「◁ 対象の投稿内容」→「(アイコン) 誰が何をしたか」の順に読める。
       n.targetSnippet?.takeIf { it.isNotBlank() }?.let { snippet ->
-          ReplyContextLine(name = null, content = snippet, modifier = Modifier.padding(bottom = DeckSpace.Xs))
+          ReplyContextLine(
+              name = n.targetAuthor?.name?.takeIf { it.isNotBlank() },
+              content = snippet,
+              avatarSeed = n.targetAuthor?.pubkey,
+              avatarUrl = n.targetAuthor?.pictureUrl,
+              modifier = Modifier.padding(bottom = DeckSpace.Xs),
+          )
       }
       Row(verticalAlignment = Alignment.Top) {
         // 左の種別指標: リアクションは絵文字そのもの／返信・メンション・リポストはアイコン
