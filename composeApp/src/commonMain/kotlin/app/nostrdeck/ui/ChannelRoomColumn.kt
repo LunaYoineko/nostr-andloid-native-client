@@ -366,21 +366,17 @@ private fun MessageActions(onReply: (() -> Unit)?, onReact: (() -> Unit)?) {
     }
 }
 
-/** 返信元メッセージの一行プレビュー（↩︎ 名前: 本文）。 */
+/**
+ * 返信元メッセージの一行プレビュー（↩︎ 名前: 本文）。
+ * [#254] 見た目の実体は共通部品 [ReplyContextLine]（kind:1 の返信と同一の見え方に統一）。
+ */
 @Composable
 private fun ReplyQuote(parent: ChannelMessage, mine: Boolean) {
-    Row(
-        Modifier.padding(bottom = DeckSpace.Xs).clip(RoundedCornerShape(DeckRadius.Sm))
-            .background(DeckColors.Surface3).padding(horizontal = DeckSpace.Sm, vertical = DeckSpace.Xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.AutoMirrored.Outlined.Reply, null, tint = DeckColors.Text3, modifier = Modifier.size(11.dp))
-        Spacer(Modifier.width(DeckSpace.Xs))
-        Text(
-            "${parent.author.name}: ${parent.event.content}",
-            color = DeckColors.Text3, fontSize = DeckType.Label, maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
-    }
+    ReplyContextLine(
+        name = parent.author.name,
+        content = parent.event.content,
+        modifier = Modifier.padding(bottom = DeckSpace.Xs),
+    )
 }
 
 @Composable
