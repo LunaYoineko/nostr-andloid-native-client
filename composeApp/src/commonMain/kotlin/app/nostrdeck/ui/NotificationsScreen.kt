@@ -208,7 +208,7 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
     // [#222] キーボード選択ハイライト（NoteItem と同じ: 背景 Surface2 + 左 3dp アクセントバー）。
     val selFill = DeckColors.Surface2
     val selBar = DeckColors.Accent
-    Row(
+    Column(
         Modifier.fillMaxWidth()
             .drawBehind {
                 if (selected) {
@@ -217,8 +217,13 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
                 }
             }
             .clickable(onClick = onClick).padding(DeckSpace.Md),
-        verticalAlignment = Alignment.Top,
     ) {
+      // [#254] 通知の対象（＝自分の投稿）は タイムラインの返信と同じ 1行プレビューで先頭に出す。
+      // 「◁ 対象の投稿内容」→「(アイコン) 誰が何をしたか」の順に読める。
+      n.targetSnippet?.takeIf { it.isNotBlank() }?.let { snippet ->
+          ReplyContextLine(name = null, content = snippet, modifier = Modifier.padding(bottom = DeckSpace.Xs))
+      }
+      Row(verticalAlignment = Alignment.Top) {
         // 左の種別指標: リアクションは絵文字そのもの／返信・メンション・リポストはアイコン
         // （リポストはテーマに馴染むグリーン）。
         LeftIndicator(n)
@@ -241,11 +246,14 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
                 Spacer(Modifier.width(DeckSpace.Sm))
                 HintText(relativeTime(n.createdAt))
             }
-            // 返信/メンションは本文、リアクション/リポストは対象（自分の）ノートの抜粋。
+            // [#254] 対象（自分の投稿）は上の1行プレビューが担うので、ここは「相手の言葉」だけ。
+            //  - 返信/メンション … 相手の本文
+            //  - Zap             … 金額（対象は上に出ている）
+            //  - リアクション/リポスト … 本文なし（左の絵文字/アイコンで種別が分かる）
             val body = when (n.kind) {
                 NotificationKind.REPLY, NotificationKind.MENTION -> n.text
-                NotificationKind.ZAP -> "⚡ ${n.zapSats ?: 0} sats" + (n.targetSnippet?.let { " · $it" } ?: "")
-                else -> n.targetSnippet
+                NotificationKind.ZAP -> "⚡ ${n.zapSats ?: 0} sats"
+                else -> null
             }
             if (!body.isNullOrBlank()) {
                 // [施策4] 名前行(ヘッダ群)↔本文は Sm で段差（NoteItem と統一）。
@@ -257,6 +265,7 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
                 )
             }
         }
+      }
     }
 }
 

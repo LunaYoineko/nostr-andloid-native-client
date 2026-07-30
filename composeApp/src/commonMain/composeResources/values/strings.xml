@@ -483,7 +483,6 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="zap_to_fmt">To: %1$s</string>
     <string name="zap_invoice_failed">Couldn’t get an invoice. Check lud16 / relay settings.</string>
     <string name="zap_wallet_failed">Couldn’t open a Lightning wallet.</string>
-    <string name="reposted_by_fmt">%1$s reposted</string>
     <string name="img_saved">Image saved</string>
     <string name="img_save_failed">Save failed</string>
     <string name="img_save">Save image</string>

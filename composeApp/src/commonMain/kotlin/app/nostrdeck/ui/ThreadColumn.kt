@@ -131,12 +131,8 @@ private fun ThreadRow(
         Modifier.fillMaxWidth().background(bg)
             .padding(start = (entry.depth * 18).dp)
     ) {
-        if (entry.replyToName != null) {
-            Text(
-                stringResource(Res.string.reply_to_at_fmt, entry.replyToName), color = DeckColors.Text3, fontSize = DeckType.Label,
-                modifier = Modifier.padding(start = DeckSpace.Md, top = DeckSpace.Sm),
-            )
-        }
+        // [#254] 「〜さんへの返信」の名前だけのラベルは廃止。返信元は NoteItem 内の
+        // 1行プレビュー（◁ 名前: 本文…）が担うため、ここで二重に出さない。
         NoteItem(entry.note, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick, selected = selected)
         FocusNoteStats(reactions, engagement)
     }

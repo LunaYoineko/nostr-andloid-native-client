@@ -13,17 +13,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import app.nostrdeck.model.Profile
 import app.nostrdeck.theme.DeckColors
-import nostr_deck_client.composeapp.generated.resources.Res
-import nostr_deck_client.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.stringResource
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckType
 
-/** [M8-repost] NIP-18 リポストのヘッダ「🔁 {name} がリポスト」。モノクロ・控えめ表示。 */
+/**
+ * [M8-repost][#254] NIP-18 リポストのヘッダ。
+ * 「(リポストアイコン)(ユーザーアイコン)(名前)」の1行に整理する
+ * （旧: 「🔁 {name} がリポスト」の文章。アイコンが意味を担うので「がリポスト」は落とす）。
+ * 返信の [ReplyContextLine] と同じ「アイコン→誰か」の読み順に揃える。
+ */
 @Composable
-fun RepostHeader(name: String, modifier: Modifier = Modifier) {
+fun RepostHeader(reposter: Profile, modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Icon(
             Icons.Outlined.Repeat,
@@ -32,8 +34,15 @@ fun RepostHeader(name: String, modifier: Modifier = Modifier) {
             modifier = Modifier.size(13.dp),
         )
         Spacer(Modifier.width(DeckSpace.Xs))
+        // 名前の文字高さに合わせた小さめのアバター（通知のリアクション行と同じ 16dp）。
+        Avatar(
+            seed = reposter.pubkey.ifBlank { reposter.name },
+            pictureUrl = reposter.pictureUrl,
+            size = 16.dp,
+        )
+        Spacer(Modifier.width(DeckSpace.Xs))
         Text(
-            stringResource(Res.string.reposted_by_fmt, name),
+            reposter.name,
             color = DeckColors.Text3,
             fontSize = DeckType.Label,
             maxLines = 1,

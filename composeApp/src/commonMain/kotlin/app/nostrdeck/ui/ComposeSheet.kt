@@ -534,10 +534,18 @@ fun ComposeSheet(
                 }
 
                 // 返信先/引用元は入力フォームの外、下部に固定して文脈を明示する（境界は余白で）。
-                if (parent != null) {
+                // [#254] 返信は1行プレビュー（◁ 名前: 本文…）、引用は従来のカード。
+                if (replyTo != null) {
+                    ReplyContextLine(
+                        name = LocalRepository.current?.profileFlow(replyTo.pubkey)
+                            ?.collectAsState(null)?.value?.name?.takeIf { it.isNotBlank() },
+                        content = replyTo.content,
+                        modifier = Modifier.padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
+                    )
+                } else if (quoting != null) {
                     ContextCard(
-                        parent = parent,
-                        label = if (replyTo != null) stringResource(Res.string.compose_reply_to) else stringResource(Res.string.compose_quote_of),
+                        parent = quoting,
+                        label = stringResource(Res.string.compose_quote_of),
                         modifier = Modifier.padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
                     )
                 }

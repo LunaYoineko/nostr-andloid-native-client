@@ -160,8 +160,17 @@ fun NoteItem(
       drawRect(color = selBar, size = Size(3.dp.toPx(), size.height))
   } else withAccent
   Column(rootModifier) {
-    note.repostedBy?.let {  // [M8-repost] 🔁 {name} がリポスト
-        RepostHeader(it.name, Modifier.padding(start = DeckSpace.Md, top = DeckSpace.Sm))
+    note.repostedBy?.let {  // [M8-repost][#254] 🔁 (アバター) 名前
+        RepostHeader(it, Modifier.padding(start = DeckSpace.Md, top = DeckSpace.Sm))
+    }
+    // [#254] 返信(NIP-10)の返信元は**アバター/名前の上**に1行プレビュー（◁ 名前: 本文…）。
+    // 「◁ 返信元の内容」→「(アイコン) 名前…」の順に読めるようにする。リポストヘッダと同じ位置。
+    note.replyParent?.let { parent ->
+        ReplyContextLine(
+            name = parent.author.name,
+            content = parent.text ?: parent.event.content,
+            modifier = Modifier.padding(start = DeckSpace.Md, end = DeckSpace.Md, top = DeckSpace.Sm),
+        )
     }
     Row(Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Md)) {
         // アバターを少し下げて名前の文字位置に揃える。
@@ -197,16 +206,10 @@ fun NoteItem(
             // 画像URLを除去した本文（画像は下にグリッド/カルーセルで表示する）。NIP-30 絵文字は画像化。
             CollapsibleText(note.text ?: note.event.content, emojis = note.customEmojis) // [M8-collapse]
 
-            // [M8-repost] 引用リポスト（q タグ）の埋め込みカード
+            // [M8-repost] 引用リポスト（q タグ）の埋め込みカード（従来どおり）
             note.quoted?.let {
                 Spacer(Modifier.size(DeckSpace.Sm))
                 QuotedNoteCard(it)
-            }
-
-            // [M10] 返信(NIP-10)の親ノート（返信元）を投稿の下部にカード表示（ラベルなし）。
-            note.replyParent?.let { parent ->
-                Spacer(Modifier.size(DeckSpace.Sm))
-                QuotedNoteCard(parent)
             }
 
             // 画像: 1枚=単一 / 複数=グリッド / 10枚以上=カルーセル。タップで Lightbox。

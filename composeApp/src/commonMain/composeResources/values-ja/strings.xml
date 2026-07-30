@@ -479,7 +479,6 @@
     <string name="zap_to_fmt">送信先: %1$s</string>
     <string name="zap_invoice_failed">invoice を取得できませんでした。lud16/リレー設定を確認してください。</string>
     <string name="zap_wallet_failed">Lightning ウォレットを開けませんでした。</string>
-    <string name="reposted_by_fmt">%1$s がリポスト</string>
     <string name="img_saved">画像を保存しました</string>
     <string name="img_save_failed">保存に失敗しました</string>
     <string name="img_save">画像を保存</string>
