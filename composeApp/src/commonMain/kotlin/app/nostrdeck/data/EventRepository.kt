@@ -2212,7 +2212,23 @@ class EventRepository(
             10050 -> updateDmRelayList(e) // NIP-17 DM リレーリスト
             10030 -> updateEmojiList(e)   // NIP-51 自分の絵文字リスト
             30030 -> updateEmojiSet(e)    // NIP-51 絵文字セット（10030 の a タグ参照先）
-            30078 -> updateDeckColumns(e) // [#122] NIP-78 アプリデータ（カラム構成の任意リレー保存）
+            30078 -> {
+                updateDeckColumns(e) // [#122] NIP-78 アプリデータ（カラム構成の任意リレー保存）
+                // [#288] 配布テーマ（t=nostrism-theme）は **他人の分も** event テーブルへ保存する。
+                // themeEntriesFlow は event テーブルを読むので、保存しないとストア一覧に出ない。
+                // 自分のテーマだけ出ていたのは publishSigned がローカル保存していたから
+                // （updateDeckColumns は columnSync 凍結中(#138)で即 return し、何も保存しない）。
+                if (e.tags.any { it.size >= 2 && it[0] == "t" && it[1] == ThemeEntry.DISCOVERY_TAG }) {
+                    // 本体とタグ索引は原子的に（索引前を読むと t タグ無しに見え、一覧から漏れる #78）。
+                    q.transaction {
+                        q.insertEvent(
+                            e.id, e.pubkey, e.kind.toLong(), e.createdAt, e.content, tagsToJson(e.tags), e.sig,
+                        )
+                        indexTags(e)
+                    }
+                    requestProfile(e.pubkey)   // 一覧に作者名を出すため
+                }
+            }
             // [#124] NIP-23 長文記事。nevent 参照から記事ビューワーで開けるよう本体を保存する。
             30023 -> {
                 q.insertEvent(e.id, e.pubkey, e.kind.toLong(), e.createdAt, e.content, tagsToJson(e.tags), e.sig)
