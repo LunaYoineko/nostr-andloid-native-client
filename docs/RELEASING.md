@@ -95,10 +95,16 @@ gh run watch "$RUN" --exit-status
 export TEAM_ID=…                 # Apple Developer チームID（10桁）
 export ASC_KEY_ID=…              # App Store Connect API キーID（★Admin ロール★）
 export ASC_ISSUER_ID=…           # Issuer ID（チーム共通・不変）
-export ASC_KEY_PATH=…/AuthKey_XXXXXXXXXX.p8   # .p8 の絶対パス（gitignore 済み）
+export ASC_KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_XXXXXXXXXX.p8"   # .p8 の絶対パス
 ```
 > ★重要★ **配布署名には Admin ロールの API キーが必須**。Developer ロールだと archive は通るが
 > export で「cloud-managed distribution certificates へのアクセス無し」で失敗する。
+>
+> ★.p8 の置き場所★ **`~/.appstoreconnect/private_keys/` に置く**（chmod 600）。
+> `~/Downloads` に置いたままだと macOS の TCC 保護下のため、xcodebuild が
+> `Invalid authentication key credential specified … couldn't be opened (Interrupted system call)`
+> で失敗することがある（v0.6.1 の配信で実際に発生。同じパスで以前は成功していたので再現性は低いが、
+> 保護外の場所に置けば起きない）。
 
 ### 手順
 ```bash
