@@ -579,4 +579,13 @@
     <string name="emoji_cat_food">食べ物・飲み物</string>
     <string name="emoji_cat_activity">アクティビティ・記号</string>
     <string name="profile_save_failed">プロフィールを保存できませんでした。ログイン/署名の状態を確認して、もう一度お試しください。</string>
+    <string name="channel_create_title">スレッドを作成</string>
+    <string name="channel_edit_title">スレッドを編集</string>
+    <string name="channel_create_note">パブリックチャットのスレッド（NIP-28）を作成します。誰でも参加できます。</string>
+    <string name="channel_field_name">スレッド名</string>
+    <string name="channel_field_about">説明（任意）</string>
+    <string name="channel_field_picture">画像URL（任意）</string>
+    <string name="channel_create_submit">作成</string>
+    <string name="channel_edit_submit">保存</string>
+    <string name="channel_create_row">新しいスレッドを作成</string>
 </resources>

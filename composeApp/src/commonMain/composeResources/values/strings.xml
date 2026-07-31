@@ -583,4 +583,13 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="emoji_cat_food">Food &amp; drink</string>
     <string name="emoji_cat_activity">Activities &amp; symbols</string>
     <string name="profile_save_failed">Couldn’t save your profile. Check your login/signing and try again.</string>
+    <string name="channel_create_title">New thread</string>
+    <string name="channel_edit_title">Edit thread</string>
+    <string name="channel_create_note">Creates a public chat thread (NIP-28). Anyone can find and join it.</string>
+    <string name="channel_field_name">Thread name</string>
+    <string name="channel_field_about">Description (optional)</string>
+    <string name="channel_field_picture">Image URL (optional)</string>
+    <string name="channel_create_submit">Create</string>
+    <string name="channel_edit_submit">Save</string>
+    <string name="channel_create_row">Create a new thread</string>
 </resources>

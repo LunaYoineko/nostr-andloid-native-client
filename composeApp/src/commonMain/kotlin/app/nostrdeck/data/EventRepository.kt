@@ -1187,6 +1187,51 @@ class EventRepository(
      * [#109] 通常投稿と同様、本文中の :shortcode: は NIP-30 emoji タグに、
      * nostr:npub… メンションは p タグにして送る。
      */
+    /**
+     * [#291] NIP-28 チャンネル作成（kind:40）。content は {name, about, picture} の JSON。
+     * 一覧は thread.nchan.vip 由来のため、外部が拾うまで待たずに済むようローカルへ即 upsert し、
+     * 返した id でそのままルームを開ける。
+     */
+    suspend fun createChannel(name: String, about: String, picture: String?): String? = runCatching {
+        val content = buildJsonObject {
+            put("name", name)
+            put("about", about)
+            if (!picture.isNullOrBlank()) put("picture", picture)
+        }.toString()
+        val signed = publishSigned(UnsignedEvent(kind = 40, content = content, tags = emptyList()))
+        q.upsertChannel(signed.id, name, about, picture?.takeIf { it.isNotBlank() }, signed.createdAt, signed.createdAt)
+        signed.id
+    }.getOrNull()
+
+    /**
+     * [#291] チャンネル情報の編集（kind:41、e タグで kind:40 を指す）。
+     * NIP-28 では作成者の最新 kind:41 を正とするのが通例のため、UI は自分が作成した
+     * チャンネル（[myChannelIdsFlow]）にだけ編集導線を出す。
+     */
+    suspend fun updateChannel(channelId: String, name: String, about: String, picture: String?): Boolean = runCatching {
+        val content = buildJsonObject {
+            put("name", name)
+            put("about", about)
+            if (!picture.isNullOrBlank()) put("picture", picture)
+        }.toString()
+        publishSigned(UnsignedEvent(kind = 41, content = content, tags = listOf(listOf("e", channelId))))
+        // last_message_at（一覧の並び順）は保持したまま名前等だけ更新する。
+        val prev = q.channelById(channelId).executeAsOneOrNull()
+        q.upsertChannel(
+            channelId, name, about, picture?.takeIf { it.isNotBlank() },
+            currentUnixTime(), prev?.last_message_at ?: 0L,
+        )
+        true
+    }.getOrDefault(false)
+
+    /** [#291] 自分が作成したチャンネル id（編集導線の出し分け用）。 */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun myChannelIdsFlow(): Flow<Set<String>> =
+        myPubkeyFlow.flatMapLatest { me ->
+            if (me == null) flowOf(emptySet())
+            else q.myChannelCreateIds(me).asFlow().mapToList(Dispatchers.Default).map { it.toSet() }
+        }
+
     suspend fun publishChannelMessage(channelId: String, text: String, replyTo: NostrEvent? = null) {
         if (text.isBlank()) return
         val hint = channelRelays[channelId]?.firstOrNull().orEmpty()
