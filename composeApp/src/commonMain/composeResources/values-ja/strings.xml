@@ -588,6 +588,15 @@
     <string name="emoji_save">保存して公開</string>
     <string name="emoji_saved">絵文字リストを公開しました。</string>
     <string name="emoji_save_failed">絵文字リストを公開できませんでした。</string>
+    <string name="channel_create_title">スレッドを作成</string>
+    <string name="channel_edit_title">スレッドを編集</string>
+    <string name="channel_create_note">パブリックチャットのスレッド（NIP-28）を作成します。誰でも参加できます。</string>
+    <string name="channel_field_name">スレッド名</string>
+    <string name="channel_field_about">説明（任意）</string>
+    <string name="channel_field_picture">画像URL（任意）</string>
+    <string name="channel_create_submit">作成</string>
+    <string name="channel_edit_submit">保存</string>
+    <string name="channel_create_row">新しいスレッドを作成</string>
     <string name="picker_title">リアクション</string>
     <string name="media_video_badge">動画</string>
     <string name="notif_group_reacted_one">%1$s がリアクション</string>

@@ -456,11 +456,29 @@ private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyList
             LaunchedEffect(repo) { repo?.refreshChannels() }
             val channels = if (repo != null) remember { repo.channelsFlow() }.collectAsState(emptyList()).value
             else SampleData.channels
+            // [#291] 作成/編集: 自分の kind:40 がローカルにあるものだけ編集可。
+            val owned = if (repo != null) remember { repo.myChannelIdsFlow() }.collectAsState(emptySet()).value else emptySet()
+            val chScope = rememberCoroutineScope()
             ChannelListColumn(
                 spec, channels, pinnedChannelIds(state), modifier, listState,
                 menu = menu,
                 onChannelClick = { ch -> state.openTransient(SampleData.roomColumnFor(ch), originId = spec.id) },
                 onPinChannel = { ch -> state.openTransient(SampleData.roomColumnFor(ch).copy(pinned = true)); state.pin("room_${ch.id}") },
+                onCreateChannel = if (repo != null) ({ name, about, picture ->
+                    chScope.launch {
+                        val id = repo.createChannel(name, about, picture)
+                        if (id != null) {
+                            state.openTransient(
+                                SampleData.roomColumnFor(app.nostrdeck.model.Channel(id, name, about, picture)),
+                                originId = spec.id,
+                            )
+                        }
+                    }
+                }) else null,
+                ownedChannelIds = owned,
+                onEditChannel = if (repo != null) ({ id, name, about, picture ->
+                    chScope.launch { repo.updateChannel(id, name, about, picture) }
+                }) else null,
             )
         }
         ColumnRenderer.ROOM -> {
