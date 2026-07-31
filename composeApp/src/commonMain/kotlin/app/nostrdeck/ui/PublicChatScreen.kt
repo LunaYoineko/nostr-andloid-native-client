@@ -1,6 +1,8 @@
 package app.nostrdeck.ui
 
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -32,6 +34,9 @@ fun PublicChatScreen(state: DeckState, isCompact: Boolean) {
         isCompact = isCompact,
         showDetail = state.publicChatRoom != null,
         list = {
+            // [#291] 作成/編集導線（デッキのカラム版と同じ配線）。
+            val owned = if (repo != null) remember { repo.myChannelIdsFlow() }.collectAsState(emptySet()).value else emptySet()
+            val chScope = rememberCoroutineScope()
             ChannelListColumn(
                 spec = SampleData.channelListColumn,
                 channels = channels,
@@ -41,6 +46,16 @@ fun PublicChatScreen(state: DeckState, isCompact: Boolean) {
                     state.openTransient(SampleData.roomColumnFor(ch).copy(pinned = true))
                     state.pin("room_${ch.id}")
                 },
+                onCreateChannel = if (repo != null) ({ name, about, picture ->
+                    chScope.launch {
+                        val id = repo.createChannel(name, about, picture)
+                        if (id != null) state.publicChatRoom = id
+                    }
+                }) else null,
+                ownedChannelIds = owned,
+                onEditChannel = if (repo != null) ({ id, name, about, picture ->
+                    chScope.launch { repo.updateChannel(id, name, about, picture) }
+                }) else null,
             )
         },
         detail = {
