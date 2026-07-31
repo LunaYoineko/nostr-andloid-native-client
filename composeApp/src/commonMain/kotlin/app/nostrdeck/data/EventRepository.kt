@@ -101,16 +101,21 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -723,6 +728,11 @@ class EventRepository(
     private fun loadColumnSync() {
         if (!columnSyncFeatureEnabled) return
         deckColumnsAt = q.getSetting(DECK_COLUMNS_AT).executeAsOneOrNull()?.toLongOrNull() ?: 0L
+        // [#287] 絵文字リストの生タグを復元（リレーから 10030 が届く前でも編集を壊さない）。
+        q.getSetting(EMOJI_LIST_TAGS_KEY).executeAsOneOrNull()?.let { raw ->
+            runCatching { json.decodeFromString(ListSerializer(ListSerializer(String.serializer())), raw) }
+                .getOrNull()?.let { emojiListTags = it; myEmojiState.value = emojiTagsToList(it) }
+        }
         columnSyncRelayState.value = q.getSetting(COLUMN_SYNC_RELAY).executeAsOneOrNull() == "1"
         // 読み込みはトグルに関係なく常時（ミュートリストと同じ扱い）。
         subscribeDeckColumns()
@@ -2632,10 +2642,44 @@ class EventRepository(
      * 自分の kind:10030（NIP-51 絵文字リスト）。直接の `emoji` タグを取り込み、
      * `a`(=30030:pubkey:dtag) 参照のセット作者へ購読を張って kind:30030 を取りに行く。古い版は無視。
      */
+    // [#287] 自分の kind:10030 の生タグ。再発行（絵文字エディタ）時に a タグ等の未知タグを
+    // 失わないよう保持する（ミュートリストと同じ作法）。KV に永続し起動時に復元。
+    private var emojiListTags: List<List<String>> = emptyList()
+    private val myEmojiState = MutableStateFlow<List<CustomEmoji>>(emptyList())
+
+    /** [#287] 自分の絵文字リスト（kind:10030 直下の emoji タグのみ。30030 セット由来は含まない）。 */
+    fun myEmojiListFlow(): StateFlow<List<CustomEmoji>> = myEmojiState
+
+    private fun emojiTagsToList(tags: List<List<String>>): List<CustomEmoji> =
+        tags.filter { it.size >= 3 && it[0] == "emoji" && it[1].isNotBlank() && it[2].isNotBlank() }
+            .map { CustomEmoji(it[1], it[2]) }
+
+    /**
+     * [#287] 絵文字エディタからの再発行。emoji タグを [emojis] で置き換え、
+     * それ以外のタグ（30030 参照の a タグ等）はそのまま維持する。
+     */
+    suspend fun publishEmojiList(emojis: List<CustomEmoji>): Boolean = runCatching {
+        val keep = emojiListTags.filter { !(it.size >= 3 && it[0] == "emoji") }
+        val tags = keep + emojis.map { listOf("emoji", it.shortcode, it.url) }
+        val removed = myEmojiState.value.map { it.shortcode }.toSet() - emojis.map { it.shortcode }.toSet()
+        val signed = publishSigned(UnsignedEvent(kind = 10030, content = "", tags = tags))
+        emojiListAt = signed.createdAt
+        emojiListTags = tags
+        putSettingAsync(EMOJI_LIST_TAGS_KEY, json.encodeToString(ListSerializer(ListSerializer(String.serializer())), tags))
+        myEmojiState.value = emojis
+        val now = currentUnixTime()
+        emojis.forEach { q.upsertCustomEmoji(it.shortcode, it.url, now) }
+        removed.forEach { q.deleteCustomEmoji(it) }
+        true
+    }.getOrDefault(false)
+
     private fun updateEmojiList(e: NostrEvent) {
         if (e.pubkey != myPubkey) return
         if (e.createdAt < emojiListAt) return
         emojiListAt = e.createdAt
+        emojiListTags = e.tags
+        putSettingAsync(EMOJI_LIST_TAGS_KEY, json.encodeToString(ListSerializer(ListSerializer(String.serializer())), e.tags))
+        myEmojiState.value = emojiTagsToList(e.tags)
         importEmojiTags(e)
         e.tags.filter { it.size >= 2 && it[0] == "a" && it[1].startsWith("30030:") }.forEach { t ->
             val author = t[1].split(":").getOrNull(1) ?: return@forEach
@@ -4122,6 +4166,7 @@ class EventRepository(
         const val COLUMN_SYNC_RELAY = "column_sync_relay"
         /** [#122] 自分が発行/取込した 30078 の created_at（LWW 判定）。 */
         const val DECK_COLUMNS_AT = "deck_columns_at"
+        const val EMOJI_LIST_TAGS_KEY = "emoji_list_tags"
         /** [#122] 30078 の d タグ（このアプリのカラム構成を示す識別子）。 */
         const val DECK_COLUMNS_D = "app.nostrdeck:deck-columns"
         /** [#122] 30078 購読の subId。 */
