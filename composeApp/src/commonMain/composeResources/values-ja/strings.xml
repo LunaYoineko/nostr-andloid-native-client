@@ -588,6 +588,7 @@
     <string name="channel_create_submit">作成</string>
     <string name="channel_edit_submit">保存</string>
     <string name="channel_create_row">新しいスレッドを作成</string>
+    <string name="picker_title">リアクション</string>
     <string name="media_video_badge">動画</string>
     <string name="notif_group_reacted_one">%1$s がリアクション</string>
     <string name="notif_group_reacted_many">%1$s、他%2$s人がリアクション</string>

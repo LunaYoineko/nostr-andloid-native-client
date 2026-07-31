@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,7 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -75,16 +73,15 @@ fun ReactionPickerSheet(
     val customs by remember(repo) { repo?.customEmojisFlow() ?: flowOf(emptyList()) }
         .collectAsState(emptyList())
     var query by remember { mutableStateOf("") }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = DeckColors.Surface,
+    // [#284] ボトムシート → Dialog（AppModalSheet）。グリッドのスクロールとシートのドラッグの競合を断つ。
+    AppModalSheet(
+        title = stringResource(Res.string.picker_title),
+        onDismiss = onDismiss,
     ) {
-        // シートは可能な限り上部まで広く使う（絵文字グリッドが weight で残り高さを占有）。
+        // モーダルは可能な限り上部まで広く使う（絵文字グリッドが weight で残り高さを占有）。
         Column(
-            Modifier.fillMaxWidth().fillMaxHeight(0.92f).padding(horizontal = DeckSpace.Md).navigationBarsPadding(),
+            Modifier.fillMaxWidth().fillMaxHeight(0.92f),
         ) {
             // リアクション対象ノート（アイコン＋本文2行）を先頭に表示して文脈を明示。
             if (targetNote != null) {
