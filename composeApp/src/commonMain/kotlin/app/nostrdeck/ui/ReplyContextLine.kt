@@ -37,6 +37,11 @@ internal fun ReplyContextLine(
     // 返信元の著者アバター（分かる場合のみ。通知の対象スニペット等は null）。
     avatarSeed: String? = null,
     avatarUrl: String? = null,
+    // [#254] ◁ アイコン。返信の文脈では true、通知のリアクション/リポスト対象行では false
+    // （種別は左の絵文字/アイコンが担うため。サイズ・行の体裁は全種別で統一する）。
+    showIcon: Boolean = true,
+    // 右端の後置スロット（通知グループ行の時刻など）。
+    trailing: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
 ) {
     val line = oneLine(content)
@@ -47,11 +52,13 @@ internal fun ReplyContextLine(
             .let { if (onClick != null) it.clickable(onClick = onClick) else it },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            Icons.AutoMirrored.Outlined.Reply, contentDescription = null,
-            tint = DeckColors.Text3, modifier = Modifier.size(13.dp),
-        )
-        Spacer(Modifier.width(DeckSpace.Xs))
+        if (showIcon) {
+            Icon(
+                Icons.AutoMirrored.Outlined.Reply, contentDescription = null,
+                tint = DeckColors.Text3, modifier = Modifier.size(13.dp),
+            )
+            Spacer(Modifier.width(DeckSpace.Xs))
+        }
         if (avatarSeed != null) {
             // 名前の文字高さに合わせた小さめアバター（RepostHeader と同じ 16dp）。
             Avatar(seed = avatarSeed, pictureUrl = avatarUrl, size = 16.dp)
@@ -60,7 +67,9 @@ internal fun ReplyContextLine(
         Text(
             label, color = DeckColors.Text3, fontSize = DeckType.Label,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
+        trailing?.let { Spacer(Modifier.width(DeckSpace.Sm)); it() }
     }
 }
 

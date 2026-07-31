@@ -311,19 +311,16 @@ private fun NotifGroupRow(
             }
             .clickable(onClick = onClick).padding(DeckSpace.Md),
     ) {
-        // 対象の極小1行 + 右端に最新の反応時刻。
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            g.targetAuthor?.let { a ->
-                Avatar(seed = a.pubkey, pictureUrl = a.pictureUrl, size = 12.dp)
-                Spacer(Modifier.width(DeckSpace.Xs))
-            }
-            Text(
-                g.snippet?.let { oneLine(it) } ?: "", color = DeckColors.Text3, fontSize = DeckType.Micro,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(DeckSpace.Sm))
-            HintText(relativeTime(g.sortAt))
-        }
+        // 対象の1行（単発行と同じ体裁: 16dpアバター + Label）+ 右端に最新の反応時刻。
+        ReplyContextLine(
+            name = null,
+            content = g.snippet ?: "",
+            avatarSeed = g.targetAuthor?.pubkey,
+            avatarUrl = g.targetAuthor?.pictureUrl,
+            showIcon = false,
+            trailing = { HintText(relativeTime(g.sortAt)) },
+            modifier = Modifier.padding(bottom = DeckSpace.Xs),
+        )
         // 絵文字ごとのリアクション。
         g.reactions.forEach { r ->
             ReactorRow(
@@ -376,30 +373,17 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
       //  - リプライ/メンション … ◁ + アイコン + 内容 の1行（名前は落として文字量を減らす）
       //  - リアクション/リポスト/Zap … さらに小さく（◁なし・12dpアバター・Micro）。
       //    「何に対してか」を追えれば十分で、主役は左の絵文字/アイコンと相手。
+      // [#254] 対象（自分の投稿）の1行は**全種別で同じ体裁**（16dpアバター + Label）。
+      // 種別による差は ◁ アイコンの有無だけ（リプライ/メンションは返信の文脈なので付ける）。
       n.targetSnippet?.takeIf { it.isNotBlank() }?.let { snippet ->
-          if (n.kind == NotificationKind.REPLY || n.kind == NotificationKind.MENTION) {
-              ReplyContextLine(
-                  name = null,
-                  content = snippet,
-                  avatarSeed = n.targetAuthor?.pubkey,
-                  avatarUrl = n.targetAuthor?.pictureUrl,
-                  modifier = Modifier.padding(bottom = DeckSpace.Xs),
-              )
-          } else {
-              Row(
-                  Modifier.fillMaxWidth().padding(bottom = DeckSpace.Xs),
-                  verticalAlignment = Alignment.CenterVertically,
-              ) {
-                  n.targetAuthor?.let { a ->
-                      Avatar(seed = a.pubkey, pictureUrl = a.pictureUrl, size = 12.dp)
-                      Spacer(Modifier.width(DeckSpace.Xs))
-                  }
-                  Text(
-                      oneLine(snippet), color = DeckColors.Text3, fontSize = DeckType.Micro,
-                      maxLines = 1, overflow = TextOverflow.Ellipsis,
-                  )
-              }
-          }
+          ReplyContextLine(
+              name = null,
+              content = snippet,
+              avatarSeed = n.targetAuthor?.pubkey,
+              avatarUrl = n.targetAuthor?.pictureUrl,
+              showIcon = n.kind == NotificationKind.REPLY || n.kind == NotificationKind.MENTION,
+              modifier = Modifier.padding(bottom = DeckSpace.Sm),
+          )
       }
       Row(verticalAlignment = Alignment.Top) {
         // 左の種別指標: リアクションは絵文字そのもの／返信・メンション・リポストはアイコン
