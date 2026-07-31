@@ -580,4 +580,10 @@
     <string name="emoji_cat_activity">アクティビティ・記号</string>
     <string name="profile_save_failed">プロフィールを保存できませんでした。ログイン/署名の状態を確認して、もう一度お試しください。</string>
     <string name="media_video_badge">動画</string>
+    <string name="notif_group_reacted_one">%1$s がリアクション</string>
+    <string name="notif_group_reacted_many">%1$s、他%2$s人がリアクション</string>
+    <string name="notif_group_reposted_one">%1$s がリポスト</string>
+    <string name="notif_group_reposted_many">%1$s、他%2$s人がリポスト</string>
+    <string name="notif_group_zapped_one">%1$s が ⚡%2$s sats を Zap</string>
+    <string name="notif_group_zapped_many">%1$s、他%2$s人が ⚡%3$s sats を Zap</string>
 </resources>

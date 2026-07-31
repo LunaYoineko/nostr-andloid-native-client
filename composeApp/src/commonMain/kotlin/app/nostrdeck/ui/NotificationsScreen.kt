@@ -38,6 +38,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.nostrdeck.crypto.currentUnixTime
@@ -79,9 +80,11 @@ fun NotificationsScreen(state: DeckState) {
             leadingIcon = Icons.Outlined.Notifications, pinned = false,
         )
         HorizontalDivider(color = DeckColors.Border)
+        val entries = remember(items) { buildNotifEntries(items) }
         NotificationsBody(
-            items, rememberLazyListState(),
+            entries, rememberLazyListState(),
             onNoticeClick = { n -> openNotificationTarget(state, n) },
+            onOpenTarget = { noteId, channelId -> openNotificationTarget(state, noteId, channelId) },
             onActorClick = { pk -> state.openProfile(pk) },
             // [#254] 引っ張って更新: REQ を張り直してリレーから取り直す。
             onRefresh = { repo.unsubscribeColumn("notifications"); repo.subscribeNotifications("notifications") },
@@ -101,6 +104,59 @@ private fun openNotificationTarget(state: DeckState, noteId: String, channelId: 
     } else {
         state.openThreadDetail(noteId)
     }
+}
+
+/**
+ * [#254] 通知の表示エントリ。リアクションは **対象投稿 × 絵文字の種類ごと**、リポスト/Zap は
+ * 対象投稿ごとに1グループへ集約する（Bluesky の通知欄風）。リプライ/メンションは個別行。
+ */
+internal sealed interface NotifEntry {
+    val sortAt: Long
+    val key: String
+
+    data class Single(val n: NotificationUi) : NotifEntry {
+        override val sortAt get() = n.createdAt
+        override val key get() = "s_" + n.id
+    }
+
+    data class Group(
+        override val key: String,
+        val kind: NotificationKind,          // REACTION / REPOST / ZAP
+        val emoji: String? = null,           // REACTION: 表示絵文字
+        val emojiImageUrl: String? = null,   // REACTION: カスタム絵文字画像
+        val people: List<app.nostrdeck.model.Profile>,
+        val zapSats: Long = 0,
+        val targetNoteId: String,
+        val targetChannelId: String?,
+        val snippet: String?,
+        override val sortAt: Long,
+    ) : NotifEntry
+}
+
+/** 通知リスト → 表示エントリ列。グループの位置は最新の反応時刻（取得できた分だけで集約）。 */
+internal fun buildNotifEntries(items: List<NotificationUi>): List<NotifEntry> {
+    val groupKinds = setOf(NotificationKind.REACTION, NotificationKind.REPOST, NotificationKind.ZAP)
+    val (groupable, singles) = items.partition { it.kind in groupKinds && it.targetNoteId != null }
+    val groups = groupable.groupBy {
+        // リアクションは絵文字の種類まで含めてキーにする（Bluesky はいいね1種だが、こちらは絵文字別）。
+        val emojiKey = if (it.kind == NotificationKind.REACTION) (it.reaction ?: "❤️") + (it.reactionImageUrl ?: "") else ""
+        Triple(it.targetNoteId!!, it.kind, emojiKey)
+    }.map { (k, list) ->
+        val sorted = list.sortedByDescending { it.createdAt }
+        NotifEntry.Group(
+            key = "g_${k.second}_${k.third}_${k.first}",
+            kind = k.second,
+            emoji = if (k.second == NotificationKind.REACTION) (sorted.first().reaction ?: "❤️") else null,
+            emojiImageUrl = sorted.first().reactionImageUrl,
+            people = sorted.map { it.actor }.distinctBy { it.pubkey },
+            zapSats = list.sumOf { it.zapSats ?: 0L },
+            targetNoteId = k.first,
+            targetChannelId = list.firstNotNullOfOrNull { it.targetChannelId },
+            snippet = list.firstNotNullOfOrNull { it.targetSnippet },
+            sortAt = list.maxOf { it.createdAt },
+        )
+    }
+    return (singles.map { NotifEntry.Single(it) } + groups).sortedByDescending { it.sortAt }
 }
 
 /**
@@ -130,9 +186,14 @@ fun NotificationsColumn(
     }
     val all = remember(spec.id) { repo.notificationsFeed() }.collectAsState().value
     val items = if (revealMuted || mute == null) all else all.filterNot { mute.muted(it) }
+    val entries = remember(items) { buildNotifEntries(items) }
     // [#222] 通知カラムも j/k 選択と Enter/o（対象を開く）に対応する。
-    val selIdx = kbNotificationSelection(state, spec.id, items.size, listState) { i ->
-        items.getOrNull(i)?.let { openNotificationTarget(state, it) }
+    val selIdx = kbNotificationSelection(state, spec.id, entries.size, listState) { i ->
+        when (val e = entries.getOrNull(i)) {
+            is NotifEntry.Single -> openNotificationTarget(state, e.n)
+            is NotifEntry.Group -> openNotificationTarget(state, e.targetNoteId, e.targetChannelId)
+            null -> Unit
+        }
     }
     Column(modifier.background(DeckColors.Surface)) {
         ColumnHeader(
@@ -142,9 +203,10 @@ fun NotificationsColumn(
         )
         HorizontalDivider(color = DeckColors.Border)
         NotificationsBody(
-            items, listState,
+            entries, listState,
             selectedIndex = selIdx,
             onNoticeClick = { n -> openNotificationTarget(state, n) },
+            onOpenTarget = { noteId, channelId -> openNotificationTarget(state, noteId, channelId) },
             onActorClick = { pk -> state.openProfile(pk) },
             // [#254] 引っ張って更新: REQ を張り直してリレーから取り直す。
             onRefresh = { repo.unsubscribeColumn(spec.id); repo.subscribeNotifications(spec.id) },
@@ -185,28 +247,131 @@ private fun kbNotificationSelection(
 
 @Composable
 private fun NotificationsBody(
-    items: List<NotificationUi>,
+    entries: List<NotifEntry>,
     listState: LazyListState,
     selectedIndex: Int = -1,   // [#222] キーボード選択中の行（-1=非選択）
     onNoticeClick: (NotificationUi) -> Unit,
+    onOpenTarget: (String, String?) -> Unit,
     onActorClick: (String) -> Unit,
     onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新
 ) {
     RefreshableBox(onRefresh) {
-        if (items.isEmpty()) {
+        if (entries.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(stringResource(Res.string.notif_empty), color = DeckColors.Text3, fontSize = DeckType.Sub)
             }
         } else {
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                itemsIndexed(items, key = { _, it -> it.id }) { index, n ->
-                    NoticeRow(
-                        n,
-                        selected = index == selectedIndex,
-                        onClick = { onNoticeClick(n) },
-                        onActorClick = { onActorClick(n.actor.pubkey) },
-                    )
+                itemsIndexed(entries, key = { _, it -> it.key }) { index, e ->
+                    when (e) {
+                        is NotifEntry.Single -> NoticeRow(
+                            e.n,
+                            selected = index == selectedIndex,
+                            onClick = { onNoticeClick(e.n) },
+                            onActorClick = { onActorClick(e.n.actor.pubkey) },
+                        )
+                        is NotifEntry.Group -> NotifGroupRow(
+                            e,
+                            selected = index == selectedIndex,
+                            onClick = { onOpenTarget(e.targetNoteId, e.targetChannelId) },
+                            onActorClick = onActorClick,
+                        )
+                    }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * [#254] Bluesky 風のグループ行。左に大きめの種別アイコン（リアクションはその絵文字）、
+ * 上にアバター列、「Aさん、他N人が…」の文、下にグレーの対象1行。
+ */
+@Composable
+private fun NotifGroupRow(
+    g: NotifEntry.Group,
+    selected: Boolean = false,
+    onClick: () -> Unit,
+    onActorClick: (String) -> Unit,
+) {
+    val selFill = DeckColors.Surface2
+    val selBar = DeckColors.Accent
+    Row(
+        Modifier.fillMaxWidth()
+            .drawBehind {
+                if (selected) {
+                    drawRect(color = selFill)
+                    drawRect(color = selBar, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height))
+                }
+            }
+            .clickable(onClick = onClick).padding(DeckSpace.Md),
+        verticalAlignment = Alignment.Top,
+    ) {
+        // 左の種別アイコン（Bluesky の大きいハートに相当）。
+        Box(Modifier.width(34.dp).padding(top = DeckSpace.Xs), contentAlignment = Alignment.TopCenter) {
+            when {
+                g.kind == NotificationKind.REACTION && g.emojiImageUrl != null ->
+                    AnimatedEmoji(g.emojiImageUrl, contentDescription = g.emoji, modifier = Modifier.size(24.dp))
+                g.kind == NotificationKind.REACTION ->
+                    Text(g.emoji ?: "❤️", fontSize = DeckType.EmojiLg, maxLines = 1)
+                g.kind == NotificationKind.REPOST ->
+                    Icon(Icons.Outlined.Repeat, null, tint = DeckColors.Boost, modifier = Modifier.size(22.dp))
+                else ->
+                    Icon(Icons.Outlined.Bolt, null, tint = DeckColors.Zap, modifier = Modifier.size(22.dp))
+            }
+        }
+        Spacer(Modifier.width(DeckSpace.Sm))
+        Column(Modifier.weight(1f)) {
+            // アバター列 + 右端に最新時刻。
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f)) {
+                    g.people.take(8).forEach { pp ->
+                        Avatar(
+                            seed = pp.pubkey, pictureUrl = pp.pictureUrl, size = 24.dp,
+                            modifier = Modifier.padding(end = 3.dp).clickable { onActorClick(pp.pubkey) },
+                        )
+                    }
+                    if (g.people.size > 8) {
+                        Text("+${g.people.size - 8}", color = DeckColors.Text3, fontSize = DeckType.Label,
+                            modifier = Modifier.align(Alignment.CenterVertically))
+                    }
+                }
+                Spacer(Modifier.width(DeckSpace.Sm))
+                HintText(relativeTime(g.sortAt))
+            }
+            Spacer(Modifier.size(DeckSpace.Xs))
+            // 「Aさん、他N人が…」の文（先頭の名前だけ太字）。
+            val first = g.people.firstOrNull()?.name ?: "?"
+            val others = (g.people.size - 1).toString()
+            val sentence = when (g.kind) {
+                NotificationKind.REACTION ->
+                    if (g.people.size == 1) stringResource(Res.string.notif_group_reacted_one, first)
+                    else stringResource(Res.string.notif_group_reacted_many, first, others)
+                NotificationKind.REPOST ->
+                    if (g.people.size == 1) stringResource(Res.string.notif_group_reposted_one, first)
+                    else stringResource(Res.string.notif_group_reposted_many, first, others)
+                else ->
+                    if (g.people.size == 1) stringResource(Res.string.notif_group_zapped_one, first, g.zapSats.toString())
+                    else stringResource(Res.string.notif_group_zapped_many, first, others, g.zapSats.toString())
+            }
+            Text(
+                androidx.compose.ui.text.buildAnnotatedString {
+                    // テンプレは %1$s（名前）が先頭に来る前提で、名前部分だけ太字にする。
+                    withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = DeckWeight.Name)) {
+                        append(sentence.take(first.length))
+                    }
+                    append(sentence.drop(first.length))
+                },
+                color = DeckColors.Text, fontSize = DeckType.Sub,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+            // 対象（自分の投稿）のグレー1行。
+            g.snippet?.takeIf { it.isNotBlank() }?.let { snippet ->
+                Spacer(Modifier.size(DeckSpace.Xs))
+                Text(
+                    oneLine(snippet), color = DeckColors.Text3, fontSize = DeckType.Label,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
