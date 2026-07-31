@@ -592,6 +592,7 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="emoji_save">Save &amp; publish</string>
     <string name="emoji_saved">Emoji list published.</string>
     <string name="emoji_save_failed">Could not publish the emoji list.</string>
+    <string name="picker_title">Reaction</string>
     <string name="media_video_badge">Video</string>
     <string name="notif_group_reacted_one">%1$s reacted</string>
     <string name="notif_group_reacted_many">%1$s and %2$s others reacted</string>

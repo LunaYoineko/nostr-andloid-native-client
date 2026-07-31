@@ -588,6 +588,7 @@
     <string name="emoji_save">保存して公開</string>
     <string name="emoji_saved">絵文字リストを公開しました。</string>
     <string name="emoji_save_failed">絵文字リストを公開できませんでした。</string>
+    <string name="picker_title">リアクション</string>
     <string name="media_video_badge">動画</string>
     <string name="notif_group_reacted_one">%1$s がリアクション</string>
     <string name="notif_group_reacted_many">%1$s、他%2$s人がリアクション</string>

@@ -13,12 +13,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -46,19 +44,16 @@ import app.nostrdeck.theme.DeckWeight
  * カラム追加シート。白紙のフィルタ組みではなく**絞ったテンプレから選ぶ**。
  * 設定が要るテンプレ（ハッシュタグ等）は選ぶと入力欄/トグルを展開。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddColumnSheet(onDismiss: () -> Unit, onAdd: (ColumnSpec) -> Unit) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selected by remember { mutableStateOf<ColumnTemplate?>(null) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+    // [#284] ボトムシート → Dialog（AppModalSheet）。シートのドラッグと中身のスクロールの競合を断つ。
+    AppModalSheet(
+        title = if (selected == null) stringResource(Res.string.add_column) else stringResource(selected!!.label),
+        onDismiss = onDismiss,
+    ) {
         Column(Modifier.fillMaxWidth().padding(bottom = DeckSpace.Xl)) {
-            Text(
-                if (selected == null) stringResource(Res.string.add_column) else stringResource(selected!!.label),
-                color = DeckColors.Text, fontSize = DeckType.Title, fontWeight = DeckWeight.Strong,
-                modifier = Modifier.padding(DeckSpace.Lg, DeckSpace.Sm),
-            )
             HorizontalDivider(color = DeckColors.Border)
 
             val sel = selected
