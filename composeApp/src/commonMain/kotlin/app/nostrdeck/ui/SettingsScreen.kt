@@ -219,6 +219,7 @@ private val paletteFav = listOf(
 private val paletteGroups = listOf(
     Res.string.group_customize to listOf(
         SItem("reaction", Res.string.section_reaction, Icons.Outlined.FavoriteBorder),
+        SItem("emoji", Res.string.section_emoji, Icons.Outlined.Mood),
         SItem("appearance", Res.string.section_appearance, Icons.Outlined.Visibility),
     ),
     Res.string.group_connection to listOf(
@@ -343,6 +344,7 @@ private fun SettingsContent(sectionId: String, state: DeckState, onBack: (() -> 
                 "bookmarks" -> BookmarkSettings(state)
                 "dmrelays" -> DmRelaySettings()
                 "reaction" -> ReactionSettings()
+                "emoji" -> EmojiEditorSettings()
                 "media" -> MediaSettings()
                 "wallet" -> WalletSettings()
                 "data" -> DataSettings()
@@ -1103,6 +1105,7 @@ private fun sectionTitle(sectionId: String): String = when (sectionId) {
     "media" -> stringResource(Res.string.section_media)
     "wallet" -> stringResource(Res.string.section_wallet)
     "reaction" -> stringResource(Res.string.section_reaction)
+    "emoji" -> stringResource(Res.string.section_emoji)
     "appearance" -> stringResource(Res.string.section_appearance)
     "data" -> stringResource(Res.string.section_data)
     "about" -> stringResource(Res.string.section_about)

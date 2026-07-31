@@ -579,4 +579,13 @@
     <string name="emoji_cat_food">食べ物・飲み物</string>
     <string name="emoji_cat_activity">アクティビティ・記号</string>
     <string name="profile_save_failed">プロフィールを保存できませんでした。ログイン/署名の状態を確認して、もう一度お試しください。</string>
+    <string name="section_emoji">カスタム絵文字</string>
+    <string name="emoji_note">自分のカスタム絵文字リスト（NIP-51）。リアクションピッカーに並び、本文でも :shortcode: で使えます。購読中の絵文字セット由来のものは別管理のためここには出ません。</string>
+    <string name="emoji_empty">カスタム絵文字はまだありません。下から追加できます。</string>
+    <string name="emoji_shortcode_hint">ショートコード（例: party_parrot）</string>
+    <string name="emoji_url_hint">画像URL（https://…）</string>
+    <string name="emoji_add">追加</string>
+    <string name="emoji_save">保存して公開</string>
+    <string name="emoji_saved">絵文字リストを公開しました。</string>
+    <string name="emoji_save_failed">絵文字リストを公開できませんでした。</string>
 </resources>

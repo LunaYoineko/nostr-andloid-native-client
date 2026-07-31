@@ -544,6 +544,10 @@ CREATE TABLE custom_emoji (
 upsertCustomEmoji:
 INSERT OR REPLACE INTO custom_emoji(shortcode, image_url, updated_at) VALUES (?, ?, ?);
 
+-- [#287] 絵文字エディタでリストから外したときの削除。
+deleteCustomEmoji:
+DELETE FROM custom_emoji WHERE shortcode = ?;
+
 allCustomEmojis:
 SELECT * FROM custom_emoji ORDER BY shortcode ASC;
 
