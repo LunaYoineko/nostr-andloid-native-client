@@ -584,4 +584,11 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="emoji_cat_activity">Activities &amp; symbols</string>
     <string name="profile_save_failed">Couldn’t save your profile. Check your login/signing and try again.</string>
     <string name="picker_title">Reaction</string>
+    <string name="media_video_badge">Video</string>
+    <string name="notif_group_reacted_one">%1$s reacted</string>
+    <string name="notif_group_reacted_many">%1$s and %2$s others reacted</string>
+    <string name="notif_group_reposted_one">%1$s reposted</string>
+    <string name="notif_group_reposted_many">%1$s and %2$s others reposted</string>
+    <string name="notif_group_zapped_one">%1$s zapped ⚡%2$s sats</string>
+    <string name="notif_group_zapped_many">%1$s and %2$s others zapped ⚡%3$s sats</string>
 </resources>
