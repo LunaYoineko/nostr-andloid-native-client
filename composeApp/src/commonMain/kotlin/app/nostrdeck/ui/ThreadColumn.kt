@@ -215,37 +215,6 @@ private fun FocusNoteStats(
     }
 }
 
-/** 反応1種の行: 先頭アイコン + 件数ラベル + した人のアバター列（多すぎる分は +N）。 */
-@Composable
-private fun ReactorRow(
-    leading: @Composable () -> Unit,
-    label: String,
-    people: List<app.nostrdeck.model.Profile>,
-    onAuthorClick: ((String) -> Unit)? = null,
-) {
-    val maxAvatars = 12
-    Row(
-        Modifier.fillMaxWidth().padding(top = DeckSpace.Xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.width(22.dp), contentAlignment = Alignment.Center) { leading() }
-        Spacer(Modifier.width(DeckSpace.Xs))
-        Text(label, color = DeckColors.Text3, fontSize = DeckType.Label)
-        Spacer(Modifier.width(DeckSpace.Sm))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            people.take(maxAvatars).forEach { p ->
-                Avatar(
-                    seed = p.pubkey, pictureUrl = p.pictureUrl, size = 20.dp,
-                    modifier = Modifier.padding(end = 3.dp)
-                        .let { m -> if (onAuthorClick != null) m.clickable { onAuthorClick(p.pubkey) } else m },
-                )
-            }
-            if (people.size > maxAvatars) {
-                Text("+${people.size - maxAvatars}", color = DeckColors.Text3, fontSize = DeckType.Label)
-            }
-        }
-    }
-}
 
 /** Zap 1件をリプライ風に表示（⚡アバター + 名前 + 金額 + 任意コメント）。 */
 @Composable

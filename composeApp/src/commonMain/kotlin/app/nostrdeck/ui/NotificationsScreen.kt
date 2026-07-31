@@ -78,9 +78,11 @@ fun NotificationsScreen(state: DeckState) {
             leadingIcon = Icons.Outlined.Notifications, pinned = false,
         )
         HorizontalDivider(color = DeckColors.Border)
+        val entries = remember(items) { buildNotifEntries(items) }
         NotificationsBody(
-            items, rememberLazyListState(),
+            entries, rememberLazyListState(),
             onNoticeClick = { n -> openNotificationTarget(state, n) },
+            onOpenTarget = { noteId, channelId -> openNotificationTarget(state, noteId, channelId) },
             onActorClick = { pk -> state.openProfile(pk) },
             // [#254] 引っ張って更新: REQ を張り直してリレーから取り直す。
             onRefresh = { repo.unsubscribeColumn("notifications"); repo.subscribeNotifications("notifications") },
@@ -89,15 +91,76 @@ fun NotificationsScreen(state: DeckState) {
 }
 
 /** 通知の対象を開く。対象が kind:42 ならパブリックチャットのそのチャンネルを、他はスレッドを開く。 */
-private fun openNotificationTarget(state: DeckState, n: NotificationUi) {
-    val channelId = n.targetChannelId
+private fun openNotificationTarget(state: DeckState, n: NotificationUi) =
+    openNotificationTarget(state, n.targetNoteId ?: n.id, n.targetChannelId)
+
+private fun openNotificationTarget(state: DeckState, noteId: String, channelId: String?) {
     if (channelId != null) {
         state.clearDetail()
         state.navDest = app.nostrdeck.state.NavDest.CHANNELS
         state.publicChatRoom = channelId
     } else {
-        state.openThreadDetail(n.targetNoteId ?: n.id)
+        state.openThreadDetail(noteId)
     }
+}
+
+/**
+ * [#254] 通知の表示エントリ。リアクション/リポスト/Zap は **対象投稿ごとに1グループ**へ
+ * 集約する（Slack の通知欄風）。リプライ/メンションは本文があるので従来どおり個別行。
+ */
+internal sealed interface NotifEntry {
+    val sortAt: Long
+    val key: String
+
+    data class Single(val n: NotificationUi) : NotifEntry {
+        override val sortAt get() = n.createdAt
+        override val key get() = "s_" + n.id
+    }
+
+    data class Group(
+        val targetNoteId: String,
+        val targetChannelId: String?,
+        val targetAuthor: app.nostrdeck.model.Profile?,
+        val snippet: String?,
+        override val sortAt: Long,
+        val reactions: List<app.nostrdeck.model.ReactionGroupUi>,
+        val reposters: List<app.nostrdeck.model.Profile>,
+        val zapSats: Long,
+        val zappers: List<app.nostrdeck.model.Profile>,
+    ) : NotifEntry {
+        override val key get() = "g_" + targetNoteId
+    }
+}
+
+/** 通知リスト → 表示エントリ列。グループの位置は最新の反応時刻。取得できた分だけで集約する。 */
+internal fun buildNotifEntries(items: List<NotificationUi>): List<NotifEntry> {
+    val groupKinds = setOf(NotificationKind.REACTION, NotificationKind.REPOST, NotificationKind.ZAP)
+    val (groupable, singles) = items.partition { it.kind in groupKinds && it.targetNoteId != null }
+    val groups = groupable.groupBy { it.targetNoteId!! }.map { (targetId, list) ->
+        val reactions = list.filter { it.kind == NotificationKind.REACTION }
+            .groupBy { (it.reaction ?: "❤️") to it.reactionImageUrl }
+            .map { (k, l) ->
+                app.nostrdeck.model.ReactionGroupUi(
+                    display = k.first, imageUrl = k.second,
+                    people = l.sortedByDescending { it.createdAt }.map { it.actor }.distinctBy { it.pubkey },
+                )
+            }
+            .sortedByDescending { it.people.size }
+        val zaps = list.filter { it.kind == NotificationKind.ZAP }
+        NotifEntry.Group(
+            targetNoteId = targetId,
+            targetChannelId = list.firstNotNullOfOrNull { it.targetChannelId },
+            targetAuthor = list.firstNotNullOfOrNull { it.targetAuthor },
+            snippet = list.firstNotNullOfOrNull { it.targetSnippet },
+            sortAt = list.maxOf { it.createdAt },
+            reactions = reactions,
+            reposters = list.filter { it.kind == NotificationKind.REPOST }
+                .sortedByDescending { it.createdAt }.map { it.actor }.distinctBy { it.pubkey },
+            zapSats = zaps.sumOf { it.zapSats ?: 0L },
+            zappers = zaps.sortedByDescending { it.createdAt }.map { it.actor }.distinctBy { it.pubkey },
+        )
+    }
+    return (singles.map { NotifEntry.Single(it) } + groups).sortedByDescending { it.sortAt }
 }
 
 /**
@@ -127,9 +190,14 @@ fun NotificationsColumn(
     }
     val all = remember(spec.id) { repo.notificationsFeed() }.collectAsState().value
     val items = if (revealMuted || mute == null) all else all.filterNot { mute.muted(it) }
+    val entries = remember(items) { buildNotifEntries(items) }
     // [#222] 通知カラムも j/k 選択と Enter/o（対象を開く）に対応する。
-    val selIdx = kbNotificationSelection(state, spec.id, items.size, listState) { i ->
-        items.getOrNull(i)?.let { openNotificationTarget(state, it) }
+    val selIdx = kbNotificationSelection(state, spec.id, entries.size, listState) { i ->
+        when (val e = entries.getOrNull(i)) {
+            is NotifEntry.Single -> openNotificationTarget(state, e.n)
+            is NotifEntry.Group -> openNotificationTarget(state, e.targetNoteId, e.targetChannelId)
+            null -> Unit
+        }
     }
     Column(modifier.background(DeckColors.Surface)) {
         ColumnHeader(
@@ -139,9 +207,10 @@ fun NotificationsColumn(
         )
         HorizontalDivider(color = DeckColors.Border)
         NotificationsBody(
-            items, listState,
+            entries, listState,
             selectedIndex = selIdx,
             onNoticeClick = { n -> openNotificationTarget(state, n) },
+            onOpenTarget = { noteId, channelId -> openNotificationTarget(state, noteId, channelId) },
             onActorClick = { pk -> state.openProfile(pk) },
             // [#254] 引っ張って更新: REQ を張り直してリレーから取り直す。
             onRefresh = { repo.unsubscribeColumn(spec.id); repo.subscribeNotifications(spec.id) },
@@ -182,29 +251,105 @@ private fun kbNotificationSelection(
 
 @Composable
 private fun NotificationsBody(
-    items: List<NotificationUi>,
+    entries: List<NotifEntry>,
     listState: LazyListState,
     selectedIndex: Int = -1,   // [#222] キーボード選択中の行（-1=非選択）
     onNoticeClick: (NotificationUi) -> Unit,
+    onOpenTarget: (String, String?) -> Unit,
     onActorClick: (String) -> Unit,
     onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新
 ) {
     RefreshableBox(onRefresh) {
-        if (items.isEmpty()) {
+        if (entries.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(stringResource(Res.string.notif_empty), color = DeckColors.Text3, fontSize = DeckType.Sub)
             }
         } else {
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                itemsIndexed(items, key = { _, it -> it.id }) { index, n ->
-                    NoticeRow(
-                        n,
-                        selected = index == selectedIndex,
-                        onClick = { onNoticeClick(n) },
-                        onActorClick = { onActorClick(n.actor.pubkey) },
-                    )
+                itemsIndexed(entries, key = { _, it -> it.key }) { index, e ->
+                    when (e) {
+                        is NotifEntry.Single -> NoticeRow(
+                            e.n,
+                            selected = index == selectedIndex,
+                            onClick = { onNoticeClick(e.n) },
+                            onActorClick = { onActorClick(e.n.actor.pubkey) },
+                        )
+                        is NotifEntry.Group -> NotifGroupRow(
+                            e,
+                            selected = index == selectedIndex,
+                            onClick = { onOpenTarget(e.targetNoteId, e.targetChannelId) },
+                            onActorClick = onActorClick,
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+/**
+ * [#254] リアクション/リポスト/Zap の対象投稿ごとのグループ行（Slack の通知欄風）。
+ * 先頭に対象の極小1行、下に「絵文字 + 件数 + した人のアバター列」「🔁 …」「⚡ 合計 …」。
+ * 取得できた分だけで集約する（全リレーの網羅は保証しない）。
+ */
+@Composable
+private fun NotifGroupRow(
+    g: NotifEntry.Group,
+    selected: Boolean = false,
+    onClick: () -> Unit,
+    onActorClick: (String) -> Unit,
+) {
+    val selFill = DeckColors.Surface2
+    val selBar = DeckColors.Accent
+    Column(
+        Modifier.fillMaxWidth()
+            .drawBehind {
+                if (selected) {
+                    drawRect(color = selFill)
+                    drawRect(color = selBar, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height))
+                }
+            }
+            .clickable(onClick = onClick).padding(DeckSpace.Md),
+    ) {
+        // 対象の極小1行 + 右端に最新の反応時刻。
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            g.targetAuthor?.let { a ->
+                Avatar(seed = a.pubkey, pictureUrl = a.pictureUrl, size = 12.dp)
+                Spacer(Modifier.width(DeckSpace.Xs))
+            }
+            Text(
+                g.snippet?.let { oneLine(it) } ?: "", color = DeckColors.Text3, fontSize = DeckType.Micro,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(DeckSpace.Sm))
+            HintText(relativeTime(g.sortAt))
+        }
+        // 絵文字ごとのリアクション。
+        g.reactions.forEach { r ->
+            ReactorRow(
+                leading = {
+                    if (r.imageUrl != null) {
+                        AnimatedEmoji(r.imageUrl, contentDescription = r.display, modifier = Modifier.size(18.dp))
+                    } else {
+                        Text(r.display, fontSize = DeckType.Sub, maxLines = 1)
+                    }
+                },
+                label = "${r.people.size}", people = r.people, onAuthorClick = onActorClick,
+            )
+        }
+        // 🔁 リポスト。
+        if (g.reposters.isNotEmpty()) {
+            ReactorRow(
+                leading = { Icon(Icons.Outlined.Repeat, null, tint = DeckColors.Boost, modifier = Modifier.size(15.dp)) },
+                label = "${g.reposters.size}", people = g.reposters, onAuthorClick = onActorClick,
+            )
+        }
+        // ⚡ Zap（合計 sats）。
+        if (g.zappers.isNotEmpty()) {
+            ReactorRow(
+                leading = { Icon(Icons.Outlined.Bolt, null, tint = DeckColors.Zap, modifier = Modifier.size(15.dp)) },
+                label = "${g.zapSats} sats", people = g.zappers, onAuthorClick = onActorClick,
+            )
         }
     }
 }
