@@ -227,14 +227,34 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
     ) {
       // [#254] 通知の対象（＝自分の投稿）は タイムラインの返信と同じ 1行プレビューで先頭に出す。
       // 「◁ 対象の投稿内容」→「(アイコン) 誰が何をしたか」の順に読める。
+      // [#254] 対象（自分の投稿）の見せ方は種別で強弱を分ける（全行同サイズだと文字量が多すぎる）:
+      //  - リプライ/メンション … ◁ + アイコン + 内容 の1行（名前は落として文字量を減らす）
+      //  - リアクション/リポスト/Zap … さらに小さく（◁なし・12dpアバター・Micro）。
+      //    「何に対してか」を追えれば十分で、主役は左の絵文字/アイコンと相手。
       n.targetSnippet?.takeIf { it.isNotBlank() }?.let { snippet ->
-          ReplyContextLine(
-              name = n.targetAuthor?.name?.takeIf { it.isNotBlank() },
-              content = snippet,
-              avatarSeed = n.targetAuthor?.pubkey,
-              avatarUrl = n.targetAuthor?.pictureUrl,
-              modifier = Modifier.padding(bottom = DeckSpace.Xs),
-          )
+          if (n.kind == NotificationKind.REPLY || n.kind == NotificationKind.MENTION) {
+              ReplyContextLine(
+                  name = null,
+                  content = snippet,
+                  avatarSeed = n.targetAuthor?.pubkey,
+                  avatarUrl = n.targetAuthor?.pictureUrl,
+                  modifier = Modifier.padding(bottom = DeckSpace.Xs),
+              )
+          } else {
+              Row(
+                  Modifier.fillMaxWidth().padding(bottom = DeckSpace.Xs),
+                  verticalAlignment = Alignment.CenterVertically,
+              ) {
+                  n.targetAuthor?.let { a ->
+                      Avatar(seed = a.pubkey, pictureUrl = a.pictureUrl, size = 12.dp)
+                      Spacer(Modifier.width(DeckSpace.Xs))
+                  }
+                  Text(
+                      oneLine(snippet), color = DeckColors.Text3, fontSize = DeckType.Micro,
+                      maxLines = 1, overflow = TextOverflow.Ellipsis,
+                  )
+              }
+          }
       }
       Row(verticalAlignment = Alignment.Top) {
         // 左の種別指標: リアクションは絵文字そのもの／返信・メンション・リポストはアイコン

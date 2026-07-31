@@ -902,6 +902,13 @@ class EventRepository(
      */
     fun subscribeFollowing(columnId: String) {
         if (!openColumns.add(columnId)) return
+        // [#17][#254] 他カラム(subscribeColumn)と同じ安全網。EOSE が来ない/遅いリレーだけの状況でも
+        // 「読み込み中」を出し続けない（8秒でロード済み扱い。キャッシュ表示はその間も生きている）。
+        columnLoadedState.value = columnLoadedState.value - columnId
+        scope.launch {
+            delay(8000)
+            if (columnId in openColumns) columnLoadedState.value = columnLoadedState.value + columnId
+        }
         followingJobs[columnId] = scope.launch {
             follows.collect { authors ->
                 // [M10] 自分の投稿もフォロー中タイムラインに出す（authors に自分を含める）。
