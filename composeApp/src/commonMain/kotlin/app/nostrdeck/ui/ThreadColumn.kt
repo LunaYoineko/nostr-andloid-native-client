@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -19,10 +20,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Repeat
+import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,25 +89,16 @@ fun ThreadColumn(
                     entry,
                     reactions = if (entry.isFocused) focusReactions else emptyList(),
                     engagement = if (entry.isFocused) focusEngagement else null,
+                    zaps = if (entry.isFocused) zaps else emptyList(),
                     selected = index == selectedIndex,   // [#222]
                     onReply = { onReply(entry.note) }, onQuote = { onQuote(entry.note) }, onAuthorClick = onAuthorClick,
                 )
             }
-            // Zap を「リプライ風」に列挙（誰がいくら Zap したか＋コメント）。
-            if (zaps.isNotEmpty()) {
-                item(key = "zap_header") {
-                    val total = zaps.sumOf { it.sats }
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Outlined.Bolt, null, tint = DeckColors.Zap, modifier = Modifier.width(16.dp))
-                        Spacer(Modifier.width(DeckSpace.Xs))
-                        Text(stringResource(Res.string.zap_total_fmt, total), color = DeckColors.Text3, fontSize = DeckType.Label, fontWeight = FontWeight.SemiBold)
-                    }
-                    HorizontalDivider(color = DeckColors.Border)
-                }
-                items(zaps, key = { "zap_" + it.id }) { z ->
+            // [#254] Zap の合計＋誰が、は FocusNoteStats（⚡行）に統合。ここには
+            // **コメント付き Zap だけ**を「リプライ風」に残す（コメントを失わないため）。
+            val commented = zaps.filter { it.comment.isNotBlank() }
+            if (commented.isNotEmpty()) {
+                items(commented, key = { "zap_" + it.id }) { z ->
                     ZapRow(z, onAuthorClick = onAuthorClick)
                     HorizontalDivider(color = DeckColors.Border)
                 }
@@ -117,6 +115,7 @@ private fun ThreadRow(
     entry: ThreadEntry,
     reactions: List<ReactionUi> = emptyList(),
     engagement: NoteEngagement? = null,
+    zaps: List<ZapUi> = emptyList(),
     selected: Boolean = false,   // [#222] キーボード選択ハイライト
     onReply: () -> Unit,
     onQuote: () -> Unit = {},
@@ -134,20 +133,34 @@ private fun ThreadRow(
         // [#254] 「〜さんへの返信」の名前だけのラベルは廃止。返信元は NoteItem 内の
         // 1行プレビュー（◁ 名前: 本文…）が担うため、ここで二重に出さない。
         NoteItem(entry.note, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick, selected = selected)
-        FocusNoteStats(reactions, engagement)
+        if (entry.isFocused) {
+            FocusNoteStats(entry.note.event.id, reactions, engagement, zaps, onAuthorClick)
+        }
     }
 }
 
 /**
- * [#270] 起点ノートの反応集計。リプライ/リポスト/リアクション合計の1行と、
- * 絵文字ごとの内訳 chip（ReactionRow）。反応が無ければ何も描かない。
+ * [#270][#254] 起点ノートの反応リスト。リプライ/リポスト/リアクション合計の1行のあと、
+ * 「🔁 + リポストした人のアバター列」「絵文字ごと + リアクションした人のアバター列」を行で並べる。
+ * 反応が無ければ何も描かない。アバタータップでプロフィールへ。
  */
 @Composable
-private fun FocusNoteStats(reactions: List<ReactionUi>, engagement: NoteEngagement?) {
+private fun FocusNoteStats(
+    noteId: String,
+    reactions: List<ReactionUi>,
+    engagement: NoteEngagement?,
+    zaps: List<ZapUi> = emptyList(),
+    onAuthorClick: ((String) -> Unit)? = null,
+) {
+    val repo = LocalRepository.current
+    val groups = repo?.let { remember(noteId) { it.noteReactionPeopleFlow(noteId) } }
+        ?.collectAsState(emptyList())?.value ?: emptyList()
+    val reposters = repo?.let { remember(noteId) { it.noteRepostersFlow(noteId) } }
+        ?.collectAsState(emptyList())?.value ?: emptyList()
     val replies = engagement?.replies ?: 0
     val reposts = engagement?.reposts ?: 0
-    val reactionTotal = reactions.sumOf { it.count }
-    if (replies == 0 && reposts == 0 && reactionTotal == 0) return
+    val reactionTotal = reactions.sumOf { it.count }.coerceAtLeast(groups.sumOf { it.people.size })
+    if (replies == 0 && reposts == 0 && reactionTotal == 0 && reposters.isEmpty() && groups.isEmpty()) return
 
     Column(Modifier.fillMaxWidth().padding(start = DeckSpace.Md, end = DeckSpace.Md, bottom = DeckSpace.Sm)) {
         val parts = buildList {
@@ -156,12 +169,52 @@ private fun FocusNoteStats(reactions: List<ReactionUi>, engagement: NoteEngageme
             if (reactionTotal > 0) add(stringResource(Res.string.thread_stat_reactions_fmt, reactionTotal.toString()))
         }
         Text(parts.joinToString(" · "), color = DeckColors.Text3, fontSize = DeckType.Label)
-        if (reactions.isNotEmpty()) {
-            Spacer(Modifier.width(DeckSpace.Xs))
-            ReactionRow(reactions, Modifier.padding(top = DeckSpace.Xs))
+        // ⚡ Zap した人（合計 sats + アバター列）。リアクション/リポストと同じ体裁に統合 [#254]。
+        if (zaps.isNotEmpty()) {
+            val zappers = zaps.distinctBy { it.zapper.pubkey }.map { it.zapper }
+            ReactorRow(
+                leading = {
+                    Icon(
+                        Icons.Outlined.Bolt, contentDescription = null,
+                        tint = DeckColors.Zap, modifier = Modifier.width(16.dp),
+                    )
+                },
+                label = "${zaps.sumOf { it.sats }} sats", people = zappers, onAuthorClick = onAuthorClick,
+            )
+        }
+        // 🔁 リポストした人。
+        if (reposters.isNotEmpty()) {
+            ReactorRow(
+                leading = {
+                    Icon(
+                        Icons.Outlined.Repeat, contentDescription = null,
+                        tint = DeckColors.Repost, modifier = Modifier.width(16.dp),
+                    )
+                },
+                label = "${reposters.size}", people = reposters, onAuthorClick = onAuthorClick,
+            )
+        }
+        // 絵文字ごとのリアクションした人。
+        groups.forEach { g ->
+            ReactorRow(
+                leading = {
+                    val img = g.imageUrl
+                    if (img != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalPlatformContext.current)
+                                .data(ImageProxy.proxied(img, width = 48, quality = 80, animated = true)).build(),
+                            contentDescription = g.display, modifier = Modifier.size(16.dp),
+                        )
+                    } else {
+                        Text(g.display, fontSize = DeckType.Sub)
+                    }
+                },
+                label = "${g.people.size}", people = g.people, onAuthorClick = onAuthorClick,
+            )
         }
     }
 }
+
 
 /** Zap 1件をリプライ風に表示（⚡アバター + 名前 + 金額 + 任意コメント）。 */
 @Composable

@@ -902,6 +902,13 @@ class EventRepository(
      */
     fun subscribeFollowing(columnId: String) {
         if (!openColumns.add(columnId)) return
+        // [#17][#254] 他カラム(subscribeColumn)と同じ安全網。EOSE が来ない/遅いリレーだけの状況でも
+        // 「読み込み中」を出し続けない（8秒でロード済み扱い。キャッシュ表示はその間も生きている）。
+        columnLoadedState.value = columnLoadedState.value - columnId
+        scope.launch {
+            delay(8000)
+            if (columnId in openColumns) columnLoadedState.value = columnLoadedState.value + columnId
+        }
         followingJobs[columnId] = scope.launch {
             follows.collect { authors ->
                 // [M10] 自分の投稿もフォロー中タイムラインに出す（authors に自分を含める）。
@@ -1337,6 +1344,8 @@ class EventRepository(
         // 対象イベント本体（抜粋＋種別判定に使う）。
         val targetEvent = target?.let { q.eventById(it).executeAsOneOrNull() }
         val snippet = targetEvent?.let { (extractMedia(it.content).first ?: it.content).take(80) }
+        // [#254] 対象の著者（通知行の1行プレビューにアバターを出す）。
+        val targetAuthor = targetEvent?.let { profileFor(it.pubkey, byPubkey) }
         // 対象が kind:42（パブリックチャット）なら、そのルート #e＝チャンネル id をリンク先に。
         val channelId = targetEvent
             ?.takeIf { it.kind.toInt() == 42 }
@@ -1344,7 +1353,7 @@ class EventRepository(
         return when (row.kind.toInt()) {
             9735 -> NotificationUi(
                 row.id, NotificationKind.ZAP, actor, row.created_at,
-                zapSats = zapAmountSats(tags), targetNoteId = target, targetSnippet = snippet,
+                zapSats = zapAmountSats(tags), targetNoteId = target, targetSnippet = snippet, targetAuthor = targetAuthor,
                 targetChannelId = channelId,
             )
             7 -> {
@@ -1352,10 +1361,12 @@ class EventRepository(
                 val rx = normalizeReaction(row.content, tags)
                 NotificationUi(row.id, NotificationKind.REACTION, actor, row.created_at,
                     reaction = rx.display, reactionImageUrl = rx.imageUrl,
-                    targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId)
+                    targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId,
+                    targetAuthor = targetAuthor)
             }
             6, 16 -> NotificationUi(row.id, NotificationKind.REPOST, actor, row.created_at,
-                targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId)
+                targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId,
+                targetAuthor = targetAuthor)
             else -> {
                 val isReply = tags.any { it.size >= 2 && it[0] == "e" }
                 NotificationUi(
@@ -1363,6 +1374,7 @@ class EventRepository(
                     actor, row.created_at,
                     text = extractMedia(row.content).first ?: row.content,
                     targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId,
+                    targetAuthor = targetAuthor,
                 )
             }
         }
@@ -3666,6 +3678,50 @@ class EventRepository(
                     .sortedByDescending { it.count }
             }
             .flowOn(Dispatchers.Default)
+
+    /**
+     * [#254] 対象ノートのリアクション内訳＋した人（新しい順・pubkey 重複なし）。多い順。
+     * 名前未取得の人は kind:0 を要求しつつ npub 短縮で出す（届き次第 DB Flow で差し替わる）。
+     */
+    fun noteReactionPeopleFlow(noteId: String): Flow<List<app.nostrdeck.model.ReactionGroupUi>> =
+        q.reactionsForNoteWithAuthors(noteId).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                rows.filter { it.pname.isNullOrBlank() }.map { it.pubkey }.distinct().forEach { requestProfile(it) }
+                rows.groupBy {
+                    val r = normalizeReaction(it.content, parseTags(it.tags_json))
+                    r.display to r.imageUrl
+                }.map { (k, list) ->
+                    app.nostrdeck.model.ReactionGroupUi(
+                        display = k.first, imageUrl = k.second,
+                        people = list.distinctBy { it.pubkey }.map { row ->
+                            Profile(
+                                pubkey = row.pubkey,
+                                name = row.pname?.takeIf { it.isNotBlank() } ?: shortNpub(row.pubkey),
+                                handle = "", pictureUrl = row.ppicture,
+                            )
+                        },
+                    )
+                }.sortedByDescending { it.people.size }
+            }
+            .flowOn(Dispatchers.Default)
+
+    /** [#254] 対象ノートをリポストした人（新しい順・重複なし）。 */
+    fun noteRepostersFlow(noteId: String): Flow<List<Profile>> =
+        q.repostersForNote(noteId).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                rows.filter { it.pname.isNullOrBlank() }.forEach { requestProfile(it.pubkey) }
+                rows.map { row ->
+                    Profile(
+                        pubkey = row.pubkey,
+                        name = row.pname?.takeIf { it.isNotBlank() } ?: shortNpub(row.pubkey),
+                        handle = "", pictureUrl = row.ppicture,
+                    )
+                }
+            }
+            .flowOn(Dispatchers.Default)
+
+    private fun shortNpub(pubkey: String): String =
+        runCatching { Nip19.hexToNpub(pubkey).take(12) + "…" }.getOrDefault(pubkey.take(12))
 
     /** 対象ノートへのリプライ数・リポスト数（kind:1 / kind:6,16 を kind 別に集計）。 */
     fun noteEngagementFlow(noteId: String): Flow<app.nostrdeck.model.NoteEngagement> =
