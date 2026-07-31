@@ -36,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
@@ -148,7 +149,7 @@ fun FeedColumn(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RefreshableBox(onRefresh: (() -> Unit)?, content: @Composable BoxScope.() -> Unit) {
+internal fun RefreshableBox(onRefresh: (() -> Unit)?, content: @Composable BoxScope.() -> Unit) {
     if (onRefresh == null) {
         Box(Modifier.fillMaxSize(), content = content)
         return
@@ -252,7 +253,11 @@ private fun feedEntryKey(e: FeedEntry): String = when (e) {
     is FeedEntry.MyReaction -> "r_${e.target.event.id}_${e.reactedAt}"
 }
 
-/** [M16] 「あなたがリアクション」＋宛先ノートを表示する行（自分の kind:7 を TL に出す）。 */
+/**
+ * [M16] 「あなたがリアクション」行（自分の kind:7 を TL に出す）。
+ * [#254] 対象ノートをフル表示(NoteItem)するとタイムラインがうるさいので、
+ * 返信の1行プレビューと同じ調子の「(アバター) 名前: 本文…」1行に圧縮する。タップでスレッドへ。
+ */
 @Composable
 private fun MyReactionRow(
     entry: FeedEntry.MyReaction,
@@ -261,11 +266,11 @@ private fun MyReactionRow(
     onQuote: () -> Unit,
     onAuthorClick: (String) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = DeckSpace.Md, top = DeckSpace.Sm),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+    Column(
+        Modifier.fillMaxWidth().clickable(onClick = onNoteClick)
+            .padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             val r = entry.reaction
             val img = r.imageUrl
             if (img != null) {
@@ -281,9 +286,20 @@ private fun MyReactionRow(
             Spacer(Modifier.width(DeckSpace.Xs))
             HintText(stringResource(Res.string.feed_you_reacted))
         }
-        NoteItem(
-            entry.target, onClick = onNoteClick,
-            onReply = { onReply() }, onQuote = { onQuote() }, onAuthorClick = onAuthorClick,
-        )
+        Spacer(Modifier.size(DeckSpace.Xs))
+        // 対象の1行プレビュー（アバター + 名前 + 本文…）。
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Avatar(
+                seed = entry.target.event.pubkey, pictureUrl = entry.target.author.pictureUrl,
+                size = 16.dp,
+                modifier = Modifier.clickable { onAuthorClick(entry.target.event.pubkey) },
+            )
+            Spacer(Modifier.width(DeckSpace.Xs))
+            Text(
+                "${entry.target.author.name}: ${oneLine(entry.target.text ?: entry.target.event.content)}",
+                color = DeckColors.Text3, fontSize = DeckType.Label,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }

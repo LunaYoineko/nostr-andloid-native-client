@@ -378,6 +378,27 @@ JOIN event_tag et ON et.event_id = e.id AND et.tag = 'e'
 WHERE e.kind = 7 AND et.value = :id
   AND et.rowid = (SELECT MAX(et2.rowid) FROM event_tag et2 WHERE et2.event_id = e.id AND et2.tag = 'e');
 
+-- [#254] 投稿詳細: リアクションした人（絵文字ごとの内訳にアバターを並べる）。名前解決込み・新しい順。
+reactionsForNoteWithAuthors:
+SELECT e.content, e.tags_json, e.pubkey, p.name AS pname, p.picture_url AS ppicture
+FROM event e
+JOIN event_tag et ON et.event_id = e.id AND et.tag = 'e'
+LEFT JOIN profile p ON p.pubkey = e.pubkey
+WHERE e.kind = 7 AND et.value = :id
+  AND et.rowid = (SELECT MAX(et2.rowid) FROM event_tag et2 WHERE et2.event_id = e.id AND et2.tag = 'e')
+ORDER BY e.created_at DESC;
+
+-- [#254] 投稿詳細: リポストした人（同一人物の重複リポストは1件に）。新しい順。
+repostersForNote:
+SELECT e.pubkey, p.name AS pname, p.picture_url AS ppicture, MAX(e.created_at) AS at
+FROM event e
+JOIN event_tag et ON et.event_id = e.id AND et.tag = 'e'
+LEFT JOIN profile p ON p.pubkey = e.pubkey
+WHERE e.kind IN (6, 16) AND et.value = :id
+  AND et.rowid = (SELECT MAX(et2.rowid) FROM event_tag et2 WHERE et2.event_id = e.id AND et2.tag = 'e')
+GROUP BY e.pubkey
+ORDER BY at DESC;
+
 -- [#270] 投稿詳細: 対象ノートへの反応数を kind 別に数える（1=リプライ / 6,16=リポスト）。
 -- 対象判定はリアクションと同じ「最後の e タグ」（NIP-10 は返信対象の e が末尾に来る）。
 engagementCountsForNote:

@@ -1,6 +1,21 @@
 package app.nostrdeck.ui
 
 import androidx.compose.foundation.background
+import org.jetbrains.compose.resources.stringResource
+import nostr_deck_client.composeapp.generated.resources.media_video_badge
+import nostr_deck_client.composeapp.generated.resources.Res
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,18 +69,67 @@ fun QuotedNoteCard(note: NoteUi, modifier: Modifier = Modifier) {
             )
         }
         Spacer(Modifier.size(DeckSpace.Xs))
-        // 本文と同様に nostr:nevent/npub・URL・#タグを短縮装飾する。素の Text だと
-        // 引用元本文に含まれる生の nostr:nevent1… が全長のまま表示されてしまう。
+        // 本文と同様に nostr:nevent/npub・#タグを短縮装飾する。
+        // [#254] さらにカード内では:
+        //  - 動画URL（mp4等）はテキストから除去してカルーセルに出す（imageUrlRegex 対象外のため残っていた）
+        //  - 一般URL（x.com 等）はホスト+パスの短縮ラベルで表示（4行しかない本文を URL が占有しないように）
         val names = LocalProfileNames.current
-        val body = note.text ?: note.event.content
-        val annotated = remember(body, names) { noteAnnotated(body, { names[it] }) }
-        Text(
-            annotated,
-            color = DeckColors.Text2,
-            fontSize = DeckType.Caption,
-            lineHeight = 18.sp,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis,
-        )
+        val rawBody = note.text ?: note.event.content
+        val videos = remember(rawBody) { videoUrlRegex.findAll(rawBody).map { it.value }.toList().distinct() }
+        val body = remember(rawBody) {
+            var t = rawBody
+            videos.forEach { t = t.replace(it, "") }
+            t.replace(Regex("""[ \t]{2,}"""), " ").replace(Regex("""\n{3,}"""), "\n\n").trim()
+        }
+        if (body.isNotBlank()) {
+            val annotated = remember(body, names) { noteAnnotated(body, { names[it] }, shortenUrls = true) }
+            Text(
+                annotated,
+                color = DeckColors.Text2,
+                fontSize = DeckType.Caption,
+                lineHeight = 18.sp,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        // [#254] メディア（画像+動画）はカルーセルで。画像はサムネイル、動画は ▶ プレースホルダ
+        // （再生・フル表示は引用元を開いてから）。
+        val media = note.images + videos
+        if (media.isNotEmpty()) {
+            Spacer(Modifier.size(DeckSpace.Xs))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Xs)) {
+                items(media.size) { i ->
+                    val url = media[i]
+                    val itemModifier =
+                        if (media.size == 1) Modifier.fillParentMaxWidth() else Modifier.width(200.dp)
+                    if (i < note.images.size) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalPlatformContext.current)
+                                .data(ImageProxy.proxied(url, width = 640, quality = 80)).crossfade(true).build(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = itemModifier.height(140.dp).clip(RoundedCornerShape(DeckRadius.Sm)),
+                        )
+                    } else {
+                        // 動画プレースホルダ（カード内では再生しない）。
+                        Box(
+                            itemModifier.height(140.dp).clip(RoundedCornerShape(DeckRadius.Sm))
+                                .background(DeckColors.Bg),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Outlined.PlayCircle, contentDescription = null,
+                                tint = DeckColors.Text2, modifier = Modifier.size(36.dp),
+                            )
+                            Text(
+                                stringResource(Res.string.media_video_badge),
+                                color = DeckColors.Text2, fontSize = DeckType.Label,
+                                modifier = Modifier.align(Alignment.BottomEnd).padding(DeckSpace.Xs),
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
