@@ -375,6 +375,8 @@ private fun ReplyQuote(parent: ChannelMessage, mine: Boolean) {
     ReplyContextLine(
         name = parent.author.name,
         content = parent.event.content,
+        avatarSeed = parent.event.pubkey,
+        avatarUrl = parent.author.pictureUrl,
         modifier = Modifier.padding(bottom = DeckSpace.Xs),
     )
 }

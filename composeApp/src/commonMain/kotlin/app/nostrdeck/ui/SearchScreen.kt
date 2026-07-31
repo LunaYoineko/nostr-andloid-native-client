@@ -119,6 +119,7 @@ fun SearchScreen(state: DeckState, isCompact: Boolean) {
                 ResultsPane(
                     state, repo, tokens.toList(), searchSeq,
                     onBack = { running = false }, modifier = Modifier.fillMaxSize(),
+                    onRefresh = { searchSeq++ },
                 )
             }
         } else {
@@ -136,6 +137,7 @@ fun SearchScreen(state: DeckState, isCompact: Boolean) {
                     ResultsPane(
                         state, repo, tokens.toList(), searchSeq,
                         onBack = null, modifier = Modifier.weight(1f).fillMaxHeight(),
+                        onRefresh = { searchSeq++ },
                     )
                 }
             }
@@ -271,6 +273,7 @@ private fun ResultsPane(
     searchSeq: Int,
     onBack: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新（searchSeq を進めて再REQ）
 ) {
     if (repo == null || tokens.isEmpty()) {
         Box(modifier.padding(DeckSpace.Lg), contentAlignment = Alignment.Center) {
@@ -309,19 +312,21 @@ private fun ResultsPane(
             })
         }
         HorizontalDivider(color = DeckColors.Border)
-        if (results.isEmpty()) {
-            ColumnStateView("search_screen" !in loaded, stringResource(Res.string.search_no_results), Modifier.fillMaxSize())
-        } else {
-            LazyColumn(Modifier.fillMaxSize()) {
-                items(results, key = { it.event.id }) { note ->
-                    NoteItem(
-                        note,
-                        onClick = { state.openThreadDetail(note.event.id) },
-                        onReply = { state.replyTo = note.event; state.showCompose = true },
-                        onQuote = { state.quoting = note.event; state.showCompose = true },
-                        onAuthorClick = { pk -> state.openProfile(pk) },
-                    )
-                    HorizontalDivider(color = DeckColors.Border)
+        RefreshableBox(onRefresh) {
+            if (results.isEmpty()) {
+                ColumnStateView("search_screen" !in loaded, stringResource(Res.string.search_no_results), Modifier.fillMaxSize())
+            } else {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    items(results, key = { it.event.id }) { note ->
+                        NoteItem(
+                            note,
+                            onClick = { state.openThreadDetail(note.event.id) },
+                            onReply = { state.replyTo = note.event; state.showCompose = true },
+                            onQuote = { state.quoting = note.event; state.showCompose = true },
+                            onAuthorClick = { pk -> state.openProfile(pk) },
+                        )
+                        HorizontalDivider(color = DeckColors.Border)
+                    }
                 }
             }
         }

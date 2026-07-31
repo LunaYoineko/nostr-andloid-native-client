@@ -35,6 +35,8 @@ fun noteAnnotated(
     emojis: Map<String, String> = emptyMap(),
     nav: NoteNav? = null,
     linkColor: Color = DeckColors.Accent,
+    // [#254] URL をホスト+パスの短縮ラベルで表示（引用カード等の行数が限られる場所用）。
+    shortenUrls: Boolean = false,
 ): AnnotatedString = buildAnnotatedString {
     val accent = SpanStyle(color = linkColor, fontWeight = DeckWeight.Link)
     val linkStyles = TextLinkStyles(style = accent)
@@ -74,7 +76,9 @@ fun noteAnnotated(
     for (tok in tokenizeNostrContent(text)) {
         when (tok) {
             is ContentToken.Text -> append(text.substring(tok.start, tok.end))
-            is ContentToken.Url -> withLink(LinkAnnotation.Url(tok.url, linkStyles)) { append(tok.url) }
+            is ContentToken.Url -> withLink(LinkAnnotation.Url(tok.url, linkStyles)) {
+                append(if (shortenUrls) shortUrlLabel(tok.url) else tok.url)
+            }
             is ContentToken.NostrRef -> appendEntity(tok.bech, text.substring(tok.start, tok.end))
             is ContentToken.Hashtag ->
                 if (nav != null) clickable({ nav.onHashtag(tok.tag) }, "#${tok.tag}")
@@ -85,6 +89,19 @@ fun noteAnnotated(
                 else append(text.substring(tok.start, tok.end))
         }
     }
+}
+
+/** [#254] 本文中の動画直リンク（mp4/webm/mov/m4v）。引用カードではテキストから除去してカルーセルに出す。 */
+val videoUrlRegex =
+    Regex("""https?://\S+?\.(?:mp4|webm|mov|m4v)(?:\?\S*)?""", RegexOption.IGNORE_CASE)
+
+/**
+ * [#254] URL の短縮表示ラベル（ホスト+パスを最大28文字）。
+ * 引用カードなど「本文が4行しかない」場所で長い URL が占有しないようにする。
+ */
+fun shortUrlLabel(url: String): String {
+    val bare = url.removePrefix("https://").removePrefix("http://").removePrefix("www.")
+    return if (bare.length > 28) bare.take(28) + "…" else bare
 }
 
 /** 本文中の画像URL（jpg/png/gif/webp）。表示時は本文から除去し [NoteImages] で下に出す。 */

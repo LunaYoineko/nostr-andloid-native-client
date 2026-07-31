@@ -217,19 +217,27 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
         onShowFollowers = { userList = UserListMode.FOLLOWERS },
     )
 
+    // [#254] 引っ張って更新: REQ を張り直してリレーから取り直す（キャッシュ止まり対策）。
+    val onRefresh: () -> Unit = {
+        repo?.refreshColumn(
+            "profile_overlay_$pubkey",
+            ReqFilter(kinds = listOf(0, 1, 6, 16, 10002), authors = listOf(pubkey)),
+        )
+        Unit
+    }
     if (isCompact) {
         ProfileCompact(
             pubkey, profile, following, tab, tabs, isMe, visibleNoPins,
             onTab = { tabRaw = it }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
             onNoteClick = onNoteClick, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick,
-            pinnedNotes = pinnedForTab, social = social,
+            pinnedNotes = pinnedForTab, social = social, onRefresh = onRefresh,
         )
     } else {
         ProfileExpanded(
             pubkey, profile, following, tab, tabs, isMe, visibleNoPins,
             onTab = { tabRaw = it }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
             onNoteClick = onNoteClick, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick,
-            pinnedNotes = pinnedForTab, social = social,
+            pinnedNotes = pinnedForTab, social = social, onRefresh = onRefresh,
         )
     }
 }
@@ -266,10 +274,12 @@ private fun ProfileCompact(
     pinnedNotes: List<NoteUi> = emptyList(),
     social: ProfileSocial? = null,
     listState: LazyListState = rememberLazyListState(),
+    onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新
 ) {
     Column(Modifier.fillMaxSize().background(DeckColors.Surface)) {
         ProfileTopBar(profile?.name?.takeIf { it.isNotBlank() } ?: pubkey.take(10), onBack)
         HorizontalDivider(color = DeckColors.Border)
+        RefreshableBox(onRefresh) {
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             item {
                 ProfileHeaderCard(pubkey, profile, following, isMe, onFollowToggle, onEdit, social)
@@ -280,6 +290,7 @@ private fun ProfileCompact(
                 HorizontalDivider(color = DeckColors.Border)
             }
             notesItems(visible, onNoteClick, onReply, onQuote, onAuthorClick, pinnedNotes)
+        }
         }
     }
 }
@@ -306,6 +317,7 @@ private fun ProfileExpanded(
     pinnedNotes: List<NoteUi> = emptyList(),
     social: ProfileSocial? = null,
     listState: LazyListState = rememberLazyListState(),
+    onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新
 ) {
     Row(Modifier.fillMaxSize().background(DeckColors.Surface)) {
         // 左ペイン: プロフィール詳細（縦スクロール）
@@ -321,8 +333,10 @@ private fun ProfileExpanded(
         Column(Modifier.weight(1f).fillMaxHeight()) {
             ProfileTabs(tab, tabs, onTab)
             HorizontalDivider(color = DeckColors.Border)
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                notesItems(visible, onNoteClick, onReply, onQuote, onAuthorClick, pinnedNotes)
+            RefreshableBox(onRefresh) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    notesItems(visible, onNoteClick, onReply, onQuote, onAuthorClick, pinnedNotes)
+                }
             }
         }
     }
