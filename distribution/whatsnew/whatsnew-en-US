@@ -1,4 +1,5 @@
-- Replies and quote reposts now look different: replies show the parent as a one-line "◁ …" preview, quotes keep the card
-- Reposts are now shown as "🔁 (avatar) name"
-- Notifications show which of your posts they refer to, as a one-line preview
-- Fixed themes published by other people not appearing in the theme store
+- Reworked notifications: type marks line up on the left, and replies are shown as full posts you can reply to right there
+- Fixed profile posts not updating (now fetched from the relays the author actually uses)
+- Create and edit public chat threads from inside the app
+- Add and remove custom emoji from inside the app
+- Add-column and reaction pickers now scroll reliably
