@@ -609,4 +609,6 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="notif_group_reposted_many">%1$s and %2$s others reposted</string>
     <string name="notif_group_zapped_one">%1$s zapped ⚡%2$s sats</string>
     <string name="notif_group_zapped_many">%1$s and %2$s others zapped ⚡%3$s sats</string>
+    <string name="chat_upload_failed">Could not upload the attachment. Check your upload server in Settings → Media servers.</string>
+    <string name="chat_attach_remove">Remove attachment</string>
 </resources>

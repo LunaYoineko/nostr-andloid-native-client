@@ -24,6 +24,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import nostr_deck_client.composeapp.generated.resources.chat_upload_failed
+import nostr_deck_client.composeapp.generated.resources.compose_attach_image
+import nostr_deck_client.composeapp.generated.resources.compose_attach_video
+import nostr_deck_client.composeapp.generated.resources.compose_attachment
+import nostr_deck_client.composeapp.generated.resources.chat_attach_remove
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.shape.CircleShape
@@ -503,13 +517,75 @@ private fun Composer(
     focusRequester: FocusRequester? = null,
 ) {
     val repo = LocalRepository.current
+    val scope = rememberCoroutineScope()
+    val toast = rememberToaster()
     // カーソル位置を知るため TextFieldValue で保持（任意位置へメンション/絵文字を挿入するため）。
     var field by remember { mutableStateOf(TextFieldValue("")) }
     var showEmojiPicker by remember { mutableStateOf(false) }
+
+    // [#304] 添付（画像/動画）。投稿画面と同じ仕組み: 追加時に圧縮を走らせ、
+    // アップロードは送信時にまとめて行う。解像度は設定の既定（中）に従う。
+    val images = remember { mutableStateListOf<ComposeAttachment>() }
+    val videos = remember { mutableStateListOf<VideoAttachment>() }
+    var sending by remember { mutableStateOf(false) }
+    val imgPrefs by (
+        repo?.imageCompressionFlow()?.collectAsState()
+            ?: remember { mutableStateOf(app.nostrdeck.model.ImageCompressionPrefs.DEFAULT) }
+        )
+    val videoPrefs by (
+        repo?.videoCompressionFlow()?.collectAsState()
+            ?: remember { mutableStateOf(app.nostrdeck.model.VideoCompressionPrefs.DEFAULT) }
+        )
+    val videoProcessor = rememberVideoProcessor()
+    var resolution by remember { mutableStateOf(ImageResolution.MID) }
+    val picker = rememberImagePicker { picked ->
+        picked.forEach { p ->
+            val att = ComposeAttachment(p)
+            images.add(att)
+            scope.launch { att.compress(resolution, imgPrefs) }
+        }
+    }
+    val videoPicker = rememberVideoPicker { picked ->
+        picked?.let { p ->
+            val att = VideoAttachment(p)
+            videos.add(att)
+            scope.launch { att.compress(videoProcessor, videoPrefs.heightFor(resolution)) }
+        }
+    }
+    // 解像度チップを変えたら添付済みを圧縮し直す。
+    LaunchedEffect(resolution, imgPrefs, videoPrefs) {
+        images.forEach { att -> scope.launch { att.compress(resolution, imgPrefs) } }
+        videos.forEach { att -> scope.launch { att.compress(videoProcessor, videoPrefs.heightFor(resolution)) } }
+    }
+
     val text = field.text
-    val canSend = text.isNotBlank()
+    val hasMedia = images.isNotEmpty() || videos.isNotEmpty()
+    val canSend = (text.isNotBlank() || hasMedia) && !sending
+    val uploadFailMsg = stringResource(Res.string.chat_upload_failed)
     val send = {
-        if (text.isNotBlank()) { onSend(text.trim()); field = TextFieldValue("") }
+        if (canSend) {
+            if (!hasMedia) {
+                onSend(text.trim()); field = TextFieldValue("")
+            } else {
+                // メディアがあるときは先にアップロードし、URL を本文へ連結して送る。
+                sending = true
+                val body = text.trim()
+                scope.launch {
+                    val urls = (
+                        images.map { it.processed ?: it.src } + videos.map { it.processed ?: it.src }
+                        ).map { p -> repo?.uploadImage(p.bytes, p.mime, p.name) }
+                    if (urls.any { it.isNullOrBlank() }) {
+                        // 1件でも失敗したらメディア欠けで送らない。添付は残して再試行できるようにする。
+                        toast(uploadFailMsg)
+                    } else {
+                        onSend((listOf(body) + urls.filterNotNull()).filter { it.isNotBlank() }.joinToString("\n"))
+                        field = TextFieldValue("")
+                        images.clear(); videos.clear()
+                    }
+                    sending = false
+                }
+            }
+        }
     }
 
     // 補完はカーソル直前のトークンに対して行う（ComposeSheet と同じ規則）。
@@ -578,6 +654,48 @@ private fun Composer(
             }
         }
     }
+    // [#304] 添付のサムネ列。入力欄の上に出し、× で外せる。解像度チップは添付があるときだけ。
+    if (images.isNotEmpty() || videos.isNotEmpty()) {
+        LazyRow(
+            Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Xs),
+            horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm),
+        ) {
+            items(images) { att ->
+                ChatAttachThumb(
+                    bytes = (att.processed ?: att.src).bytes,
+                    processing = att.processing,
+                    isVideo = false,
+                    onRemove = { images.remove(att) },
+                )
+            }
+            items(videos) { att ->
+                ChatAttachThumb(
+                    bytes = null,
+                    processing = att.processing,
+                    isVideo = true,
+                    onRemove = { videos.remove(att) },
+                )
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Xs),
+            horizontalArrangement = Arrangement.spacedBy(DeckSpace.Xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ImageResolution.entries.forEach { r ->
+                val on = r == resolution
+                Text(
+                    stringResource(r.label),
+                    color = if (on) DeckColors.Bg else DeckColors.Text3,
+                    fontSize = DeckType.Label,
+                    modifier = Modifier.clip(RoundedCornerShape(DeckRadius.Full))
+                        .background(if (on) DeckColors.Accent else DeckColors.Surface2)
+                        .clickable { resolution = r }
+                        .padding(horizontal = DeckSpace.Sm, vertical = 3.dp),
+                )
+            }
+        }
+    }
     Row(
         Modifier.fillMaxWidth().padding(DeckSpace.Md, DeckSpace.Sm),
         // 複数行入力で枠が縦に伸びたとき、絵文字/送信ボタンは下端に沿わせる（チャットの定番）。
@@ -613,17 +731,45 @@ private fun Composer(
                     .onFocusChanged { onFocusChanged(it.isFocused) },
             )
         }
-        Spacer(Modifier.width(DeckSpace.Sm))
+        Spacer(Modifier.width(DeckSpace.Xs))
+        // [#304] 画像/動画の添付。押した順に添付され、圧縮は追加時に走る。
+        Box(
+            Modifier.size(DeckDimens.TouchTargetSm).clip(CircleShape)
+                .clickable(enabled = !sending) { picker.launch() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Outlined.Image, stringResource(Res.string.compose_attach_image),
+                tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconSm),
+            )
+        }
+        Box(
+            Modifier.size(DeckDimens.TouchTargetSm).clip(CircleShape)
+                .clickable(enabled = !sending) { videoPicker.launch() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Outlined.Videocam, stringResource(Res.string.compose_attach_video),
+                tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconSm),
+            )
+        }
+        Spacer(Modifier.width(DeckSpace.Xs))
         Box(
             Modifier.size(DeckDimens.TouchTargetSm).clip(CircleShape)
                 .background(if (canSend) DeckColors.Accent else DeckColors.Surface2)
                 .clickable(enabled = canSend, onClick = send),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                Icons.AutoMirrored.Outlined.Send, stringResource(Res.string.send),
-                tint = if (canSend) DeckColors.Bg else DeckColors.Text3, modifier = Modifier.size(16.dp),
-            )
+            if (sending) {
+                CircularProgressIndicator(
+                    color = DeckColors.Text3, strokeWidth = 2.dp, modifier = Modifier.size(16.dp),
+                )
+            } else {
+                Icon(
+                    Icons.AutoMirrored.Outlined.Send, stringResource(Res.string.send),
+                    tint = if (canSend) DeckColors.Bg else DeckColors.Text3, modifier = Modifier.size(16.dp),
+                )
+            }
         }
     }
     }
@@ -655,5 +801,48 @@ private fun ComposerDisabled() {
             Modifier.size(DeckDimens.TouchTargetSm).clip(CircleShape).background(DeckColors.Surface2),
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.AutoMirrored.Outlined.Send, stringResource(Res.string.send), tint = DeckColors.Text3, modifier = Modifier.size(16.dp)) }
+    }
+}
+
+/** [#304] チャットの添付サムネ1枚。圧縮中はスピナー、動画はフィルムアイコン。× で外す。 */
+@Composable
+private fun ChatAttachThumb(
+    bytes: ByteArray?,
+    processing: Boolean,
+    isVideo: Boolean,
+    onRemove: () -> Unit,
+) {
+    Box {
+        Box(
+            Modifier.size(56.dp).clip(RoundedCornerShape(DeckRadius.Sm)).background(DeckColors.Surface3),
+            contentAlignment = Alignment.Center,
+        ) {
+            when {
+                processing -> CircularProgressIndicator(
+                    color = DeckColors.Text3, strokeWidth = 2.dp, modifier = Modifier.size(18.dp),
+                )
+                isVideo -> Icon(
+                    Icons.Outlined.Movie, stringResource(Res.string.compose_attach_video),
+                    tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconMd),
+                )
+                bytes != null -> AsyncImage(
+                    model = bytes,
+                    contentDescription = stringResource(Res.string.compose_attachment),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        Box(
+            Modifier.align(Alignment.TopEnd).padding(2.dp).size(18.dp)
+                .clip(CircleShape).background(DeckColors.Bg.copy(alpha = 0.8f))
+                .clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Outlined.Close, stringResource(Res.string.chat_attach_remove),
+                tint = DeckColors.Text2, modifier = Modifier.size(12.dp),
+            )
+        }
     }
 }
