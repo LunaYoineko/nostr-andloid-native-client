@@ -832,12 +832,22 @@ class EventRepository(
         subscribeAll(columnId, proto)   // 自分のリレーで即購読
         scope.launch {
             // 著者の NIP-65 を indexer + 自分のリレーから取得。
-            val relSub = "$columnId~relaylist"
-            subscribeTargeted(relSub, INDEXER_RELAYS.toSet(),
-                Filter(kinds = listOf(10002), authors = filter.authors, limit = filter.authors.size))
-            subscribeAll(relSub, Filter(kinds = listOf(10002), authors = filter.authors, limit = filter.authors.size))
-            delay(4000)
-            unsubscribeAll(relSub)
+            // [#254-profile] 旧実装の2つの穴を塞ぐ:
+            //  1. 同じ subId で subscribeTargeted → subscribeAll を呼んでいたため、subscribeAll が
+            //     subTargets を消してターゲット指定が壊れていた → subId を分離
+            //  2. 固定 delay(4000) はインデクサへの新規接続(TLS+WS)が間に合わないと 10002 を
+            //     取り逃し、write リレー不明のまま終了 → 到着をポーリングで待つ（最大10秒）
+            val needs = filter.authors.filter { authorWriteRelays(it).isEmpty() }
+            if (needs.isNotEmpty()) {
+                val f = Filter(kinds = listOf(10002), authors = needs, limit = needs.size)
+                subscribeTargeted("$columnId~relaylist", INDEXER_RELAYS.toSet(), f)
+                subscribeAll("$columnId~relaylist2", f)
+                withTimeoutOrNull(10_000) {
+                    while (needs.any { authorWriteRelays(it).isEmpty() }) delay(500)
+                }
+                unsubscribeAll("$columnId~relaylist")
+                unsubscribeAll("$columnId~relaylist2")
+            }
             // DB から write リレーを取り出し、著者の投稿を outbox リレーからも購読（未接続のものだけ）。
             val writeRelays = filter.authors.flatMap { authorWriteRelays(it) }.distinct()
                 .map { normalizeRelayUrl(it) }.filter { it.isNotBlank() && it !in relays.keys }
@@ -847,16 +857,14 @@ class EventRepository(
         }
     }
 
-    /** [#209] 著者の kind:10002 から write リレー URL を取り出す（marker 無し=両用 / "write"）。 */
+    /**
+     * [#209] 著者の kind:10002 から write リレー URL を取り出す。
+     * [#254-profile] 旧実装は event テーブル（eventsByKindAuthor）を読んでいたが、ingest の
+     * kind:10002 は captureNip65（メモリ）にのみ保存し event へは書かないため**常に空**で、
+     * アウトボックス購読は導入時から一度も機能していなかった。captureNip65 と同じ置き場を読む。
+     */
     private fun authorWriteRelays(pubkey: String): List<String> =
-        q.eventsByKindAuthor(10002L, pubkey).executeAsList().firstOrNull()?.let { row ->
-            runCatching {
-                parseTags(row.tags_json)
-                    .filter { it.firstOrNull() == "r" && it.size >= 2 }
-                    .filter { it.size < 3 || it[2] == "write" }
-                    .map { it[1] }
-            }.getOrDefault(emptyList())
-        }.orEmpty()
+        nip65WriteByAuthor[pubkey].orEmpty()
 
     /**
      * [#135] キーワード・タグフィードの REQ フィルタ群。
@@ -901,6 +909,7 @@ class EventRepository(
         // [#209] アウトボックスの追加購読も CLOSE。
         unsubscribeAll("$columnId~outbox")
         unsubscribeAll("$columnId~relaylist")
+        unsubscribeAll("$columnId~relaylist2")
     }
 
     // ---- FOLLOWING（フォロー中）: 自分の kind:3 を authors にした購読/読み出し ----
@@ -2832,7 +2841,15 @@ class EventRepository(
             .map { normalizeRelayUrl(it[1]) }
             .filter { it.startsWith("wss://") }
         nip65ByAuthor[e.pubkey] = e.createdAt to urls
+        // [#254-profile] write リレー（marker 無し=両用 / "write"）も保持。アウトボックス購読が使う。
+        val writeUrls = e.tags.filter { it.size >= 2 && it[0] == "r" && (it.size < 3 || it[2] == "write") }
+            .map { normalizeRelayUrl(it[1]) }
+            .filter { it.startsWith("wss://") }
+        nip65WriteByAuthor[e.pubkey] = writeUrls
     }
+
+    /** [#254-profile] 著者 → write リレー（captureNip65 が更新。メモリのみ・セッション内）。 */
+    private val nip65WriteByAuthor = mutableMapOf<String, List<String>>()
 
     /**
      * 「フォロー中でよく使われているリレー」を返す（url → 使用人数、多い順）。
