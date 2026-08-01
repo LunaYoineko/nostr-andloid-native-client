@@ -47,6 +47,7 @@ import app.nostrdeck.model.NotificationKind
 import app.nostrdeck.model.NotificationUi
 import app.nostrdeck.state.DeckState
 import app.nostrdeck.theme.DeckColors
+import app.nostrdeck.theme.DeckDimens
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -246,7 +247,13 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
         verticalAlignment = Alignment.Top,
     ) {
         // 左端の種別マーク。ここが縦に揃うので、探している種類を目で拾える。
-        Box(Modifier.width(22.dp).padding(top = 1.dp), contentAlignment = Alignment.TopCenter) {
+        // [#300] 列の幅は通常投稿のアバターと同じ AvatarSize。こうすると本体の開始位置が
+        // タイムラインと一致する（以前は 22dp 固定で 16dp 内側にずれていた）。マーク自体は
+        // 中央寄せするだけで拡大しない。
+        Box(
+            Modifier.width(DeckDimens.AvatarSize).padding(top = DeckSpace.Xs),
+            contentAlignment = Alignment.TopCenter,
+        ) {
             KindMark(n)
         }
         Spacer(Modifier.width(DeckSpace.Sm))
@@ -266,10 +273,13 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
                         Modifier.clickable(onClick = onActorClick), size = 20.dp,
                     )
                     Spacer(Modifier.width(DeckSpace.Xs))
+                    // [#299] 残り幅は名前が全部取る（fill=true）。以前は名前と Spacer の
+                    // 両方に weight(1f) を掛けていたため余白が 50:50 に割られ、名前が短いほど
+                    // 時刻が左へ寄っていた。時刻は weight を持たないので常に右端に来る。
                     Text(
                         n.actor.name, color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false).clickable(onClick = onActorClick),
+                        modifier = Modifier.weight(1f).clickable(onClick = onActorClick),
                     )
                     if (n.kind == NotificationKind.ZAP) {
                         Spacer(Modifier.width(DeckSpace.Xs))
@@ -278,7 +288,6 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
                             fontWeight = DeckWeight.Name, maxLines = 1,
                         )
                     }
-                    Spacer(Modifier.weight(1f))
                     Spacer(Modifier.width(DeckSpace.Sm))
                     HintText(relativeTime(n.createdAt))
                 }
