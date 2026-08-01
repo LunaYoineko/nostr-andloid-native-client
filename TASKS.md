@@ -1,4 +1,7 @@
-# 開発タスク / ロードマップ
+# 開発タスク / ロードマップ（履歴）
+
+> M1〜M13 の実装経緯を残した記録です。**進行中の課題は [Issues](../../issues) を参照してください。**
+
 
 設計は [whiteboard.md](./whiteboard.md)・[UI設計方針](./designs/ui-design-principles.md)。
 現状: **実データで稼働**（リレー/DB/署名/投稿/画像/通知/NIP-28 パブリックチャット/デザインシステムまで完了）。
@@ -129,38 +132,35 @@
 
 ---
 
-## バックログ（次にやること・2026-07 整理）
+## バックログ
+
+> **このファイルは履歴です。** 現在の未対応項目は [Issues](../../issues) が唯一の情報源。
+> 以下は 2026-07 時点のバックログの消化結果（2026-08 棚卸し）。
 
 ### A. 機能の未実装（画面から見えるもの）
-- ⬜ P1 **検索**（SearchScreen はプレースホルダ。レールにボタンだけある）
-- ⬜ P1 **DM**（画面は SampleData。NIP-17 gift wrap + NIP-44 が前提 → B-1）
-- ⬜ P1 **カラム並べ替え**（ヘッダの grip が飾り。`DeckState.move` へのジェスチャ接続）
-- ⬜ P2 設定の未実装セクション（アカウント / 表示 / このアプリについて）
-- ⬜ P2 Zap（NIP-57 自動 Zap・zap 数集計。現状 lud16 表示のみ）
-- ⬜ P2 リポストの取り消し（kind:6 の NIP-09 削除）
+- ✅ 検索（NIP-50・キーワード/タグ複合）
+- ✅ DM（NIP-17 gift wrap + NIP-44。旧 NIP-04 も復号して統合）
+- ✅ カラム並べ替え
+- ✅ 設定の各セクション（アカウント / 表示 / このアプリについて ほか）
+- ✅ Zap（NIP-57 の集計・送金は NIP-47 NWC で毎回確認）
+- ✅ リアクション/リポストの取り消し（kind:5）
 
 ### B. 基盤・プロトコル
-- ⬜ P1 **NIP-44 実装**（LocalSigner: ECDH+HKDF+ChaCha20+HMAC）→ DM の前提
-- ⬜ P1 publish_queue の完成（オンライン復帰フラッシュ / NIP-20 OK 反映）
-- ⬜ P1 ContentText のタップ動作（メンション→プロフィール / #タグ→カラム）
-- ⬜ P2 Signer 拡張（NIP-46 bunker / Nosskey / iOS Keychain / 複数 npub 切替）
-- ⬜ P2 `since` 差分取得 / NIP-77 Negentropy / NIP-42 AUTH
-- ⬜ P2 imeta(NIP-92/93) blurhash プレースホルダ
+- ✅ NIP-44 実装 / publish_queue / ContentText のタップ動作
+- ✅ Signer 拡張（NIP-46 bunker / NIP-55 外部署名 / iOS Keychain）
+- ✅ NIP-42 AUTH / imeta（NIP-92）blurhash プレースホルダ
+- ⬜ `since` 差分取得 / NIP-77 Negentropy / Nosskey / 複数 npub 切替
 
-### C. プラットフォーム仕上げ（M7 再掲）
-- ⬜ P1 NetworkPolicy actual（ConnectivityManager）/ 背景同期（WorkManager）
-- ⬜ P1 ヒンジガター（androidx.window FoldingFeature。現状は固定22dpトークン）
-- ⬜ P2 iOS ビルド（Xcode プロジェクト生成）
+### C. プラットフォーム仕上げ
+- ✅ iOS ビルド（TestFlight 配信中）
+- ✅ NetworkPolicy actual
+- ⬜ 背景同期（WorkManager）/ ヒンジガター（FoldingFeature 連動）
 
 ### D. デザインシステムの残タスク
-- ⬜ P2 アバターサイズの3段集約（22/28/30/32/38/60/72 混在 → Sm/Md/Lg トークン）
-- ⬜ P2 グリフサイズの Icon* トークンスナップ残り（11/13/15/26dp 等）
-- ⬜ P2 lineHeight のトークン化残り（18/19/20/21sp 散在）
-- ⬜ P2 RelayGreen/Amber を theme/Color.kt へ / ConnectionIndicator の .border() 撤去（施策1残）
+- ⬜ アバター/グリフ/lineHeight のトークン集約（実害が出ていないため優先度低）
 
 ### E. UX 検討
-- ⬜ P2 Compose の下書き保持（現状は破棄確認のみ）
-- ⬜ P2 通知画面本体の kind 別フィルタ UI
+- ⬜ Compose の下書き保持 / 通知画面の kind 別フィルタ UI
 
 ---
 
