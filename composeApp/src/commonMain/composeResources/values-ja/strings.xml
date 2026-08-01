@@ -605,4 +605,7 @@
     <string name="notif_group_reposted_many">%1$s、他%2$s人がリポスト</string>
     <string name="notif_group_zapped_one">%1$s が ⚡%2$s sats を Zap</string>
     <string name="notif_group_zapped_many">%1$s、他%2$s人が ⚡%3$s sats を Zap</string>
+    <string name="channel_icon_pick">選択</string>
+    <string name="channel_icon_clear">画像を外す</string>
+    <string name="channel_icon_upload_failed">画像をアップロードできませんでした。設定 → メディアサーバーを確認してください。</string>
 </resources>
