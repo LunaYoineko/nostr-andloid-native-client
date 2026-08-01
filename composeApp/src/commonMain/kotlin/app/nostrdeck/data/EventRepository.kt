@@ -1365,6 +1365,16 @@ class EventRepository(
         val snippet = targetEvent?.let { (extractMedia(it.content).first ?: it.content).take(80) }
         // [#254] 対象の著者（通知行の1行プレビューにアバターを出す）。
         val targetAuthor = targetEvent?.let { profileFor(it.pubkey, byPubkey) }
+        // [#298] 通知の本体に使うノート。
+        //  - 対象（自分の投稿）は引用カードで出すので NoteUi 化しておく（引用/返信の再解決はしない＝安い）
+        //  - 返信/メンションは相手の投稿そのものを投稿フォーマットで出す。返信元は見出し行が担うため
+        //    replyParent は落とす（NoteItem の ◁ 行と二重になる）
+        val targetNote = targetEvent?.let { toNoteUi(it, byPubkey[it.pubkey]) }
+        val selfNote = if (row.kind.toInt() == 1) {
+            withQuoteAndReply(toNoteUi(row, byPubkey[row.pubkey]), row, byPubkey).copy(replyParent = null)
+        } else {
+            null
+        }
         // 対象が kind:42（パブリックチャット）なら、そのルート #e＝チャンネル id をリンク先に。
         val channelId = targetEvent
             ?.takeIf { it.kind.toInt() == 42 }
@@ -1373,6 +1383,7 @@ class EventRepository(
             9735 -> NotificationUi(
                 row.id, NotificationKind.ZAP, actor, row.created_at,
                 zapSats = zapAmountSats(tags), targetNoteId = target, targetSnippet = snippet, targetAuthor = targetAuthor,
+                note = selfNote, targetNote = targetNote,
                 targetChannelId = channelId,
             )
             7 -> {
@@ -1381,11 +1392,11 @@ class EventRepository(
                 NotificationUi(row.id, NotificationKind.REACTION, actor, row.created_at,
                     reaction = rx.display, reactionImageUrl = rx.imageUrl,
                     targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId,
-                    targetAuthor = targetAuthor)
+                    targetAuthor = targetAuthor, note = selfNote, targetNote = targetNote)
             }
             6, 16 -> NotificationUi(row.id, NotificationKind.REPOST, actor, row.created_at,
                 targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId,
-                targetAuthor = targetAuthor)
+                targetAuthor = targetAuthor, note = selfNote, targetNote = targetNote)
             else -> {
                 val isReply = tags.any { it.size >= 2 && it[0] == "e" }
                 NotificationUi(
@@ -1393,7 +1404,7 @@ class EventRepository(
                     actor, row.created_at,
                     text = extractMedia(row.content).first ?: row.content,
                     targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId,
-                    targetAuthor = targetAuthor,
+                    targetAuthor = targetAuthor, note = selfNote, targetNote = targetNote,
                 )
             }
         }

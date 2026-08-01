@@ -43,7 +43,12 @@ import app.nostrdeck.theme.DeckWeight
 
 /** [M8-repost] 引用リポスト（NIP-18 q タグ）の埋め込みカード。著者名 + 切り詰めた本文を枠内に。モノクロ。 */
 @Composable
-fun QuotedNoteCard(note: NoteUi, modifier: Modifier = Modifier) {
+fun QuotedNoteCard(
+    note: NoteUi,
+    modifier: Modifier = Modifier,
+    // [#298] 1行モード。通知のリアクション/Zap 行で使う（本文1行・メディアは出さない）。
+    compact: Boolean = false,
+) {
     // [#124] カードタップで引用元イベントを開く（kind:1=スレッド / kind:30023=記事ビューワー）。
     // 従来はタップ不能で、nevent 参照の記事や引用元スレッドへ辿る導線が無かった。
     val nav = LocalNoteNav.current
@@ -94,7 +99,7 @@ fun QuotedNoteCard(note: NoteUi, modifier: Modifier = Modifier) {
         }
         // [#254] メディア（画像+動画）はカルーセルで。画像はサムネイル、動画は ▶ プレースホルダ
         // （再生・フル表示は引用元を開いてから）。
-        val media = note.images + videos
+        val media = if (compact) emptyList() else note.images + videos
         if (media.isNotEmpty()) {
             Spacer(Modifier.size(DeckSpace.Xs))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Xs)) {

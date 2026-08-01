@@ -203,6 +203,14 @@ data class NotificationUi(
     val targetNoteId: String? = null,
     /** [#254] 対象（自分の投稿）の著者。通知の1行プレビューにアバターを出すために解決済みで持つ。 */
     val targetAuthor: Profile? = null,
+    /**
+     * [#298] 通知の本体として描くノート。
+     *  - REPLY/MENTION … 相手の返信そのもの（投稿と同じフォーマットで出す）
+     *  - それ以外        … null（本体は [targetNote]）
+     */
+    val note: NoteUi? = null,
+    /** [#298] 対象（＝自分の投稿）。リポスト/リアクション/Zap の本体を引用カードで出すのに使う。 */
+    val targetNote: NoteUi? = null,
     /** 対象が NIP-28 チャンネルメッセージ(kind:42)なら、そのチャンネル id（タップで開く先）。 */
     val targetChannelId: String? = null,
     /** ZAP 通知の金額(sats)。 */
