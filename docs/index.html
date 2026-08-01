@@ -3,24 +3,508 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nostrism</title>
+<title>Nostrism — デッキ型の Nostr クライアント</title>
+<meta name="description" content="複数カラムを並べて読む Nostr クライアント。Android / iOS / macOS。テーマストア、カスタム絵文字、キーボードショートカット。">
+<meta property="og:title" content="Nostrism — デッキ型の Nostr クライアント">
+<meta property="og:description" content="複数カラムを並べて読む Nostr クライアント。Android / iOS / macOS。">
+<meta property="og:type" content="website">
+<link rel="icon" href="/store/icon-512.png">
 <style>
-  :root { color-scheme: light dark; }
-  body { min-height: 100vh; margin: 0; display: grid; place-items: center;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
-    background: #0f0f0f; color: #e6e6e6; text-align: center; padding: 24px; }
-  h1 { font-size: 2rem; letter-spacing: .04em; }
-  p { color: #9a9a9a; }
-  a { color: #7db4ff; }
+  :root {
+    color-scheme: dark;
+
+    /* アプリの darkPalette をそのまま使う（Color.kt） */
+    --bg: #0C0C10;
+    --surface: #15151C;
+    --surface2: #1D1D26;
+    --surface3: #262631;
+    --border: #2C2C38;
+    --border-strong: #3A3A48;
+    --text: #ECEDF1;
+    --text2: #BEBFC9;
+    --text3: #90919E;
+
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--text); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+  code { font-family: var(--mono); font-size: .92em; }
+
+  .shell { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- ヘッダ ---------- */
+  header.top {
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(12,12,16,.82);
+    backdrop-filter: blur(12px);
+  }
+  .top .shell { display: flex; align-items: center; gap: 24px; height: 60px; }
+  .wordmark {
+    font-family: var(--mono);
+    font-size: 15px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .top nav { margin-left: auto; display: flex; gap: 22px; }
+  .top nav a {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .08em;
+    color: var(--text3); text-decoration: none;
+  }
+  .top nav a:hover { color: var(--text); }
+  @media (max-width: 620px) { .top nav a.hide-s { display: none; } }
+
+  /* ---------- ヒーロー ---------- */
+  .hero { padding: 84px 0 0; }
+  .hero h1 {
+    font-family: var(--mono);
+    font-size: clamp(38px, 8vw, 76px);
+    letter-spacing: -.03em;
+    line-height: 1.02;
+    font-weight: 500;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .hero .thesis {
+    font-size: clamp(17px, 2.2vw, 21px);
+    color: var(--text2);
+    max-width: 34ch;
+    margin: 22px 0 0;
+    text-wrap: balance;
+  }
+  .hero .sub {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .1em;
+    color: var(--text3); margin-top: 18px;
+  }
+  .cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+  .btn {
+    font-family: var(--mono); font-size: 12.5px; letter-spacing: .06em;
+    text-decoration: none; padding: 11px 18px;
+    border: 1px solid var(--border-strong); border-radius: 2px;
+    color: var(--text); transition: border-color .15s, background .15s;
+  }
+  .btn:hover { border-color: var(--text3); background: var(--surface2); }
+  .btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
+  .btn.primary:hover { background: #fff; border-color: #fff; }
+
+  /* ---------- デッキ（ヒーローの本体） ---------- */
+  .deck-frame { margin-top: 64px; border-top: 1px solid var(--border); overflow: hidden; }
+  .deck-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    color: var(--text3); padding: 14px 0; display: flex; gap: 14px; align-items: center;
+  }
+  .deck-label::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .deck {
+    display: flex; gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border); border-bottom: 0;
+    border-radius: 3px 3px 0 0;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  .col { background: var(--surface); min-width: 268px; flex: 1; display: flex; flex-direction: column; }
+  .col-head { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 9px; }
+  .col-head .ic { width: 16px; height: 16px; color: var(--text2); flex: none; }
+  .col-head b { font-size: 13px; font-weight: 620; }
+  .col-head span {
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    letter-spacing: .05em; margin-left: auto;
+  }
+  .post { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 9px; }
+  .post:last-child { border-bottom: 0; }
+  .av {
+    width: 30px; height: 30px; border-radius: 50%;
+    background: var(--surface3); flex: none;
+    display: grid; place-items: center;
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+  }
+  .av.sm { width: 16px; height: 16px; font-size: 8px; }
+  .post-body { min-width: 0; flex: 1; }
+  .post-meta { display: flex; align-items: baseline; gap: 6px; font-size: 12px; }
+  .post-meta b { font-size: 12.5px; font-weight: 620; }
+  .post-meta i { font-style: normal; color: var(--text3); font-family: var(--mono); font-size: 10px; margin-left: auto; }
+  .post p { margin: 3px 0 0; font-size: 13px; color: var(--text); line-height: 1.5; }
+  .ctx { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text3); margin-bottom: 4px; }
+  .ctx svg { width: 12px; height: 12px; flex: none; }
+  .ctx span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acts { display: flex; gap: 16px; margin-top: 9px; color: var(--text3); }
+  .acts svg { width: 14px; height: 14px; }
+  .chat-line { padding: 9px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: flex-start; }
+  .chat-line:last-child { border-bottom: 0; }
+  .bubble { background: var(--surface2); border-radius: 10px; padding: 6px 10px; font-size: 12.5px; color: var(--text); }
+  .chat-name { font-size: 11px; color: var(--text2); font-weight: 620; margin-bottom: 2px; }
+
+  /* ---------- セクション共通 ---------- */
+  section { padding: 88px 0; }
+  .sec-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--text3);
+  }
+  h2 {
+    font-size: clamp(24px, 3.4vw, 32px); letter-spacing: -.02em;
+    font-weight: 620; margin: 12px 0 0; text-wrap: balance;
+  }
+  .sec-lede { color: var(--text2); max-width: 58ch; margin-top: 14px; font-size: 16px; }
+
+  /* 特徴＝カラム構造で見せる（デッキの反復） */
+  .features {
+    margin-top: 44px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: 3px;
+  }
+  .feat { background: var(--bg); padding: 26px 22px 30px; }
+  .feat .n { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; color: var(--text3); }
+  .feat h3 { font-size: 16px; font-weight: 640; margin: 12px 0 8px; letter-spacing: -.01em; }
+  .feat p { margin: 0; color: var(--text2); font-size: 14px; line-height: 1.7; }
+  .feat kbd {
+    font-family: var(--mono); font-size: 11px;
+    background: var(--surface2); border: 1px solid var(--border-strong);
+    border-radius: 3px; padding: 1px 6px; color: var(--text);
+  }
+
+  /* テーマストアへの導線 = ここだけ色が出る */
+  .themes-teaser {
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 34px 28px; margin-top: 44px;
+    display: flex; flex-wrap: wrap; gap: 28px;
+    align-items: center; justify-content: space-between;
+  }
+  .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+  .sw {
+    width: 62px; height: 62px; border-radius: 3px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 10px;
+    border: 1px solid rgba(255,255,255,.1);
+  }
+  .sw i { font-style: normal; width: 18px; height: 3px; border-radius: 2px; display: block; margin-top: 5px; }
+
+  /* NIP 一覧 */
+  .nips { margin-top: 40px; display: flex; flex-wrap: wrap; gap: 7px; }
+  .nips span {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .03em;
+    padding: 5px 10px; border: 1px solid var(--border);
+    border-radius: 2px; color: var(--text2);
+  }
+  .nips span b { color: var(--text); font-weight: 600; }
+
+  /* 入手 */
+  .dl {
+    margin-top: 40px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: 3px;
+  }
+  .dl-item { background: var(--bg); padding: 24px 22px; display: flex; flex-direction: column; gap: 9px; }
+  .dl-item .plat {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--text3);
+  }
+  .dl-item strong { font-size: 15.5px; font-weight: 620; }
+  .dl-item p { margin: 0; font-size: 13.5px; color: var(--text2); flex: 1; }
+  .dl-item a { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+  .state {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .06em;
+    border: 1px solid var(--border-strong); border-radius: 2px;
+    padding: 1px 6px; color: var(--text3); align-self: flex-start;
+  }
+
+  footer { border-top: 1px solid var(--border); padding: 40px 0 60px; }
+  footer .shell { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: baseline; }
+  footer a { font-family: var(--mono); font-size: 12px; color: var(--text3); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+  footer .copy { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-left: auto; letter-spacing: .05em; }
 </style>
 </head>
 <body>
-<div>
-  <h1>Nostrism</h1>
-  <p>A deck-style Nostr client for Android.</p>
-  <p><a href="/privacy-policy.html">プライバシーポリシー / Privacy Policy</a></p>
-  <p><a href="/child-safety.html">児童の安全に関する基準 / Child Safety Standards</a></p>
-  <p><a href="https://github.com/ShinoharaTa/nostr-andloid-native-client">GitHub</a></p>
+
+<header class="top">
+  <div class="shell">
+    <a class="wordmark" href="/">Nostrism</a>
+    <nav>
+      <a href="#features" class="hide-s">機能</a>
+      <a href="/themes.html">テーマ</a>
+      <a href="#download">入手</a>
+      <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell">
+  <div class="hero">
+    <h1>並べて、読む。</h1>
+    <p class="thesis">
+      タイムライン、ハッシュタグ、通知、チャット。見たいものを横に並べたまま追える Nostr クライアント。
+    </p>
+    <p class="sub">Android · iOS · macOS / オープンソース</p>
+    <div class="cta">
+      <a class="btn primary" href="#download">入手する</a>
+      <a class="btn" href="/themes.html">テーマストアを見る</a>
+    </div>
+  </div>
+
+  <div class="deck-frame">
+    <div class="deck-label">実際の画面構成</div>
+    <div class="deck" role="img" aria-label="3つのカラムを横に並べたデッキ画面。フォロー中タイムライン、ハッシュタグ、パブリックチャット。">
+
+      <div class="col">
+        <div class="col-head">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+          <b>フォロー中</b><span>2 relays</span>
+        </div>
+        <div class="col-body">
+          <div class="post">
+            <div class="av">の</div>
+            <div class="post-body">
+              <div class="post-meta"><b>のstりsm</b><i>3m</i></div>
+              <p>デッキを横に並べたまま、通知だけ別カラムで見られるのが楽</p>
+              <div class="acts">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-6-6 6-6"/><path d="M3 11h11a6 6 0 016 6v2"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 5.6a5 5 0 00-7.1 0L12 7.3l-1.7-1.7a5 5 0 10-7.1 7.1L12 21l8.8-8.3a5 5 0 000-7.1z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="post">
+            <div class="av">や</div>
+            <div class="post-body">
+              <div class="ctx">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-6-6 6-6"/><path d="M3 11h11a6 6 0 016 6v2"/></svg>
+                <span class="av sm">の</span>
+                <span>リレー増やしたら早くなった？</span>
+              </div>
+              <div class="post-meta"><b>やぶみ</b><i>12m</i></div>
+              <p>体感でわかるくらい速い。アウトボックスが効いてる</p>
+            </div>
+          </div>
+          <div class="post">
+            <div class="av">da</div>
+            <div class="post-body">
+              <div class="post-meta"><b>dai</b><i>28m</i></div>
+              <p>今日のビルド通った 🎉</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="col-head">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18"/></svg>
+          <b>#nostr</b><span>global</span>
+        </div>
+        <div class="col-body">
+          <div class="post">
+            <div class="av">Pa</div>
+            <div class="post-body">
+              <div class="post-meta"><b>Paolo</b><i>1m</i></div>
+              <p>Nostr の良さは、クライアントを乗り換えても人間関係が残ること</p>
+            </div>
+          </div>
+          <div class="post">
+            <div class="av">Bi</div>
+            <div class="post-body">
+              <div class="post-meta"><b>Bipu</b><i>5m</i></div>
+              <p>relay を自分で建てると理解が一段深くなる</p>
+              <div class="acts">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17l-6-6 6-6"/><path d="M3 11h11a6 6 0 016 6v2"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="post">
+            <div class="av">wa</div>
+            <div class="post-body">
+              <div class="post-meta"><b>walker</b><i>9m</i></div>
+              <p>カスタム絵文字がそのままリアクションに使えるの助かる</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="col-head">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 01-8 8H7l-4 3V12a8 8 0 018-8h2a8 8 0 018 8z"/></svg>
+          <b>Nostr麻雀開発部</b><span>NIP-28</span>
+        </div>
+        <div class="col-body">
+          <div class="chat-line">
+            <div class="av">う</div>
+            <div>
+              <div class="chat-name">うにゅう</div>
+              <div class="bubble">点数計算どこまでできてる？</div>
+            </div>
+          </div>
+          <div class="chat-line">
+            <div class="av">や</div>
+            <div>
+              <div class="chat-name">やぶみちゃん</div>
+              <div class="bubble">符計算まで。あと役満の複合が残ってる</div>
+            </div>
+          </div>
+          <div class="chat-line">
+            <div class="av">ホ</div>
+            <div>
+              <div class="chat-name">ホワンホワン</div>
+              <div class="bubble">えんいー</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
 </div>
+
+<div class="shell">
+
+  <section id="features">
+    <div class="sec-label">できること</div>
+    <h2>読む速度に合わせて組み替えられる</h2>
+    <p class="sec-lede">
+      カラムは自由に追加・ピン留め・並べ替えできる。フォロー中もハッシュタグも、特定の人の投稿も、キーワード検索も、すべて同じ「カラム」として扱う。
+    </p>
+
+    <div class="features">
+      <div class="feat">
+        <div class="n">01 / デッキ</div>
+        <h3>カラムを並べる</h3>
+        <p>フォロー中・ハッシュタグ・通知・DM・パブリックチャット・検索。開いたスレッドも一時カラムとして横に開き、ピン留めで常設にできる。</p>
+      </div>
+      <div class="feat">
+        <div class="n">02 / 操作</div>
+        <h3>キーボードで動かす</h3>
+        <p><kbd>j</kbd> <kbd>k</kbd> で投稿、<kbd>h</kbd> <kbd>l</kbd> でカラム移動。<kbd>n</kbd> 新規投稿、<kbd>r</kbd> 返信、<kbd>f</kbd> リアクション、<kbd>b</kbd> ブックマーク。<kbd>?</kbd> で一覧。</p>
+      </div>
+      <div class="feat">
+        <div class="n">03 / 見た目</div>
+        <h3>3色で塗り替える</h3>
+        <p>背景・文字・アクセントの3色を決めれば、面や境界線は自動で導出される。作った配色はテーマストアへ公開でき、他の人のものを取り込める。</p>
+      </div>
+      <div class="feat">
+        <div class="n">04 / 絵文字</div>
+        <h3>カスタム絵文字</h3>
+        <p>自分の絵文字リストをアプリ内で編集。リアクションにも本文にも使える。GIF やアニメ WebP もそのまま動く。</p>
+      </div>
+      <div class="feat">
+        <div class="n">05 / 送金</div>
+        <h3>アプリ内 Zap</h3>
+        <p>Nostr Wallet Connect でウォレットを繋ぐと、外部アプリに飛ばずに Zap できる。送金は毎回確認する。</p>
+      </div>
+      <div class="feat">
+        <div class="n">06 / 取得</div>
+        <h3>アウトボックス</h3>
+        <p>相手が実際に使っているリレー（NIP-65）からも取りに行くので、自分の接続先に無い投稿も拾える。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="themes">
+    <div class="sec-label">テーマストア</div>
+    <h2>誰かが作った配色を、そのまま着る</h2>
+    <p class="sec-lede">
+      テーマは Nostr のイベントとして公開される。だから特定のサーバーに依存せず、アプリを入れていなくてもブラウザから中身を見られる。
+    </p>
+
+    <div class="themes-teaser">
+      <div class="swatches" aria-hidden="true">
+        <div class="sw" style="background:#0C0C10;color:#ECEDF1">Aa<i style="background:#FFFFFF"></i></div>
+        <div class="sw" style="background:#F7F6F2;color:#1A1A1E">Aa<i style="background:#1A1A1E"></i></div>
+        <div class="sw" style="background:#002B36;color:#93A1A1">Aa<i style="background:#B58900"></i></div>
+        <div class="sw" style="background:#0E1A14;color:#E2EDE6">Aa<i style="background:#4FA77A"></i></div>
+        <div class="sw" style="background:#FDF3F5;color:#2A1E22">Aa<i style="background:#C2557A"></i></div>
+      </div>
+      <a class="btn primary" href="/themes.html">公開中のテーマを見る</a>
+    </div>
+  </section>
+
+  <section id="protocol">
+    <div class="sec-label">対応</div>
+    <h2>Nostr の仕様に沿って作られている</h2>
+    <p class="sec-lede">
+      鍵はあなたの端末にあり、開発者のサーバーは存在しない。外部の署名アプリ（NIP-55）にも対応しているので、アプリに秘密鍵を渡さずに使える。
+    </p>
+    <div class="nips">
+      <span><b>NIP-01</b> 基本</span>
+      <span><b>NIP-10</b> スレッド</span>
+      <span><b>NIP-17</b> DM</span>
+      <span><b>NIP-18</b> リポスト</span>
+      <span><b>NIP-19</b> npub/nevent</span>
+      <span><b>NIP-25</b> リアクション</span>
+      <span><b>NIP-28</b> パブリックチャット</span>
+      <span><b>NIP-30</b> カスタム絵文字</span>
+      <span><b>NIP-36</b> 閲覧注意</span>
+      <span><b>NIP-42</b> AUTH</span>
+      <span><b>NIP-47</b> ウォレット接続</span>
+      <span><b>NIP-50</b> 検索</span>
+      <span><b>NIP-51</b> ミュート/ブックマーク</span>
+      <span><b>NIP-55</b> 外部署名</span>
+      <span><b>NIP-57</b> Zap</span>
+      <span><b>NIP-65</b> アウトボックス</span>
+      <span><b>NIP-78</b> テーマ配布</span>
+      <span><b>NIP-92</b> メディア情報</span>
+      <span><b>NIP-96</b> アップロード</span>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="sec-label">入手</div>
+    <h2>まだ開発中。テスターを募集しています</h2>
+    <p class="sec-lede">
+      正式公開前のため、どの経路もテスト配布です。不具合や要望は GitHub の Issue へどうぞ。
+    </p>
+
+    <div class="dl">
+      <div class="dl-item">
+        <div class="plat">Android</div>
+        <strong>Google Play</strong>
+        <span class="state">クローズドテスト</span>
+        <p>参加にはテスターとしての登録が必要です。希望される方は Issue か Nostr でご連絡ください。</p>
+        <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client/issues">参加を申し込む →</a>
+      </div>
+      <div class="dl-item">
+        <div class="plat">iOS</div>
+        <strong>TestFlight</strong>
+        <span class="state">テスト配布</span>
+        <p>iPhone / iPad 向け。こちらもテスター登録制です。</p>
+        <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client/issues">参加を申し込む →</a>
+      </div>
+      <div class="dl-item">
+        <div class="plat">Android / macOS</div>
+        <strong>直接ダウンロード</strong>
+        <span class="state">プレビュー版</span>
+        <p>APK と dmg を GitHub Releases に置いています。Play 版とは署名が異なるため、相互の上書き更新はできません。</p>
+        <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client/releases">Releases を開く →</a>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="shell">
+    <a href="/privacy-policy.html">プライバシーポリシー</a>
+    <a href="/child-safety.html">児童の安全に関する基準</a>
+    <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client">ソースコード</a>
+    <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client/releases">リリース</a>
+    <span class="copy">Nostrism — an open source Nostr client</span>
+  </div>
+</footer>
+
 </body>
 </html>
