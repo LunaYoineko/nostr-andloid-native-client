@@ -68,9 +68,10 @@ git push origin main            # または配信対象ブランチ
 # (2) ワークフローを起動（トリガーは workflow_dispatch のみ）
 gh workflow run release-beta.yml --ref main \
   -f track=alpha -f status=completed
+#   ※ track は非推奨の警告が出るが現状は動作する（将来 tracks へ移行が必要）
 #   track:  alpha=クローズド / internal=内部 / beta=オープン / production=製品版
 #   status: completed=即公開 / draft=下書き / inProgress=段階公開
-#   version_name= を渡さなければ 0.2.0-beta.<コミット数> で自動採番
+#   version_name= を渡さなければ scripts/version.sh 由来（直近の git tag vX.Y.Z）
 
 # (3) 実行を監視
 sleep 5
