@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>テーマストア — Nostrism</title>
+<meta name="description" content="Nostrism のテーマストア。リレーに公開された配色を、アプリを入れなくてもブラウザから見られます。">
+<meta property="og:title" content="テーマストア — Nostrism">
+<meta property="og:description" content="リレーに公開された配色を、アプリを入れなくてもブラウザから見られます。">
+<link rel="icon" href="/store/icon-512.png">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0C0C10;
+    --surface: #15151C;
+    --surface2: #1D1D26;
+    --surface3: #262631;
+    --border: #2C2C38;
+    --border-strong: #3A3A48;
+    --text: #ECEDF1;
+    --text2: #BEBFC9;
+    --text3: #90919E;
+    --ok: #4FA77A;
+    --warn: #C76B6B;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: var(--sans); line-height: 1.75; -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--text); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+  .shell { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  header.top {
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(12,12,16,.82); backdrop-filter: blur(12px);
+  }
+  .top .shell { display: flex; align-items: center; gap: 24px; height: 60px; }
+  .wordmark {
+    font-family: var(--mono); font-size: 15px; letter-spacing: .22em;
+    text-transform: uppercase; text-decoration: none; font-weight: 500;
+  }
+  .top nav { margin-left: auto; display: flex; gap: 22px; }
+  .top nav a {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .08em;
+    color: var(--text3); text-decoration: none;
+  }
+  .top nav a:hover, .top nav a[aria-current] { color: var(--text); }
+
+  .intro { padding: 64px 0 34px; }
+  .sec-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--text3);
+  }
+  h1 {
+    font-size: clamp(26px, 4vw, 38px); letter-spacing: -.02em;
+    font-weight: 620; margin: 12px 0 0; text-wrap: balance;
+  }
+  .lede { color: var(--text2); max-width: 60ch; margin-top: 14px; font-size: 16px; }
+
+  /* 状態バー */
+  .status {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    padding: 12px 0; margin-top: 30px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--text3); letter-spacing: .04em;
+  }
+  .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); display: inline-block; }
+  .status .dot.live { background: var(--ok); }
+  .status .dot.err { background: var(--warn); }
+  .status .grow { flex: 1; }
+  .status button {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em;
+    background: none; border: 1px solid var(--border-strong); border-radius: 2px;
+    color: var(--text); padding: 5px 12px; cursor: pointer;
+  }
+  .status button:hover { background: var(--surface2); }
+  .relays { color: var(--text3); }
+
+  /* テーマ一覧 — ここから色が出る */
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
+    gap: 18px; padding: 34px 0 90px;
+  }
+  .card {
+    border: 1px solid var(--border); border-radius: 4px;
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  /* カード中身は各テーマの導出パレットで塗る */
+  .card .prev { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .prev-head { display: flex; align-items: center; gap: 8px; }
+  .prev-head .ava { width: 26px; height: 26px; border-radius: 50%; flex: none; }
+  .prev-head .nm { font-size: 12.5px; font-weight: 640; }
+  .prev-head .tm { font-family: var(--mono); font-size: 10px; margin-left: auto; }
+  .prev-note { border-radius: 6px; padding: 10px 12px; font-size: 13px; line-height: 1.55; }
+  .prev-acts { display: flex; gap: 8px; align-items: center; }
+  .pill {
+    font-size: 11px; padding: 3px 10px; border-radius: 999px;
+    font-family: var(--mono); letter-spacing: .03em;
+  }
+  .chipbtn { font-size: 11px; padding: 4px 12px; border-radius: 999px; font-weight: 640; }
+
+  .meta {
+    border-top: 1px solid var(--border);
+    padding: 13px 14px; display: flex; flex-direction: column; gap: 9px;
+    background: var(--surface);
+  }
+  .meta .row1 { display: flex; align-items: baseline; gap: 10px; }
+  .meta h2 { font-size: 15px; font-weight: 640; margin: 0; letter-spacing: -.01em; }
+  .meta .by { font-size: 12px; color: var(--text3); margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46%; }
+  .hexes { display: flex; gap: 6px; }
+  .hex {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .02em;
+    color: var(--text3); display: flex; align-items: center; gap: 5px;
+  }
+  .hex i { width: 11px; height: 11px; border-radius: 2px; display: inline-block; border: 1px solid rgba(255,255,255,.14); }
+  .copy {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .05em;
+    background: none; border: 1px solid var(--border-strong); border-radius: 2px;
+    color: var(--text2); padding: 6px 10px; cursor: pointer; text-align: left;
+  }
+  .copy:hover { background: var(--surface2); color: var(--text); }
+  .copy.done { border-color: var(--ok); color: var(--ok); }
+
+  .empty, .loading {
+    padding: 70px 0 90px; text-align: center; color: var(--text3);
+    font-family: var(--mono); font-size: 13px; letter-spacing: .04em;
+  }
+  .how {
+    border-top: 1px solid var(--border); padding: 44px 0 0;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px;
+  }
+  .how h3 { font-size: 15px; font-weight: 640; margin: 0 0 8px; }
+  .how p { margin: 0; color: var(--text2); font-size: 14px; }
+  .how code {
+    font-family: var(--mono); font-size: 12px; color: var(--text);
+    background: var(--surface2); padding: 1px 5px; border-radius: 2px;
+  }
+
+  footer { border-top: 1px solid var(--border); padding: 40px 0 60px; margin-top: 70px; }
+  footer .shell { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: baseline; }
+  footer a { font-family: var(--mono); font-size: 12px; color: var(--text3); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+  footer .copyright { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-left: auto; letter-spacing: .05em; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="shell">
+    <a class="wordmark" href="/">Nostrism</a>
+    <nav>
+      <a href="/#features">機能</a>
+      <a href="/themes.html" aria-current="page">テーマ</a>
+      <a href="/#download">入手</a>
+      <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell">
+  <div class="intro">
+    <div class="sec-label">テーマストア</div>
+    <h1>公開中のテーマ</h1>
+    <p class="lede">
+      いま Nostr のリレーに公開されている Nostrism のテーマです。このページはブラウザから直接リレーへ接続して読んでいるので、
+      間に立つサーバーはありません。気に入ったものは共有コードをコピーして、アプリの「カスタマイズ → 共有コード」に貼り付けてください。
+    </p>
+  </div>
+
+  <div class="status">
+    <span class="dot" id="dot"></span>
+    <span id="statusText">リレーへ接続中…</span>
+    <span class="relays" id="relayText"></span>
+    <span class="grow"></span>
+    <button type="button" id="reload">再取得</button>
+  </div>
+</div>
+
+<div class="shell">
+  <div id="list" class="grid" hidden></div>
+  <p class="loading" id="loading">テーマを探しています…</p>
+  <p class="empty" id="empty" hidden>まだ公開されたテーマが見つかりません。</p>
+
+  <section class="how">
+    <div>
+      <h3>テーマの正体</h3>
+      <p>1つのテーマは Nostr の <code>kind:30078</code> イベント1件です。<code>t</code> タグに <code>nostrism-theme</code> が付いており、中身は背景・文字・アクセントの3色。面や境界線はアプリ側で自動的に導出されます。</p>
+    </div>
+    <div>
+      <h3>使うには</h3>
+      <p>アプリの「設定 → 表示 → テーマ」を開き、ストアタブから直接選べます。このページの共有コードを「カスタマイズ」タブの共有コード欄に貼り付けても取り込めます。</p>
+    </div>
+    <div>
+      <h3>公開するには</h3>
+      <p>アプリで3色を決めて「テーマストアに公開」を押すだけです。あなたの鍵で署名されたイベントがリレーへ流れ、このページにも並びます。</p>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="shell">
+    <a href="/">トップ</a>
+    <a href="/privacy-policy.html">プライバシーポリシー</a>
+    <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client">ソースコード</a>
+    <span class="copyright">Nostrism — an open source Nostr client</span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const RELAYS = [
+    "wss://relay-jp.shino3.net",
+    "wss://yabu.me",
+    "wss://relay.damus.io",
+    "wss://nos.lol",
+    "wss://relay.nostr.band"
+  ];
+  const DISCOVERY_TAG = "nostrism-theme";
+  const APP = "nostrism";
+
+  const $ = (id) => document.getElementById(id);
+  const listEl = $("list"), loadingEl = $("loading"), emptyEl = $("empty");
+  const dotEl = $("dot"), statusEl = $("statusText"), relayEl = $("relayText");
+
+  /* ---------- 色の導出 ----------
+     Color.kt の customPalette と同じ計算。Compose の lerp(Color, Color, Float) は
+     Oklab 空間で補間するため、こちらも Oklab で混ぜる（sRGB で混ぜると色がズレる）。
+     アプリの実出力と全チャンネル一致することを確認済み。 */
+  const hexToRgb = (h) => {
+    const s = String(h || "").trim().replace(/^#/, "");
+    const t = s.length === 8 ? s.slice(2) : s;
+    if (!/^[0-9a-fA-F]{6}$/.test(t)) return null;
+    return [parseInt(t.slice(0,2),16), parseInt(t.slice(2,4),16), parseInt(t.slice(4,6),16)];
+  };
+  const rgbToHex = ([r,g,b]) => "#" + [r,g,b].map(v => v.toString(16).padStart(2,"0")).join("");
+  const toLinear = (v) => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const toSrgb = (c) => {
+    const v = c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+    return Math.max(0, Math.min(255, Math.round(v * 255)));
+  };
+  const toOklab = ([r, g, b]) => {
+    const R = toLinear(r), G = toLinear(g), B = toLinear(b);
+    const l = Math.cbrt(0.4122214708*R + 0.5363325363*G + 0.0514459929*B);
+    const m = Math.cbrt(0.2119034982*R + 0.6806995451*G + 0.1073969566*B);
+    const s = Math.cbrt(0.0883024619*R + 0.2817188376*G + 0.6299787005*B);
+    return [
+      0.2104542553*l + 0.7936177850*m - 0.0040720468*s,
+      1.9779984951*l - 2.4285922050*m + 0.4505937099*s,
+      0.0259040371*l + 0.7827717662*m - 0.8086757660*s
+    ];
+  };
+  const fromOklab = ([L, A, B]) => {
+    const l = Math.pow(L + 0.3963377774*A + 0.2158037573*B, 3);
+    const m = Math.pow(L - 0.1055613458*A - 0.0638541728*B, 3);
+    const s = Math.pow(L - 0.0894841775*A - 1.2914855480*B, 3);
+    return [
+      toSrgb( 4.0767416621*l - 3.3077115913*m + 0.2309699292*s),
+      toSrgb(-1.2684380046*l + 2.6097574011*m - 0.3413193965*s),
+      toSrgb(-0.0041960863*l - 0.7034186147*m + 1.7076147010*s)
+    ];
+  };
+  const mix = (a, b, f) => {
+    const A = toOklab(a), B = toOklab(b);
+    return fromOklab([A[0] + (B[0]-A[0])*f, A[1] + (B[1]-A[1])*f, A[2] + (B[2]-A[2])*f]);
+  };
+  const luminance = ([r,g,b]) => 0.2126*toLinear(r) + 0.7152*toLinear(g) + 0.0722*toLinear(b);
+
+  function derive(bgHex, textHex, accentHex) {
+    const bg = hexToRgb(bgHex), text = hexToRgb(textHex), accent = hexToRgb(accentHex);
+    if (!bg || !text || !accent) return null;
+    const dark = luminance(bg) < 0.5;
+    const mixTo = dark ? [255,255,255] : [0,0,0];
+    const step = (f) => rgbToHex(mix(bg, mixTo, f));
+    const textStep = (f) => rgbToHex(mix(text, bg, f));
+    return {
+      dark,
+      bg: rgbToHex(bg), text: rgbToHex(text), accent: rgbToHex(accent),
+      surface: step(0.04), surface2: step(0.08), surface3: step(0.13),
+      border: step(0.16), borderStrong: step(0.24),
+      text2: textStep(0.28), text3: textStep(0.48),
+      like: textStep(0.38)
+    };
+  }
+
+  /* ---------- 共有コード（ThemeEntry.encodeCode と同じ形式） ---------- */
+  const shareCode = (t) => {
+    const bare = (h) => String(h).replace(/^#/, "").toUpperCase();
+    const name = String(t.name).replace(/:/g, "-");
+    return `${APP}-theme:1:${name}:${bare(t.colors.bg)},${bare(t.colors.text)},${bare(t.colors.accent)}:${t.minAppVersion || "0.3.0"}`;
+  };
+
+  /* ---------- 収集 ---------- */
+  const themes = new Map();   // key: pubkey|d  → {…, created_at}
+  const profiles = new Map(); // pubkey → name
+  const sockets = [];
+  let connected = 0, closed = 0, renderTimer = null;
+
+  const shortNpub = (pk) => pk.slice(0, 8) + "…";
+
+  function parseTheme(ev) {
+    let c;
+    try { c = JSON.parse(ev.content); } catch { return null; }
+    if (!c || c.app !== APP || !c.colors) return null;
+    const { bg, text, accent } = c.colors;
+    if (!hexToRgb(bg) || !hexToRgb(text) || !hexToRgb(accent)) return null;
+    const dTag = (ev.tags.find(t => t[0] === "d") || [])[1] || ev.id;
+    return {
+      key: ev.pubkey + "|" + dTag,
+      name: String(c.name || "Untitled").slice(0, 60),
+      colors: { bg, text, accent },
+      minAppVersion: c.minAppVersion,
+      author: ev.pubkey,
+      created_at: ev.created_at
+    };
+  }
+
+  function onEvent(ev) {
+    if (ev.kind === 0) {
+      try {
+        const p = JSON.parse(ev.content);
+        const nm = (p.display_name || p.name || "").trim();
+        if (nm) { profiles.set(ev.pubkey, nm); scheduleRender(); }
+      } catch { /* 壊れた kind:0 は無視 */ }
+      return;
+    }
+    if (ev.kind !== 30078) return;
+    const t = parseTheme(ev);
+    if (!t) return;
+    const prev = themes.get(t.key);
+    if (prev && prev.created_at >= t.created_at) return;   // addressable: 新しい方を採用
+    themes.set(t.key, t);
+    requestProfile(t.author);
+    scheduleRender();
+  }
+
+  const wantProfiles = new Set();
+  function requestProfile(pk) {
+    if (profiles.has(pk) || wantProfiles.has(pk)) return;
+    wantProfiles.add(pk);
+    const req = JSON.stringify(["REQ", "p" + wantProfiles.size, { kinds: [0], authors: [pk], limit: 1 }]);
+    sockets.forEach(ws => { if (ws.readyState === 1) ws.send(req); });
+  }
+
+  function scheduleRender() {
+    if (renderTimer) return;
+    renderTimer = setTimeout(() => { renderTimer = null; render(); }, 180);
+  }
+
+  /* ---------- 描画 ---------- */
+  function render() {
+    const items = [...themes.values()].sort((a, b) => b.created_at - a.created_at);
+    const settled = closed >= RELAYS.length;   // 全リレーが応答済み or 打ち切り済み
+    loadingEl.hidden = items.length > 0 || settled;
+    emptyEl.hidden = !(items.length === 0 && settled);
+    listEl.hidden = items.length === 0;
+    listEl.textContent = "";
+
+    for (const t of items) {
+      const p = derive(t.colors.bg, t.colors.text, t.colors.accent);
+      if (!p) continue;
+
+      const card = document.createElement("article");
+      card.className = "card";
+
+      // ── プレビュー: そのテーマの導出パレットで塗ったノート
+      const prev = document.createElement("div");
+      prev.className = "prev";
+      prev.style.background = p.bg;
+      prev.style.color = p.text;
+      prev.innerHTML = `
+        <div class="prev-head">
+          <span class="ava" style="background:${p.surface3}"></span>
+          <span class="nm">Nostrism</span>
+          <span class="tm" style="color:${p.text3}">now</span>
+        </div>
+        <div class="prev-note" style="background:${p.surface};border:1px solid ${p.border}">
+          <span style="color:${p.text}">サンプル投稿です。配色の見え方をここで確認できます。</span>
+          <div style="color:${p.text3};font-size:11px;margin-top:6px">reply · repost · react</div>
+        </div>
+        <div class="prev-acts">
+          <span class="pill" style="background:${p.surface2};color:${p.text3};border:1px solid ${p.border}">#nostr</span>
+          <span class="chipbtn" style="background:${p.accent};color:${p.bg}">適用</span>
+        </div>`;
+
+      // ── メタ情報
+      const meta = document.createElement("div");
+      meta.className = "meta";
+
+      const row1 = document.createElement("div");
+      row1.className = "row1";
+      const h2 = document.createElement("h2");
+      h2.textContent = t.name;
+      const by = document.createElement("span");
+      by.className = "by";
+      by.textContent = profiles.get(t.author) || shortNpub(t.author);
+      row1.append(h2, by);
+
+      const hexes = document.createElement("div");
+      hexes.className = "hexes";
+      for (const [label, v] of [["背景", t.colors.bg], ["文字", t.colors.text], ["アクセント", t.colors.accent]]) {
+        const s = document.createElement("span");
+        s.className = "hex";
+        const i = document.createElement("i");
+        i.style.background = v;
+        const txt = document.createElement("span");
+        txt.textContent = String(v).replace(/^#/, "").toUpperCase();
+        s.append(i, txt);
+        s.title = label;
+        hexes.append(s);
+      }
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "copy";
+      const code = shareCode(t);
+      btn.textContent = "共有コードをコピー";
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(code);
+          btn.textContent = "コピーしました";
+          btn.classList.add("done");
+        } catch {
+          btn.textContent = code;   // クリップボードが使えない環境では手で選べるように出す
+        }
+        setTimeout(() => { btn.textContent = "共有コードをコピー"; btn.classList.remove("done"); }, 2400);
+      });
+
+      meta.append(row1, hexes, btn);
+      card.append(prev, meta);
+      listEl.append(card);
+    }
+  }
+
+  /* ---------- リレー接続 ---------- */
+  function connect() {
+    themes.clear(); profiles.clear(); wantProfiles.clear();
+    sockets.length = 0; connected = 0; closed = 0;
+    listEl.hidden = true; emptyEl.hidden = true; loadingEl.hidden = false;
+    listEl.textContent = "";
+    dotEl.className = "dot";
+    statusEl.textContent = "リレーへ接続中…";
+    relayEl.textContent = "";
+
+    const req = JSON.stringify(["REQ", "themes", { kinds: [30078], "#t": [DISCOVERY_TAG], limit: 200 }]);
+
+    RELAYS.forEach((url) => {
+      let ws;
+      try { ws = new WebSocket(url); } catch { closed++; return; }
+      sockets.push(ws);
+
+      ws.addEventListener("open", () => {
+        connected++;
+        dotEl.className = "dot live";
+        statusEl.textContent = "接続中";
+        relayEl.textContent = `${connected} / ${RELAYS.length} リレー`;
+        ws.send(req);
+      });
+      ws.addEventListener("message", (e) => {
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
+        if (msg[0] === "EVENT" && msg[2]) onEvent(msg[2]);
+        if (msg[0] === "EOSE") { /* 蓄積分は届いた。以降は購読を維持して新着も拾う */ }
+      });
+      const done = () => {
+        closed++;
+        if (closed >= RELAYS.length && connected === 0) {
+          dotEl.className = "dot err";
+          statusEl.textContent = "リレーに接続できませんでした";
+        }
+        scheduleRender();
+      };
+      ws.addEventListener("close", done);
+      ws.addEventListener("error", done);
+    });
+
+    // 応答が無いまま終わらないよう、一定時間で「見つからない」を確定させる
+    setTimeout(() => { closed = Math.max(closed, RELAYS.length); render(); }, 9000);
+  }
+
+  $("reload").addEventListener("click", () => {
+    sockets.forEach(ws => { try { ws.close(); } catch { /* 既に閉じている */ } });
+    connect();
+  });
+
+  connect();
+})();
+</script>
+
+</body>
+</html>
