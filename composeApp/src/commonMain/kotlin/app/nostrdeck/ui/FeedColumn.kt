@@ -278,7 +278,8 @@ private fun MyReactionRow(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalPlatformContext.current)
                         .data(ImageProxy.proxied(img, width = 64, quality = 80, animated = true)).build(),
-                    contentDescription = r.display, modifier = Modifier.size(22.dp),
+                    // [#308] 文字側(EmojiLg)と同じトークンから引く。文字サイズ設定にも追従する。
+                    contentDescription = r.display, modifier = Modifier.size(DeckType.EmojiLg.asEmojiSize()),
                 )
             } else {
                 Text(r.display, fontSize = DeckType.EmojiLg)

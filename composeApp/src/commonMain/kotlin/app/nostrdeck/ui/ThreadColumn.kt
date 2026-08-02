@@ -203,7 +203,9 @@ private fun FocusNoteStats(
                         AsyncImage(
                             model = ImageRequest.Builder(LocalPlatformContext.current)
                                 .data(ImageProxy.proxied(img, width = 48, quality = 80, animated = true)).build(),
-                            contentDescription = g.display, modifier = Modifier.size(16.dp),
+                            // [#308] 文字側(Sub)と同じトークンから引く。
+                            contentDescription = g.display,
+                            modifier = Modifier.size(DeckType.Sub.asEmojiSize()),
                         )
                     } else {
                         Text(g.display, fontSize = DeckType.Sub)

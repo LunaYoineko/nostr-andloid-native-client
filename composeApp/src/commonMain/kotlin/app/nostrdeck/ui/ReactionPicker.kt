@@ -229,5 +229,6 @@ private fun RecentEmojiButton(emoji: UsedEmoji, onClick: () -> Unit) {
 @Composable
 private fun EmojiImage(url: String, desc: String) {
     // [#277] iOS/Desktop でも GIF/アニメ WebP を動かすため共通コンポーネントへ。
-    AnimatedEmoji(url, contentDescription = desc, modifier = Modifier.size(24.dp))
+    // [#308] 隣に並ぶ Unicode 絵文字ボタン（Display）と同じ大きさに揃える。
+    AnimatedEmoji(url, contentDescription = desc, modifier = Modifier.size(DeckType.Display.asEmojiSize()))
 }

@@ -47,7 +47,11 @@ private fun ReactionChip(reaction: ReactionUi) {
         ) {
             if (reaction.imageUrl != null) {
                 // [#277] iOS/Desktop でも GIF/アニメ WebP を動かすため共通コンポーネントへ。
-                AnimatedEmoji(reaction.imageUrl, contentDescription = reaction.display, modifier = Modifier.size(16.dp))
+                // [#308] 隣の SectionCaption（Caption=12sp）と同じ大きさに揃える。
+                AnimatedEmoji(
+                    reaction.imageUrl, contentDescription = reaction.display,
+                    modifier = Modifier.size(DeckType.Caption.asEmojiSize()),
+                )
             } else {
                 SectionCaption(reaction.display)
             }
