@@ -1,6 +1,4 @@
-- Replies now thread correctly in other clients (fixes replies drifting away from the original conversation)
-- Content warnings now apply to replies, quotes and threads. The toggle shows its state clearly and you can add a reason
-- In thread mode you can now review, edit and remove the parts you stacked. They survive closing the composer
-- Search now finds users, on its own tab alongside posts
-- Opening a post shows when it was posted and which app it came from
-- The post "…" menu also shows the app it was posted from
+- Request deletion of your own posts, and of your own themes in the theme store
+- Requested deletions disappear from this device and no longer come back when refetched
+- Posts you deleted on another device or client are now reflected here
+Note: on Nostr, deletion is a request. Relays are not required to honor it, and clients that already have the post may keep showing it
