@@ -1,5 +1,6 @@
-- Reworked notifications: type marks line up on the left, and replies are shown as full posts you can reply to right there
-- Fixed profile posts not updating (now fetched from the relays the author actually uses)
-- Create and edit public chat threads from inside the app
-- Add and remove custom emoji from inside the app
-- Add-column and reaction pickers now scroll reliably
+- Custom emoji now render at the same size as regular emoji, and follow your text size setting
+- Videos keep their position when you scroll away and come back
+- Notification timestamps now line up on the right edge
+- Notification content starts at the same position as regular posts
+- Attach compressed images and videos in public chat
+- Pick an icon image when creating a thread
