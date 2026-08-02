@@ -291,6 +291,17 @@ fun NoteItem(
                     val isPinned = note.event.id in pinned
                     val isMine = note.event.pubkey == me
                     DeckDropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
+                        // [#312] 投稿元クライアント（NIP-89 client タグ）。一覧の行に文字を足すと
+                        // カラム幅が固定の Deck では必ず幅の奪い合いになるので、幅が内容に追従する
+                        // メニューの見出しとして出す。タップ対象ではないので項目にはしない。
+                        note.clientName?.let { client ->
+                            Text(
+                                stringResource(Res.string.note_posted_via_fmt, client),
+                                color = DeckColors.Text3, fontSize = DeckType.Label,
+                                modifier = Modifier.padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
+                            )
+                            HorizontalDivider(color = DeckColors.Border)
+                        }
                         // --- 操作系 ---
                         // [#93] 他人の投稿はフォロー状態に応じてトグル表示。フォローは即実行、
                         // 解除は kind:3 の再発行で破壊的なため確認ダイアログを挟む。

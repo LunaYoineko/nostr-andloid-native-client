@@ -617,4 +617,12 @@ It will be removed from the list and reflected in the next published kind:10002.
     <!-- [#316] 連投の積んだ段落一覧 -->
     <string name="compose_thread_editing">Editing</string>
     <string name="compose_thread_remove">Remove this part</string>
+    <!-- [#315] NIP-36 content-warning の理由（任意） -->
+    <string name="compose_cw_reason_hint">Reason (optional)</string>
+    <!-- [#312] 投稿元クライアント(NIP-89 client タグ)。%1$s はアプリ名 -->
+    <string name="note_posted_via_fmt">Posted via %1$s</string>
+    <string name="thread_posted_via_fmt">via %1$s</string>
+    <string name="search_tab_posts">Posts</string>
+    <string name="search_tab_users">Users</string>
+    <string name="search_no_users">No users match your search.</string>
 </resources>

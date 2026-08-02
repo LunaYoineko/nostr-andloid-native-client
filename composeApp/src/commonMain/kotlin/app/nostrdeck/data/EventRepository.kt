@@ -1482,27 +1482,10 @@ class EventRepository(
         return out
     }
 
-    /**
-     * NIP-10: 返信先（reply マーカー → root マーカー → 位置で末尾の e）。
-     * 位置ルールへのフォールバックでは "mention" マーカーの e を除外する。mention は
-     * 引用参照であって返信ではない（俳句Bot 等は content の nevent と mention e タグを
-     * 併記しており、返信扱いすると同じイベントが引用カードと返信文脈で二重表示される）。
-     */
-    private fun replyParentOf(tags: List<List<String>>): String? {
-        val es = tags.filter { it.size >= 2 && it[0] == "e" }
-        if (es.isEmpty()) return null
-        es.firstOrNull { it.size >= 4 && it[3] == "reply" }?.let { return it[1] }
-        es.firstOrNull { it.size >= 4 && it[3] == "root" }?.let { return it[1] }
-        return es.lastOrNull { it.size < 4 || it[3] != "mention" }?.get(1)
-    }
+    // [#314] NIP-10 の読み取り/組み立ては Nip10 に集約（純関数なので単体テストできる）。
+    private fun replyParentOf(tags: List<List<String>>): String? = Nip10.replyParentOf(tags)
 
-    /** NIP-10: root（root マーカー → 位置で先頭の e）。mention は返信系ではないので除外。 */
-    private fun rootOf(tags: List<List<String>>): String? {
-        val es = tags.filter { it.size >= 2 && it[0] == "e" }
-        if (es.isEmpty()) return null
-        es.firstOrNull { it.size >= 4 && it[3] == "root" }?.let { return it[1] }
-        return es.firstOrNull { it.size < 4 || it[3] != "mention" }?.get(1)
-    }
+    private fun rootOf(tags: List<List<String>>): String? = Nip10.rootOf(tags)
 
     /** [M10] 自分の♡/リポスト/リアクション状態を NoteUi に反映（ボタンのハイライト・絵文字表示用）。 */
     private fun applyMeta(ui: NoteUi, meta: NoteMeta): NoteUi = ui.copy(
@@ -1588,6 +1571,43 @@ class EventRepository(
             q.searchProfilesByPrefix(p, limit.toLong()).executeAsList()
                 .map { Profile(it.pubkey, it.name, it.handle, it.picture_url, it.updated_at) }
         }
+    }
+
+    /**
+     * [#310] ユーザー検索（kind:0）。検索画面の「ユーザー」タブが使う。
+     *
+     * NIP-50 対応リレーへ kind:0 の全文検索を投げる。届いた kind:0 は ingest が profile 表へ
+     * 入れるので、表示は [searchProfilesFlow] がローカルを読むだけでよい（他の検索と同じ
+     * cache-first の流れ）。購読は検索語ごとに張り替える。
+     */
+    fun subscribeProfileSearch(subId: String, query: String) {
+        val q0 = query.trim()
+        if (q0.isEmpty()) return
+        unsubscribeColumn(subId)
+        openColumns.add(subId)
+        subscribeTargeted(
+            subId, SEARCH_RELAYS.toSet(),
+            Filter(kinds = listOf(0), search = q0, limit = 100),
+        )
+    }
+
+    /**
+     * [#310] ローカルの profile 表から検索語に一致するユーザーを流す。
+     * 部分一致（名前 / NIP-05 / 自己紹介）で、前方一致を上位に寄せる。
+     */
+    fun searchProfilesFlow(query: String, limit: Int = 50): Flow<List<Profile>> {
+        val q0 = query.trim().lowercase()
+        if (q0.isEmpty()) return flowOf(emptyList())
+        return q.searchProfilesByText(q0, limit.toLong()).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                rows.map {
+                    Profile(
+                        it.pubkey, it.name, it.handle, it.picture_url, it.updated_at,
+                        about = it.about, website = it.website, lud16 = it.lud16, banner = it.banner,
+                    )
+                }
+            }
+            .flowOn(Dispatchers.Default)
     }
 
     /** 自分がこの pubkey をフォロー中か（kind:3 の更新に追従）。 */
@@ -1707,7 +1727,7 @@ class EventRepository(
      * [#13] 連投スレッド。[segments] を先頭から順に投稿し、2件目以降は NIP-10 で
      * root(先頭) と reply(直前) を e タグに付けて自己スレッド化する。
      */
-    suspend fun publishThread(segments: List<String>) {
+    suspend fun publishThread(segments: List<String>, contentWarning: String? = null) {
         val segs = segments.map { it.trim() }.filter { it.isNotEmpty() }
         if (segs.isEmpty()) return
         var rootId: String? = null
@@ -1716,12 +1736,19 @@ class EventRepository(
         for (seg in segs) {
             val tags = buildList {
                 if (rootId != null) {
-                    add(listOf("e", rootId!!, "", "root"))
-                    if (prevId != null && prevId != rootId) add(listOf("e", prevId!!, "", "reply"))
-                    myPk?.let { add(listOf("p", it)) }
+                    // [#314] e タグ5番目に作者を入れる。自己スレッドなので root も直前も自分。
+                    val me = myPk
+                    add(if (me != null) listOf("e", rootId!!, "", "root", me) else listOf("e", rootId!!, "", "root"))
+                    if (prevId != null && prevId != rootId) {
+                        add(if (me != null) listOf("e", prevId!!, "", "reply", me) else listOf("e", prevId!!, "", "reply"))
+                    }
+                    me?.let { add(listOf("p", it)) }
                 }
                 addAll(hashtagsIn(seg).map { listOf("t", it) })
                 addAll(emojiTagsIn(seg))
+                // [#315] CW は全セグメントに付ける。1本目だけだと後続が素通しになり、
+                // タイムラインでは各セグメントが独立したノートとして流れるため意味を成さない。
+                if (contentWarning != null) add(listOf("content-warning", contentWarning))
             }
             val signed = publishSigned(UnsignedEvent(kind = 1, content = seg, tags = tags))
             recordHashtags(seg, signed.createdAt)
@@ -1872,19 +1899,41 @@ class EventRepository(
      * [M10] NIP-18 引用リポスト（kind:1）。q タグ + p タグで参照し、本文末尾に nostr:nevent… を添える。
      * 表示側は q タグから引用元を解決して埋め込みカードにする（toFollowingNoteUi）。
      */
-    suspend fun publishQuote(target: NostrEvent, text: String) {
+    suspend fun publishQuote(target: NostrEvent, text: String, contentWarning: String? = null) {
         val note = runCatching { Nip19.hexToNote(target.id) }.getOrNull()
         val body = if (note != null) (if (text.isBlank()) "nostr:$note" else "$text\nnostr:$note") else text
         val tags = listOf(listOf("q", target.id), listOf("p", target.pubkey)) +
-            hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(body)
+            hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(body) +
+            (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
         val signed = publishSigned(UnsignedEvent(kind = 1, content = body, tags = tags))
         recordHashtags(text, signed.createdAt)
     }
 
-    /** [M8] NIP-10 返信（kind:1）。e(reply マーカー) + p を付け、本文の #タグも 't' 化する。 */
-    suspend fun publishReply(target: NostrEvent, text: String) {
-        val tags = listOf(listOf("e", target.id, "", "reply"), listOf("p", target.pubkey)) +
-            hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(text)
+    /**
+     * [M8] NIP-10 返信（kind:1）。本文の #タグも 't' 化する。
+     *
+     * [#314] 以前は返信先が何であっても `["e", id, "", "reply"]` 1本を付けていた。
+     * そのためトップレベル投稿への返信が他クライアントから「ルート不明の返信」に見え、
+     * スレッド途中への返信では root が落ちて元スレッドから切り離されていた。
+     * 組み立ては Nip10.replyTags に移し、root を解決したうえで仕様どおりに並べる。
+     */
+    suspend fun publishReply(target: NostrEvent, text: String, contentWarning: String? = null) {
+        // [#314] 返信先のタグは **DB から引き直す**。タイムライン経路の NoteUi は再コンポーズ
+        // 最適化のため event.tags を空で持つ（toFollowingNoteUi の [#140]）ので、渡ってきた
+        // target.tags をそのまま信じると root が解決できず、スレッド途中への返信でも
+        // 「返信先＝ルート」と誤って組み立ててしまう（＝元スレッドから切り離される）。
+        val targetTags = target.tags.ifEmpty {
+            q.eventById(target.id).executeAsOneOrNull()?.let { parseTags(it.tags_json) }.orEmpty()
+        }
+        // ルート作者は e タグ5番目に入れる。ローカルに無ければ省く（無理に埋めない）。
+        val rootId = rootOf(targetTags)
+        val rootAuthor = if (rootId == null || rootId == target.id) target.pubkey
+        else q.eventById(rootId).executeAsOneOrNull()?.pubkey
+        val tags = Nip10.replyTags(
+            targetId = target.id, targetPubkey = target.pubkey, targetTags = targetTags,
+            rootAuthor = rootAuthor, selfPubkey = myPubkey,
+        ) + hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(text) +
+            (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
         val signed = publishSigned(UnsignedEvent(kind = 1, content = text, tags = tags))
         recordHashtags(text, signed.createdAt)
     }
@@ -3069,10 +3118,17 @@ class EventRepository(
         // NIP-36: content-warning タグ（あれば表示前に折りたたむ）。2要素目が理由（任意）。
         val cw = tags.firstOrNull { it.isNotEmpty() && it[0] == "content-warning" }
             ?.let { if (it.size >= 2) it[1] else "" }
+        // [#312] NIP-89 client タグ（どのアプリから投稿されたか）。
+        // 形は ["client", "<名前>", "<31990:...>"?, "<relay>"?]。名前だけの2要素が大半。
+        // 名前が空のものは表示しても意味がないので落とす。極端に長い名前は行を壊すため丸める。
+        val client = tags.firstOrNull { it.size >= 2 && it[0] == "client" }
+            ?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+            ?.let { if (it.length > 24) it.take(24) + "…" else it }
         return NoteUi(
             event = NostrEvent(row.id, row.pubkey, row.kind.toInt(), row.created_at, row.content, emptyList(), row.sig),
             author = Profile(row.pubkey, name, prof?.handle ?: "", prof?.picture_url, lud16 = prof?.lud16),
             text = text, images = images, isReply = isReply, customEmojis = emojis, contentWarning = cw,
+            clientName = client,
             // [#140] event.tags は再コンポーズ最適化のため空で持つ（従来仕様）。表示に必要な
             // imeta（dim/blurhash/thumb）だけをここで抽出して NoteUi に載せる。
             imeta = app.nostrdeck.model.imetaInfo(tags),

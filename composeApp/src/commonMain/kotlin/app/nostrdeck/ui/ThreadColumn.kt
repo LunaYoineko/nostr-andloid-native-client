@@ -134,9 +134,31 @@ private fun ThreadRow(
         // 1行プレビュー（◁ 名前: 本文…）が担うため、ここで二重に出さない。
         NoteItem(entry.note, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick, selected = selected)
         if (entry.isFocused) {
+            FocusNoteMeta(entry.note)
             FocusNoteStats(entry.note.event.id, reactions, engagement, zaps, onAuthorClick)
         }
     }
+}
+
+/**
+ * [#312] 起点ノートのメタ行。絶対日時と、あれば投稿元クライアント（NIP-89 client タグ）。
+ *
+ * ここに置く理由は、**独立した行なら幅の奪い合いが起きない**から。一覧のアクション行や
+ * 名前行に足すと、カラム幅が固定（S=280dp / M=340dp）の Deck では他の要素を押し出す。
+ * この行は横に伸びる相手がいないので、文字サイズを上げても折り返すだけで済む。
+ *
+ * 日時は相対表示（`16h` `3d`）だと粒度が潰れるため、ここでは絶対で出す。
+ * client タグは 58% の投稿が持たないので、無いときは日時だけ出す（行自体は消えない）。
+ */
+@Composable
+private fun FocusNoteMeta(note: NoteUi) {
+    val time = remember(note.event.createdAt) { formatAbsoluteTime(note.event.createdAt) }
+    val client = note.clientName
+    Text(
+        if (client != null) "$time · ${stringResource(Res.string.thread_posted_via_fmt, client)}" else time,
+        color = DeckColors.Text3, fontSize = DeckType.Label,
+        modifier = Modifier.padding(start = DeckSpace.Md, end = DeckSpace.Md, bottom = DeckSpace.Sm),
+    )
 }
 
 /**
