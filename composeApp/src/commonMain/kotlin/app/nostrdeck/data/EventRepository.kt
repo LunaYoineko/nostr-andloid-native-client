@@ -1736,6 +1736,34 @@ class EventRepository(
     fun clearDraft() = putSettingAsync(COMPOSE_DRAFT, "")
 
     /**
+     * [#316] 連投で積んだセグメントの下書き。本文1枠の [saveDraft] とは別枠。
+     *
+     * 積んだぶんが保存されないと、5本書いたところでシートを閉じただけで全部消える。
+     * 区切り文字ではなく JSON 配列で持つ（本文に何が入っていても壊れないため）。
+     * [editIndex] は「本文がスレッドの何番目か」。復元時に順序を保つのに要る。
+     */
+    fun saveThreadDraft(segments: List<String>, editIndex: Int) {
+        if (segments.isEmpty()) { clearThreadDraft(); return }
+        val payload = buildJsonObject {
+            put("edit", JsonPrimitive(editIndex))
+            put("segs", JsonArray(segments.map { JsonPrimitive(it) }))
+        }
+        putSettingAsync(COMPOSE_THREAD_DRAFT, payload.toString())
+    }
+
+    /** 保存済みの連投下書き（セグメント列と本文の位置）。無ければ null。 */
+    fun loadThreadDraft(): Pair<List<String>, Int>? = runCatching {
+        val raw = q.getSetting(COMPOSE_THREAD_DRAFT).executeAsOneOrNull().orEmpty()
+        if (raw.isBlank()) return null
+        val o = json.parseToJsonElement(raw).jsonObject
+        val segs = (o["segs"] as? JsonArray)?.map { it.jsonPrimitive.content } ?: return null
+        if (segs.isEmpty()) return null
+        segs to (o["edit"]?.jsonPrimitive?.content?.toIntOrNull() ?: segs.size).coerceIn(0, segs.size)
+    }.getOrNull()
+
+    fun clearThreadDraft() = putSettingAsync(COMPOSE_THREAD_DRAFT, "")
+
+    /**
      * [M8] NIP-25 リアクション（kind:7）。デフォルトは "+"（♡=いいね）。即時にカウント反映。
      * カスタム絵文字は [emoji]=":shortcode:" + [imageUrl] を渡すと NIP-30 の `emoji` タグを付ける。
      * "+" 以外はピッカーの「最近」（used_emoji）に記録する。
@@ -4169,6 +4197,7 @@ class EventRepository(
 
         /** [#13] 投稿の下書き（未送信テキスト）の KV キー。 */
         const val COMPOSE_DRAFT = "compose_draft"
+        const val COMPOSE_THREAD_DRAFT = "compose_thread_draft"   // [#316] 連投で積んだセグメント
 
         /** リンク埋め込み設定の KV キー接頭辞。 */
         const val EMBED_PREFIX = "embed:"

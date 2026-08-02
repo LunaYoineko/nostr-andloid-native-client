@@ -144,6 +144,20 @@ fun ComposeSheet(
     var sensitive by remember { mutableStateOf(false) }
     // [#13] 連投スレッドの先行セグメント（＋で積む。送信時に自己スレッド化）。
     val threadSegments = remember { mutableStateListOf<String>() }
+    // [#316] 本文がスレッドの何番目か。既定は末尾＝新しく書き足していく位置。
+    // 積んだ行をタップして書き直すとここが動く。**これがあるおかげで順序が保たれる**
+    // （引き戻して末尾に積み直す方式だと、直そうとした段落が最後尾へ飛んでしまう）。
+    var editIdx by remember { mutableStateOf(0) }
+    // 一覧に出すスレッド全体（積んだぶん＋いま書いている本文）。空の本文はまだ書いていない
+    // だけなので並びに入れない（入れると番号が1つずれて読みにくい）。
+    val threadParts: List<String> = buildList {
+        addAll(threadSegments.take(editIdx))
+        if (text.isNotBlank()) add(text)
+        addAll(threadSegments.drop(editIdx))
+    }
+    // 一覧の行 index → threadSegments の index。本文が並びに居るかで1つずれる。
+    val bodyRow = if (text.isNotBlank()) editIdx else -1
+    val toSegmentIndex: (Int) -> Int = { i -> if (bodyRow >= 0 && i > bodyRow) i - 1 else i }
     // [#13] 送信済みなら閉じても下書き保存しない。
     var sentOk by remember { mutableStateOf(false) }
     // [#120] 破棄確認で「破棄する」を選んだ（＝下書きも消して閉じる）。
@@ -155,10 +169,16 @@ fun ComposeSheet(
     // [#13] 未送信で閉じたら下書き保存（新規投稿のみ）。空なら消す。
     // [#120] 「破棄する」で閉じたときは保存せず既存の下書きも消す（従来はここで再保存され、
     // 破棄したはずの本文が次回復元されていた）。
+    val latestSegments by rememberUpdatedState(threadSegments.toList())
+    val latestEditIdx by rememberUpdatedState(editIdx)
     DisposableEffect(Unit) {
         onDispose {
             if (replyTo == null && quoting == null && !sentOk) {
                 if (latestText.isNotBlank() && !discarded.value) repo?.saveDraft(latestText) else repo?.clearDraft()
+                // [#316] 積んだセグメントも保存する。ここが無いと、連投を5本書いた状態で
+                // 誤ってシートを閉じただけで積んだぶんが丸ごと消える（本文1枠しか残らない）。
+                if (!discarded.value) repo?.saveThreadDraft(latestSegments, latestEditIdx)
+                else repo?.clearThreadDraft()
             }
         }
     }
@@ -235,6 +255,10 @@ fun ComposeSheet(
         if (replyTo == null && quoting == null && field.text.isEmpty()) {
             val d = repo?.loadDraft().orEmpty()
             if (d.isNotBlank()) field = TextFieldValue(d, selection = TextRange(d.length))
+            // [#316] 連投の途中で閉じていたら積んだぶんも戻す（本文の位置も含めて）。
+            repo?.loadThreadDraft()?.let { (segs, idx) ->
+                threadSegments.clear(); threadSegments.addAll(segs); editIdx = idx
+            }
         }
     }
     AutoFocusOnShown(bodyFocus)
@@ -352,12 +376,18 @@ fun ComposeSheet(
                     when {
                         replyTo != null -> repo?.publishReply(replyTo, body)
                         quoting != null -> repo?.publishQuote(quoting, body)
-                        // [#13] 先行セグメントがあれば自己スレッドとして連投（最後が現在の本文）。
-                        threadSegments.isNotEmpty() -> repo?.publishThread(threadSegments.toList() + body)
+                        // [#13] 先行セグメントがあれば自己スレッドとして連投。
+                        // [#316] 本文は末尾とは限らない（積んだ行を書き直すと途中に入る）ので
+                        // threadParts の並びをそのまま渡す。body は添付URLを足した後の本文。
+                        threadSegments.isNotEmpty() -> repo?.publishThread(
+                            buildList {
+                                addAll(threadSegments.take(editIdx)); add(body); addAll(threadSegments.drop(editIdx))
+                            },
+                        )
                         // [#5] センシティブONなら content-warning を付けて投稿。
                         else -> repo?.publishNote(body, if (sensitive) "" else null)
                     }
-                    sentOk = true; repo?.clearDraft()   // [#13] 送信できたら下書き破棄
+                    sentOk = true; repo?.clearDraft(); repo?.clearThreadDraft()   // [#13][#316] 送信できたら下書き破棄
                     sending = false
                     onDismiss()
                 } catch (c: CancellationException) {
@@ -465,6 +495,36 @@ fun ComposeSheet(
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = DeckSpace.Lg).padding(top = DeckSpace.Xs, bottom = DeckSpace.Md),
                 ) {
+                    // [#316] 積んだ段落の一覧。一度積むと本文欄から消えるため、以前は
+                    // 件数しか出ておらず、読み返す・直す・1件だけ取り消すのいずれもできなかった。
+                    // いま書いている本文もこの並びの中に入れて出す（＝スレッド全体が見える）。
+                    if (threadSegments.isNotEmpty()) {
+                        ThreadSegmentList(
+                            parts = threadParts, editIndex = bodyRow,
+                            onEdit = { i ->
+                                // タップした行を本文へ。いま書いていた本文はその行が居た位置に残るので
+                                // **並び順は変わらず**、「編集中」の行だけが移る。
+                                val si = toSegmentIndex(i)
+                                val picked = threadSegments.removeAt(si)
+                                if (text.isNotBlank()) {
+                                    // 取り出したぶん詰まるので、本文を戻す位置も1つ手前に寄る。
+                                    threadSegments.add(if (si < editIdx) editIdx - 1 else editIdx, text.trimEnd())
+                                    editIdx = i
+                                } else {
+                                    // 空の本文は並びに居ないので、その1行ぶんだけ index が詰まる。
+                                    editIdx = if (i > editIdx) i - 1 else i
+                                }
+                                field = TextFieldValue(picked, selection = TextRange(picked.length))
+                                runCatching { bodyFocus.requestFocus() }
+                            },
+                            onDelete = { i ->
+                                val si = toSegmentIndex(i)
+                                threadSegments.removeAt(si)
+                                if (si < editIdx) editIdx -= 1   // 本文より前が消えたぶん詰める
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = DeckSpace.Sm),
+                        )
+                    }
                     BodyField(field, onChange = { field = it }, focusRequester = bodyFocus, modifier = Modifier.fillMaxWidth(),
                         onSubmit = { if (canSend) doSend() })
 
@@ -614,7 +674,11 @@ fun ComposeSheet(
                             Box(
                                 Modifier.size(DeckDimens.TouchTargetSm).clip(RoundedCornerShape(DeckRadius.Sm))
                                     .clickable(enabled = text.isNotBlank()) {
-                                        threadSegments.add(text.trimEnd()); field = TextFieldValue("")
+                                        // [#316] 末尾ではなく「いま書いている位置」へ積む。
+                                        // 途中の段落を書き直していた場合もその場に戻る。
+                                        threadSegments.add(editIdx, text.trimEnd())
+                                        editIdx += 1
+                                        field = TextFieldValue("")
                                     },
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -626,7 +690,7 @@ fun ComposeSheet(
                             }
                             if (threadSegments.isNotEmpty()) {
                                 Text(
-                                    stringResource(Res.string.compose_thread_count_fmt, threadSegments.size + 1), color = DeckColors.Accent, fontSize = DeckType.Label,
+                                    stringResource(Res.string.compose_thread_count_fmt, editIdx + 1), color = DeckColors.Accent, fontSize = DeckType.Label,
                                     modifier = Modifier.padding(start = DeckSpace.Xs),
                                 )
                             }
@@ -689,6 +753,65 @@ private fun AccountHeader(pubkey: String?, profile: Profile?, modifier: Modifier
  * 本文入力欄。**枠なし**（カード面そのものに書く見た目）。約5行から始まり、
  * 最大10行（[BODY_MAX_HEIGHT]）まで伸び、以降は内部スクロール。
  */
+/**
+ * [#316] 連投で積んだ段落の一覧。[parts] はスレッド全体（いま書いている本文を含む）で、
+ * [editIndex] がその本文の位置。
+ *
+ * 行をタップすると本文欄へ移して書き直せる（[onEdit]）。✗ で1件だけ取り消せる（[onDelete]）。
+ * **編集中の行も並びの中に出す**ので、何件目を書いているのかと前後の文脈が同時に見える。
+ * 空の本文はまだ書いていないだけなので行を出さない。
+ */
+@Composable
+private fun ThreadSegmentList(
+    parts: List<String>,
+    editIndex: Int,
+    onEdit: (Int) -> Unit,
+    onDelete: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(DeckSpace.Xs)) {
+        parts.forEachIndexed { i, part ->
+            val editing = i == editIndex
+            if (editing && part.isBlank()) return@forEachIndexed
+            Row(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(DeckRadius.Sm))
+                    .background(if (editing) DeckColors.AccentWeak else DeckColors.Surface2)
+                    .let { if (editing) it else it.clickable { onEdit(i) } }
+                    .padding(start = DeckSpace.Sm, end = DeckSpace.Xs, top = DeckSpace.Xs, bottom = DeckSpace.Xs),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Text(
+                    "${i + 1}", color = DeckColors.Text3, fontSize = DeckType.Micro,
+                    modifier = Modifier.width(16.dp).padding(top = 2.dp),
+                )
+                Text(
+                    part, color = if (editing) DeckColors.Text else DeckColors.Text2,
+                    fontSize = DeckType.Caption, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                // 編集中の行は本文欄そのものなので、✗ ではなく状態ラベルを出す。
+                if (editing) {
+                    Text(
+                        stringResource(Res.string.compose_thread_editing), color = DeckColors.Text3,
+                        fontSize = DeckType.Micro, modifier = Modifier.padding(start = DeckSpace.Xs, top = 2.dp),
+                    )
+                } else {
+                    Box(
+                        Modifier.size(DeckDimens.TouchTargetSm).clip(CircleShape).clickable { onDelete(i) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Outlined.Close, stringResource(Res.string.compose_thread_remove),
+                            tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconMd),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 private val BODY_MIN_HEIGHT = 108.dp  // 約5行（lineHeight 21.sp × 5 + 余白）
 private val BODY_MAX_HEIGHT = 210.dp  // 約10行
 
