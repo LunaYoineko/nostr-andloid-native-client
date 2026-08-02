@@ -621,4 +621,14 @@
     <string name="search_tab_posts">投稿</string>
     <string name="search_tab_users">ユーザー</string>
     <string name="search_no_users">条件に合うユーザーがいません。</string>
+    <!-- [#319] NIP-09 削除リクエスト -->
+    <string name="note_request_delete">削除をリクエスト</string>
+    <string name="note_delete_title">この投稿の削除をリクエストしますか？</string>
+    <string name="note_delete_text">削除イベント(kind:5)を発行します。リレーが応じるとは限らず、すでに取得済みのクライアントでは表示が残ることがあります。この端末からは消えます。</string>
+    <string name="note_delete_confirm">リクエストする</string>
+    <string name="note_delete_sent">削除をリクエストしました</string>
+    <string name="note_delete_failed">削除をリクエストできませんでした</string>
+    <string name="theme_delete">削除をリクエスト</string>
+    <string name="theme_delete_title">このテーマの削除をリクエストしますか？</string>
+    <string name="theme_delete_text">削除イベント(kind:5)を発行します。リレーが応じるとは限らず、すでに適用した人の手元には残ります。この端末からは消えます。</string>
 </resources>

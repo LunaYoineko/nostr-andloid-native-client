@@ -625,4 +625,14 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="search_tab_posts">Posts</string>
     <string name="search_tab_users">Users</string>
     <string name="search_no_users">No users match your search.</string>
+    <!-- [#319] NIP-09 削除リクエスト -->
+    <string name="note_request_delete">Request deletion</string>
+    <string name="note_delete_title">Request deletion of this post?</string>
+    <string name="note_delete_text">Publishes a deletion event (kind:5). Relays are not required to honor it, and clients that already have the post may keep showing it. It will disappear from this device.</string>
+    <string name="note_delete_confirm">Request deletion</string>
+    <string name="note_delete_sent">Deletion requested</string>
+    <string name="note_delete_failed">Could not request deletion</string>
+    <string name="theme_delete">Request deletion</string>
+    <string name="theme_delete_title">Request deletion of this theme?</string>
+    <string name="theme_delete_text">Publishes a deletion event (kind:5). Relays are not required to honor it, and people who already applied the theme keep it. It will disappear from this device.</string>
 </resources>
