@@ -280,16 +280,6 @@ fun NoteItem(
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                // [#312] 投稿元クライアント（NIP-89 client タグ）。ここはアイコンが左に寄って
-                // ⋯ が右端にあるだけで元々空いており、名前行の幅を奪わずに置ける。
-                // タグが無いノートが過半なので、無いときは**何も出さない**（プレースホルダ無し）。
-                note.clientName?.let { client ->
-                    Text(
-                        client, color = DeckColors.Text3, fontSize = DeckType.Micro,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(end = DeckSpace.Xs),
-                    )
-                }
                 // 3点リーダー（追加操作）は右端。ミュート/各種コピー。
                 Box {
                     ActionButton(Icons.Outlined.MoreHoriz, DeckColors.Text3, onClick = { moreMenu = true })
@@ -301,6 +291,17 @@ fun NoteItem(
                     val isPinned = note.event.id in pinned
                     val isMine = note.event.pubkey == me
                     DeckDropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
+                        // [#312] 投稿元クライアント（NIP-89 client タグ）。一覧の行に文字を足すと
+                        // カラム幅が固定の Deck では必ず幅の奪い合いになるので、幅が内容に追従する
+                        // メニューの見出しとして出す。タップ対象ではないので項目にはしない。
+                        note.clientName?.let { client ->
+                            Text(
+                                stringResource(Res.string.note_posted_via_fmt, client),
+                                color = DeckColors.Text3, fontSize = DeckType.Label,
+                                modifier = Modifier.padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
+                            )
+                            HorizontalDivider(color = DeckColors.Border)
+                        }
                         // --- 操作系 ---
                         // [#93] 他人の投稿はフォロー状態に応じてトグル表示。フォローは即実行、
                         // 解除は kind:3 の再発行で破壊的なため確認ダイアログを挟む。
