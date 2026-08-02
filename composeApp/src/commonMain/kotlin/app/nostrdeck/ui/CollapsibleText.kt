@@ -3,6 +3,7 @@ package app.nostrdeck.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
@@ -72,7 +73,9 @@ fun CollapsibleText(
                 Placeholder(width = 1.4.em, height = 1.4.em, placeholderVerticalAlign = PlaceholderVerticalAlign.Center),
             ) {
                 // [#277] iOS/Desktop でも GIF/アニメ WebP を動かすため共通コンポーネントへ。
-                AnimatedEmoji(url, contentDescription = ":$code:", modifier = Modifier.size(20.dp))
+                // [#308] 大きさは Placeholder(1.4em) が決める。以前は 20dp 固定だったため、
+                // 文字サイズ設定を上げると枠だけ広がって絵文字が中で浮いていた。
+                AnimatedEmoji(url, contentDescription = ":$code:", modifier = Modifier.fillMaxSize())
             }
         }
     }

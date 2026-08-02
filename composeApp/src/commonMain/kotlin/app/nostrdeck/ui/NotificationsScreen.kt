@@ -332,7 +332,11 @@ private fun KindMark(n: NotificationUi) {
     when {
         n.kind == NotificationKind.REACTION && n.reactionImageUrl != null ->
             // [#277] iOS/Desktop でも GIF/アニメ WebP を動かすため共通コンポーネントへ。
-            AnimatedEmoji(n.reactionImageUrl, contentDescription = n.reaction, modifier = Modifier.size(17.dp))
+            // [#308] 画像側も文字と同じ EmojiLg から引く（以前は 17dp 固定で通常絵文字の 77%）。
+            AnimatedEmoji(
+                n.reactionImageUrl, contentDescription = n.reaction,
+                modifier = Modifier.size(DeckType.EmojiLg.asEmojiSize()),
+            )
         n.kind == NotificationKind.REACTION ->
             Text(n.reaction ?: "❤️", fontSize = DeckType.EmojiLg, maxLines = 1)
         else ->
