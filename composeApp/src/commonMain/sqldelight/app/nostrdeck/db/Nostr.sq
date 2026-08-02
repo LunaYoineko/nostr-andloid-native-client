@@ -133,6 +133,21 @@ WHERE lower(name) LIKE :prefix || '%' OR lower(handle) LIKE :prefix || '%'
 ORDER BY (CASE WHEN name != '' THEN 0 ELSE 1 END), updated_at DESC
 LIMIT :limit;
 
+-- [#310] ユーザー検索: 名前/NIP-05 の**部分一致**。前方一致だと「しの」で
+-- 「絶対匿名希望のしのさん」が引けないため、検索画面ではこちらを使う
+-- （メンション補完は先頭が確定している前提なので従来の前方一致のまま）。
+-- 前方一致を先に並べて、より意図に近いものを上へ出す。
+searchProfilesByText:
+SELECT * FROM profile
+WHERE lower(name) LIKE '%' || :q || '%'
+   OR lower(handle) LIKE '%' || :q || '%'
+   OR lower(about) LIKE '%' || :q || '%'
+ORDER BY
+  (CASE WHEN lower(name) LIKE :q || '%' OR lower(handle) LIKE :q || '%' THEN 0 ELSE 1 END),
+  (CASE WHEN name != '' THEN 0 ELSE 1 END),
+  updated_at DESC
+LIMIT :limit;
+
 clearProfiles:
 DELETE FROM profile;
 

@@ -2,6 +2,7 @@ package app.nostrdeck.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -290,6 +291,17 @@ private fun ResultsPane(
     val loaded by repo.columnLoadedFlow().collectAsState()
     val summary = tokens.joinToString(" ")
 
+    // [#310] 投稿とユーザーをタブで分ける。ユーザー検索は '#' タグを除いた語で引く
+    // （'#bitcoin' で人を探すことはないため）。
+    var tab by rememberSaveable(searchSeq) { mutableStateOf(SearchTab.POSTS) }
+    val userQuery = remember(tokens) { tokens.filterNot { it.startsWith("#") }.joinToString(" ") }
+    DisposableEffect(userQuery, searchSeq) {
+        repo.subscribeProfileSearch("search_users", userQuery)
+        onDispose { repo.unsubscribeColumn("search_users") }
+    }
+    val users = remember(userQuery) { repo.searchProfilesFlow(userQuery) }
+        .collectAsState(emptyList()).value
+
     Column(modifier) {
         // ヘッダ: トークンの要約 ＋「Deckに追加」
         Row(
@@ -311,9 +323,38 @@ private fun ResultsPane(
                 state.navDest = NavDest.HOME
             })
         }
+        // [#310] 結果の種類を切り替えるタブ。件数を添えて、どちらに当たりがあるか一目で分かるように。
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Xs),
+            horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm),
+        ) {
+            ChoiceChip(
+                stringResource(Res.string.search_tab_posts) + if (results.isEmpty()) "" else " ${results.size}",
+                selected = tab == SearchTab.POSTS,
+            ) { tab = SearchTab.POSTS }
+            ChoiceChip(
+                stringResource(Res.string.search_tab_users) + if (users.isEmpty()) "" else " ${users.size}",
+                selected = tab == SearchTab.USERS,
+            ) { tab = SearchTab.USERS }
+        }
         HorizontalDivider(color = DeckColors.Border)
         RefreshableBox(onRefresh) {
-            if (results.isEmpty()) {
+            if (tab == SearchTab.USERS) {
+                if (users.isEmpty()) {
+                    ColumnStateView(
+                        "search_users" !in loaded,
+                        stringResource(Res.string.search_no_users),
+                        Modifier.fillMaxSize(),
+                    )
+                } else {
+                    LazyColumn(Modifier.fillMaxSize()) {
+                        items(users, key = { it.pubkey }) { p ->
+                            SearchUserRow(p) { state.openProfile(p.pubkey) }
+                            HorizontalDivider(color = DeckColors.Border)
+                        }
+                    }
+                }
+            } else if (results.isEmpty()) {
                 ColumnStateView("search_screen" !in loaded, stringResource(Res.string.search_no_results), Modifier.fillMaxSize())
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
@@ -328,6 +369,43 @@ private fun ResultsPane(
                         HorizontalDivider(color = DeckColors.Border)
                     }
                 }
+            }
+        }
+    }
+}
+
+/** [#310] 検索結果の種類。デッキへ追加できるのは投稿だけ（ユーザーはカラムにならない）。 */
+private enum class SearchTab { POSTS, USERS }
+
+/**
+ * [#310] ユーザー検索の1行。アバター + 名前 + NIP-05 + 自己紹介1行。
+ *
+ * プロフィールのフォロー一覧（UserListRow）と違い自己紹介まで出すのは、検索では
+ * 同名・似た名前が並ぶため、何者かが分からないと選べないから。
+ */
+@Composable
+private fun SearchUserRow(profile: app.nostrdeck.model.Profile, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Avatar(profile.name.ifBlank { profile.pubkey }, profile.pictureUrl, size = 40.dp)
+        Spacer(Modifier.width(DeckSpace.Sm))
+        Column(Modifier.weight(1f)) {
+            Text(
+                profile.name.takeIf { it.isNotBlank() } ?: profile.pubkey.take(10),
+                color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            profile.handle.takeIf { it.isNotBlank() }?.let {
+                Text(it, color = DeckColors.Text3, fontSize = DeckType.Label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            profile.about.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    oneLine(it), color = DeckColors.Text2, fontSize = DeckType.Label,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

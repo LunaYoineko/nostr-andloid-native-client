@@ -617,4 +617,7 @@ It will be removed from the list and reflected in the next published kind:10002.
     <!-- [#312] 投稿元クライアント(NIP-89 client タグ)。%1$s はアプリ名 -->
     <string name="note_posted_via_fmt">Posted via %1$s</string>
     <string name="thread_posted_via_fmt">via %1$s</string>
+    <string name="search_tab_posts">Posts</string>
+    <string name="search_tab_users">Users</string>
+    <string name="search_no_users">No users match your search.</string>
 </resources>

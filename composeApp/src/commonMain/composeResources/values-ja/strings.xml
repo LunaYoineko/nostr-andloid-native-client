@@ -613,4 +613,7 @@
     <!-- [#312] 投稿元クライアント(NIP-89 client タグ)。%1$s はアプリ名 -->
     <string name="note_posted_via_fmt">%1$s から投稿</string>
     <string name="thread_posted_via_fmt">via %1$s</string>
+    <string name="search_tab_posts">投稿</string>
+    <string name="search_tab_users">ユーザー</string>
+    <string name="search_no_users">条件に合うユーザーがいません。</string>
 </resources>
