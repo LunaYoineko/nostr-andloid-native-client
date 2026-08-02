@@ -142,6 +142,8 @@ fun ComposeSheet(
     var showEmojiPicker by remember { mutableStateOf(false) }
     // [#5] NIP-36 センシティブ投稿トグル。ON で content-warning を付けて投稿。
     var sensitive by remember { mutableStateOf(false) }
+    // [#315] NIP-36 の理由（任意）。空なら `["content-warning", ""]`＝理由なしで付ける。
+    var cwReason by remember { mutableStateOf("") }
     // [#13] 連投スレッドの先行セグメント（＋で積む。送信時に自己スレッド化）。
     val threadSegments = remember { mutableStateListOf<String>() }
     // [#13] 送信済みなら閉じても下書き保存しない。
@@ -349,13 +351,16 @@ fun ComposeSheet(
                         addAll(videoUrls.filterNotNull())
                     }
                     val body = parts.joinToString("\n")
+                    // [#5][#315] センシティブONなら content-warning を付ける。
+                    // 以前は publishNote（通常投稿）だけが見ており、返信・引用・連投では
+                    // トグルが ON でも CW なしで発行されていた（設定できたように見えて効かない）。
+                    val cw = if (sensitive) cwReason.trim() else null
                     when {
-                        replyTo != null -> repo?.publishReply(replyTo, body)
-                        quoting != null -> repo?.publishQuote(quoting, body)
+                        replyTo != null -> repo?.publishReply(replyTo, body, cw)
+                        quoting != null -> repo?.publishQuote(quoting, body, cw)
                         // [#13] 先行セグメントがあれば自己スレッドとして連投（最後が現在の本文）。
-                        threadSegments.isNotEmpty() -> repo?.publishThread(threadSegments.toList() + body)
-                        // [#5] センシティブONなら content-warning を付けて投稿。
-                        else -> repo?.publishNote(body, if (sensitive) "" else null)
+                        threadSegments.isNotEmpty() -> repo?.publishThread(threadSegments.toList() + body, cw)
+                        else -> repo?.publishNote(body, cw)
                     }
                     sentOk = true; repo?.clearDraft()   // [#13] 送信できたら下書き破棄
                     sending = false
@@ -560,6 +565,17 @@ fun ComposeSheet(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Lg, vertical = DeckSpace.Sm),
                     )
                 }
+                // [#315] センシティブ ON のときだけ理由欄を出す。NIP-36 の reason は任意なので
+                // 空のままでもよいが、受け手には「何が warning なのか」が分かるほうが親切。
+                // ここに出すこと自体がトグル ON の強いフィードバックにもなる。
+                if (sensitive && !sending) {
+                    DeckTextField(
+                        value = cwReason, onValueChange = { cwReason = it },
+                        placeholder = stringResource(Res.string.compose_cw_reason_hint),
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Xs),
+                    )
+                }
                 // 下部バー: 送信中は「進捗 + キャンセル」、通常は「画像添付 + 送信」。
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
@@ -578,6 +594,16 @@ fun ComposeSheet(
                         // 投稿中の強制キャンセル。
                         DeckTextButton(stringResource(Res.string.common_cancel), color = DeckColors.Text2, onClick = { sendJob?.cancel() })
                     } else {
+                      // [#315] ツールバーは折り返す。40dp のアイコン5個＋連投カウントで 200dp 超を使い、
+                      // 素の Row だと狭い端末幅や表示サイズ「最大」で入り切らない。Row は入り切らない子を
+                      // 幅0で測るので、後ろに置いた送信ボタンが潰れて押せなくなる。
+                      // FlowRow に weight を掛けると、weight 無しの送信ボタンが先に確保され、
+                      // 溢れたアイコンだけが2段目へ回る（＝送信ボタンは必ず残る）。
+                      FlowRow(
+                          Modifier.weight(1f),
+                          verticalArrangement = Arrangement.Center,
+                          itemVerticalAlignment = Alignment.CenterVertically,
+                      ) {
                         // 画像添付（ツールバー操作・40dp 実タップ領域）。
                         Box(
                             Modifier.size(DeckDimens.TouchTargetSm).clip(RoundedCornerShape(DeckRadius.Sm))
@@ -596,16 +622,21 @@ fun ComposeSheet(
                                 .clickable { showEmojiPicker = true },
                             contentAlignment = Alignment.Center,
                         ) { Icon(Icons.Outlined.Mood, stringResource(Res.string.compose_insert_emoji), tint = DeckColors.Text, modifier = Modifier.size(DeckDimens.IconLg)) }
-                        // [#5] センシティブ(NIP-36 content-warning)トグル。ON はアクセント色。
+                        // [#5][#315] センシティブ(NIP-36 content-warning)トグル。
+                        // 以前は ON で tint を Accent にするだけだったが、既定パレットは
+                        // モノクロ基調で Accent と Text がほぼ同色（ライトに至っては
+                        // どちらも #16171C で**完全に同じ**）。そのため押しても見た目が変わらず、
+                        // 「押せない」と受け取られていた。ON は面で塗り、色も Warn に変える。
                         Box(
                             Modifier.size(DeckDimens.TouchTargetSm).clip(RoundedCornerShape(DeckRadius.Sm))
+                                .background(if (sensitive) DeckColors.Warn.copy(alpha = 0.18f) else Color.Transparent)
                                 .clickable { sensitive = !sensitive },
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 Icons.Outlined.VisibilityOff,
                                 if (sensitive) stringResource(Res.string.compose_sensitive_on) else stringResource(Res.string.compose_sensitive),
-                                tint = if (sensitive) DeckColors.Accent else DeckColors.Text,
+                                tint = if (sensitive) DeckColors.Warn else DeckColors.Text,
                                 modifier = Modifier.size(DeckDimens.IconLg),
                             )
                         }
@@ -631,7 +662,7 @@ fun ComposeSheet(
                                 )
                             }
                         }
-                        Spacer(Modifier.weight(1f))
+                      }
                         DeckButton(
                             when {
                                 replyTo != null -> stringResource(Res.string.compose_reply); quoting != null -> stringResource(Res.string.compose_quote)

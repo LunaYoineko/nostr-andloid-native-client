@@ -30,3 +30,6 @@ iosApp/Pods/
 # App Store Connect API キー（秘匿・絶対にコミットしない）
 *.p8
 iosApp/Configuration/ExportOptions.generated.plist
+
+# ローカル検証で吸い出す SQLite ダンプ（コミットしない）
+*.db

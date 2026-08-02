@@ -1482,27 +1482,10 @@ class EventRepository(
         return out
     }
 
-    /**
-     * NIP-10: 返信先（reply マーカー → root マーカー → 位置で末尾の e）。
-     * 位置ルールへのフォールバックでは "mention" マーカーの e を除外する。mention は
-     * 引用参照であって返信ではない（俳句Bot 等は content の nevent と mention e タグを
-     * 併記しており、返信扱いすると同じイベントが引用カードと返信文脈で二重表示される）。
-     */
-    private fun replyParentOf(tags: List<List<String>>): String? {
-        val es = tags.filter { it.size >= 2 && it[0] == "e" }
-        if (es.isEmpty()) return null
-        es.firstOrNull { it.size >= 4 && it[3] == "reply" }?.let { return it[1] }
-        es.firstOrNull { it.size >= 4 && it[3] == "root" }?.let { return it[1] }
-        return es.lastOrNull { it.size < 4 || it[3] != "mention" }?.get(1)
-    }
+    // [#314] NIP-10 の読み取り/組み立ては Nip10 に集約（純関数なので単体テストできる）。
+    private fun replyParentOf(tags: List<List<String>>): String? = Nip10.replyParentOf(tags)
 
-    /** NIP-10: root（root マーカー → 位置で先頭の e）。mention は返信系ではないので除外。 */
-    private fun rootOf(tags: List<List<String>>): String? {
-        val es = tags.filter { it.size >= 2 && it[0] == "e" }
-        if (es.isEmpty()) return null
-        es.firstOrNull { it.size >= 4 && it[3] == "root" }?.let { return it[1] }
-        return es.firstOrNull { it.size < 4 || it[3] != "mention" }?.get(1)
-    }
+    private fun rootOf(tags: List<List<String>>): String? = Nip10.rootOf(tags)
 
     /** [M10] 自分の♡/リポスト/リアクション状態を NoteUi に反映（ボタンのハイライト・絵文字表示用）。 */
     private fun applyMeta(ui: NoteUi, meta: NoteMeta): NoteUi = ui.copy(
@@ -1744,7 +1727,7 @@ class EventRepository(
      * [#13] 連投スレッド。[segments] を先頭から順に投稿し、2件目以降は NIP-10 で
      * root(先頭) と reply(直前) を e タグに付けて自己スレッド化する。
      */
-    suspend fun publishThread(segments: List<String>) {
+    suspend fun publishThread(segments: List<String>, contentWarning: String? = null) {
         val segs = segments.map { it.trim() }.filter { it.isNotEmpty() }
         if (segs.isEmpty()) return
         var rootId: String? = null
@@ -1753,12 +1736,19 @@ class EventRepository(
         for (seg in segs) {
             val tags = buildList {
                 if (rootId != null) {
-                    add(listOf("e", rootId!!, "", "root"))
-                    if (prevId != null && prevId != rootId) add(listOf("e", prevId!!, "", "reply"))
-                    myPk?.let { add(listOf("p", it)) }
+                    // [#314] e タグ5番目に作者を入れる。自己スレッドなので root も直前も自分。
+                    val me = myPk
+                    add(if (me != null) listOf("e", rootId!!, "", "root", me) else listOf("e", rootId!!, "", "root"))
+                    if (prevId != null && prevId != rootId) {
+                        add(if (me != null) listOf("e", prevId!!, "", "reply", me) else listOf("e", prevId!!, "", "reply"))
+                    }
+                    me?.let { add(listOf("p", it)) }
                 }
                 addAll(hashtagsIn(seg).map { listOf("t", it) })
                 addAll(emojiTagsIn(seg))
+                // [#315] CW は全セグメントに付ける。1本目だけだと後続が素通しになり、
+                // タイムラインでは各セグメントが独立したノートとして流れるため意味を成さない。
+                if (contentWarning != null) add(listOf("content-warning", contentWarning))
             }
             val signed = publishSigned(UnsignedEvent(kind = 1, content = seg, tags = tags))
             recordHashtags(seg, signed.createdAt)
@@ -1881,19 +1871,41 @@ class EventRepository(
      * [M10] NIP-18 引用リポスト（kind:1）。q タグ + p タグで参照し、本文末尾に nostr:nevent… を添える。
      * 表示側は q タグから引用元を解決して埋め込みカードにする（toFollowingNoteUi）。
      */
-    suspend fun publishQuote(target: NostrEvent, text: String) {
+    suspend fun publishQuote(target: NostrEvent, text: String, contentWarning: String? = null) {
         val note = runCatching { Nip19.hexToNote(target.id) }.getOrNull()
         val body = if (note != null) (if (text.isBlank()) "nostr:$note" else "$text\nnostr:$note") else text
         val tags = listOf(listOf("q", target.id), listOf("p", target.pubkey)) +
-            hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(body)
+            hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(body) +
+            (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
         val signed = publishSigned(UnsignedEvent(kind = 1, content = body, tags = tags))
         recordHashtags(text, signed.createdAt)
     }
 
-    /** [M8] NIP-10 返信（kind:1）。e(reply マーカー) + p を付け、本文の #タグも 't' 化する。 */
-    suspend fun publishReply(target: NostrEvent, text: String) {
-        val tags = listOf(listOf("e", target.id, "", "reply"), listOf("p", target.pubkey)) +
-            hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(text)
+    /**
+     * [M8] NIP-10 返信（kind:1）。本文の #タグも 't' 化する。
+     *
+     * [#314] 以前は返信先が何であっても `["e", id, "", "reply"]` 1本を付けていた。
+     * そのためトップレベル投稿への返信が他クライアントから「ルート不明の返信」に見え、
+     * スレッド途中への返信では root が落ちて元スレッドから切り離されていた。
+     * 組み立ては Nip10.replyTags に移し、root を解決したうえで仕様どおりに並べる。
+     */
+    suspend fun publishReply(target: NostrEvent, text: String, contentWarning: String? = null) {
+        // [#314] 返信先のタグは **DB から引き直す**。タイムライン経路の NoteUi は再コンポーズ
+        // 最適化のため event.tags を空で持つ（toFollowingNoteUi の [#140]）ので、渡ってきた
+        // target.tags をそのまま信じると root が解決できず、スレッド途中への返信でも
+        // 「返信先＝ルート」と誤って組み立ててしまう（＝元スレッドから切り離される）。
+        val targetTags = target.tags.ifEmpty {
+            q.eventById(target.id).executeAsOneOrNull()?.let { parseTags(it.tags_json) }.orEmpty()
+        }
+        // ルート作者は e タグ5番目に入れる。ローカルに無ければ省く（無理に埋めない）。
+        val rootId = rootOf(targetTags)
+        val rootAuthor = if (rootId == null || rootId == target.id) target.pubkey
+        else q.eventById(rootId).executeAsOneOrNull()?.pubkey
+        val tags = Nip10.replyTags(
+            targetId = target.id, targetPubkey = target.pubkey, targetTags = targetTags,
+            rootAuthor = rootAuthor, selfPubkey = myPubkey,
+        ) + hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(text) +
+            (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
         val signed = publishSigned(UnsignedEvent(kind = 1, content = text, tags = tags))
         recordHashtags(text, signed.createdAt)
     }
