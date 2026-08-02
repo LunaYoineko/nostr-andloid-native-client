@@ -614,4 +614,7 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="channel_icon_pick">Choose</string>
     <string name="channel_icon_clear">Remove image</string>
     <string name="channel_icon_upload_failed">Could not upload the image. Check your upload server in Settings → Media servers.</string>
+    <string name="search_tab_posts">Posts</string>
+    <string name="search_tab_users">Users</string>
+    <string name="search_no_users">No users match your search.</string>
 </resources>

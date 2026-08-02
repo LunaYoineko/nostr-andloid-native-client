@@ -1590,6 +1590,43 @@ class EventRepository(
         }
     }
 
+    /**
+     * [#310] ユーザー検索（kind:0）。検索画面の「ユーザー」タブが使う。
+     *
+     * NIP-50 対応リレーへ kind:0 の全文検索を投げる。届いた kind:0 は ingest が profile 表へ
+     * 入れるので、表示は [searchProfilesFlow] がローカルを読むだけでよい（他の検索と同じ
+     * cache-first の流れ）。購読は検索語ごとに張り替える。
+     */
+    fun subscribeProfileSearch(subId: String, query: String) {
+        val q0 = query.trim()
+        if (q0.isEmpty()) return
+        unsubscribeColumn(subId)
+        openColumns.add(subId)
+        subscribeTargeted(
+            subId, SEARCH_RELAYS.toSet(),
+            Filter(kinds = listOf(0), search = q0, limit = 100),
+        )
+    }
+
+    /**
+     * [#310] ローカルの profile 表から検索語に一致するユーザーを流す。
+     * 部分一致（名前 / NIP-05 / 自己紹介）で、前方一致を上位に寄せる。
+     */
+    fun searchProfilesFlow(query: String, limit: Int = 50): Flow<List<Profile>> {
+        val q0 = query.trim().lowercase()
+        if (q0.isEmpty()) return flowOf(emptyList())
+        return q.searchProfilesByText(q0, limit.toLong()).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                rows.map {
+                    Profile(
+                        it.pubkey, it.name, it.handle, it.picture_url, it.updated_at,
+                        about = it.about, website = it.website, lud16 = it.lud16, banner = it.banner,
+                    )
+                }
+            }
+            .flowOn(Dispatchers.Default)
+    }
+
     /** 自分がこの pubkey をフォロー中か（kind:3 の更新に追従）。 */
     fun isFollowingFlow(pubkey: String): Flow<Boolean> = follows.map { pubkey in it }
 
