@@ -63,6 +63,7 @@ Note: this is an open beta. Bug reports and feedback are welcome.
 - 無料アプリ / 広告なし / アプリ内購入なし
 - プライバシーポリシー: https://nostrism.shino3.net/privacy-policy.html
 - 児童の安全に関する基準（CSAE）: https://nostrism.shino3.net/child-safety.html （宣言は `child-safety-declaration.md` 参照）
+- サポート連絡先メール: tshinoharawork@gmail.com（Play Console / App Store Connect 双方の掲載用）
 - アプリアクセス（レビュー用メモ）: 利用には Nostr の鍵（nsec/npub）が必要です。レビュアーは Nostr ユーザーのため各自の鍵でログインできます。
 
 ## 素材（このフォルダ）
