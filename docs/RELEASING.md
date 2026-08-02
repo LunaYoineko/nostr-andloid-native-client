@@ -25,7 +25,12 @@
 1. **バージョンタグを打つ**（[#252]）: `git tag vX.Y.Z && git push --tags`
    バグ修正=PATCH / 機能追加=MINOR / 破壊的変更=MAJOR。`scripts/version.sh --on-tag` が `1` になることを確認。
 2. **リリースノートを書く**（下記スタイル）。Android は `distribution/whatsnew/whatsnew-ja-JP` を更新してコミット。
-   iOS の「テスト内容」も同じ文面を流用し、GitHub Releases のノートにも使われる。
+   iOS の「テスト内容」も同じ文面を流用し、GitHub Releases のノートにも使われる。英語版
+   `whatsnew-en-US` も併せて更新する。
+   **`distribution/whatsnew/test-focus-ja` も毎回書き換えること。** TestFlight の「テスト内容」
+   末尾に【重点確認】として出る、そのリリースで見てほしい点。ここは `whatsnew` と違って
+   更新を忘れても配信は通ってしまい、**前回の確認項目が残ったまま**テスターに届く
+   （v0.6.6/v0.6.7 で実際に v0.6.5 の項目が出ていた）。
 3. 破壊的変更・既知の不具合があれば、リリースノート末尾かテスト内容に明記。
 
 ### 実行順（1タグ = 3系統。同じ build 番号で揃える）
@@ -60,7 +65,8 @@ AI はワークフローを起動して結果を見るだけ。
 ### 手順
 ```bash
 # (1) リリースノートを更新してコミット（配信対象 ref に入れる）
-#     distribution/whatsnew/whatsnew-ja-JP を編集
+#     distribution/whatsnew/whatsnew-ja-JP と whatsnew-en-US を編集
+#     （TestFlight 用の test-focus-ja も忘れず更新する。§0-2 参照）
 git add distribution/whatsnew/whatsnew-ja-JP
 git commit -m "リリースノート更新: <一言>"
 git push origin main            # または配信対象ブランチ
