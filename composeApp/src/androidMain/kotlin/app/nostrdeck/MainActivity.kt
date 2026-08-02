@@ -244,6 +244,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        // [#141] 再利用のため生かしていた ExoPlayer をここで全て解放する。
+        app.nostrdeck.ui.ExoPlayerPool.releaseAll()
         appScope.cancel()
         super.onDestroy()
     }

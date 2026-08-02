@@ -59,7 +59,7 @@ import kotlinx.coroutines.withContext
  * [#138] 同時再生を1本に抑える調停役。新しいプレイヤーが再生を始めたら
  * 直前に再生していたものを一時停止する（音の混在とデコーダ/帯域の浪費を防ぐ）。
  */
-private object VideoPlaybackArbiter {
+internal object VideoPlaybackArbiter {
     private var current: ExoPlayer? = null
     fun onPlay(player: ExoPlayer) {
         if (current !== player) current?.pause()
@@ -80,7 +80,10 @@ private object VideoPlaybackArbiter {
  */
 @Composable
 actual fun VideoPlayer(url: String, posterUrl: String?, blurhash: String?, modifier: Modifier) {
-    var activated by remember(url) { mutableStateOf(false) }
+    // [#141] 一度再生した動画は、画面外へ出て戻ってきても再生UIのまま復帰させる
+    // （プールに実体が残っていれば "再生済み" とみなす）。従来はポスターに戻り、
+    // 押し直し＋位置0からのやり直しになっていた。
+    var activated by remember(url) { mutableStateOf(ExoPlayerPool.has(url)) }
     if (!activated) {
         VideoPoster(url, posterUrl, blurhash, onPlay = { activated = true }, modifier = modifier)
     } else {
@@ -158,24 +161,28 @@ private fun ActiveVideoPlayer(url: String, modifier: Modifier) {
     val context = LocalContext.current
     var muted by remember(url) { mutableStateOf(true) }
     var fullscreen by remember(url) { mutableStateOf(false) }
+    // [#141] プールから取得（あれば位置ごと再利用、無ければ新規）。
     val player = remember(url) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(url))
-            volume = 0f            // 既定ミュート（TL を流しても静か）
-            playWhenReady = true   // ポスターのタップで起動された時点から再生
-            prepare()
-            VideoPlaybackArbiter.onPlay(this)
-            addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (isPlaying) VideoPlaybackArbiter.onPlay(this@apply)
-                }
-            })
+        val fresh = !ExoPlayerPool.has(url)
+        ExoPlayerPool.acquire(context, url).apply {
+            // 新規取得のときだけ自動で再生を始める（＝ポスターをタップした操作に対する応答）。
+            // 復帰時は一時停止のまま位置を見せる（無音で勝手に鳴り出さない）。
+            if (fresh) {
+                playWhenReady = true
+                VideoPlaybackArbiter.onPlay(this)
+                addListener(object : Player.Listener {
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        if (isPlaying) VideoPlaybackArbiter.onPlay(this@apply)
+                    }
+                })
+            }
         }
     }
     DisposableEffect(url) {
         onDispose {
-            VideoPlaybackArbiter.onRelease(player)
-            player.release()
+            // [#141] 解放せずプールへ返す（一時停止のみ。位置は保持）。
+            // 実体の解放は LRU の追い出しか Activity 破棄時（ExoPlayerPool.releaseAll）。
+            ExoPlayerPool.recycle(url)
         }
     }
 
