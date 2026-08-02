@@ -1,6 +1,6 @@
-- Custom emoji now render at the same size as regular emoji, and follow your text size setting
-- Videos keep their position when you scroll away and come back
-- Notification timestamps now line up on the right edge
-- Notification content starts at the same position as regular posts
-- Attach compressed images and videos in public chat
-- Pick an icon image when creating a thread
+- Replies now thread correctly in other clients (fixes replies drifting away from the original conversation)
+- Content warnings now apply to replies, quotes and threads. The toggle shows its state clearly and you can add a reason
+- In thread mode you can now review, edit and remove the parts you stacked. They survive closing the composer
+- Search now finds users, on its own tab alongside posts
+- Opening a post shows when it was posted and which app it came from
+- The post "…" menu also shows the app it was posted from
