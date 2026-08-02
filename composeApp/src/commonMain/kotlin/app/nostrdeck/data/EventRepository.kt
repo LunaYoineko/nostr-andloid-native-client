@@ -3041,10 +3041,17 @@ class EventRepository(
         // NIP-36: content-warning タグ（あれば表示前に折りたたむ）。2要素目が理由（任意）。
         val cw = tags.firstOrNull { it.isNotEmpty() && it[0] == "content-warning" }
             ?.let { if (it.size >= 2) it[1] else "" }
+        // [#312] NIP-89 client タグ（どのアプリから投稿されたか）。
+        // 形は ["client", "<名前>", "<31990:...>"?, "<relay>"?]。名前だけの2要素が大半。
+        // 名前が空のものは表示しても意味がないので落とす。極端に長い名前は行を壊すため丸める。
+        val client = tags.firstOrNull { it.size >= 2 && it[0] == "client" }
+            ?.get(1)?.trim()?.takeIf { it.isNotEmpty() }
+            ?.let { if (it.length > 24) it.take(24) + "…" else it }
         return NoteUi(
             event = NostrEvent(row.id, row.pubkey, row.kind.toInt(), row.created_at, row.content, emptyList(), row.sig),
             author = Profile(row.pubkey, name, prof?.handle ?: "", prof?.picture_url, lud16 = prof?.lud16),
             text = text, images = images, isReply = isReply, customEmojis = emojis, contentWarning = cw,
+            clientName = client,
             // [#140] event.tags は再コンポーズ最適化のため空で持つ（従来仕様）。表示に必要な
             // imeta（dim/blurhash/thumb）だけをここで抽出して NoteUi に載せる。
             imeta = app.nostrdeck.model.imetaInfo(tags),

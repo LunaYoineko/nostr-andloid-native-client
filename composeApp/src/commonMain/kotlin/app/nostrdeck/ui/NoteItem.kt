@@ -280,6 +280,16 @@ fun NoteItem(
                     )
                 }
                 Spacer(Modifier.weight(1f))
+                // [#312] 投稿元クライアント（NIP-89 client タグ）。ここはアイコンが左に寄って
+                // ⋯ が右端にあるだけで元々空いており、名前行の幅を奪わずに置ける。
+                // タグが無いノートが過半なので、無いときは**何も出さない**（プレースホルダ無し）。
+                note.clientName?.let { client ->
+                    Text(
+                        client, color = DeckColors.Text3, fontSize = DeckType.Micro,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(end = DeckSpace.Xs),
+                    )
+                }
                 // 3点リーダー（追加操作）は右端。ミュート/各種コピー。
                 Box {
                     ActionButton(Icons.Outlined.MoreHoriz, DeckColors.Text3, onClick = { moreMenu = true })
