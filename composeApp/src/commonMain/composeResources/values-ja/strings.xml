@@ -610,6 +610,9 @@
     <string name="channel_icon_pick">選択</string>
     <string name="channel_icon_clear">画像を外す</string>
     <string name="channel_icon_upload_failed">画像をアップロードできませんでした。設定 → メディアサーバーを確認してください。</string>
+    <!-- [#316] 連投の積んだ段落一覧 -->
+    <string name="compose_thread_editing">編集中</string>
+    <string name="compose_thread_remove">この段落を取り消す</string>
     <!-- [#315] NIP-36 content-warning の理由（任意） -->
     <string name="compose_cw_reason_hint">理由（任意）</string>
     <!-- [#312] 投稿元クライアント(NIP-89 client タグ)。%1$s はアプリ名 -->
