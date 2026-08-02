@@ -593,3 +593,35 @@ SELECT * FROM custom_emoji ORDER BY shortcode ASC;
 
 clearCustomEmojis:
 DELETE FROM custom_emoji;
+
+-- ============ [#319] NIP-09 削除リクエスト ============
+-- 消したイベントを覚えておく。リレーは削除を尊重しないことがあり、消したはずのものが
+-- 再取得で戻ってくる。取り込み時にここを引いて弾く。
+CREATE TABLE deleted_event (
+    id         TEXT NOT NULL PRIMARY KEY,
+    deleted_at INTEGER NOT NULL
+);
+
+-- addressable(30000-39999) は id ではなく "<kind>:<pubkey>:<d>" 座標で消える。
+-- 削除リクエストより古い版だけが対象なので、その時刻も持つ。
+CREATE TABLE deleted_addr (
+    coord      TEXT NOT NULL PRIMARY KEY,
+    deleted_at INTEGER NOT NULL
+);
+
+markEventDeleted:
+INSERT OR REPLACE INTO deleted_event(id, deleted_at) VALUES (?, ?);
+
+isEventDeleted:
+SELECT COUNT(*) FROM deleted_event WHERE id = ?;
+
+markAddrDeleted:
+INSERT OR REPLACE INTO deleted_addr(coord, deleted_at) VALUES (?, ?);
+
+addrDeletedAt:
+SELECT deleted_at FROM deleted_addr WHERE coord = ?;
+
+-- 座標に一致し、削除リクエストより古い版を消す。d タグは event_tag 経由で引く。
+deleteAddrEvents:
+DELETE FROM event WHERE kind = ? AND pubkey = ? AND created_at <= ?
+  AND id IN (SELECT event_id FROM event_tag WHERE tag = 'd' AND value = ?);

@@ -1,0 +1,14 @@
+-- v9 -> v10: [#319] NIP-09 削除リクエストの記録。
+--  deleted_event : 削除済みイベント id。リレーから再取得しても復活させないため覚えておく。
+--  deleted_addr  : addressable(30000-39999) は id ではなく "<kind>:<pubkey>:<d>" 座標で消える。
+--                  削除リクエストより古い版だけが対象なので、その時刻も持つ。
+-- 新規テーブルなので CREATE IF NOT EXISTS のみ。
+CREATE TABLE IF NOT EXISTS deleted_event (
+    id         TEXT NOT NULL PRIMARY KEY,
+    deleted_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS deleted_addr (
+    coord      TEXT NOT NULL PRIMARY KEY,
+    deleted_at INTEGER NOT NULL
+);

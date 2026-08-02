@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Palette
@@ -97,6 +98,12 @@ import nostr_deck_client.composeapp.generated.resources.theme_publish_ok
 import nostr_deck_client.composeapp.generated.resources.theme_scope_all
 import nostr_deck_client.composeapp.generated.resources.theme_scope_following
 import nostr_deck_client.composeapp.generated.resources.theme_scope_mine
+import nostr_deck_client.composeapp.generated.resources.theme_delete
+import nostr_deck_client.composeapp.generated.resources.theme_delete_title
+import nostr_deck_client.composeapp.generated.resources.theme_delete_text
+import nostr_deck_client.composeapp.generated.resources.note_delete_confirm
+import nostr_deck_client.composeapp.generated.resources.note_delete_sent
+import nostr_deck_client.composeapp.generated.resources.note_delete_failed
 import nostr_deck_client.composeapp.generated.resources.theme_search_hint
 import nostr_deck_client.composeapp.generated.resources.theme_search_no_match
 import nostr_deck_client.composeapp.generated.resources.theme_share_section
@@ -110,6 +117,7 @@ import nostr_deck_client.composeapp.generated.resources.theme_tab_store
 import nostr_deck_client.composeapp.generated.resources.theme_title
 import nostr_deck_client.composeapp.generated.resources.theme_undo
 import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.getString
 
 /** [#268] テーマシートの内部ページ。設定画面のどちらの導線から開いたかで初期値を変える。 */
 internal enum class ThemePage { CUSTOMIZE, STORE }
@@ -486,6 +494,8 @@ private fun ThemeStorePage(
     var shareOpen by remember { mutableStateOf(false) }
     var code by remember { mutableStateOf("") }
     var publishName by remember { mutableStateOf("") }
+    // [#319] 削除リクエストの確認対象。取り消せない発行なので必ず挟む。
+    var deleteTarget by remember { mutableStateOf<ThemeEntry?>(null) }
     val invalidCodeMsg = stringResource(Res.string.theme_code_invalid)
 
     LaunchedEffect(Unit) { repo.requestThemes() }
@@ -512,6 +522,23 @@ private fun ThemeStorePage(
             }
             .let { seq -> if (sort == StoreSort.NAME) seq.sortedBy { it.name.lowercase() } else seq }
             .toList()
+    }
+
+    // [#319] テーマの削除リクエスト。**消える保証はない**ことを本文で明示する。
+    deleteTarget?.let { target ->
+        DeckConfirmDialog(
+            title = stringResource(Res.string.theme_delete_title),
+            text = stringResource(Res.string.theme_delete_text),
+            confirmLabel = stringResource(Res.string.note_delete_confirm), destructive = true,
+            onConfirm = {
+                deleteTarget = null
+                scope.launch {
+                    val ok = repo.requestDeleteTheme(target)
+                    toast(getString(if (ok) Res.string.note_delete_sent else Res.string.note_delete_failed))
+                }
+            },
+            onDismiss = { deleteTarget = null },
+        )
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -582,6 +609,7 @@ private fun ThemeStorePage(
                         selected = e.colors == draft,
                         authorName = e.author?.let { names[it] },
                         onSelect = { onSelect(e.colors, e.name) },
+                        onDelete = if (me != null && e.author == me) ({ deleteTarget = e }) else null,
                     )
                 }
             }
@@ -655,6 +683,8 @@ private fun ThemeStoreRow(
     selected: Boolean,
     authorName: String?,
     onSelect: () -> Unit,
+    // [#319] 自分が公開したテーマだけ削除をリクエストできる。null なら出さない。
+    onDelete: (() -> Unit)? = null,
 ) {
     // アプリ版がテーマの要求版より古いか（警告バッジ用。適用は許す）。
     val tooNew = ThemeEntry.isOlderThan(appVersionName, entry.minAppVersion)
@@ -689,6 +719,19 @@ private fun ThemeStoreRow(
             Text(stringResource(Res.string.theme_in_use), color = DeckColors.Text2, fontSize = DeckType.Micro)
         } else if (selected) {
             Text(stringResource(Res.string.theme_previewing), color = DeckColors.Text2, fontSize = DeckType.Micro)
+        }
+        // [#319] 自分のテーマは削除をリクエストできる。行タップ(プレビュー)と紛れないよう
+        // 独立したタッチ領域にする。
+        if (onDelete != null) {
+            Box(
+                Modifier.size(DeckDimens.TouchTargetSm).clip(CircleShape).clickable(onClick = onDelete),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Outlined.DeleteOutline, stringResource(Res.string.theme_delete),
+                    tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconMd),
+                )
+            }
         }
     }
 }

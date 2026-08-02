@@ -118,6 +118,8 @@ fun NoteItem(
   var confirmUnfollow by remember { mutableStateOf(false) }
   // [#94] ミュートは表示への影響が大きいため、確認してから実行する。
   var confirmMute by remember { mutableStateOf(false) }
+  // [#319] 削除リクエストの確認。取り消せない発行なので必ず挟む。
+  var confirmDelete by remember { mutableStateOf(false) }
   val toast = rememberToaster()
   // [#6] NIP-56 通報ダイアログ。
   var showReport by remember { mutableStateOf(false) }
@@ -327,6 +329,14 @@ fun NoteItem(
                                 text = { Text(if (isPinned) stringResource(Res.string.note_unpin_profile) else stringResource(Res.string.note_pin_profile)) },
                                 onClick = { moreMenu = false; scope.launch { repo?.togglePinned(note.event.id) } },
                             )
+                            // [#319] NIP-09 削除リクエスト。自分の投稿だけ。確実に消える操作では
+                            // ないので Warn 色にし、確認ダイアログでその旨を明示する。
+                            DropdownMenuItem(
+                                text = {
+                                    Text(stringResource(Res.string.note_request_delete), color = DeckColors.Warn)
+                                },
+                                onClick = { moreMenu = false; confirmDelete = true },
+                            )
                         } else {
                             // [#94] ミュート済みなら「ミュートを解除」に切替。ミュートは確認してから実行する。
                             val mutedUsers by (repo?.mutedUsersFlow()?.collectAsState(emptySet())
@@ -391,6 +401,23 @@ fun NoteItem(
   }
 
   // リアクション取り消しの確認。NIP-09 削除イベント(kind:5)を発行するため一旦止める。
+  // [#319] NIP-09 削除リクエスト。**消える保証はない**ことを本文で明示する。
+  if (confirmDelete) {
+      DeckConfirmDialog(
+          title = stringResource(Res.string.note_delete_title),
+          text = stringResource(Res.string.note_delete_text),
+          confirmLabel = stringResource(Res.string.note_delete_confirm), destructive = true,
+          onConfirm = {
+              confirmDelete = false
+              scope.launch {
+                  val ok = repo?.requestDelete(note.event) == true
+                  toast(getString(if (ok) Res.string.note_delete_sent else Res.string.note_delete_failed))
+              }
+          },
+          onDismiss = { confirmDelete = false },
+      )
+  }
+
   if (confirmUnreact) {
       DeckConfirmDialog(
           title = stringResource(Res.string.unreact_title),

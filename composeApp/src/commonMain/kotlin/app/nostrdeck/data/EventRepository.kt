@@ -934,7 +934,9 @@ class EventRepository(
                 val withMe = (authors + listOfNotNull(myPubkey)).distinct()
                 if (withMe.isNotEmpty()) {
                     // kind:1 本文 + kind:6/16 リポスト[M8-repost]（リアクション数は出さないので kind:7 は購読しない）。
-                    subscribeAll(columnId, Filter(kinds = listOf(1, 6, 16), authors = withMe, limit = 100))
+                    // [#319] kind:5 削除リクエストも取る。これが無いと、別端末で消した自分の投稿が
+                    // こちらに残り続ける（フォロー先が消したものも同じ）。件数は少なく負荷にならない。
+                    subscribeAll(columnId, Filter(kinds = listOf(1, 6, 16, 5), authors = withMe, limit = 100))
                 }
             }
         }
@@ -1864,8 +1866,12 @@ class EventRepository(
         val stored = normalizedDefaultReaction()
         val mineId = q.myReactionIdForContent(pk, target.id, stored).executeAsOneOrNull()
         if (mineId != null) {
-            publishSigned(UnsignedEvent(kind = 5, content = "", tags = listOf(listOf("e", mineId))))
-            q.transaction { q.deleteEventById(mineId); q.deleteTagsForEvent(mineId) }
+            // [#319] k タグを付けて NIP-09 の推奨形に揃える。ローカルは deleted_event にも
+            // 残す（消したリアクションが再取得で戻り、押した状態に見えるのを防ぐ）。
+            publishSigned(
+                UnsignedEvent(kind = 5, content = "", tags = listOf(listOf("e", mineId), listOf("k", "7"))),
+            )
+            q.transaction { forgetEventLocally(mineId, currentUnixTime()) }
         } else {
             publishReaction(target, content, img)
         }
@@ -1917,6 +1923,89 @@ class EventRepository(
      * スレッド途中への返信では root が落ちて元スレッドから切り離されていた。
      * 組み立ては Nip10.replyTags に移し、root を解決したうえで仕様どおりに並べる。
      */
+    // ---- [#319] NIP-09 削除リクエスト（kind:5）----
+
+    /**
+     * 自分のイベントに削除リクエストを出す。
+     *
+     * **これは「消してください」という依頼であって、消えたことの保証ではない。**
+     * リレーが尊重するかは相手次第で、既に取り込んだクライアントが表示を続けることもある。
+     * UI 側でもその旨を明示すること。
+     *
+     * タグは `["e", <id>]` ＋ `["k", <kind>]`。addressable(30000-39999) は id だけだと
+     * 版が変わると効かないので `["a", "<kind>:<pubkey>:<d>"]` も付ける。
+     * [reason] は content に入る（任意。空でよい）。
+     *
+     * ローカルは即座に消す。リレーが尊重しなくても手元からは見えなくなるほうが期待に近い。
+     * 消した id は [deleted_event] に残し、再取得しても復活させない。
+     */
+    suspend fun requestDelete(event: NostrEvent, reason: String = ""): Boolean = runCatching {
+        val me = myPubkey ?: SignerProvider.current().publicKeyHex().also {
+            myPubkey = it; myPubkeyFlow.value = it
+        }
+        // 他人のイベントに削除リクエストを出しても無意味（リレーは作者一致を見る）。
+        if (event.pubkey != me) return false
+        val tags = buildList {
+            add(listOf("e", event.id))
+            add(listOf("k", event.kind.toString()))
+            if (event.kind in 30_000..39_999) {
+                val d = event.tags.firstOrNull { it.size >= 2 && it[0] == "d" }?.get(1) ?: ""
+                add(listOf("a", "${event.kind}:${event.pubkey}:$d"))
+            }
+        }
+        publishSigned(UnsignedEvent(kind = 5, content = reason, tags = tags))
+        forgetEventLocally(event.id, currentUnixTime())
+        if (event.kind in 30_000..39_999) {
+            val d = event.tags.firstOrNull { it.size >= 2 && it[0] == "d" }?.get(1) ?: ""
+            forgetAddrLocally(event.kind, event.pubkey, d, currentUnixTime())
+        }
+        true
+    }.getOrElse {
+        println("Nostrism requestDelete failed: $it")
+        false
+    }
+
+    /**
+     * 受信した削除リクエストを反映する。
+     *
+     * **作者本人のものだけ効かせる。** そうしないと、他人が `["e", <あなたの投稿>]` を含む
+     * kind:5 を投げるだけで手元から消せてしまう。手元に対象が無いときは作者を確認できないので
+     * 何もしない（後で本体が降ってきたら、その時点では削除リクエストを再処理できないが、
+     * 他人の投稿を消される危険を冒すよりよい）。
+     */
+    private fun ingestDeletion(e: NostrEvent) {
+        e.tags.forEach { t ->
+            if (t.size < 2) return@forEach
+            when (t[0]) {
+                "e" -> {
+                    val row = q.eventById(t[1]).executeAsOneOrNull() ?: return@forEach
+                    if (row.pubkey == e.pubkey) forgetEventLocally(t[1], e.createdAt)
+                }
+                "a" -> {
+                    // "<kind>:<pubkey>:<d>"。pubkey が座標に入っているので作者を確認できる。
+                    val parts = t[1].split(":")
+                    if (parts.size < 3) return@forEach
+                    val kind = parts[0].toIntOrNull() ?: return@forEach
+                    if (parts[1] != e.pubkey) return@forEach
+                    forgetAddrLocally(kind, parts[1], parts.drop(2).joinToString(":"), e.createdAt)
+                }
+            }
+        }
+    }
+
+    /** 手元から消し、再取得で復活しないよう id を覚える。 */
+    private fun forgetEventLocally(id: String, deletedAt: Long) {
+        q.markEventDeleted(id, deletedAt)
+        q.deleteTagsForEvent(id)
+        q.deleteEventById(id)
+    }
+
+    /** addressable を座標で消す。削除リクエストより新しい版は残す（再公開したものまで消さない）。 */
+    private fun forgetAddrLocally(kind: Int, pubkey: String, d: String, deletedAt: Long) {
+        q.markAddrDeleted("$kind:$pubkey:$d", deletedAt)
+        q.deleteAddrEvents(kind.toLong(), pubkey, deletedAt, d)
+    }
+
     suspend fun publishReply(target: NostrEvent, text: String, contentWarning: String? = null) {
         // [#314] 返信先のタグは **DB から引き直す**。タイムライン経路の NoteUi は再コンポーズ
         // 最適化のため event.tags を空で持つ（toFollowingNoteUi の [#140]）ので、渡ってきた
@@ -2327,7 +2416,18 @@ class EventRepository(
 
     /** 1イベントの取り込み（署名検証は [ingestLoop] で済ませ、ここは DB 書き込み＋副作用のみ）。 */
     private fun ingest(e: NostrEvent) {
+        // [#319] 削除済みは取り込まない。リレーは削除を尊重しないことがあり、消したはずのものが
+        // 再取得で戻ってくる。個々の insert 箇所ではなくここ1箇所で弾く。
+        if (e.kind != 5 && q.isEventDeleted(e.id).executeAsOne() > 0L) return
+        // addressable は版が変わると id も変わるので、座標でも見る。削除リクエストより
+        // 新しい版は通す（消したあとに同じ名前で公開し直したものまで消さないため）。
+        if (e.kind in 30_000..39_999) {
+            val d = e.tags.firstOrNull { it.size >= 2 && it[0] == "d" }?.get(1) ?: ""
+            val at = q.addrDeletedAt("${e.kind}:${e.pubkey}:$d").executeAsOneOrNull()
+            if (at != null && e.createdAt <= at) return
+        }
         when (e.kind) {
+            5 -> ingestDeletion(e)   // [#319] NIP-09 削除リクエスト
             1 -> {
                 q.insertEvent(e.id, e.pubkey, e.kind.toLong(), e.createdAt, e.content, tagsToJson(e.tags), e.sig)
                 indexTags(e)
@@ -3534,6 +3634,23 @@ class EventRepository(
             schema = o["schema"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: ThemeEntry.SCHEMA,
         )
     }.getOrNull()
+
+    /**
+     * [#319] 自分が公開したテーマに削除リクエストを出す。
+     *
+     * addressable なので id と座標の両方を [requestDelete] が付ける。手元の一覧からは
+     * 即座に消えるが、既に適用した人の配色はその人の端末に残る（配色は取り込み済みのため）。
+     */
+    suspend fun requestDeleteTheme(entry: ThemeEntry): Boolean {
+        val author = entry.author ?: return false
+        val d = entry.dTag ?: return false
+        val row = q.themeEvents(ThemeEntry.DISCOVERY_TAG).executeAsList().firstOrNull { r ->
+            r.pubkey == author && parseTags(r.tags_json).any { it.size >= 2 && it[0] == "d" && it[1] == d }
+        } ?: return false
+        return requestDelete(
+            NostrEvent(row.id, row.pubkey, row.kind.toInt(), row.created_at, row.content, parseTags(row.tags_json), row.sig),
+        )
+    }
 
     /** 他ユーザーの配布テーマを取得する（t タグで検索。#d は完全一致しか引けないため）。 */
     fun requestThemes() {
