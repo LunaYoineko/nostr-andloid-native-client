@@ -125,6 +125,12 @@ data class NoteUi(
     val isReply: Boolean = false,      // [M9-profile] kind:1 が #e を持つ返信か（プロフィールのタブ振り分け用）
     val customEmojis: Map<String, String> = emptyMap(), // [M10] NIP-30 本文カスタム絵文字 shortcode→画像URL
     val imeta: Map<String, ImetaInfo> = emptyMap(),     // [#140] NIP-92 メディアURL→(thumb/dim/blurhash)。プレースホルダ用
+    /**
+     * [#312] NIP-89 `["client", "<名前>", …]` の名前。どのアプリから投稿されたか。
+     * **手元の実データでは kind:1 の 58% がこのタグを持たない**ので null が普通。
+     * null のときは何も表示しない（「不明」等のプレースホルダは出さない）。
+     */
+    val clientName: String? = null,
     val contentWarning: String? = null, // [#5] NIP-36 content-warning（非nullなら表示前に折りたたむ。""=理由なし）
 )
 
