@@ -610,4 +610,7 @@
     <string name="channel_icon_pick">選択</string>
     <string name="channel_icon_clear">画像を外す</string>
     <string name="channel_icon_upload_failed">画像をアップロードできませんでした。設定 → メディアサーバーを確認してください。</string>
+    <string name="search_tab_posts">投稿</string>
+    <string name="search_tab_users">ユーザー</string>
+    <string name="search_no_users">条件に合うユーザーがいません。</string>
 </resources>
