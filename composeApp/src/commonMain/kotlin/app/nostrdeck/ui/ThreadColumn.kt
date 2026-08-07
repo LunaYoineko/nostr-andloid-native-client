@@ -77,7 +77,7 @@ fun ThreadColumn(
 ) {
     Column(modifier.background(DeckColors.Surface)) {
         ColumnHeader(
-            title = spec.title, subtitle = spec.subtitle,
+            title = spec.title, subtitle = columnSubtitleFor(spec),
             leadingIcon = columnIcon(spec.kind), pinned = spec.pinned,
             iconTint = DeckColors.Repost, iconBg = DeckColors.Repost.copy(alpha = 0.14f),
             onPin = onPin, onClose = onClose, menu = menu, onBack = onBack,

@@ -194,7 +194,7 @@ fun ChannelRoomColumn(
             .then(if (!deckMode) Modifier.imePadding() else Modifier),
     ) {
         ColumnHeader(
-            title = spec.title, subtitle = spec.subtitle,
+            title = spec.title, subtitle = columnSubtitleFor(spec),
             leadingIcon = columnIcon(spec.kind), pinned = spec.pinned,
             iconTint = DeckColors.Zap, iconBg = DeckColors.Zap.copy(alpha = 0.14f),
             onPin = onPin, onClose = onClose, menu = menu, onBack = onBack,

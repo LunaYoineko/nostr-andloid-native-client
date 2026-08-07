@@ -109,7 +109,7 @@ fun FeedColumn(
     LaunchedEffect(lastOlderTs) { if (lastOlderTs != 0L) { delay(4000); loadingOlder = false } }
     Column(modifier.background(DeckColors.Surface)) {
         ColumnHeader(
-            title = spec.title, subtitle = spec.subtitle,
+            title = spec.title, subtitle = columnSubtitleFor(spec),
             leadingIcon = columnIcon(spec.kind), pinned = spec.pinned,
             onPin = onPin, onClose = onClose, menu = menu,
         )
@@ -193,7 +193,7 @@ fun FollowingFeedColumn(
     val loaded by (LocalRepository.current?.columnLoadedFlow()?.collectAsState() ?: remember { mutableStateOf(emptySet<String>()) })
     Column(modifier.background(DeckColors.Surface)) {
         ColumnHeader(
-            title = spec.title, subtitle = spec.subtitle,
+            title = spec.title, subtitle = columnSubtitleFor(spec),
             leadingIcon = columnIcon(spec.kind), pinned = spec.pinned,
             onPin = onPin, onClose = onClose, menu = menu,
         )
