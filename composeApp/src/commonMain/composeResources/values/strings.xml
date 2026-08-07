@@ -635,4 +635,6 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="theme_delete">Request deletion</string>
     <string name="theme_delete_title">Request deletion of this theme?</string>
     <string name="theme_delete_text">Publishes a deletion event (kind:5). Relays are not required to honor it, and people who already applied the theme keep it. It will disappear from this device.</string>
+    <!-- [#326] カード化したリンクのURLを本文から畳む -->
+    <string name="embed_hide_carded_urls">Hide the URL text when a card is shown</string>
 </resources>

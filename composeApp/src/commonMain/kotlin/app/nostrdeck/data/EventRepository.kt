@@ -3209,7 +3209,11 @@ class EventRepository(
 
     private fun toNoteUi(row: Event, prof: app.nostrdeck.db.Profile?): NoteUi {
         val name = prof?.name?.takeIf { it.isNotBlank() } ?: row.pubkey.take(10)
-        val (text, images) = extractMedia(row.content)
+        // [#326] extractMedia の null は「表示する本文が残らなかった」。NoteUi.text の null は
+        // 「未処理（content を表示せよ）」なので、ここで空文字に落とさないと消費側の
+        // フォールバックが剥がしたはずの URL を復活させる（動画のみの投稿で実際に起きた）。
+        val (strippedText, images) = extractMedia(row.content)
+        val text = strippedText ?: ""
         val tags = parseTags(row.tags_json)
         // NIP-10: kind:1 が #e を持てば返信（プロフィールの「投稿/リプライ」振り分け用）。
         val isReply = row.kind.toInt() == 1 && tags.any { it.size >= 2 && it[0] == "e" }
@@ -3360,7 +3364,8 @@ class EventRepository(
     private fun noteUiFromEvent(ev: NostrEvent, byPubkey: Map<String, app.nostrdeck.db.Profile>): NoteUi {
         val prof = byPubkey[ev.pubkey]
         val name = prof?.name?.takeIf { it.isNotBlank() } ?: ev.pubkey.take(10)
-        val (text, images) = extractMedia(ev.content)
+        val (strippedText, images) = extractMedia(ev.content)
+        val text = strippedText ?: ""   // [#326] toNoteUi と同じ理由
         return NoteUi(
             event = ev,
             author = Profile(ev.pubkey, name, prof?.handle ?: "", prof?.picture_url),
@@ -3476,6 +3481,7 @@ class EventRepository(
             youtube = b("youtube", true), spotify = b("spotify", true),
             ogp = b("ogp", true), ogpImages = b("ogp_images", true),
             video = b("video", true),
+            hideCardedUrls = b("hide_carded_urls", true),   // [#326] 既定は畳む
         )
     }
 
@@ -3486,6 +3492,7 @@ class EventRepository(
         putSettingAsync(EMBED_PREFIX + "ogp", if (prefs.ogp) "1" else "0")
         putSettingAsync(EMBED_PREFIX + "ogp_images", if (prefs.ogpImages) "1" else "0")
         putSettingAsync(EMBED_PREFIX + "video", if (prefs.video) "1" else "0")
+        putSettingAsync(EMBED_PREFIX + "hide_carded_urls", if (prefs.hideCardedUrls) "1" else "0")
     }
 
     // ---- [#appearance] 文字サイズ（小/中/大。小=従来）----

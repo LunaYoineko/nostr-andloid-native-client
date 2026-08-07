@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import app.nostrdeck.model.EmbedKind
 import app.nostrdeck.model.EmbedPrefs
 import app.nostrdeck.model.OgpData
-import app.nostrdeck.model.detectEmbeds
+import app.nostrdeck.model.visibleEmbeds
 import app.nostrdeck.model.imetaThumbs
 import app.nostrdeck.theme.DeckColors
 import app.nostrdeck.theme.DeckRadius
@@ -60,16 +60,10 @@ fun LinkEmbeds(
 ) {
     val repo = LocalRepository.current
     val prefs by (repo?.embedPrefsFlow()?.collectAsState() ?: remember { mutableStateOf(EmbedPrefs()) })
-    val embeds = remember(content) { detectEmbeds(content) }
     val meta = imeta ?: remember(tags) { app.nostrdeck.model.imetaInfo(tags) }
-    val visible = embeds.filter {
-        when (it.kind) {
-            EmbedKind.YOUTUBE -> prefs.youtube
-            EmbedKind.SPOTIFY -> prefs.spotify
-            EmbedKind.OGP -> prefs.ogp
-            EmbedKind.VIDEO -> prefs.video
-        }
-    }
+    // [#326] 設定による絞り込みは nostr-core と共有する。本文からURLを畳む側が同じ判定を
+    // 使うので、「カードは出ていないのに URL だけ消えた」が起きない。
+    val visible = remember(content, prefs) { visibleEmbeds(content, prefs) }
     if (visible.isEmpty() || repo == null) return
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
         visible.forEach { e ->

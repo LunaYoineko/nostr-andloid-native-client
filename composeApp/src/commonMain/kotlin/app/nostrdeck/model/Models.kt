@@ -111,7 +111,10 @@ data class NoteUi(
     val reposts: Int = 0,
     val zapsSats: Long = 0,
     val likes: Int = 0,
-    val text: String? = null,       // 画像URL等を除いた表示用本文（null なら event.content）
+    // 表示用本文（メディアURL除去済み）。null は「未処理＝event.content をそのまま表示」で、
+    // SampleData 等が使う。**メディアのみで本文が残らない投稿は空文字**（null にすると
+    // 消費側の `text ?: content` フォールバックが生URLを復活させてしまう [#326]）。
+    val text: String? = null,
     val images: List<String> = emptyList(),  // 本文中の画像URL（複数可）。表示はグリッド/カルーセル
     val reactions: List<ReactionUi> = emptyList(),  // [M8-react] NIP-25/30 集約リアクション
     val repostedBy: Profile? = null,  // [M8-repost] kind:6/16 のリポスト主（非nullなら「がリポスト」ヘッダ）

@@ -155,7 +155,7 @@ private fun TargetNoteHeader(note: NoteUi) {
     val author = note.author
     val name = author.name.takeIf { it.isNotBlank() }
         ?: runCatching { Nip19.hexToNpub(note.event.pubkey).take(12) + "…" }.getOrDefault(note.event.pubkey.take(12))
-    val body = note.text ?: note.event.content
+    val body = note.text?.takeIf { it.isNotBlank() } ?: note.event.content   // [#326] メディアのみでも空にしない
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Avatar(seed = note.event.pubkey, pictureUrl = author.pictureUrl, size = 32.dp)
         Spacer(Modifier.width(DeckSpace.Sm))

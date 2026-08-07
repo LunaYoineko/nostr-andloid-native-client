@@ -33,7 +33,9 @@ class MuteMatcher(
         if (note.quoted?.event?.pubkey in users) return true
         if (hasWords) {
             // 本文 ＋ ハッシュタグ(t タグ)にワードマッチ
-            if (matchesWord(note.text ?: note.event.content)) return true
+            // [#326] メディアのみの投稿は text="" になる。従来どおり生 content で判定しないと
+            // URL 中の語を対象にしたワードミュートが効かなくなる。
+            if (matchesWord(note.text?.takeIf { it.isNotBlank() } ?: note.event.content)) return true
             note.event.tags.forEach { t -> if (t.size >= 2 && t[0] == "t" && matchesWord(t[1])) return true }
         }
         note.event.tags.forEach { t ->
