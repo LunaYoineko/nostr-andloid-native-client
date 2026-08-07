@@ -82,6 +82,7 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.window)          // FoldingFeature
+            implementation(libs.androidx.exifinterface)   // [#322] 圧縮時に EXIF の向きを焼き込む
             implementation(libs.coil.gif)                  // アニメGIF/WebP デコーダ
             implementation(libs.androidx.media3.exoplayer)  // 動画インライン再生
             implementation(libs.androidx.media3.ui)         // PlayerView（コントローラ付き）
