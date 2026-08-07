@@ -1364,6 +1364,20 @@ private fun AppearanceSettings() {
     }
     Spacer(Modifier.size(DeckSpace.Xl))
 
+    // [#327] 文字を太くする。コントラストの低いテーマで本文が読みにくいときの救済。
+    SectionCaption(stringResource(Res.string.bold_text_title))
+    Spacer(Modifier.height(DeckSpace.Xs))
+    Text(
+        stringResource(Res.string.bold_text_desc),
+        color = DeckColors.Text3, fontSize = DeckType.Label,
+    )
+    Spacer(Modifier.height(DeckSpace.Xs))
+    run {
+        val bold by repo.boldTextFlow().collectAsState()
+        SettingToggle(stringResource(Res.string.bold_text_toggle), bold) { repo.setBoldText(it) }
+    }
+    Spacer(Modifier.height(DeckSpace.Lg))
+
     SectionCaption(stringResource(Res.string.embed_section))
     Spacer(Modifier.size(DeckSpace.Xs))
     Text(

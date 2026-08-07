@@ -22,6 +22,7 @@ import app.nostrdeck.data.EventRepository
 import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
+import app.nostrdeck.theme.DeckWeight
 import app.nostrdeck.data.SampleData
 import app.nostrdeck.signer.SignerProvider
 import app.nostrdeck.state.DeckState
@@ -144,6 +145,10 @@ fun App(
             ?: remember { mutableStateOf(TextScale.SMALL) })
         val uiScale by (repository?.uiScaleFlow()?.collectAsState()
             ?: remember { mutableStateOf(UiScale.SMALL) })
+        // [#327] 太字モード。DeckWeight は snapshot state なので apply するだけで全体に効く。
+        val boldText by (repository?.boldTextFlow()?.collectAsState()
+            ?: remember { mutableStateOf(false) })
+        DeckWeight.apply(boldText)
         val density = LocalDensity.current
         // [#196] スケール込み density を1つ作り、LocalDensity と（Dialog へ伝播させる用の）
         // LocalDeckDensity の両方へ供給する。Dialog/Popup 内では DeckScaled で再適用する。

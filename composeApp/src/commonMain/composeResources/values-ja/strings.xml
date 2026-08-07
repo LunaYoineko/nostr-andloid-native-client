@@ -631,6 +631,10 @@
     <string name="theme_delete">削除をリクエスト</string>
     <string name="theme_delete_title">このテーマの削除をリクエストしますか？</string>
     <string name="theme_delete_text">削除イベント(kind:5)を発行します。リレーが応じるとは限らず、すでに適用した人の手元には残ります。この端末からは消えます。</string>
+    <!-- [#327] 文字を太くする -->
+    <string name="bold_text_title">文字を太くする</string>
+    <string name="bold_text_desc">全体の文字を1段太くします。コントラストの低いテーマで読みやすくなります。</string>
+    <string name="bold_text_toggle">太い文字を使う</string>
     <!-- [#326] カード化したリンクのURLを本文から畳む -->
     <string name="embed_hide_carded_urls">カードを出したリンクのURLを本文から隠す</string>
 </resources>
