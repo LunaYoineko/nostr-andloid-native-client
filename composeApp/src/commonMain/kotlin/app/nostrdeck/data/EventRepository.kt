@@ -3476,6 +3476,7 @@ class EventRepository(
             youtube = b("youtube", true), spotify = b("spotify", true),
             ogp = b("ogp", true), ogpImages = b("ogp_images", true),
             video = b("video", true),
+            hideCardedUrls = b("hide_carded_urls", true),   // [#326] 既定は畳む
         )
     }
 
@@ -3486,6 +3487,7 @@ class EventRepository(
         putSettingAsync(EMBED_PREFIX + "ogp", if (prefs.ogp) "1" else "0")
         putSettingAsync(EMBED_PREFIX + "ogp_images", if (prefs.ogpImages) "1" else "0")
         putSettingAsync(EMBED_PREFIX + "video", if (prefs.video) "1" else "0")
+        putSettingAsync(EMBED_PREFIX + "hide_carded_urls", if (prefs.hideCardedUrls) "1" else "0")
     }
 
     // ---- [#appearance] 文字サイズ（小/中/大。小=従来）----

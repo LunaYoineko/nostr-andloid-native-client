@@ -12,6 +12,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import app.nostrdeck.crypto.Nip19
 import app.nostrdeck.model.ContentToken
+import app.nostrdeck.model.extractMediaUrls
 import app.nostrdeck.model.tokenizeNostrContent
 import app.nostrdeck.theme.DeckColors
 import app.nostrdeck.theme.DeckWeight
@@ -92,9 +93,6 @@ fun noteAnnotated(
 }
 
 /** [#254] 本文中の動画直リンク（mp4/webm/mov/m4v）。引用カードではテキストから除去してカルーセルに出す。 */
-val videoUrlRegex =
-    Regex("""https?://\S+?\.(?:mp4|webm|mov|m4v)(?:\?\S*)?""", RegexOption.IGNORE_CASE)
-
 /**
  * [#254] URL の短縮表示ラベル（ホスト+パスを最大28文字）。
  * 引用カードなど「本文が4行しかない」場所で長い URL が占有しないようにする。
@@ -104,25 +102,15 @@ fun shortUrlLabel(url: String): String {
     return if (bare.length > 28) bare.take(28) + "…" else bare
 }
 
-/** 本文中の画像URL（jpg/png/gif/webp）。表示時は本文から除去し [NoteImages] で下に出す。 */
-val imageUrlRegex =
-    Regex("""https?://\S+?\.(?:jpg|jpeg|png|gif|webp)(?:\?\S*)?""", RegexOption.IGNORE_CASE)
-
 /**
- * content から画像URLを抽出し、本文からは除去した (表示本文, 画像URL一覧) を返す。
- * タイムラインもチャットの吹き出しも共通で使う（画像は本文の外＝下にカード表示する）。
+ * content からメディアURL（画像・動画）を抽出し、本文からは除去した (表示本文, 画像URL一覧) を返す。
+ * タイムラインもチャットの吹き出しも共通で使う（メディアは本文の外＝下にカード表示する）。
+ *
+ * [#326] 判定は nostr-core の [app.nostrdeck.model.extractMediaUrls] に一本化した。
+ * 以前はここに独自の正規表現（jpg/jpeg/png/gif/webp の5種のみ）を持っており、埋め込み判定側の
+ * 拡張子リストとずれて bmp/avif が裸で残り、動画に至っては剥がす処理自体が無かった。
  */
-fun extractMedia(content: String): Pair<String?, List<String>> {
-    val urls = imageUrlRegex.findAll(content).map { it.value }.toList()
-    if (urls.isEmpty()) return null to emptyList()
-    var text = content
-    urls.forEach { text = text.replace(it, "") }
-    // URL 除去で生じた余分な空白/空行を整理。
-    text = text.replace(Regex("""[ \t]{2,}"""), " ")
-        .replace(Regex("""\n{3,}"""), "\n\n")
-        .trim()
-    return text.ifBlank { null } to urls.distinct()
-}
+fun extractMedia(content: String): Pair<String?, List<String>> = extractMediaUrls(content)
 
 private fun mentionLabel(bech: String, resolveName: ((String) -> String?)?): String {
     // npub は hex に復号して表示名を引く。解決できれば @name、無ければ短縮 npub。

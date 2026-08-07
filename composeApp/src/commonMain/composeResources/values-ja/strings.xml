@@ -631,4 +631,6 @@
     <string name="theme_delete">削除をリクエスト</string>
     <string name="theme_delete_title">このテーマの削除をリクエストしますか？</string>
     <string name="theme_delete_text">削除イベント(kind:5)を発行します。リレーが応じるとは限らず、すでに適用した人の手元には残ります。この端末からは消えます。</string>
+    <!-- [#326] カード化したリンクのURLを本文から畳む -->
+    <string name="embed_hide_carded_urls">カードを出したリンクのURLを本文から隠す</string>
 </resources>

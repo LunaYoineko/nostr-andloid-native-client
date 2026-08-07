@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.sp
 import app.nostrdeck.crypto.Nip19
 import app.nostrdeck.crypto.currentUnixTime
 import app.nostrdeck.model.NoteUi
+import app.nostrdeck.model.cardedUrlsToHide
+import app.nostrdeck.model.removeUrls
 import app.nostrdeck.model.NoteAccentStyle
 import app.nostrdeck.model.NoteAccentKind
 import app.nostrdeck.model.ReactionUi
@@ -210,8 +212,17 @@ fun NoteItem(
             if (cw != null && !cwRevealed) {
                 ContentWarningFold(cw) { cwRevealed = true }
             } else {
-            // 画像URLを除去した本文（画像は下にグリッド/カルーセルで表示する）。NIP-30 絵文字は画像化。
-            CollapsibleText(note.text ?: note.event.content, emojis = note.customEmojis) // [M8-collapse]
+            // メディアURLを除去した本文（画像/動画は下にカードで表示する）。NIP-30 絵文字は画像化。
+            // [#326] カードを出した一般リンク(OGP/YouTube/Spotify)の URL も設定に従って畳む。
+            // 判定は LinkEmbeds と同じ visibleEmbeds 由来なので、カードが出ないものは残る。
+            val embedPrefs by (repo?.embedPrefsFlow()?.collectAsState()
+                ?: remember { mutableStateOf(app.nostrdeck.model.EmbedPrefs()) })
+            val bodyText = remember(note.text, note.event.content, embedPrefs) {
+                val base = note.text ?: note.event.content
+                val hide = cardedUrlsToHide(note.event.content, embedPrefs)
+                if (hide.isEmpty()) base else removeUrls(base, hide) ?: ""
+            }
+            CollapsibleText(bodyText, emojis = note.customEmojis) // [M8-collapse]
 
             // [M8-repost] 引用リポスト（q タグ）の埋め込みカード（従来どおり）
             note.quoted?.let {
@@ -226,12 +237,14 @@ fun NoteItem(
             }
             // [M14] リンク埋め込み（YouTube/Spotify/OGP）。設定で表示可否/画像読込を制御。
             // [#140] imeta はタイムライン経路だと event.tags が空のため NoteUi.imeta から渡す。
+            // [#326] 検出には**元の本文**を渡す。note.text は動画URLが剥がれているので、
+            // そちらを渡すとインラインプレイヤーが出なくなる。
             LinkEmbeds(
-                note.text ?: note.event.content, tags = note.event.tags,
+                note.event.content, tags = note.event.tags,
                 imeta = note.imeta, modifier = Modifier.padding(top = DeckSpace.Sm),
             )
             // [#217] 本文が参照する naddr(kind:30023 長文記事)を OGP 風カードで展開。
-            NoteNaddrEmbeds(note.text ?: note.event.content)
+            NoteNaddrEmbeds(note.event.content)
             }
             // [施策4] 本文/メディア↔アクション群は Md で明確に分離（別ブロック化）。
             Spacer(Modifier.size(DeckSpace.Md))

@@ -440,11 +440,12 @@ private fun Bubble(
     //  - 画像URLは本文から除去し、吹き出しの下にサムネ([NoteImages])で表示（LINE/WhatsApp 風）
     //  - :shortcode: はインライン画像、@メンション/#タグ/リンクは装飾（[CollapsibleText]→[noteAnnotated]）
     //  - YouTube/Spotify/OGP/動画は吹き出しの下にカード([LinkEmbeds])
-    // extractMedia は「画像URLがある時だけ除去後テキスト」を返し、画像が無ければ first=null（＝本文そのまま）。
-    // なので画像なし時は原文を、画像あり時は除去後テキスト（画像のみ投稿なら null＝吹き出し無し）を使う。
+    // [#326] extractMedia の first は「メディアURLを除いた表示本文」。剥がすものが無ければ原文が
+    // そのまま返り、null は「表示する本文が残らなかった」＝画像のみ/動画のみの投稿だけを意味する。
+    // 以前はここで images の空かどうかを見て原文へ戻しており、**動画のみの発言でURLが出ていた**。
     val media = remember(m.event.content) { extractMedia(m.event.content) }
     val images = media.second
-    val bodyText = media.first ?: m.event.content.takeIf { images.isEmpty() }
+    val bodyText = media.first
     val emojis = remember(m.event.tags) {
         m.event.tags.filter { it.size >= 3 && it[0] == "emoji" }.associate { it[1] to it[2] }
     }
