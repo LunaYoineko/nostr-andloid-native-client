@@ -297,7 +297,7 @@ private fun MyReactionRow(
             )
             Spacer(Modifier.width(DeckSpace.Xs))
             Text(
-                "${entry.target.author.name}: ${oneLine(entry.target.text ?: entry.target.event.content)}",
+                "${entry.target.author.name}: ${oneLine(entry.target.text?.takeIf { it.isNotBlank() } ?: entry.target.event.content)}",
                 color = DeckColors.Text3, fontSize = DeckType.Label,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
             )

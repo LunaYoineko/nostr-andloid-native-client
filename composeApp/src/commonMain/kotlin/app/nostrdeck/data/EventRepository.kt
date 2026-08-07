@@ -3209,7 +3209,11 @@ class EventRepository(
 
     private fun toNoteUi(row: Event, prof: app.nostrdeck.db.Profile?): NoteUi {
         val name = prof?.name?.takeIf { it.isNotBlank() } ?: row.pubkey.take(10)
-        val (text, images) = extractMedia(row.content)
+        // [#326] extractMedia の null は「表示する本文が残らなかった」。NoteUi.text の null は
+        // 「未処理（content を表示せよ）」なので、ここで空文字に落とさないと消費側の
+        // フォールバックが剥がしたはずの URL を復活させる（動画のみの投稿で実際に起きた）。
+        val (strippedText, images) = extractMedia(row.content)
+        val text = strippedText ?: ""
         val tags = parseTags(row.tags_json)
         // NIP-10: kind:1 が #e を持てば返信（プロフィールの「投稿/リプライ」振り分け用）。
         val isReply = row.kind.toInt() == 1 && tags.any { it.size >= 2 && it[0] == "e" }
@@ -3360,7 +3364,8 @@ class EventRepository(
     private fun noteUiFromEvent(ev: NostrEvent, byPubkey: Map<String, app.nostrdeck.db.Profile>): NoteUi {
         val prof = byPubkey[ev.pubkey]
         val name = prof?.name?.takeIf { it.isNotBlank() } ?: ev.pubkey.take(10)
-        val (text, images) = extractMedia(ev.content)
+        val (strippedText, images) = extractMedia(ev.content)
+        val text = strippedText ?: ""   // [#326] toNoteUi と同じ理由
         return NoteUi(
             event = ev,
             author = Profile(ev.pubkey, name, prof?.handle ?: "", prof?.picture_url),

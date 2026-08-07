@@ -174,7 +174,8 @@ fun NoteItem(
         val nav = LocalNoteNav.current
         ReplyContextLine(
             name = parent.author.name,
-            content = parent.text ?: parent.event.content,
+            // [#326] メディアのみの親は text="" になる。1行プレビューは空より生URLのほうが情報になる。
+            content = parent.text?.takeIf { it.isNotBlank() } ?: parent.event.content,
             avatarSeed = parent.event.pubkey,
             avatarUrl = parent.author.pictureUrl,
             onClick = nav?.let { { it.onEvent(parent.event.id) } },
@@ -222,7 +223,10 @@ fun NoteItem(
                 val hide = cardedUrlsToHide(note.event.content, embedPrefs)
                 if (hide.isEmpty()) base else removeUrls(base, hide) ?: ""
             }
-            CollapsibleText(bodyText, emojis = note.customEmojis) // [M8-collapse]
+            // メディアのみの投稿は本文が空文字になる。空の Text を描くと無駄な行高が出るので飛ばす。
+            if (bodyText.isNotBlank()) {
+                CollapsibleText(bodyText, emojis = note.customEmojis) // [M8-collapse]
+            }
 
             // [M8-repost] 引用リポスト（q タグ）の埋め込みカード（従来どおり）
             note.quoted?.let {
@@ -378,7 +382,7 @@ fun NoteItem(
                             text = { Text(stringResource(Res.string.note_copy_text)) },
                             onClick = {
                                 moreMenu = false
-                                clipboard(note.text ?: note.event.content)
+                                clipboard(note.text?.takeIf { it.isNotBlank() } ?: note.event.content)   // [#326] メディアのみでも空をコピーしない
                             },
                         )
                         if (nevent != null || note1 != null) {
