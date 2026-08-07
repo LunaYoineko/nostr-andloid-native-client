@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import app.nostrdeck.model.ThemeMode
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,10 +64,20 @@ object DeckType {
  * 名前/見出しは太く・メタ/本文は Normal に統一し、色(Text/Text3)と合わせて主役↔脇役を分ける。
  */
 object DeckWeight {
-    val Name   = FontWeight.Bold      // 人物名/エンティティ名（主役・最も強い）
-    val Strong = FontWeight.SemiBold  // 画面/セクション見出し・アクティブタブ（UIの中見出し）
-    val Link   = FontWeight.Medium    // リンク/アクティブ要素
-    val Body   = FontWeight.Normal    // 本文・メタ（時刻/ハンドル/npub/ID）
+    // [#327] 太字モード。DeckColors のパレットと同じく snapshot state で持ち、
+    // どこからでも読める（noteAnnotated 等の非 Composable からも参照されるため
+    // CompositionLocal にはできない）。読みはコンポジション中なら自動で追従する。
+    private val bold = mutableStateOf(false)
+
+    /** App が設定 Flow から呼ぶ。値が変わる時のみ代入（DeckColors.apply と同じ作法）。 */
+    fun apply(enabled: Boolean) { if (bold.value != enabled) bold.value = enabled }
+
+    // 太字ON は各役割を1段だけ上げる。**本文を Bold にしない**のが肝で、日本語は画数の
+    // 多い漢字が潰れて逆に読みにくくなる（iOS の「文字を太くする」も本文は Semibold 止まり）。
+    val Name:   FontWeight get() = if (bold.value) FontWeight.Black    else FontWeight.Bold      // 人物名/エンティティ名
+    val Strong: FontWeight get() = if (bold.value) FontWeight.Bold     else FontWeight.SemiBold  // 見出し・アクティブタブ
+    val Link:   FontWeight get() = if (bold.value) FontWeight.SemiBold else FontWeight.Medium    // リンク/アクティブ要素
+    val Body:   FontWeight get() = if (bold.value) FontWeight.Medium   else FontWeight.Normal    // 本文・メタ
 }
 
 /** 角丸トークン。tokens.css --r-*（8/12/18/full）と 1対1。実装はこれへ完全スナップ。 */

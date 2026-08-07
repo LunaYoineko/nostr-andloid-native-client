@@ -82,7 +82,8 @@ fun CollapsibleText(
     Column(modifier) {
         Text(
             annotated,
-            color = color, fontSize = DeckType.Body, lineHeight = 20.sp,
+            // [#327] 本文ウェイトはトークンから。太字ON時に Medium へ上がる。
+            color = color, fontSize = DeckType.Body, fontWeight = DeckWeight.Body, lineHeight = 20.sp,
             maxLines = if (expanded) Int.MAX_VALUE else collapsedMaxLines,
             overflow = TextOverflow.Ellipsis,
             inlineContent = inline,

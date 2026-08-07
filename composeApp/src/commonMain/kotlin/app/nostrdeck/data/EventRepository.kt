@@ -283,6 +283,7 @@ class EventRepository(
         loadTextScale()
         // 表示サイズ（標準/大きめ/最大）を KV から復元。
         loadUiScale()
+        loadBoldText()   // [#327]
         loadNoteAccentStyle()
         loadCustomTheme()
         loadImageCompression()
@@ -3704,6 +3705,17 @@ class EventRepository(
     }
 
     /** KV から表示サイズを復元（未設定は標準=従来サイズ）。start() から呼ぶ。 */
+    // ---- [#327] 文字を太くする（既定OFF） ----
+    private val boldTextState = MutableStateFlow(false)
+    fun boldTextFlow(): StateFlow<Boolean> = boldTextState
+    fun setBoldText(enabled: Boolean) {
+        boldTextState.value = enabled
+        putSettingAsync(BOLD_TEXT_KEY, if (enabled) "1" else "0")
+    }
+    private fun loadBoldText() {
+        boldTextState.value = q.getSetting(BOLD_TEXT_KEY).executeAsOneOrNull() == "1"
+    }
+
     private fun loadUiScale() {
         uiScaleState.value = UiScale.fromId(q.getSetting(UI_SCALE_KEY).executeAsOneOrNull())
     }
@@ -4375,7 +4387,8 @@ class EventRepository(
         /** リンク埋め込み設定の KV キー接頭辞。 */
         const val EMBED_PREFIX = "embed:"
         const val TEXT_SCALE_KEY = "ui:text_scale"   // [#appearance] 文字サイズ（s/m/l）
-        const val UI_SCALE_KEY = "ui:ui_scale"       // [#appearance] 表示サイズ（s/m/l）
+        const val UI_SCALE_KEY = "ui:ui_scale"
+        const val BOLD_TEXT_KEY = "appearance_bold_text"   // [#327]       // [#appearance] 表示サイズ（s/m/l）
         const val NOTE_ACCENT_STYLE_KEY = "ui:note_accent"  // [#256][#257] 種別の視覚表示（none/line/bg）
         const val THEME_CUSTOM_BG = "ui:theme_custom_bg"         // [#258] カスタムテーマ 背景色
         const val THEME_CUSTOM_TEXT = "ui:theme_custom_text"     // [#258] カスタムテーマ 文字色

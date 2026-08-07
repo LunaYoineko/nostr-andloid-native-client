@@ -635,4 +635,8 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="theme_delete">Request deletion</string>
     <string name="theme_delete_title">Request deletion of this theme?</string>
     <string name="theme_delete_text">Publishes a deletion event (kind:5). Relays are not required to honor it, and people who already applied the theme keep it. It will disappear from this device.</string>
+    <!-- [#327] 文字を太くする -->
+    <string name="bold_text_title">Bold text</string>
+    <string name="bold_text_desc">Makes all text one step heavier. Helps readability on low-contrast themes.</string>
+    <string name="bold_text_toggle">Use bolder text</string>
 </resources>
