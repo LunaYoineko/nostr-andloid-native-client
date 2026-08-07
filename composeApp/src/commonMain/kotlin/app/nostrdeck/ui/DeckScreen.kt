@@ -242,8 +242,9 @@ private fun CompactPager(state: DeckState) {
             // [#nav] 検索は下部ナビへ移設（旧 #62 の上部バー検索アイコンは廃止）。
             // 上部バーはタブ一覧の視認性・到達性を優先する。
             // リレー接続ステータス（緑/黄/グレー ● + N/N）。タップで一覧ダイアログ。
+            // [#332] 左レール表示時はレール側に同じものが常設されるので、ここでは出さない。
             val repo = LocalRepository.current
-            if (repo != null) {
+            if (repo != null && !LocalHasNavRail.current) {
                 Spacer(Modifier.width(DeckSpace.Xs))
                 val conns by repo.relayConnFlow().collectAsState()
                 var showRelays by remember { mutableStateOf(false) }
