@@ -1,6 +1,8 @@
 package app.nostrdeck.ui
 
 import androidx.compose.runtime.Composable
+import app.nostrdeck.model.ColumnKind
+import app.nostrdeck.model.ColumnSpec
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -29,4 +31,33 @@ fun columnDisplaySubtitle(subtitle: String): String = when (subtitle) {
     "キーワード・タグ" -> stringResource(Res.string.tpl_search)
     "プロフィール" -> stringResource(Res.string.profile_section)
     else -> subtitle
+}
+
+/**
+ * [#325] カラムのサブタイトルを **kind から表示時に導出する**。
+ *
+ * 以前は作成時に文字列として DB へ焼いており、コードの変更に追従しない化石が残っていた
+ * （実データに `following · 2 relays` `mentions · zaps` 等、**今のコードが生成し得ない文字列**が
+ * 実在した）。種別ラベルはテンプレから毎回引けばよく、保存する必要がない。
+ *
+ * ルーム/一覧/スレッドだけは保存値が実内容（チャンネル説明・一時表示の注記）なので従来どおり
+ * 保存値を通す。DB の subtitle 列は互換のため残る（ここでは読まないだけ）。
+ */
+@Composable
+fun columnSubtitleFor(spec: ColumnSpec): String = when (spec.kind) {
+    ColumnKind.FOLLOWING -> "following"
+    // GLOBAL は検索カラムの器も兼ねる（buildSearchColumn）。words/hashtags を持てば検索。
+    ColumnKind.GLOBAL ->
+        if (spec.filter.words.isNotEmpty() || spec.filter.hashtags.isNotEmpty()) {
+            stringResource(Res.string.tpl_search)
+        } else {
+            "global"
+        }
+    ColumnKind.HASHTAG -> "hashtag"
+    ColumnKind.NOTIFICATIONS -> stringResource(Res.string.notif_subtitle)
+    ColumnKind.DM -> "NIP-17"
+    ColumnKind.PROFILE -> stringResource(Res.string.profile_section)
+    ColumnKind.FAVS -> stringResource(Res.string.sub_my_reactions)
+    ColumnKind.THREAD, ColumnKind.CHANNEL_LIST, ColumnKind.CHANNEL_ROOM ->
+        columnDisplaySubtitle(spec.subtitle)
 }

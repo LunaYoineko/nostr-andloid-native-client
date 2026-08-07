@@ -639,4 +639,6 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="bold_text_title">Bold text</string>
     <string name="bold_text_desc">Makes all text one step heavier. Helps readability on low-contrast themes.</string>
     <string name="bold_text_toggle">Use bolder text</string>
+    <!-- [#326] カード化したリンクのURLを本文から畳む -->
+    <string name="embed_hide_carded_urls">Hide the URL text when a card is shown</string>
 </resources>

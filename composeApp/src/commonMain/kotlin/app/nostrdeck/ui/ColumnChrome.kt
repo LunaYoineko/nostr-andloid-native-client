@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import app.nostrdeck.model.FeedNoticeCategory
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,6 +79,15 @@ data class ColumnMenuActions(
 )
 
 /**
+ * [#324] シングルカラム表示（[CompactPager]）の中かどうか。true のとき [ColumnHeader] は
+ * タイトル行を描かない。上部タブに同じカラム名が出ており、**狭い縦幅で同じことを2回言う**
+ * ことになるため。ブラウザのタブと同じで、タブが名前を持つならページ側は持たなくてよい。
+ *
+ * 操作（フィルター編集/削除/幅/ミュート表示）はタブの ⋯ が引き受ける。
+ */
+val LocalCompactChrome = staticCompositionLocalOf { false }
+
+/**
  * 全カラム共通のヘッダ（designs/index.html の .col-head）。
  * [menu] 非null（=デッキカラム）なら末尾は ⋯ メニューのみ。
  * null の場合は従来どおり onPin/onClose を個別表示（2ペイン詳細の ✕ 等）。
@@ -97,6 +107,9 @@ fun ColumnHeader(
     /** デッキカラムの ⋯ メニュー（移動 ◀▶ / フィルター編集 / 削除）。 */
     menu: ColumnMenuActions? = null,
 ) {
+    // [#324] シングルカラムではタブが名前を持つのでヘッダは描かない。ただし onBack がある
+    // 画面（設定配下など単体で開くもの）は戻る導線が消えると詰むため残す。
+    if (LocalCompactChrome.current && onBack == null) return
     Row(
         Modifier.fillMaxWidth().background(DeckColors.Surface)
             .padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
@@ -139,7 +152,8 @@ fun ColumnHeader(
 
 /** ⋯ ボタンとそのドロップダウン（移動 ｜◀｜▶｜ / フィルターを編集 / カラムを削除）。 */
 @Composable
-private fun ColumnMenuButton(menu: ColumnMenuActions) {
+// [#324] シングルカラム表示ではタブからも開くため internal。
+internal fun ColumnMenuButton(menu: ColumnMenuActions) {
     var open by remember { mutableStateOf(false) }
     Box {
         HeaderIconButton(Icons.Outlined.MoreHoriz, stringResource(Res.string.col_menu), DeckColors.Text3, onClick = { open = true })

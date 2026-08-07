@@ -104,6 +104,7 @@ import nostr_deck_client.composeapp.generated.resources.embed_section
 import nostr_deck_client.composeapp.generated.resources.embed_section_desc
 import nostr_deck_client.composeapp.generated.resources.embed_spotify
 import nostr_deck_client.composeapp.generated.resources.embed_video
+import nostr_deck_client.composeapp.generated.resources.embed_hide_carded_urls
 import nostr_deck_client.composeapp.generated.resources.embed_youtube
 import nostr_deck_client.composeapp.generated.resources.group_connection
 import nostr_deck_client.composeapp.generated.resources.group_customize
@@ -1393,6 +1394,12 @@ private fun AppearanceSettings() {
     SettingToggle(
         stringResource(Res.string.embed_ogp_images), prefs.ogpImages, enabled = prefs.ogp,
         onChange = { repo.setEmbedPrefs(prefs.copy(ogpImages = it)) },
+    )
+    // [#326] カードを出したリンクの URL 文字列を本文から畳むか。画像・動画は常に畳むので
+    // ここが効くのは OGP/YouTube/Spotify。URL そのものを読みたい向けに切れるようにしてある。
+    SettingToggle(
+        stringResource(Res.string.embed_hide_carded_urls), prefs.hideCardedUrls,
+        onChange = { repo.setEmbedPrefs(prefs.copy(hideCardedUrls = it)) },
     )
 }
 

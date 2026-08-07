@@ -35,6 +35,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.nostrdeck.model.NoteUi
+import app.nostrdeck.model.removeUrls
+import app.nostrdeck.model.videoUrlsIn
 import app.nostrdeck.theme.DeckColors
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckRadius
@@ -76,16 +78,13 @@ fun QuotedNoteCard(
         Spacer(Modifier.size(DeckSpace.Xs))
         // 本文と同様に nostr:nevent/npub・#タグを短縮装飾する。
         // [#254] さらにカード内では:
-        //  - 動画URL（mp4等）はテキストから除去してカルーセルに出す（imageUrlRegex 対象外のため残っていた）
+        //  - 動画URL（mp4等）はテキストから除去してカルーセルに出す
+        //    ([#326] 以降 note.text は既に剥がれているが、text が null で content へ落ちる経路のため残す)
         //  - 一般URL（x.com 等）はホスト+パスの短縮ラベルで表示（4行しかない本文を URL が占有しないように）
         val names = LocalProfileNames.current
         val rawBody = note.text ?: note.event.content
-        val videos = remember(rawBody) { videoUrlRegex.findAll(rawBody).map { it.value }.toList().distinct() }
-        val body = remember(rawBody) {
-            var t = rawBody
-            videos.forEach { t = t.replace(it, "") }
-            t.replace(Regex("""[ \t]{2,}"""), " ").replace(Regex("""\n{3,}"""), "\n\n").trim()
-        }
+        val videos = remember(rawBody) { videoUrlsIn(rawBody) }
+        val body = remember(rawBody) { removeUrls(rawBody, videos).orEmpty() }
         if (body.isNotBlank()) {
             val annotated = remember(body, names) { noteAnnotated(body, { names[it] }, shortenUrls = true) }
             Text(

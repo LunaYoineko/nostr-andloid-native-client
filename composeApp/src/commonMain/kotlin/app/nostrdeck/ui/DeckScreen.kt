@@ -13,6 +13,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -198,30 +204,40 @@ private fun CompactPager(state: DeckState) {
             Modifier.fillMaxWidth().padding(start = DeckSpace.Sm, end = DeckSpace.Sm, top = DeckSpace.Sm, bottom = DeckSpace.Sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+            // [#324] タブ列。LazyRow なので選択中のタブを可視域へ寄せられる（素の
+            // horizontalScroll では item 単位のスクロールAPIが無く、スワイプしても
+            // タブが画面外に居たままで「いまどこか」が分からなかった）。
+            val tabs = rememberLazyListState()
+            LaunchedEffect(pager.currentPage, state.columns.size) {
+                if (state.columns.isNotEmpty()) {
+                    // 前後が少し覗く位置へ寄せる（端に貼り付けるより現在地が分かりやすい）。
+                    tabs.animateScrollToItem(pager.currentPage, scrollOffset = -TAB_PEEK_PX)
+                }
+            }
+            LazyRow(
+                state = tabs,
+                modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                state.columns.forEachIndexed { i, c ->
-                    val active = pager.currentPage == i
-                    Text(
-                        c.title, fontSize = DeckType.Caption,
-                        fontWeight = if (active) DeckWeight.Strong else DeckWeight.Body,
-                        color = if (active) DeckColors.Accent else DeckColors.Text2,
-                        modifier = Modifier.clip(CircleShape)
-                            // タブをタップしてもそのカラムへ遷移できる（スワイプと併用）
-                            .clickable { scope.launch { pager.animateScrollToPage(i) } }
-                            .background(if (active) DeckColors.AccentWeak else DeckColors.Surface2)
-                            // [#nav] タブは片手操作の主導線なので、高さに余裕を持たせてタップしやすく。
-                            .padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
+                itemsIndexed(state.columns, key = { _, c -> c.id }) { i, c ->
+                    CompactTab(
+                        title = columnDisplayTitle(c.title),
+                        active = pager.currentPage == i,
+                        spec = c, state = state,
+                        onClick = { scope.launch { pager.animateScrollToPage(i) } },
                     )
                 }
                 // カラム追加
-                Text(
-                    "＋", color = DeckColors.Text2, fontSize = DeckType.Sub,
-                    modifier = Modifier.clip(CircleShape).clickable { state.showAddColumn = true }
-                        .background(DeckColors.Surface2).padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
-                )
+                item(key = "add_column") {
+                    Box(
+                        Modifier.height(DeckDimens.TouchTargetSm).clip(CircleShape)
+                            .clickable { state.showAddColumn = true }
+                            .background(DeckColors.Surface2)
+                            .padding(horizontal = DeckSpace.Md),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("＋", color = DeckColors.Text2, fontSize = DeckType.Sub) }
+                }
             }
             // [#nav] 検索は下部ナビへ移設（旧 #62 の上部バー検索アイコンは廃止）。
             // 上部バーはタブ一覧の視認性・到達性を優先する。
@@ -235,19 +251,68 @@ private fun CompactPager(state: DeckState) {
                 if (showRelays) RelayStatusDialog(conns, onDismiss = { showRelays = false })
             }
         }
-        HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
-            val spec = state.columns[page]
-            RenderColumn(spec, state, state.listStateFor(spec.id), Modifier.fillMaxSize())
+        // [#324] カラム内のヘッダはタブと重複するので畳む（操作はタブの ⋯ へ）。
+        CompositionLocalProvider(LocalCompactChrome provides true) {
+            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
+                val spec = state.columns[page]
+                RenderColumn(spec, state, state.listStateFor(spec.id), Modifier.fillMaxSize())
+            }
+        }
+    }
+}
+
+/** [#324] 選択タブを可視域へ寄せるときに前のタブを少し覗かせる量（px）。 */
+private const val TAB_PEEK_PX = 48
+
+/**
+ * [#324] シングルカラム表示の1タブ。
+ *
+ * **高さを [DeckDimens.TouchTargetSm] で固定する。** 以前は Text の上下 padding だけで
+ * 高さが決まっており、行高が glyph 依存なので **タブ名が半角小文字英数だけ（検索カラムの
+ * `nostrism` 等）になるとバーごと縮んで**いた（日本語は CJK のアセント/ディセントぶん行高が高い）。
+ *
+ * 選択中のタブだけ ⋯ を出す。ヘッダを畳んだぶんの操作（フィルター編集 / 削除 / 幅 / ミュート表示）は
+ * ここが受け持つ。非選択タブに出すと横に伸びて一覧性が落ちるので出さない。
+ */
+@Composable
+private fun CompactTab(
+    title: String,
+    active: Boolean,
+    spec: ColumnSpec,
+    state: DeckState,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.height(DeckDimens.TouchTargetSm)
+            .clip(CircleShape)
+            .background(if (active) DeckColors.AccentWeak else DeckColors.Surface2)
+            .clickable(onClick = onClick)
+            .padding(start = DeckSpace.Md, end = if (active) DeckSpace.Xs else DeckSpace.Md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title, fontSize = DeckType.Caption,
+            fontWeight = if (active) DeckWeight.Strong else DeckWeight.Body,
+            color = if (active) DeckColors.Accent else DeckColors.Text2,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        if (active) {
+            Spacer(Modifier.width(DeckSpace.Xs))
+            ColumnMenuButton(rememberColumnMenuActions(spec, state))
         }
     }
 }
 
 /** spec.renderer に応じてカラム実体を描き分けるディスパッチャ。 */
+/**
+ * [#324] カラムの ⋯ メニュー（移動 ◀▶ / フィルター編集 / 削除 / ミュート表示 / 幅）を組み立てる。
+ *
+ * デッキ表示ではカラムヘッダの ⋯ が、シングルカラム表示では**タブの ⋯** が使う。
+ * 両方から同じものを出すために切り出してある（別々に組むと片方だけ項目が増える事故になる）。
+ */
 @Composable
-private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyListState, modifier: Modifier) {
+fun rememberColumnMenuActions(spec: ColumnSpec, state: DeckState): ColumnMenuActions {
     val repoForMenu = LocalRepository.current
-    // ミュート判定と、このカラムの「ミュート表示」状態（目アイコン）。
-    val matcher = rememberMuteMatcher()
     val revealed = rememberColumnRevealMuted(spec.id)
     // ミュートを適用する描画種別（フィード/スレッド/通知）だけ目アイコンを出す。
     val filtersMuted = spec.renderer == ColumnRenderer.FEED || spec.renderer == ColumnRenderer.THREAD
@@ -255,10 +320,8 @@ private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyList
     val isFollowing = spec.kind == ColumnKind.FOLLOWING
     val hiddenCategories = if (isFollowing && repoForMenu != null)
         repoForMenu.columnHiddenCategoriesFlow().collectAsState().value[spec.id].orEmpty() else emptySet()
-
-    // デッキカラムの操作は ⋯ メニューに集約（移動 ◀▶ / フィルター編集 / 削除 / ミュート表示 / 自分への反応）。
     val index = state.columns.indexOfFirst { it.id == spec.id }
-    val menu = ColumnMenuActions(
+    return ColumnMenuActions(
         canMoveLeft = index > 0,
         canMoveRight = index >= 0 && index < state.columns.lastIndex,
         onMoveLeft = { state.moveColumn(spec.id, -1) },
@@ -273,6 +336,17 @@ private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyList
         columnWidth = if (repoForMenu != null) (repoForMenu.columnWidthsFlow().collectAsState().value[spec.id] ?: "M") else null,
         onSetWidth = if (repoForMenu != null) ({ s: String -> repoForMenu.setColumnWidth(spec.id, s) }) else null,
     )
+}
+
+@Composable
+private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyListState, modifier: Modifier) {
+    val repoForMenu = LocalRepository.current
+    val matcher = rememberMuteMatcher()
+    val revealed = rememberColumnRevealMuted(spec.id)
+    val isFollowing = spec.kind == ColumnKind.FOLLOWING
+    val hiddenCategories = if (isFollowing && repoForMenu != null)
+        repoForMenu.columnHiddenCategoriesFlow().collectAsState().value[spec.id].orEmpty() else emptySet()
+    val menu = rememberColumnMenuActions(spec, state)
 
     when (spec.renderer) {
         ColumnRenderer.FEED -> {
