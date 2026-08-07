@@ -29,6 +29,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,6 +76,10 @@ fun AppScaffold(state: DeckState) {
             .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
     ) {
         val isCompact = maxWidth.value < COMPACT_BREAKPOINT_DP
+        // [#332] スマホ表示（シングルカラム）だけど幅広 — Fold のカバー画面など。
+        // 縦の短い画面で下部ナビの72dpは高くつくので、ナビだけ Deck と同じ左レールにする。
+        // 本文・戻る処理・詳細オーバーレイは isCompact のまま（変わるのはナビの器だけ）。
+        val railCompact = isCompact && maxWidth.value >= RAIL_COMPACT_MIN_WIDTH_DP
 
         // Android 戻る: まず全幅詳細(プロフィール/スレッド)を閉じ、無ければ宛先ごとの処理。
         val backEnabled = state.hasDetail || when (state.navDest) {
@@ -94,7 +100,16 @@ fun AppScaffold(state: DeckState) {
             }
         }
 
-        if (isCompact) {
+        if (railCompact) {
+            // [#332] 左レール + シングルカラム。BottomBar が無いので、Expanded と同じく
+            // ここで下端インセットを確保する（インジケータ帯に潜らないように）。
+            Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom))) {
+                DeckRail(state)
+                CompositionLocalProvider(LocalHasNavRail provides true) {
+                    ContentWithCompose(state, isCompact = true, Modifier.weight(1f))
+                }
+            }
+        } else if (isCompact) {
             // Compact では内容の下に BottomBar が居るので、内容の下端は「画面下端」ではなく
             // 「BottomBar の上端」。子（チャット入力欄）の imePadding は画面下端基準の IME 全高を
             // 使うため、そのままだと BottomBar の高さぶん過剰に浮く。BottomBar の高さを bottom
@@ -150,6 +165,13 @@ fun AppScaffold(state: DeckState) {
 }
 
 private const val COMPACT_BREAKPOINT_DP = 600  // WindowSizeClass の Compact 上限相当
+
+// [#332] コンパクトのまま左レールに切り替える最小幅。一般的なスマホは 360〜412dp なので
+// それより上、コンパクト上限(600)より下に置く。Fold 8 カバー画面の実測で要調整（1箇所の定数）。
+private const val RAIL_COMPACT_MIN_WIDTH_DP = 440
+
+/** [#332] 左レールが出ているか。CompactPager が自前の接続ステータスを重複表示しないために見る。 */
+val LocalHasNavRail = staticCompositionLocalOf { false }
 
 /**
  * 宛先の内容 + 投稿 FAB を重ねる。FAB は内容領域の右下に置く（= Compact では
