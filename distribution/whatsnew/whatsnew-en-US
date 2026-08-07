@@ -1,4 +1,6 @@
-- Request deletion of your own posts, and of your own themes in the theme store
-- Requested deletions disappear from this device and no longer come back when refetched
-- Posts you deleted on another device or client are now reflected here
-Note: on Nostr, deletion is a request. Relays are not required to honor it, and clients that already have the post may keep showing it
+- Fixed portrait photos being posted sideways
+- Video and link URLs no longer clutter the post body (they fold into cards; can be turned off in settings)
+- Better tabs on phones: they follow as you swipe, and the tab "…" edits or removes the column
+- Reordering columns no longer switches which column you are looking at
+- New "Bold text" option in appearance settings
+- On wide phone screens (like Fold cover displays) navigation moves to a left rail, giving you more vertical space
