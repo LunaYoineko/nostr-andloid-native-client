@@ -209,7 +209,18 @@ private fun CompactPager(state: DeckState) {
             // タブが画面外に居たままで「いまどこか」が分からなかった）。
             val tabs = rememberLazyListState()
             LaunchedEffect(pager.currentPage, state.columns.size) {
-                if (state.columns.isNotEmpty()) {
+                if (state.columns.isEmpty()) return@LaunchedEffect
+                // [#334] **完全に見えているタブへは寄せない。** タップでページを変えた直後に
+                // タブ列が指の下で滑ると、続けてのタップが隣のタブに化ける（「Nostr Japan」を
+                // 押したはずが Notifications が開く、が実際に起きた）。タップできた＝そのタブは
+                // 見えているので、寄せる必要があるのはスワイプで画面外のカラムへ移った時と、
+                // 端で半分切れているタブを押した時だけ。
+                val info = tabs.layoutInfo
+                val item = info.visibleItemsInfo.firstOrNull { it.index == pager.currentPage }
+                val fullyVisible = item != null &&
+                    item.offset >= info.viewportStartOffset &&
+                    item.offset + item.size <= info.viewportEndOffset
+                if (!fullyVisible) {
                     // 前後が少し覗く位置へ寄せる（端に貼り付けるより現在地が分かりやすい）。
                     tabs.animateScrollToItem(pager.currentPage, scrollOffset = -TAB_PEEK_PX)
                 }
