@@ -1,6 +1,6 @@
 - Fixed portrait photos being posted sideways
-- Video and link URLs no longer clutter the post body (they fold into cards; can be turned off in settings)
-- Better tabs on phones: the tab "…" edits or removes the column, and tapping a tab no longer shifts the row under your finger
-- Reordering columns no longer switches which column you are looking at
+- Video and link URLs now fold into cards instead of cluttering the post body
+- Better tabs on phones: edit or remove columns from the tab menu, and tapping no longer shifts the row under your finger
+- Reordering columns keeps you on the column you were viewing
 - New "Bold text" option in appearance settings
-- On wide phone screens (like Fold cover displays) navigation moves to a left rail, giving you more vertical space
+- On wide screens (Fold cover displays) navigation moves to a left rail for more vertical space
