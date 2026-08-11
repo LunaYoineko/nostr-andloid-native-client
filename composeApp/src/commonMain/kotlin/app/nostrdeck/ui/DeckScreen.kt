@@ -146,17 +146,48 @@ private fun feedEntryNote(entry: FeedEntry?): NoteUi? = when (entry) {
 @Composable
 private fun ExpandedDeck(state: DeckState) {
     val scroll = rememberScrollState()
-    val colWidthPx = with(LocalDensity.current) { DeckDimens.ColumnWidth.toPx() }
     // [#10] カラム別の幅（S/M/L）。未設定は既定(M=ColumnWidth)。
     val repo = LocalRepository.current
     val widths by (repo?.columnWidthsFlow()?.collectAsState() ?: remember { mutableStateOf(emptyMap<String, String>()) })
+    val density = LocalDensity.current
+    // [#336] index までの実オフセット（S/M/L 実幅＋ガター）。以前は M 固定幅で概算しており、
+    // S/L が混ざるとジャンプ先がずれていた。
+    val gutterPx = with(density) { DeckSpace.Sm.toPx() }
+    fun offsetTo(idx: Int): Int {
+        var px = 0f
+        for (i in 0 until idx.coerceAtMost(state.columns.size)) {
+            px += with(density) { columnWidthDp(widths[state.columns[i].id]).toPx() } + gutterPx
+        }
+        return px.toInt()
+    }
 
     // レール/タブからのジャンプ要求を消費して横スクロール
     LaunchedEffect(state.jumpTarget) {
         val target = state.jumpTarget ?: return@LaunchedEffect
         val idx = state.columns.indexOfFirst { it.id == target }
-        if (idx >= 0) scroll.animateScrollTo((idx * colWidthPx).toInt())
+        if (idx >= 0) scroll.animateScrollTo(offsetTo(idx))
         state.consumeJump()
+    }
+
+    // [#336] 並べ替えたら横スクロールを同方向へ実幅ぶん追従させる。こうすると**操作中の
+    // カラムと開いている ⋯ メニューは画面上ほぼ同じ位置に留まり、隣がすれ違って通り過ぎる**
+    // 見た目になる。シングルカラム側の「表示中カラム固定・タブだけ入れ替わる」と同じ意味論。
+    // 以前は実体だけが約1枚ぶん横へ飛び、内側画面（2枚見え）では1〜2回の移動で
+    // 操作中のカラムごと画面外へ消えていた。
+    val order = state.columns.map { it.id }
+    var prevOrder by remember { mutableStateOf(order) }
+    LaunchedEffect(order) {
+        val prev = prevOrder
+        prevOrder = order
+        if (prev.size != order.size) return@LaunchedEffect   // 追加/削除は対象外
+        val moved = order.indices.firstOrNull { prev[it] != order[it] } ?: return@LaunchedEffect
+        // 入れ替わった2枚のうち、動かした側（prev で先に居た方）の移動量ぶんスクロールを送る。
+        val movedId = prev[moved]
+        val from = prev.indexOf(movedId)
+        val to = order.indexOf(movedId)
+        if (from < 0 || to < 0 || from == to) return@LaunchedEffect
+        val delta = offsetTo(to) - offsetTo(from)
+        scroll.scrollTo((scroll.value + delta).coerceAtLeast(0))
     }
 
     Row(Modifier.fillMaxSize().horizontalScroll(scroll)) {
@@ -265,7 +296,12 @@ private fun CompactPager(state: DeckState) {
         }
         // [#324] カラム内のヘッダはタブと重複するので畳む（操作はタブの ⋯ へ）。
         CompositionLocalProvider(LocalCompactChrome provides true) {
-            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
+            // [#336] key=カラムid。無いとページの中身が位置ベースで結び直され、並べ替えの
+            // たびに表示中カラムの購読が貼り直されて一瞬リロードに見える。
+            HorizontalPager(
+                state = pager, modifier = Modifier.fillMaxSize(),
+                key = { state.columns[it].id },
+            ) { page ->
                 val spec = state.columns[page]
                 RenderColumn(spec, state, state.listStateFor(spec.id), Modifier.fillMaxSize())
             }
