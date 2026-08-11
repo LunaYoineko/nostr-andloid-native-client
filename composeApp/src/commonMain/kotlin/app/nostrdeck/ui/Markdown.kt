@@ -316,7 +316,7 @@ private fun renderInline(
         val g = m.groupValues
         when {
             g[1].isNotEmpty() -> appendLink(g[1], g[2])  // [text](url)
-            g[3].isNotEmpty() -> { pushStyle(SpanStyle(fontWeight = FontWeight.Bold)); append(g[3]); pop() }
+            g[3].isNotEmpty() -> { pushStyle(SpanStyle(fontWeight = DeckWeight.Name)); append(g[3]); pop() }
             g[4].isNotEmpty() -> { pushStyle(SpanStyle(fontStyle = FontStyle.Italic)); append(g[4]); pop() }
             g[5].isNotEmpty() -> {
                 // `nostr:naddr…` のようにコードで包まれた参照は、生の bech32 を出さず

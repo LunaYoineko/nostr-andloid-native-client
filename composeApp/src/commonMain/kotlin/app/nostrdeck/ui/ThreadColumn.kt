@@ -50,6 +50,7 @@ import org.jetbrains.compose.resources.stringResource
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckRadius
 import app.nostrdeck.theme.DeckType
+import app.nostrdeck.theme.DeckWeight
 
 /**
  * THREAD レンダラー：NIP-10 返信ツリー。
@@ -257,11 +258,11 @@ private fun ZapRow(zap: ZapUi, onAuthorClick: ((String) -> Unit)?) {
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    zap.zapper.name, color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = FontWeight.Bold,
+                    zap.zapper.name, color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false).then(tap),
                 )
                 Spacer(Modifier.width(DeckSpace.Xs))
-                Text("${zap.sats} sats", color = DeckColors.Zap, fontSize = DeckType.Sub, fontWeight = FontWeight.Bold)
+                Text("${zap.sats} sats", color = DeckColors.Zap, fontSize = DeckType.Sub, fontWeight = DeckWeight.Name)
             }
             if (zap.comment.isNotBlank()) {
                 Spacer(Modifier.width(DeckSpace.Xs))

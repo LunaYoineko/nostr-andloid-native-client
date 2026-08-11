@@ -185,7 +185,7 @@ private fun DmList(
                             Modifier.clip(CircleShape).background(DeckColors.Accent)
                                 .padding(horizontal = DeckSpace.Xs, vertical = 1.dp),
                             contentAlignment = Alignment.Center,
-                        ) { Text("${c.unread}", color = DeckColors.Bg, fontSize = DeckType.Micro, fontWeight = FontWeight.Bold) }
+                        ) { Text("${c.unread}", color = DeckColors.Bg, fontSize = DeckType.Micro, fontWeight = DeckWeight.Name) }
                     }
                 }
             }

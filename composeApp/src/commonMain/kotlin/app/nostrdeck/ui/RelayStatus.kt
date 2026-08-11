@@ -101,7 +101,7 @@ fun RelayRailIndicator(conns: List<RelayConn>, vertical: Boolean = false, onClic
         ) {
             RelayStatusDot(aggregateState(conns), size = 8)
             Spacer(Modifier.width(DeckSpace.Xs))
-            Text(label, color = DeckColors.Text3, fontSize = DeckType.Label, fontWeight = FontWeight.Medium)
+            Text(label, color = DeckColors.Text3, fontSize = DeckType.Label, fontWeight = DeckWeight.Link)
         }
     }
 }
