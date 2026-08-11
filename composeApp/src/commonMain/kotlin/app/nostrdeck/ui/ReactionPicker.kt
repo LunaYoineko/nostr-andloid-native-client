@@ -48,6 +48,7 @@ import nostr_deck_client.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckRadius
+import app.nostrdeck.theme.scaledByText
 import app.nostrdeck.theme.DeckType
 import app.nostrdeck.theme.DeckWeight
 import kotlinx.coroutines.flow.flowOf
@@ -202,7 +203,8 @@ private fun EmojiFlow(content: @Composable () -> Unit) {
 @Composable
 private fun EmojiCell(onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
-        Modifier.size(40.dp).clip(RoundedCornerShape(DeckRadius.Sm))
+        // [#339] 文字サイズ設定に追従（老眼モードでセルとグリフが一緒に大きくなる）。
+        Modifier.size(40.dp.scaledByText()).clip(RoundedCornerShape(DeckRadius.Sm))
             .background(DeckColors.Surface2).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }

@@ -10,11 +10,25 @@ import app.nostrdeck.model.ThemeMode
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** Deck のレイアウト幾何 + コンポーネント寸法。tokens.css と 1対1（原則6.3）。 */
+/**
+ * [#339] 文字サイズ設定（fontScale）に追従する dp。老眼モードで文字だけ大きくしたとき、
+ * dp 固定のボタンやアイコンは据え置かれ、文字に対して相対的に小さく=押しにくくなる。
+ *
+ * 表示サイズ(uiScale)は density ごと拡大するので従来から全体に効いている。ここが受け持つのは
+ * 「文字サイズだけ上げた」ケース。伸びすぎないよう上限を掛ける（1.0〜1.3倍）。
+ */
+@Composable
+@ReadOnlyComposable
+fun Dp.scaledByText(): Dp = this * LocalDensity.current.fontScale.coerceIn(1f, 1.3f)
+
 object DeckDimens {
     val ColumnWidth = 340.dp   // 固定カラム幅。はみ出しは横スクロール
     val HingeGutter = 22.dp    // フォルダブルのヒンジ回避ガター
