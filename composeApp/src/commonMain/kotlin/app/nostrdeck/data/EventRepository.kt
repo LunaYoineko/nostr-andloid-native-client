@@ -1018,11 +1018,11 @@ class EventRepository(
                     else -> false
                 }
             }
-            // [#83] 「自分が◯◯にリアクション」は、対象がフォロー中の本文として既に TL に
-            // 流れている場合は混ぜない（コピー＋元投稿が2連続で並ぶ二重表示になるため）。
-            // フォロー外の投稿への♡だけを混ぜて「TL に無いものを掘り起こす」役割に絞る。
-            val noteIds = notes.map { it.event.id }.toSet()
-            val myRx = myReactions.filterNot { it is FeedEntry.MyReaction && it.target.event.id in noteIds }
+            // [#337] 以前は対象がフォロー中の本文として TL に流れている場合を除外していたが
+            // （#83 の二重表示回避）、「フォロー中TLでリアクションしても何も出ない」ため
+            // 自分の操作が確認できなかった。他者からのリアクション通知も同じく元投稿と
+            // 併存するので、そちらに合わせて**常に出す**。
+            val myRx = myReactions
             (notes.map { FeedEntry.Post(it) } + notices.map { FeedEntry.Notice(it) } + myRx)
                 .sortedByDescending { it.sortAt }
         }.flowOn(Dispatchers.Default)
