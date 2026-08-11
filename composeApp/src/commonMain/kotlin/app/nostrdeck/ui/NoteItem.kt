@@ -68,6 +68,7 @@ import nostr_deck_client.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.getString
 import app.nostrdeck.theme.DeckDimens
+import app.nostrdeck.theme.scaledByText
 import app.nostrdeck.theme.DeckRadius
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckType
@@ -563,8 +564,8 @@ private fun ZapAction(sats: Long, tint: Color, onClick: (() -> Unit)?) {
             .padding(horizontal = if (sats > 0) DeckSpace.Xs else 0.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(DeckDimens.TouchTargetSm), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.Bolt, contentDescription = "Zap", tint = tint, modifier = Modifier.size(DeckDimens.IconMd))
+        Box(Modifier.size(DeckDimens.TouchTargetSm.scaledByText()), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Bolt, contentDescription = "Zap", tint = tint, modifier = Modifier.size(DeckDimens.IconMd.scaledByText()))
         }
         if (sats > 0) {
             Text(
@@ -586,11 +587,12 @@ private fun formatSats(sats: Long): String = when {
 @Composable
 private fun ActionButton(icon: ImageVector, tint: Color, onClick: (() -> Unit)? = null) {
     Box(
-        Modifier.size(DeckDimens.TouchTargetSm)
+        // [#339] 文字サイズ設定に追従。文字だけ大きくしたときにボタンが取り残されない。
+        Modifier.size(DeckDimens.TouchTargetSm.scaledByText())
             .let { if (onClick != null) it.clip(CircleShape).clickable(onClick = onClick) else it },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(DeckDimens.IconMd))
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(DeckDimens.IconMd.scaledByText()))
     }
 }
 
