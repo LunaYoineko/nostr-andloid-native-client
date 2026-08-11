@@ -91,6 +91,7 @@ fun QuotedNoteCard(
                 annotated,
                 color = DeckColors.Text2,
                 fontSize = DeckType.Caption,
+                fontWeight = DeckWeight.Body,   // [#338] 太字設定を引用カード本文にも通す
                 lineHeight = 18.sp,
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis,

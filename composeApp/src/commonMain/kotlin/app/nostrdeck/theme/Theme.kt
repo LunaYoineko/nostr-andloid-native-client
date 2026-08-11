@@ -86,12 +86,15 @@ object DeckWeight {
     /** App が設定 Flow から呼ぶ。値が変わる時のみ代入（DeckColors.apply と同じ作法）。 */
     fun apply(enabled: Boolean) { if (bold.value != enabled) bold.value = enabled }
 
-    // 太字ON は各役割を1段だけ上げる。**本文を Bold にしない**のが肝で、日本語は画数の
-    // 多い漢字が潰れて逆に読みにくくなる（iOS の「文字を太くする」も本文は Semibold 止まり）。
+    // 太字ON は各役割を1段上げる。ただし **CJK は実質 400/700 の2段しか無い**
+    // （Android の日本語グリフは NotoSansCJK フォールバックで、非可変環境では中間ウェイトを
+    // 持たない）。[#338] 当初 Body を Medium(500) にしたが、500 は近い方の 400 に丸められ
+    // **日本語本文は1pxも変わらなかった**。英数(Roboto)は500を持つため英文だけ効いて見え、
+    // 実機で「太くならない」と報告された。SemiBold(600) なら 700 側へ丸められて確実に効く。
     val Name:   FontWeight get() = if (bold.value) FontWeight.Black    else FontWeight.Bold      // 人物名/エンティティ名
     val Strong: FontWeight get() = if (bold.value) FontWeight.Bold     else FontWeight.SemiBold  // 見出し・アクティブタブ
-    val Link:   FontWeight get() = if (bold.value) FontWeight.SemiBold else FontWeight.Medium    // リンク/アクティブ要素
-    val Body:   FontWeight get() = if (bold.value) FontWeight.Medium   else FontWeight.Normal    // 本文・メタ
+    val Link:   FontWeight get() = if (bold.value) FontWeight.Bold     else FontWeight.Medium    // リンク/アクティブ要素
+    val Body:   FontWeight get() = if (bold.value) FontWeight.SemiBold else FontWeight.Normal    // 本文・メタ
 }
 
 /** 角丸トークン。tokens.css --r-*（8/12/18/full）と 1対1。実装はこれへ完全スナップ。 */

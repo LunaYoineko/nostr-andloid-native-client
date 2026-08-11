@@ -305,6 +305,7 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
                     // 本体がまだ解決できていない場合の保険（本文だけ出す）。
                     Text(
                         noteAnnotated(n.text.orEmpty()), color = DeckColors.Text2, fontSize = DeckType.Caption,
+                        fontWeight = DeckWeight.Body,   // [#338]
                         maxLines = 3, overflow = TextOverflow.Ellipsis,
                     )
                 }
