@@ -1,6 +1,5 @@
-- Fixed portrait photos being posted sideways
-- Video and link URLs now fold into cards instead of cluttering the post body
-- Better tabs on phones: edit or remove columns from the tab menu, and tapping no longer shifts the row under your finger
-- Reordering columns keeps you on the column you were viewing
-- New "Bold text" option in appearance settings
-- On wide screens (Fold cover displays) navigation moves to a left rail for more vertical space
+- Fixed "Bold text" not working for Japanese text
+- Reordering columns no longer pushes the column you are working with off screen
+- Reaction buttons and the emoji picker now scale with your font size setting
+- Your own reactions now show up in the Following timeline too
+- Your reactions are laid out the same way as reactions from others
