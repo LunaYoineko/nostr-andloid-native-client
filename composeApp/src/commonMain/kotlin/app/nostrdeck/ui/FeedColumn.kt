@@ -50,6 +50,7 @@ import app.nostrdeck.theme.DeckColors
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.theme.DeckDimens
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckType
 
@@ -266,15 +267,21 @@ private fun MyReactionRow(
     onQuote: () -> Unit,
     onAuthorClick: (String) -> Unit,
 ) {
-    Column(
-        Modifier.fillMaxWidth().clickable(onClick = onNoteClick)
-            .padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
+    // [#337] 他者からのリアクション行(NoticeRow)と同じ骨格にする。左端は通常投稿のアバターと
+    // 同じ AvatarSize 幅のマーク列で、そこにリアクション絵文字を置く。こうすると本体の
+    // 開始位置がタイムラインの本文と揃い、他者のリアクションと自分のリアクションが
+    // 同じリズムで縦に並ぶ（以前は独自レイアウトで左端が揃っていなかった）。
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onNoteClick).padding(DeckSpace.Md),
+        verticalAlignment = Alignment.Top,
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.width(DeckDimens.AvatarSize).padding(top = DeckSpace.Xs),
+            contentAlignment = Alignment.TopCenter,
+        ) {
             val r = entry.reaction
             val img = r.imageUrl
             if (img != null) {
-                // [#59] リアクション絵文字を主役として拡大（通知行の LeftIndicator と統一）。
                 AsyncImage(
                     model = ImageRequest.Builder(LocalPlatformContext.current)
                         .data(ImageProxy.proxied(img, width = 64, quality = 80, animated = true)).build(),
@@ -284,23 +291,25 @@ private fun MyReactionRow(
             } else {
                 Text(r.display, fontSize = DeckType.EmojiLg)
             }
-            Spacer(Modifier.width(DeckSpace.Xs))
-            HintText(stringResource(Res.string.feed_you_reacted))
         }
-        Spacer(Modifier.size(DeckSpace.Xs))
-        // 対象の1行プレビュー（アバター + 名前 + 本文…）。
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(
-                seed = entry.target.event.pubkey, pictureUrl = entry.target.author.pictureUrl,
-                size = 16.dp,
-                modifier = Modifier.clickable { onAuthorClick(entry.target.event.pubkey) },
-            )
-            Spacer(Modifier.width(DeckSpace.Xs))
-            Text(
-                "${entry.target.author.name}: ${oneLine(entry.target.text?.takeIf { it.isNotBlank() } ?: entry.target.event.content)}",
-                color = DeckColors.Text3, fontSize = DeckType.Label,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
+        Spacer(Modifier.width(DeckSpace.Sm))
+        Column(Modifier.weight(1f)) {
+            HintText(stringResource(Res.string.feed_you_reacted))
+            Spacer(Modifier.size(DeckSpace.Xs))
+            // 対象の1行プレビュー（アバター + 名前 + 本文…）。
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Avatar(
+                    seed = entry.target.event.pubkey, pictureUrl = entry.target.author.pictureUrl,
+                    size = 16.dp,
+                    modifier = Modifier.clickable { onAuthorClick(entry.target.event.pubkey) },
+                )
+                Spacer(Modifier.width(DeckSpace.Xs))
+                Text(
+                    "${entry.target.author.name}: ${oneLine(entry.target.text?.takeIf { it.isNotBlank() } ?: entry.target.event.content)}",
+                    color = DeckColors.Text3, fontSize = DeckType.Label,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
