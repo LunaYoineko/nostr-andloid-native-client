@@ -173,7 +173,7 @@ private fun ChannelRow(
             Box(
                 Modifier.clip(CircleShape).background(DeckColors.Accent).padding(horizontal = DeckSpace.Xs, vertical = 1.dp),
                 contentAlignment = Alignment.Center,
-            ) { Text("${ch.unread}", color = DeckColors.Bg, fontSize = DeckType.Micro, fontWeight = FontWeight.Bold) }
+            ) { Text("${ch.unread}", color = DeckColors.Bg, fontSize = DeckType.Micro, fontWeight = DeckWeight.Name) }
         }
         // [#291] 自分が作成したスレッドは ✏️ で編集（kind:41）。
         if (onEdit != null) {

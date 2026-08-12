@@ -143,7 +143,7 @@ private fun ArticleCardBody(event: NostrEvent, boxModifier: Modifier) {
                 title,
                 color = DeckColors.Text,
                 fontSize = DeckType.Body,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = DeckWeight.Strong,
                 lineHeight = 20.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

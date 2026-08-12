@@ -173,7 +173,7 @@ private fun ShortcutRow(keys: String, desc: String) {
             keys,
             color = DeckColors.Text,
             fontSize = DeckType.Caption,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = DeckWeight.Strong,
             modifier = Modifier.widthIn(min = 92.dp)
                 .clip(RoundedCornerShape(DeckRadius.Sm)).background(DeckColors.Surface2)
                 .padding(horizontal = DeckSpace.Sm, vertical = 2.dp),

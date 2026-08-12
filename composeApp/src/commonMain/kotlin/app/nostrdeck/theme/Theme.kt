@@ -180,8 +180,15 @@ fun DeckTheme(
     MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme) {
         // 各 Text() は fontSize/color を LocalTextStyle にマージして描くため、ここで
         // lineHeightStyle を既定に載せておけば全呼び出し箇所へ波及する（呼び出し側改修不要）。
+        // [#344] 太字モードは **既定の fontWeight** としてここから流す。アプリ内の Text( の
+        // 78%（349件中272件）は fontWeight を書いておらず、その全てが素通りで Normal のまま
+        // だった。呼び出し側に書き足す方式では 272 箇所の改修と将来の書き忘れが避けられない。
+        // LocalTextStyle に載せれば、明示指定のある箇所はそちらが勝ち、未指定は全部追従する。
         CompositionLocalProvider(
-            LocalTextStyle provides LocalTextStyle.current.copy(lineHeightStyle = CenteredLineHeight),
+            LocalTextStyle provides LocalTextStyle.current.copy(
+                lineHeightStyle = CenteredLineHeight,
+                fontWeight = DeckWeight.Body,
+            ),
         ) {
             content()
         }
