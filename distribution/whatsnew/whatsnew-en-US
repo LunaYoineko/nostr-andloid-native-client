@@ -1,5 +1,2 @@
-- Fixed "Bold text" not working for Japanese text
-- Reordering columns no longer pushes the column you are working with off screen
-- Reaction buttons and the emoji picker now scale with your font size setting
-- Your own reactions now show up in the Following timeline too
-- Your reactions are laid out the same way as reactions from others
+- "Bold text" now applies across the whole app, including screens that previously stayed unchanged such as Settings and Profile
+- Fixed inconsistent text weights on a few screens
