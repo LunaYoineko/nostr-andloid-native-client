@@ -200,8 +200,11 @@ private fun ExpandedDeck(state: DeckState) {
         // その不足分だけ錨も画面上を滑ることになる。
         val want = oldScroll + (newX.getValue(id) - oldX.getValue(id))
         val target = want.coerceIn(0, scroll.maxValue)
-        // dispatchRawDelta は「指でその分ドラッグした」扱い＝値は逆方向に動くので符号を反転。
-        scroll.dispatchRawDelta((oldScroll - target).toFloat())
+        // ScrollState.dispatchRawDelta は value に**そのまま加算**される（正=前進）。
+        // ドラッグ方向の反転は scrollable モディファイア側の仕事で、ここでは起きない。
+        // ※当初「ドラッグ扱いだから逆」と誤解して符号を反転させており、可動域が中間にあると
+        //   補正が逆へ飛んで変位が倍加していた（3カラム環境では clamp に化けて検証をすり抜けた）。
+        scroll.dispatchRawDelta((target - oldScroll).toFloat())
         // FLIP: 画面上の移動量 = (新x - 新scroll) - (旧x - 旧scroll)。旧位置から新位置へ滑らせる。
         for ((cid, nx) in newX) {
             val dScreen = (nx - target) - (oldX.getValue(cid) - oldScroll)
