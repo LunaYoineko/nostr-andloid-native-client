@@ -1,5 +1,13 @@
 package app.nostrdeck.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusRequester
@@ -169,34 +177,58 @@ private fun ExpandedDeck(state: DeckState) {
         state.consumeJump()
     }
 
-    // [#336] 並べ替えたら横スクロールを同方向へ実幅ぶん追従させる。こうすると**操作中の
-    // カラムと開いている ⋯ メニューは画面上ほぼ同じ位置に留まり、隣がすれ違って通り過ぎる**
-    // 見た目になる。シングルカラム側の「表示中カラム固定・タブだけ入れ替わる」と同じ意味論。
-    // 以前は実体だけが約1枚ぶん横へ飛び、内側画面（2枚見え）では1〜2回の移動で
-    // 操作中のカラムごと画面外へ消えていた。
-    val order = state.columns.map { it.id }
-    var prevOrder by remember { mutableStateOf(order) }
-    LaunchedEffect(order) {
-        val prev = prevOrder
-        prevOrder = order
-        if (prev.size != order.size) return@LaunchedEffect   // 追加/削除は対象外
-        val moved = order.indices.firstOrNull { prev[it] != order[it] } ?: return@LaunchedEffect
-        // 入れ替わった2枚のうち、動かした側（prev で先に居た方）の移動量ぶんスクロールを送る。
-        val movedId = prev[moved]
-        val from = prev.indexOf(movedId)
-        val to = order.indexOf(movedId)
-        if (from < 0 || to < 0 || from == to) return@LaunchedEffect
-        val delta = offsetTo(to) - offsetTo(from)
-        scroll.scrollTo((scroll.value + delta).coerceAtLeast(0))
+    // [#336][#346] 並べ替え。「操作中のカラムが常にスクロールの錨。動くものは必ず滑って動く」。
+    //
+    //  - 変異とスクロール補正を**同じフレーム**で行う（以前は LaunchedEffect でフレーム後に
+    //    補正していたため、新しい並び×古いスクロールで1フレーム描かれてガタついた）
+    //  - 各カラムの「画面上の移動量」を FLIP で滑らせる。錨（操作中のカラム）は移動量0で
+    //    不動、入れ替わる相手が滑って通り過ぎる。スクロールが端で clamp されて錨を固定
+    //    しきれないときも、錨は**最小限の量だけ滑る**。テレポートは一切起きないので、
+    //    端でも法則が変わらない
+    val flip = remember { mutableStateMapOf<String, Animatable<Float, AnimationVector1D>>() }
+    val scope = rememberCoroutineScope()
+    val reorder: (String, Int) -> Unit = fn@{ id, delta ->
+        val from = state.columns.indexOfFirst { it.id == id }
+        val to = from + delta
+        if (from < 0 || to !in state.columns.indices) return@fn
+        // 旧: 各カラムの左端（コンテンツ座標）とスクロール値
+        val oldX = state.columns.mapIndexed { i, c -> c.id to offsetTo(i) }.toMap()
+        val oldScroll = scroll.value
+        state.moveColumn(id, delta)
+        val newX = state.columns.mapIndexed { i, c -> c.id to offsetTo(i) }.toMap()
+        // 錨（操作中のカラム）を画面上で不動に保つスクロール値。端では clamp され、
+        // その不足分だけ錨も画面上を滑ることになる。
+        val want = oldScroll + (newX.getValue(id) - oldX.getValue(id))
+        val target = want.coerceIn(0, scroll.maxValue)
+        // ScrollState.dispatchRawDelta は value に**そのまま加算**される（正=前進）。
+        // ドラッグ方向の反転は scrollable モディファイア側の仕事で、ここでは起きない。
+        // ※当初「ドラッグ扱いだから逆」と誤解して符号を反転させており、可動域が中間にあると
+        //   補正が逆へ飛んで変位が倍加していた（3カラム環境では clamp に化けて検証をすり抜けた）。
+        scroll.dispatchRawDelta((target - oldScroll).toFloat())
+        // FLIP: 画面上の移動量 = (新x - 新scroll) - (旧x - 旧scroll)。旧位置から新位置へ滑らせる。
+        for ((cid, nx) in newX) {
+            val dScreen = (nx - target) - (oldX.getValue(cid) - oldScroll)
+            if (dScreen != 0) {
+                val anim = flip.getOrPut(cid) { Animatable(0f) }
+                scope.launch {
+                    anim.snapTo(anim.value - dScreen)
+                    anim.animateTo(0f, tween(durationMillis = 280))
+                }
+            }
+        }
     }
 
+    CompositionLocalProvider(LocalColumnReorder provides reorder) {
     Row(Modifier.fillMaxSize().horizontalScroll(scroll)) {
         state.columns.forEach { spec ->
             // key で id に紐付け：◀▶ 移動時に remember 状態（メニュー開閉等）が隣へ移らないように。
             key(spec.id) {
                 RenderColumn(
                     spec, state, state.listStateFor(spec.id),
-                    Modifier.width(columnWidthDp(widths[spec.id])).fillMaxHeight(),
+                    Modifier
+                        // [#346] FLIP オフセット（並べ替え中だけ非0）。
+                        .offset { IntOffset(flip[spec.id]?.value?.roundToInt() ?: 0, 0) }
+                        .width(columnWidthDp(widths[spec.id])).fillMaxHeight(),
                 )
                 // カラム境界は「線」ではなく Bg の隙間(ガター)で。暗い背景で明るいカラムを分離。
                 Box(Modifier.fillMaxHeight().width(DeckSpace.Sm).background(DeckColors.Bg))
@@ -214,6 +246,7 @@ private fun ExpandedDeck(state: DeckState) {
             ) { Text("＋", color = DeckColors.Text3, fontSize = DeckType.Display) }
         }
     }
+    }
 }
 
 @Composable
@@ -228,6 +261,16 @@ private fun CompactPager(state: DeckState) {
         state.consumeJump()
     }
 
+    // [#346] 並べ替えの実行係。変異と同フレームで Pager に追従を要求し、
+    // 「新しい並びの同 index（＝隣カラム）」が1フレーム映る点滅をなくす。
+    val reorderCompact: (String, Int) -> Unit = fn@{ id, delta ->
+        val from = state.columns.indexOfFirst { it.id == id }
+        val to = from + delta
+        if (from < 0 || to !in state.columns.indices) return@fn
+        state.moveColumn(id, delta)
+        if (from == pager.currentPage) pager.requestScrollToPage(to)
+    }
+    CompositionLocalProvider(LocalColumnReorder provides reorderCompact) {
     Column(Modifier.fillMaxSize()) {
         // 上部バー: カラムタブ（横スクロール）＋ 右端にリレー接続ステータス（折り畳み時はレールが
         // 出ないため、ここに常設して一目で状態が分かるようにする）。
@@ -268,6 +311,8 @@ private fun CompactPager(state: DeckState) {
                         active = pager.currentPage == i,
                         spec = c, state = state,
                         onClick = { scope.launch { pager.animateScrollToPage(i) } },
+                        // [#346] 並べ替え時にタブが旧位置から新位置へ滑る（瞬間置換をやめる）。
+                        modifier = Modifier.animateItem(),
                     )
                 }
                 // カラム追加
@@ -307,6 +352,7 @@ private fun CompactPager(state: DeckState) {
             }
         }
     }
+    }
 }
 
 /** [#324] 選択タブを可視域へ寄せるときに前のタブを少し覗かせる量（px）。 */
@@ -329,9 +375,10 @@ private fun CompactTab(
     spec: ColumnSpec,
     state: DeckState,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        Modifier.height(DeckDimens.TouchTargetSm)
+        modifier.height(DeckDimens.TouchTargetSm)
             .clip(CircleShape)
             .background(if (active) DeckColors.AccentWeak else DeckColors.Surface2)
             .clickable(onClick = onClick)
@@ -351,6 +398,13 @@ private fun CompactTab(
     }
 }
 
+/**
+ * [#346] 並べ替えの実行係。⋯ メニューの ◀▶ はこれを呼ぶ。
+ * モードごとに「変異＋スクロール補正＋アニメ」を**同一フレーム**でやる必要があるため、
+ * 素の state.moveColumn ではなくこちらを経由する（null なら素の moveColumn に落ちる）。
+ */
+val LocalColumnReorder = staticCompositionLocalOf<((String, Int) -> Unit)?> { null }
+
 /** spec.renderer に応じてカラム実体を描き分けるディスパッチャ。 */
 /**
  * [#324] カラムの ⋯ メニュー（移動 ◀▶ / フィルター編集 / 削除 / ミュート表示 / 幅）を組み立てる。
@@ -369,11 +423,13 @@ fun rememberColumnMenuActions(spec: ColumnSpec, state: DeckState): ColumnMenuAct
     val hiddenCategories = if (isFollowing && repoForMenu != null)
         repoForMenu.columnHiddenCategoriesFlow().collectAsState().value[spec.id].orEmpty() else emptySet()
     val index = state.columns.indexOfFirst { it.id == spec.id }
+    // [#346] 並べ替えはモード側の実行係（同一フレームでスクロール補正＋FLIPアニメ）を優先。
+    val reorder = LocalColumnReorder.current
     return ColumnMenuActions(
         canMoveLeft = index > 0,
         canMoveRight = index >= 0 && index < state.columns.lastIndex,
-        onMoveLeft = { state.moveColumn(spec.id, -1) },
-        onMoveRight = { state.moveColumn(spec.id, +1) },
+        onMoveLeft = { reorder?.invoke(spec.id, -1) ?: state.moveColumn(spec.id, -1) },
+        onMoveRight = { reorder?.invoke(spec.id, +1) ?: state.moveColumn(spec.id, +1) },
         onEdit = if (spec.editTemplate() != null) ({ state.editingColumnId = spec.id }) else null,
         onDelete = { state.removeColumn(spec.id) },
         mutedRevealed = if (filtersMuted && repoForMenu != null) revealed else null,
