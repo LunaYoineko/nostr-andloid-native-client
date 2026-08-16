@@ -564,7 +564,7 @@ private fun ZapAction(sats: Long, tint: Color, onClick: (() -> Unit)?) {
             .padding(horizontal = if (sats > 0) DeckSpace.Xs else 0.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(DeckDimens.TouchTargetSm.scaledByText()), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(DeckDimens.TouchTargetSm), contentAlignment = Alignment.Center) {   // [#348] 領域は40dpのまま
             Icon(Icons.Outlined.Bolt, contentDescription = "Zap", tint = tint, modifier = Modifier.size(DeckDimens.IconMd.scaledByText()))
         }
         if (sats > 0) {
@@ -587,12 +587,14 @@ private fun formatSats(sats: Long): String = when {
 @Composable
 private fun ActionButton(icon: ImageVector, tint: Color, onClick: (() -> Unit)? = null) {
     Box(
-        // [#339] 文字サイズ設定に追従。文字だけ大きくしたときにボタンが取り残されない。
-        Modifier.size(DeckDimens.TouchTargetSm.scaledByText())
+        // [#339][#348] グリフだけ文字サイズに追従させ、タッチ領域は 40dp のまま。
+        // 領域ごと拡大するとアクション行(元々264/270dpで満杯 #312)が fontScale 1.3 で
+        // 344dp まで膨らみ、Zap のある投稿で末尾の ⋯ が押し出されて押せなくなる。
+        Modifier.size(DeckDimens.TouchTargetSm)
             .let { if (onClick != null) it.clip(CircleShape).clickable(onClick = onClick) else it },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(DeckDimens.IconMd.scaledByText()))
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(DeckDimens.IconMd.scaledByText()))   // グリフのみ拡大(最大23.4dp<40dp)
     }
 }
 
