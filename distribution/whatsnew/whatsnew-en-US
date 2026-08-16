@@ -1,3 +1,4 @@
-- "Bold text" now applies across the whole app, including screens that previously stayed unchanged such as Settings and Profile
-- Reordering columns is now smooth: the neighbor slides past while the column you are moving stays put on screen, even with columns off-screen
+- "Bold text" now applies across the whole app, including Settings and Profile
+- Reordering columns is now smooth: the neighbor slides past while the column you are moving stays put
+- Fixed the post menu button being pushed off screen at larger font sizes
 - Fixed inconsistent text weights on a few screens
