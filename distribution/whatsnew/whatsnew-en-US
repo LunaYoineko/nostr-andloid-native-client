@@ -1,4 +1,2 @@
-- "Bold text" now applies across the whole app, including Settings and Profile
-- Reordering columns is now smooth: the neighbor slides past while the column you are moving stays put
-- Fixed the post menu button being pushed off screen at larger font sizes
-- Fixed inconsistent text weights on a few screens
+- Mentions (npub/nprofile) now notify the people you mention — in posts, replies, quotes, threads and chat. Bots can respond to your mentions again
+- New "Developer mode" under Settings > System > Data: view and copy the raw JSON of any event from the post/chat menus, and follow referenced events
