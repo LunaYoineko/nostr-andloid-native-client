@@ -641,4 +641,13 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="bold_text_toggle">Use bolder text</string>
     <!-- [#326] カード化したリンクのURLを本文から畳む -->
     <string name="embed_hide_carded_urls">Hide the URL text when a card is shown</string>
+    <!-- [#351] 開発者モード / イベントJSONビューア -->
+    <string name="dev_mode_title">Developer mode</string>
+    <string name="dev_mode_desc">Adds "View event JSON" to the post and chat menus, so you can inspect the raw event of anything on your timeline.</string>
+    <string name="dev_mode_toggle">Enable developer mode</string>
+    <string name="note_view_json">View event JSON</string>
+    <string name="json_dialog_title">Event JSON</string>
+    <string name="json_loading">Fetching event…</string>
+    <string name="json_refs">Referenced events</string>
+    <string name="json_copied_toast">JSON copied</string>
 </resources>

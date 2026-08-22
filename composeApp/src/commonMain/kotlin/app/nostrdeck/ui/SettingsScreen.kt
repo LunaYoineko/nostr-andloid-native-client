@@ -1469,6 +1469,21 @@ private fun DataSettings() {
         Text(stringResource(Res.string.data_purge_done), color = DeckColors.Accent, fontSize = DeckType.Caption)
     }
 
+    // [#351] 開発者モード。投稿/チャットの ⋯ メニューに「イベントJSONを表示」を追加する。
+    if (repo != null) {
+        Spacer(Modifier.size(DeckSpace.Lg))
+        HorizontalDivider(color = DeckColors.Border)
+        Spacer(Modifier.size(DeckSpace.Lg))
+        val devMode by repo.developerModeFlow().collectAsState()
+        Text(stringResource(Res.string.dev_mode_title), color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Strong)
+        Spacer(Modifier.size(DeckSpace.Xs))
+        Text(
+            stringResource(Res.string.dev_mode_desc),
+            color = DeckColors.Text2, fontSize = DeckType.Caption, lineHeight = 17.sp,
+        )
+        SettingToggle(stringResource(Res.string.dev_mode_toggle), devMode) { repo.setDeveloperMode(it) }
+    }
+
     if (confirm) {
         DeckConfirmDialog(
             title = stringResource(Res.string.data_purge_title),
