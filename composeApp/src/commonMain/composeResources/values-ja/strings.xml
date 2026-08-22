@@ -637,4 +637,13 @@
     <string name="bold_text_toggle">太い文字を使う</string>
     <!-- [#326] カード化したリンクのURLを本文から畳む -->
     <string name="embed_hide_carded_urls">カードを出したリンクのURLを本文から隠す</string>
+    <!-- [#351] 開発者モード / イベントJSONビューア -->
+    <string name="dev_mode_title">開発者モード</string>
+    <string name="dev_mode_desc">投稿やチャットの「⋯」メニューに「イベントJSONを表示」が追加され、タイムラインに流れてくるイベントの生データを確認できます。</string>
+    <string name="dev_mode_toggle">開発者モードを有効にする</string>
+    <string name="note_view_json">イベントJSONを表示</string>
+    <string name="json_dialog_title">イベントJSON</string>
+    <string name="json_loading">イベントを取得中…</string>
+    <string name="json_refs">参照先イベント</string>
+    <string name="json_copied_toast">JSONをコピーしました</string>
 </resources>

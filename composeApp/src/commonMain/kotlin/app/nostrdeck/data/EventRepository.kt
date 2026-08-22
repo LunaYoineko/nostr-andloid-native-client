@@ -284,6 +284,7 @@ class EventRepository(
         // 表示サイズ（標準/大きめ/最大）を KV から復元。
         loadUiScale()
         loadBoldText()   // [#327]
+        loadDeveloperMode()   // [#351]
         loadNoteAccentStyle()
         loadCustomTheme()
         loadImageCompression()
@@ -3729,6 +3730,18 @@ class EventRepository(
         boldTextState.value = q.getSetting(BOLD_TEXT_KEY).executeAsOneOrNull() == "1"
     }
 
+    // ---- [#351] 開発者モード（既定OFF）----
+    // ON にすると投稿/チャットの ⋯ メニューに「イベントJSONを表示」が出る。
+    private val developerModeState = MutableStateFlow(false)
+    fun developerModeFlow(): StateFlow<Boolean> = developerModeState
+    fun setDeveloperMode(enabled: Boolean) {
+        developerModeState.value = enabled
+        putSettingAsync(DEVELOPER_MODE_KEY, if (enabled) "1" else "0")
+    }
+    private fun loadDeveloperMode() {
+        developerModeState.value = q.getSetting(DEVELOPER_MODE_KEY).executeAsOneOrNull() == "1"
+    }
+
     private fun loadUiScale() {
         uiScaleState.value = UiScale.fromId(q.getSetting(UI_SCALE_KEY).executeAsOneOrNull())
     }
@@ -4399,6 +4412,7 @@ class EventRepository(
         const val TEXT_SCALE_KEY = "ui:text_scale"   // [#appearance] 文字サイズ（s/m/l）
         const val UI_SCALE_KEY = "ui:ui_scale"
         const val BOLD_TEXT_KEY = "appearance_bold_text"   // [#327]       // [#appearance] 表示サイズ（s/m/l）
+        const val DEVELOPER_MODE_KEY = "developer_mode"   // [#351]
         const val NOTE_ACCENT_STYLE_KEY = "ui:note_accent"  // [#256][#257] 種別の視覚表示（none/line/bg）
         const val THEME_CUSTOM_BG = "ui:theme_custom_bg"         // [#258] カスタムテーマ 背景色
         const val THEME_CUSTOM_TEXT = "ui:theme_custom_text"     // [#258] カスタムテーマ 文字色

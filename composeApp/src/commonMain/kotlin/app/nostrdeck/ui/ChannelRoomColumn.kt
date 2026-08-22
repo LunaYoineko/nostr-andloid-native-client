@@ -50,6 +50,7 @@ import androidx.compose.material.icons.automirrored.outlined.Reply
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.AddReaction
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Mood
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -434,8 +435,13 @@ private fun Bubble(
     }
     val textColor = if (mineRight) DeckColors.Bg else DeckColors.Text
     val linkColor = if (mineRight) DeckColors.Bg else DeckColors.Accent
-    val hasActions = onReply != null || onReact != null
+    // [#351] 開発者モード ON なら、リアクション/リプライが無い発言でも JSON の導線を出す。
+    val repo = LocalRepository.current
+    val devMode by (repo?.developerModeFlow()?.collectAsState()
+        ?: remember { mutableStateOf(false) })
+    val hasActions = onReply != null || onReact != null || devMode
     var menu by remember { mutableStateOf(false) }
+    var showJson by remember { mutableStateOf(false) }
     // タイムライン(NoteItem)と同じコンテンツ処理:
     //  - 画像URLは本文から除去し、吹き出しの下にサムネ([NoteImages])で表示（LINE/WhatsApp 風）
     //  - :shortcode: はインライン画像、@メンション/#タグ/リンクは装飾（[CollapsibleText]→[noteAnnotated]）
@@ -476,6 +482,17 @@ private fun Bubble(
                             onClick = { menu = false; onReply() },
                         )
                     }
+                    // [#351] 開発者モード: 発言(kind:42)の生JSON。
+                    if (devMode) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.note_view_json)) },
+                            leadingIcon = { Icon(Icons.Outlined.Code, null, modifier = Modifier.size(18.dp)) },
+                            onClick = { menu = false; showJson = true },
+                        )
+                    }
+                }
+                if (showJson) {
+                    EventJsonDialog(m.event.id, onDismiss = { showJson = false })
                 }
             }
         }

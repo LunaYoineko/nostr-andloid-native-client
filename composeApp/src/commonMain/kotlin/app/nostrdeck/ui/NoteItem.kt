@@ -126,6 +126,8 @@ fun NoteItem(
   val toast = rememberToaster()
   // [#6] NIP-56 通報ダイアログ。
   var showReport by remember { mutableStateOf(false) }
+  // [#351] 開発者モード: イベントJSONビューア。
+  var showJson by remember { mutableStateOf(false) }
   // [#5] NIP-36 コンテンツ警告: 既定は折りたたみ、タップで開く。
   var cwRevealed by remember(note.event.id) { mutableStateOf(false) }
   // 著者(アバター/名前)タップでプロフィールを開く。
@@ -411,6 +413,16 @@ fun NoteItem(
                                 onClick = { moreMenu = false; clipboard(nevent) },
                             )
                         }
+                        // [#351] 開発者モード ON のときだけ生JSONの導線を出す（通常利用者には出さない）。
+                        val devMode by (repo?.developerModeFlow()?.collectAsState()
+                            ?: remember { mutableStateOf(false) })
+                        if (devMode) {
+                            HorizontalDivider(color = DeckColors.Border)
+                            DropdownMenuItem(
+                                text = { Text(stringResource(Res.string.note_view_json)) },
+                                onClick = { moreMenu = false; showJson = true },
+                            )
+                        }
                     }
                 }
             }
@@ -496,6 +508,11 @@ fun NoteItem(
           onPick = { type -> showReport = false; scope.launch { repo?.reportNote(note.event, type) } },
           onDismiss = { showReport = false },
       )
+  }
+
+  // [#351] 開発者モード: イベントの生JSON。
+  if (showJson) {
+      EventJsonDialog(note.event.id, onDismiss = { showJson = false })
   }
 }
 
