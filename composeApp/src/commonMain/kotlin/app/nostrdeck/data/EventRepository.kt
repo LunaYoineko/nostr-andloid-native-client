@@ -1720,7 +1720,9 @@ class EventRepository(
     suspend fun publishNote(content: String, contentWarning: String? = null) {
         // NIP-24/NIP-12: 本文中の #ハッシュタグ を 't' タグ / NIP-30: :shortcode: を emoji タグに。
         // [#5] NIP-36: センシティブ指定時は content-warning タグを付与（理由は任意）。
+        // [#350] NIP-27: nostr:npub/nprofile メンションへ p タグ（無いと Bot 等の #p 購読に届かない）。
         val tags = hashtagsIn(content).map { listOf("t", it) } + emojiTagsIn(content) +
+            Nip27.mentionPTags(content) +
             (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
         val signed = publishSigned(UnsignedEvent(kind = 1, content = content, tags = tags))
         recordHashtags(content, signed.createdAt)
@@ -1749,6 +1751,8 @@ class EventRepository(
                 }
                 addAll(hashtagsIn(seg).map { listOf("t", it) })
                 addAll(emojiTagsIn(seg))
+                // [#350] NIP-27 メンションの p タグ（自己スレッド用に積んだ自分の p と重複させない）。
+                addAll(Nip27.mentionPTags(seg, mapNotNull { if (it.size >= 2 && it[0] == "p") it[1] else null }))
                 // [#315] CW は全セグメントに付ける。1本目だけだと後続が素通しになり、
                 // タイムラインでは各セグメントが独立したノートとして流れるため意味を成さない。
                 if (contentWarning != null) add(listOf("content-warning", contentWarning))
@@ -1909,8 +1913,10 @@ class EventRepository(
     suspend fun publishQuote(target: NostrEvent, text: String, contentWarning: String? = null) {
         val note = runCatching { Nip19.hexToNote(target.id) }.getOrNull()
         val body = if (note != null) (if (text.isBlank()) "nostr:$note" else "$text\nnostr:$note") else text
+        // [#350] NIP-27 メンションの p タグ（引用先の作者と重複させない）。
         val tags = listOf(listOf("q", target.id), listOf("p", target.pubkey)) +
             hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(body) +
+            Nip27.mentionPTags(text, listOf(target.pubkey)) +
             (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
         val signed = publishSigned(UnsignedEvent(kind = 1, content = body, tags = tags))
         recordHashtags(text, signed.createdAt)
@@ -2019,10 +2025,16 @@ class EventRepository(
         val rootId = rootOf(targetTags)
         val rootAuthor = if (rootId == null || rootId == target.id) target.pubkey
         else q.eventById(rootId).executeAsOneOrNull()?.pubkey
-        val tags = Nip10.replyTags(
+        val nip10Tags = Nip10.replyTags(
             targetId = target.id, targetPubkey = target.pubkey, targetTags = targetTags,
             rootAuthor = rootAuthor, selfPubkey = myPubkey,
-        ) + hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(text) +
+        )
+        // [#350] NIP-27 メンションの p タグ。NIP-10 で継承済みの p（返信相手・スレッド参加者）
+        // とは重複させない。返信文中で新たに呼んだ相手にだけ足す。
+        val inheritedPs = nip10Tags.mapNotNull { if (it.size >= 2 && it[0] == "p") it[1] else null }
+        val tags = nip10Tags +
+            hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(text) +
+            Nip27.mentionPTags(text, inheritedPs) +
             (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
         val signed = publishSigned(UnsignedEvent(kind = 1, content = text, tags = tags))
         recordHashtags(text, signed.createdAt)
@@ -2137,11 +2149,8 @@ class EventRepository(
         return codes.mapNotNull { code -> known[code]?.let { url -> listOf("emoji", code, url) } }
     }
 
-    /** [#109] 本文中の `nostr:npub1…` メンションを hex pubkey へ復号（重複除去・復号失敗は無視）。 */
-    private fun mentionPubkeysIn(content: String): List<String> =
-        NPUB_MENTION_REGEX.findAll(content)
-            .mapNotNull { m -> runCatching { Nip19.npubToHex(m.value.substringAfter("nostr:", m.value)) }.getOrNull() }
-            .distinct().toList()
+    /** [#109][#350] 本文中の `nostr:npub/nprofile` メンションを hex pubkey へ復号（重複除去・復号失敗は無視）。 */
+    private fun mentionPubkeysIn(content: String): List<String> = Nip27.mentionPubkeys(content)
 
     // ---- kind:0 バッチ解決 ----
     private val authorRequests = Channel<String>(Channel.UNLIMITED)
@@ -2171,12 +2180,9 @@ class EventRepository(
         scheduleTransientCleanup(subId)
     }
 
-    /** 本文中の `nostr:npub1…`（接頭辞任意）を hex に復号し、表示名解決のため kind:0 を要求する。 */
+    /** 本文中の `nostr:npub/nprofile`（接頭辞任意）を hex に復号し、表示名解決のため kind:0 を要求する。 */
     private fun requestMentionedProfiles(content: String) {
-        for (m in NPUB_MENTION_REGEX.findAll(content)) {
-            val bech = m.value.substringAfter("nostr:", m.value)
-            runCatching { Nip19.npubToHex(bech) }.getOrNull()?.let { requestProfile(it) }
-        }
+        Nip27.mentionPubkeys(content).forEach { requestProfile(it) }
     }
 
     // ---- [M10] イベント id バッチ解決（返信先の親ノートなど未キャッシュ分を取得） ----
@@ -4318,9 +4324,6 @@ class EventRepository(
 
         /** 本文中の nevent1.../note1...（nostr: 接頭辞は任意）。直前が英数字の語中ヒットは除外。 */
         val EVENT_REF_REGEX = Regex("(?<![a-z0-9])(nostr:)?(nevent1|note1)[a-z0-9]+")
-
-        /** 本文中の npub1…（nostr: 接頭辞は任意）。メンションの表示名解決に使う。 */
-        val NPUB_MENTION_REGEX = Regex("(?<![a-z0-9])(nostr:)?npub1[a-z0-9]+")
 
         /** 引用/返信ヒント + インデクサで一時接続するリレーの上限（接続数の暴発防止）。 */
         const val HINT_RELAY_CAP = 16
