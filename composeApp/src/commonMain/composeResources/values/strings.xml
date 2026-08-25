@@ -646,6 +646,10 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="dev_mode_desc">Adds "View event JSON" to the post and chat menus, so you can inspect the raw event of anything on your timeline.</string>
     <string name="dev_mode_toggle">Enable developer mode</string>
     <string name="note_view_json">View event JSON</string>
+    <string name="note_translate">Translate</string>
+    <string name="note_hide_translation">Hide translation</string>
+    <string name="note_translation_caption">Translation</string>
+    <string name="note_translate_failed">Couldn\'t translate this post</string>
     <string name="json_dialog_title">Event JSON</string>
     <string name="json_loading">Fetching event…</string>
     <string name="json_refs">Referenced events</string>

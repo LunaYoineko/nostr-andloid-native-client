@@ -642,6 +642,10 @@
     <string name="dev_mode_desc">投稿やチャットの「⋯」メニューに「イベントJSONを表示」が追加され、タイムラインに流れてくるイベントの生データを確認できます。</string>
     <string name="dev_mode_toggle">開発者モードを有効にする</string>
     <string name="note_view_json">イベントJSONを表示</string>
+    <string name="note_translate">翻訳</string>
+    <string name="note_hide_translation">翻訳を隠す</string>
+    <string name="note_translation_caption">翻訳</string>
+    <string name="note_translate_failed">翻訳できませんでした</string>
     <string name="json_dialog_title">イベントJSON</string>
     <string name="json_loading">イベントを取得中…</string>
     <string name="json_refs">参照先イベント</string>
