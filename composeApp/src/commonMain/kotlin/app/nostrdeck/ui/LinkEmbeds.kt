@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -45,7 +46,8 @@ import coil3.compose.AsyncImage
 
 /**
  * 本文中リンクの埋め込み表示（YouTube サムネ / Spotify・一般リンクの OGP カード）。
- * 表示可否と OGP 画像読み込みは設定([EmbedPrefs])に従う。取得中/失敗は何も描かない。
+ * 表示可否と OGP 画像読み込みは設定([EmbedPrefs])に従う。OGP はカード枠と URL を先に出し、
+ * 取得中はスピナーを添える（本文から URL を畳んでいるため、カードが出ないとリンクの存在自体が消える）。
  * 画像 URL は [NoteImages] が別途表示するため [detectEmbeds] 側で除外済み。
  * [tags] はイベントのタグ列。NIP-92 imeta のサムネイルを動画ポスターに使う。
  */
@@ -149,13 +151,18 @@ private fun YouTubeEmbed(url: String, videoId: String) {
     }
 }
 
-/** 一般リンク/Spotify の OGP カード（画像 + タイトル + サイト名 + 説明）。 */
+/**
+ * 一般リンク/Spotify の OGP カード（画像 + タイトル + サイト名 + 説明 + URL）。
+ * カード枠と URL は取得を待たずに表示する。本文側で URL を畳んでいるため、OGP が出るまで
+ * 何も描かないとリンクの存在も正当性も確認できない。取得中はスピナー、失敗時は URL のみ残す。
+ */
 @Composable
 private fun OgpEmbed(url: String, loadImage: Boolean) {
     val repo = LocalRepository.current ?: return
     val uri = LocalUriHandler.current
-    val ogp: OgpData? by produceState<OgpData?>(null, url) { value = repo.fetchOgp(url) }
-    val data = ogp ?: return   // 取得できるまで/失敗時は非表示
+    // 結果 null が「取得中」か「失敗」かを区別するため、完了フラグと対にして持つ。
+    val fetched by produceState(false to null as OgpData?, url) { value = true to repo.fetchOgp(url) }
+    val (done, data) = fetched
     Row(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(DeckRadius.Md))
@@ -163,7 +170,7 @@ private fun OgpEmbed(url: String, loadImage: Boolean) {
             .background(DeckColors.Surface2)
             .clickable { uri.openUri(url) },
     ) {
-        if (loadImage && !data.image.isNullOrBlank()) {
+        if (data != null && loadImage && !data.image.isNullOrBlank()) {
             AsyncImage(
                 model = data.image,
                 contentDescription = null,
@@ -172,24 +179,40 @@ private fun OgpEmbed(url: String, loadImage: Boolean) {
             )
         }
         Column(Modifier.weight(1f).padding(DeckSpace.Sm)) {
-            Text(
-                data.siteName?.ifBlank { null } ?: hostOf(url),
-                color = DeckColors.Text3, fontSize = DeckType.Label, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            data.title?.let {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    data?.siteName?.ifBlank { null } ?: hostOf(url),
+                    color = DeckColors.Text3, fontSize = DeckType.Label,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (!done) {
+                    Spacer(Modifier.width(DeckSpace.Xs))
+                    CircularProgressIndicator(
+                        color = DeckColors.Text3, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp),
+                    )
+                }
+            }
+            data?.title?.let {
                 Spacer(Modifier.height(2.dp))
                 Text(
                     it, color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Strong,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
             }
-            data.description?.ifBlank { null }?.let {
+            data?.description?.ifBlank { null }?.let {
                 Spacer(Modifier.height(2.dp))
                 Text(
                     it, color = DeckColors.Text2, fontSize = DeckType.Label,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
             }
+            // リンク先の確認用に URL は常に表示する（OGP の有無に依らず）。
+            Spacer(Modifier.height(2.dp))
+            Text(
+                url, color = DeckColors.Text3, fontSize = DeckType.Label,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
