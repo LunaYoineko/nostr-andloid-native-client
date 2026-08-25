@@ -93,6 +93,8 @@ kotlin {
             implementation(libs.secp256k1.jni.android)     // secp256k1 ネイティブ実体
             implementation(libs.androidx.credentials)                 // [#Nosskey] パスキー(WebAuthn PRF)
             implementation(libs.androidx.credentials.play.services)    // GMS 経由の passkey provider
+            implementation(libs.mlkit.translate)                       // [#356] オンデバイス翻訳
+            implementation(libs.mlkit.language.id)                     // [#356] 翻訳元言語の判定
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

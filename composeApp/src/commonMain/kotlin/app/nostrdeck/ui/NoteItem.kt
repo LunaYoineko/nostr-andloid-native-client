@@ -128,6 +128,10 @@ fun NoteItem(
   var showReport by remember { mutableStateOf(false) }
   // [#351] 開発者モード: イベントJSONビューア。
   var showJson by remember { mutableStateOf(false) }
+  // [#356] オンデバイス翻訳。結果はノート単位に保持し、メニューで表示/非表示をトグルする。
+  var translation by remember(note.event.id) { mutableStateOf<String?>(null) }
+  var translating by remember(note.event.id) { mutableStateOf(false) }
+  var showTranslation by remember(note.event.id) { mutableStateOf(false) }
   // [#5] NIP-36 コンテンツ警告: 既定は折りたたみ、タップで開く。
   var cwRevealed by remember(note.event.id) { mutableStateOf(false) }
   // 著者(アバター/名前)タップでプロフィールを開く。
@@ -229,6 +233,35 @@ fun NoteItem(
             // メディアのみの投稿は本文が空文字になる。空の Text を描くと無駄な行高が出るので飛ばす。
             if (bodyText.isNotBlank()) {
                 CollapsibleText(bodyText, emojis = note.customEmojis) // [M8-collapse]
+            }
+
+            // [#356] 翻訳は原文の下に別ブロックで表示する（原文は残し、突き合わせて読めるように）。
+            // 初回はモデルのダウンロードが走り数秒かかることがあるため、その間はスピナーを出す。
+            if (translating || (showTranslation && translation != null)) {
+                Spacer(Modifier.size(DeckSpace.Sm))
+                Column(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(DeckRadius.Sm))
+                        .background(DeckColors.Surface2)
+                        .padding(DeckSpace.Sm),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(Res.string.note_translation_caption),
+                            color = DeckColors.Text3, fontSize = DeckType.Label,
+                        )
+                        if (translating) {
+                            Spacer(Modifier.width(DeckSpace.Xs))
+                            CircularProgressIndicator(
+                                color = DeckColors.Text3, strokeWidth = 1.5.dp, modifier = Modifier.size(12.dp),
+                            )
+                        }
+                    }
+                    translation?.takeIf { showTranslation }?.let {
+                        Spacer(Modifier.size(DeckSpace.Xs))
+                        CollapsibleText(it, emojis = note.customEmojis)
+                    }
+                }
             }
 
             // [M8-repost] 引用リポスト（q タグ）の埋め込みカード（従来どおり）
@@ -380,6 +413,33 @@ fun NoteItem(
                             )
                         }
                         HorizontalDivider(color = DeckColors.Border)
+                        // [#356] ワンタップ翻訳(端末の表示言語へ)。対応プラットフォームのみ。
+                        // 結果は保持するので、2回目以降のトグルは翻訳し直さない。
+                        if (translationSupported && (note.text ?: note.event.content).isNotBlank()) {
+                            val targetLang = androidx.compose.ui.text.intl.Locale.current.language
+                            DropdownMenuItem(
+                                text = {
+                                    Text(stringResource(if (showTranslation) Res.string.note_hide_translation else Res.string.note_translate))
+                                },
+                                onClick = {
+                                    moreMenu = false
+                                    when {
+                                        showTranslation -> showTranslation = false
+                                        translation != null -> showTranslation = true
+                                        !translating -> scope.launch {
+                                            translating = true
+                                            val result = translateText(
+                                                note.text?.takeIf { it.isNotBlank() } ?: note.event.content,
+                                                targetLang,
+                                            )
+                                            translating = false
+                                            if (result == null) toast(getString(Res.string.note_translate_failed))
+                                            else { translation = result; showTranslation = true }
+                                        }
+                                    }
+                                },
+                            )
+                        }
                         // --- コピー系 ---
                         DropdownMenuItem(
                             text = { Text(stringResource(Res.string.note_copy_text)) },
