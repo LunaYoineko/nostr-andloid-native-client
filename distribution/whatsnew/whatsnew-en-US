@@ -1,2 +1,2 @@
-- Mentions (npub/nprofile) now notify the people you mention — in posts, replies, quotes, threads and chat. Bots can respond to your mentions again
-- New "Developer mode" under Settings > System > Data: view and copy the raw JSON of any event from the post/chat menus, and follow referenced events
+- New "Translate" in the post menu: translate any post to your device language with one tap, shown below the original. Translation runs on your device — nothing is sent to a server (language data downloads once on first use)
+- Link preview cards now appear right away: a loading spinner while fetching, and the link URL is always visible on the card
