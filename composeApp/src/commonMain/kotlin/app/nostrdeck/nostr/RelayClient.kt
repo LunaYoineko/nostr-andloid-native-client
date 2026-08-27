@@ -143,6 +143,17 @@ class RelayClient(
         wake()
     }
 
+    /**
+     * [#358] バックグラウンド節約用の一時停止。接続ループを止めてソケットを閉じるが、
+     * [activeReqs] と HttpClient は保持する（[stop] と違い [start] で再開でき、
+     * 再接続時に購読中の REQ が自動で張り直される）。
+     */
+    fun pause() {
+        job?.cancel()
+        job = null
+        _state.value = RelayConnState.DISCONNECTED
+    }
+
     fun stop() {
         job?.cancel()
         job = null

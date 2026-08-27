@@ -393,12 +393,37 @@ class EventRepository(
     /** 各リレーの接続状態（url 昇順）。レール集約インジケータ/カラムヘッダが購読する。 */
     fun relayConnFlow(): StateFlow<List<RelayConn>> = _relayConns.asStateFlow()
 
+    // [#358] バックグラウンド滞在で全リレーを一時停止するジョブ。フォアグラウンド復帰でキャンセル。
+    private var bgPauseJob: Job? = null
+
     /**
      * アプリがフォアグラウンド復帰したときに呼ぶ。バックオフ待機中のリレーを即再接続させる。
      * （バックグラウンドで OS がソケットを切ると最大30秒のバックオフに入るため、復帰時に短縮する）
+     * [#358] バックグラウンドで一時停止([onBackground])したリレーもここで再開する。
      */
     fun onForeground() {
-        scope.launch(relayDispatcher) { relays.values.forEach { it.wake() } }
+        bgPauseJob?.cancel()
+        bgPauseJob = null
+        scope.launch(relayDispatcher) {
+            relays.values.forEach {
+                it.start()   // pause 済みなら再開（購読中の REQ は接続時に自動で張り直される）。未 pause なら no-op
+                it.wake()    // バックオフ待機中なら即リトライ
+            }
+        }
+    }
+
+    /**
+     * [#358] アプリがバックグラウンドへ移ったときに呼ぶ。[delayMs] 経過後に全リレー接続を
+     * 一時停止し、グローバルTL・検索などのストリームの垂れ流しを止める（モバイル通信量対策）。
+     * 復帰([onForeground])で即座に再接続・購読復元される。5分は「アプリ切替や割り込みでは
+     * 切らず、置きっぱなしだけを止める」ための猶予。
+     */
+    fun onBackground(delayMs: Long = BG_PAUSE_DELAY_MS) {
+        bgPauseJob?.cancel()
+        bgPauseJob = scope.launch {
+            delay(delayMs)
+            withContext(relayDispatcher) { relays.values.forEach { it.pause() } }
+        }
     }
 
     /**
@@ -4367,6 +4392,8 @@ class EventRepository(
         )
         // [#210] 検索の取得上限。ローカル LIKE 表示（feedBySearch, LIMIT 300）に十分載るよう多めに取る。
         const val SEARCH_FETCH_LIMIT = 300
+        // [#358] バックグラウンドでリレーを一時停止するまでの猶予（5分）。
+        const val BG_PAUSE_DELAY_MS = 5 * 60 * 1000L
         // [#259] キーワード検索のローカル読み出し上限。1条件あたり / 合成後の総数。
         const val SEARCH_ROWS_PER_QUERY = 300L
         const val SEARCH_ROWS_TOTAL = 300
