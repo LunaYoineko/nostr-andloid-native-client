@@ -23,6 +23,14 @@ object ImageProxy {
     private var blockedHosts: Set<String> = emptySet()
 
     /**
+     * [#359] 従量制回線（モバイル/データセーバー）のとき true。EventRepository が回線種別の監視で
+     * 切り替える。true の間は幅を 2/3・品質を最大60 に落として転送量を抑える。
+     * URL が変わるため回線切替直後はキャッシュミスが起きるが、以後はその回線での再取得が軽くなる。
+     */
+    @Volatile
+    var dataSaver: Boolean = false
+
+    /**
      * [width] px 幅・webp・品質 [quality] に圧縮した URL を返す。
      * [animated]=true なら `n=-1` で全フレームを保持する（GIF/アニメ WebP を動かす）。
      * wsrv.nl は既定で先頭1フレームのみ返すため、アニメを残すには n=-1 が必須。
@@ -35,9 +43,11 @@ object ImageProxy {
         if (clean.isBlank()) return clean
         if (hostOf(clean) in blockedHosts) return clean
         val enc = clean.encodeURLParameter()
+        val w = if (dataSaver) width * 2 / 3 else width
+        val q = if (dataSaver) minOf(quality, 60) else quality
         // we = 拡大しない（元が小さければそのまま）
         val frames = if (animated) "&n=-1" else ""
-        return "$HOST?url=$enc&w=$width&output=webp&q=$quality&we$frames"
+        return "$HOST?url=$enc&w=$w&output=webp&q=$q&we$frames"
     }
 
     /**

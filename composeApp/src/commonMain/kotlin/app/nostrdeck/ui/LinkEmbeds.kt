@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.nostrdeck.model.EmbedKind
 import app.nostrdeck.model.EmbedPrefs
+import app.nostrdeck.model.NetworkTier
 import app.nostrdeck.model.OgpData
 import app.nostrdeck.model.visibleEmbeds
 import app.nostrdeck.model.imetaThumbs
@@ -84,27 +85,35 @@ fun LinkEmbeds(
 
 /**
  * [#136] YouTube 埋め込み。
- *  - 対応プラットフォームでは最初から公式 iframe プレイヤー（WebView）を置く。
+ *  - 対応プラットフォームでは公式 iframe プレイヤー（WebView）を置く。
  *    再生前のポスター・タイトル・再生ボタンも YouTube 標準 UI に任せる（サムネ再現はしない）
+ *  - [#359] ただし従量制回線（モバイル/データセーバー）では iframe（初期ロード約1MB）を
+ *    即置きせず、サムネカードを出してタップされたときだけプレイヤーをロードする
  *  - 未対応プラットフォーム（iOS）はサムネカード（タイトル帯=oEmbed + 赤ボタン + ロゴ）を表示し、
  *    タップで外部アプリ/ブラウザへ
  * 赤い再生ボタンはブランド要素としてモノクロ鉄則の例外。
  */
 @Composable
 private fun YouTubeEmbed(url: String, videoId: String) {
-    if (youTubeInlineSupported()) {
+    val repo = LocalRepository.current
+    val tier by (repo?.networkTierFlow()?.collectAsState()
+        ?: remember { mutableStateOf(NetworkTier.UNMETERED) })
+    val metered = tier == NetworkTier.METERED || tier == NetworkTier.CONSTRAINED
+    var activated by remember(videoId) { mutableStateOf(false) }
+    if (youTubeInlineSupported() && (!metered || activated)) {
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(DeckRadius.Md)).background(Color.Black)) {
-            YouTubeInlinePlayer(videoId, autoplay = false, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+            // カードのタップ起動([activated])で来たときは自動再生（再生ボタンを二度押させない）。
+            YouTubeInlinePlayer(videoId, autoplay = activated, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
         }
         return
     }
     val uri = LocalUriHandler.current
-    val repo = LocalRepository.current
     val info by produceState<Pair<String, String>?>(null, videoId) { value = repo?.fetchYouTubeInfo(videoId) }
     Box(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(DeckRadius.Md))
             .background(Color.Black)
-            .clickable { uri.openUri(url) },
+            // インライン対応（Android の従量制カード）はタップでプレイヤー起動、非対応（iOS）は外部へ。
+            .clickable { if (youTubeInlineSupported()) activated = true else uri.openUri(url) },
     ) {
         AsyncImage(
             model = "https://img.youtube.com/vi/$videoId/hqdefault.jpg",
