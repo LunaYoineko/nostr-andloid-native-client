@@ -75,6 +75,7 @@ import app.nostrdeck.nostr.RelayConn
 import app.nostrdeck.nostr.RelayConnState
 import app.nostrdeck.nostr.RelayMessage
 import app.nostrdeck.nostr.RelayProtocol
+import app.nostrdeck.nostr.RelayTraffic
 import app.nostrdeck.signer.SignerProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -128,6 +129,18 @@ import kotlinx.serialization.json.long
  * SSOT リポジトリ。リレー購読→検証→DB 書き込み、読みは DB の Flow。
  * 各カラムは [subscribeColumn]/[unsubscribeColumn] で自分のフィルタを REQ（= カラム=REQ ライフサイクル）。
  */
+/** [#364] 開発者モードの接続モニタに渡すスナップショット。 */
+data class ConnMonitorSnapshot(
+    val tier: NetworkTier,
+    val bgPausedCount: Int,
+    val lastBgPausedAtSec: Long,
+    val relays: List<RelayTraffic>,
+    val reqs: List<ActiveReqUi>,
+)
+
+/** [#364] 生きている購読(REQ)1件。[targets]=null は全リレー向け。 */
+data class ActiveReqUi(val subId: String, val targets: List<String>?, val filters: List<Filter>)
+
 class EventRepository(
     private val db: NostrDb,
     private val scope: CoroutineScope,
@@ -438,8 +451,29 @@ class EventRepository(
         bgPauseJob?.cancel()
         bgPauseJob = scope.launch {
             delay(delayMs)
-            withContext(relayDispatcher) { relays.values.forEach { it.pause() } }
+            withContext(relayDispatcher) {
+                relays.values.forEach { it.pause() }
+                // [#364] モニタ表示用の記録（切断が実際に発火しているかの確証に使う）。
+                bgPausedCount++
+                lastBgPausedAtSec = currentUnixTime()
+            }
         }
+    }
+
+    // [#364] バックグラウンド一時停止の実績（セッション内・モニタ表示用）。
+    private var bgPausedCount = 0
+    private var lastBgPausedAtSec = 0L
+
+    /** [#364] 接続・通信量・購読のスナップショット（開発者モードのモニタが定期取得する）。 */
+    suspend fun connMonitorSnapshot(): ConnMonitorSnapshot = withContext(relayDispatcher) {
+        ConnMonitorSnapshot(
+            tier = _networkTier.value,
+            bgPausedCount = bgPausedCount,
+            lastBgPausedAtSec = lastBgPausedAtSec,
+            relays = relays.values.map { it.trafficSnapshot() },
+            reqs = activeSubs.map { (id, filters) -> ActiveReqUi(id, subTargets[id]?.toList(), filters) }
+                .sortedBy { it.subId },
+        )
     }
 
     /**

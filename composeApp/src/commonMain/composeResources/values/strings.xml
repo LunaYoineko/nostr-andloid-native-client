@@ -652,6 +652,19 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="note_translate_failed">Couldn\'t translate this post</string>
     <string name="json_dialog_title">Event JSON</string>
     <string name="json_loading">Fetching event…</string>
+    <string name="conn_monitor_title">Connections &amp; data</string>
+    <string name="conn_monitor_open">Show connections &amp; data usage</string>
+    <string name="conn_monitor_network">Network</string>
+    <string name="conn_monitor_bg_pause">BG pause</string>
+    <string name="conn_monitor_never">Not yet</string>
+    <string name="conn_monitor_bg_pause_fmt">%1$d times (last %2$s ago)</string>
+    <string name="conn_monitor_relays">Relays</string>
+    <string name="conn_monitor_reqs">Active REQs</string>
+    <string name="conn_monitor_all_relays">all relays</string>
+    <string name="conn_tier_unmetered">Unmetered (Wi-Fi)</string>
+    <string name="conn_tier_metered">Metered (mobile)</string>
+    <string name="conn_tier_constrained">Data saver</string>
+    <string name="conn_tier_offline">Offline</string>
     <string name="json_refs">Referenced events</string>
     <string name="json_copied_toast">JSON copied</string>
 </resources>

@@ -648,6 +648,19 @@
     <string name="note_translate_failed">翻訳できませんでした</string>
     <string name="json_dialog_title">イベントJSON</string>
     <string name="json_loading">イベントを取得中…</string>
+    <string name="conn_monitor_title">接続と通信量</string>
+    <string name="conn_monitor_open">接続と通信量を表示</string>
+    <string name="conn_monitor_network">回線</string>
+    <string name="conn_monitor_bg_pause">BG一時停止</string>
+    <string name="conn_monitor_never">未発生</string>
+    <string name="conn_monitor_bg_pause_fmt">%1$d回（%2$s前）</string>
+    <string name="conn_monitor_relays">リレー</string>
+    <string name="conn_monitor_reqs">購読中のREQ</string>
+    <string name="conn_monitor_all_relays">全リレー</string>
+    <string name="conn_tier_unmetered">Wi-Fi（非従量）</string>
+    <string name="conn_tier_metered">モバイル（従量）</string>
+    <string name="conn_tier_constrained">データセーバー</string>
+    <string name="conn_tier_offline">オフライン</string>
     <string name="json_refs">参照先イベント</string>
     <string name="json_copied_toast">JSONをコピーしました</string>
 </resources>
