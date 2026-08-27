@@ -171,8 +171,9 @@ private fun OgpEmbed(url: String, loadImage: Boolean) {
             .clickable { uri.openUri(url) },
     ) {
         if (data != null && loadImage && !data.image.isNullOrBlank()) {
+            // [#360] og:image は数MBのことがあるため圧縮プロキシを通す(表示は88dp、3.5x密度でも300pxで足りる)。
             AsyncImage(
-                model = data.image,
+                model = ImageProxy.proxied(data.image!!, width = 300),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(88.dp),
