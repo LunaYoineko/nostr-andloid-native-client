@@ -241,6 +241,9 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         runCatching { connectivityManager.unregisterNetworkCallback(netCallback) }
+        // [#358] バックグラウンド5分で全リレー接続を一時停止（モバイル通信量対策）。
+        // onStart の onForeground() が対で再開する。
+        if (::repository.isInitialized) repository.onBackground()
     }
 
     override fun onDestroy() {
