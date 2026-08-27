@@ -52,7 +52,9 @@ import app.nostrdeck.model.MuteCategory
 import app.nostrdeck.model.EmbedPrefs
 import app.nostrdeck.model.MuteEntry
 import app.nostrdeck.model.MuteList
+import app.nostrdeck.model.NetworkTier
 import app.nostrdeck.model.OgpData
+import app.nostrdeck.ui.ImageProxy
 import app.nostrdeck.model.FeedEntry
 import app.nostrdeck.model.NostrEvent
 import app.nostrdeck.model.NoteUi
@@ -230,7 +232,21 @@ class EventRepository(
     /** 自分の kind:10030（NIP-51 絵文字リスト）の最新 created_at（古い版を無視）。 */
     private var emojiListAt = 0L
 
+    // [#359] 回線種別（Wi-Fi/モバイル）。画質・埋め込みの節約分岐が購読する。
+    private val networkPolicy = NetworkPolicy()
+    private val _networkTier = MutableStateFlow(NetworkTier.UNMETERED)
+
+    /** [#359] 現在の回線種別。UNMETERED=Wi-Fi等 / METERED=モバイル / CONSTRAINED=データセーバー。 */
+    fun networkTierFlow(): StateFlow<NetworkTier> = _networkTier.asStateFlow()
+
     fun start() {
+        // [#359] 回線種別を監視し、従量制回線では画像プロキシの幅/品質を自動で下げる。
+        scope.launch {
+            networkPolicy.tier.collect { tier ->
+                _networkTier.value = tier
+                ImageProxy.dataSaver = tier == NetworkTier.METERED || tier == NetworkTier.CONSTRAINED
+            }
+        }
         // [M15] 過去タイムラインはキャッシュしない: 起動毎に DM 以外のイベントを解放し、
         // リレーから読み直す。コールド起動を軽く保ち、DB を溜め込まない。
         q.transaction { q.clearTimelineEvents(); q.clearOrphanTags() }

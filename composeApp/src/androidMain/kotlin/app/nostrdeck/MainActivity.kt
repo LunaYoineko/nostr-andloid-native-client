@@ -122,6 +122,9 @@ class MainActivity : ComponentActivity() {
             AndroidNosskey.restore(applicationContext)
         }
 
+        // [#359] 回線種別（Wi-Fi/モバイル）監視に Application context を渡す（Repository 生成前）。
+        app.nostrdeck.data.NetworkPolicy.appContext = applicationContext
+
         val db = createDatabase(DriverFactory(applicationContext))
         // 各カラムが表示時に自分のフィルタで購読する（カラム=REQ ライフサイクル）。
         repository = EventRepository(db, appScope, DEFAULT_RELAYS).apply { start() }
