@@ -1482,6 +1482,18 @@ private fun DataSettings() {
             color = DeckColors.Text2, fontSize = DeckType.Caption, lineHeight = 17.sp,
         )
         SettingToggle(stringResource(Res.string.dev_mode_toggle), devMode) { repo.setDeveloperMode(it) }
+        // [#364] 接続・通信量・生きてるREQのモニタ。開発者モード時のみ導線を出す。
+        if (devMode) {
+            var showConnMonitor by remember { mutableStateOf(false) }
+            Text(
+                stringResource(Res.string.conn_monitor_open),
+                color = DeckColors.Text, fontSize = DeckType.Sub,
+                modifier = Modifier.fillMaxWidth()
+                    .clickable { showConnMonitor = true }
+                    .padding(vertical = DeckSpace.Sm),
+            )
+            if (showConnMonitor) ConnectionMonitorDialog { showConnMonitor = false }
+        }
     }
 
     if (confirm) {

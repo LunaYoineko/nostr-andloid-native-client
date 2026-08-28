@@ -1,5 +1,6 @@
 package app.nostrdeck.nostr
 
+import app.nostrdeck.crypto.currentUnixTime
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
@@ -24,6 +25,21 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /** リレー接続状態（UI のステータス表示用・モノクロ ●/◑/○）。 */
 enum class RelayConnState { CONNECTING, CONNECTED, DISCONNECTED }
+
+/** [#364] 購読(subId)単位の受信量。EVENT フレームのバイト数を購読に帰属させた概算。 */
+data class RelaySubTraffic(val subId: String, val events: Long, val bytes: Long)
+
+/** [#364] リレー1本の通信量スナップショット（開発者モードのモニタ表示用）。 */
+data class RelayTraffic(
+    val url: String,
+    val state: RelayConnState,
+    /** 現在の接続が確立した unix 秒。未接続は 0。 */
+    val connectedAtSec: Long,
+    val bytesIn: Long,
+    val bytesOut: Long,
+    val eventsIn: Long,
+    val subs: List<RelaySubTraffic>,
+)
 
 /** UI 表示用のリレー1件の接続状態スナップショット。 */
 data class RelayConn(val url: String, val state: RelayConnState)
@@ -53,6 +69,29 @@ class RelayClient(
     val state: StateFlow<RelayConnState> = _state.asStateFlow()
     val connected: Boolean get() = _state.value == RelayConnState.CONNECTED
 
+    // [#364] 通信量カウンタ（セッション内累計・メモリのみ。pause/再接続でもリセットしない）。
+    // 受信ループで加算し、モニタは概算値として読むだけなので厳密な同期は取らない。
+    private var bytesIn = 0L
+    private var bytesOut = 0L
+    private var eventsIn = 0L
+    private var connectedAtSec = 0L
+    private class SubCounter { var events = 0L; var bytes = 0L }
+    private val trafficBySub = mutableMapOf<String, SubCounter>()
+
+    /** [#364] モニタ用スナップショット。読み取りは概算で良い（カウンタ競合は許容）。 */
+    fun trafficSnapshot(): RelayTraffic = RelayTraffic(
+        url = url,
+        state = _state.value,
+        connectedAtSec = connectedAtSec,
+        bytesIn = bytesIn,
+        bytesOut = bytesOut,
+        eventsIn = eventsIn,
+        subs = runCatching {
+            trafficBySub.entries.map { RelaySubTraffic(it.key, it.value.events, it.value.bytes) }
+                .sortedByDescending { it.bytes }
+        }.getOrElse { emptyList() },
+    )
+
     fun start() {
         if (job != null) return
         job = scope.launch {
@@ -80,12 +119,17 @@ class RelayClient(
 
     private suspend fun runSession(session: DefaultClientWebSocketSession) {
         _state.value = RelayConnState.CONNECTED
+        connectedAtSec = currentUnixTime()
         currentSession = session
         // (再)接続時に購読中の REQ を張り直す
         activeReqs.values.forEach { outgoing.trySend(it) }
         val sender = scope.launch {
             try {
-                while (true) session.send(Frame.Text(outgoing.receive()))
+                while (true) {
+                    val text = outgoing.receive()
+                    bytesOut += text.length   // [#364] REQ/EVENT はほぼ ASCII のため文字数≒バイト数で近似
+                    session.send(Frame.Text(text))
+                }
             } catch (t: CancellationException) {
                 throw t
             } catch (_: Throwable) {
@@ -96,11 +140,22 @@ class RelayClient(
         }
         try {
             for (frame in session.incoming) {
-                if (frame is Frame.Text) _messages.emit(RelayProtocol.parse(frame.readText()))
+                if (frame is Frame.Text) {
+                    bytesIn += frame.data.size   // [#364] ワイヤ上のペイロードバイト数
+                    val msg = RelayProtocol.parse(frame.readText())
+                    if (msg is RelayMessage.Event) {
+                        eventsIn++
+                        val c = trafficBySub.getOrPut(msg.subscriptionId) { SubCounter() }
+                        c.events++
+                        c.bytes += frame.data.size
+                    }
+                    _messages.emit(msg)
+                }
             }
         } finally {
             sender.cancel()
             currentSession = null
+            connectedAtSec = 0L
         }
     }
 
