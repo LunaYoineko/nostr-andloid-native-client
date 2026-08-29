@@ -41,12 +41,12 @@ compose.desktop {
             }
             macOS {
                 bundleID = "net.shino3.nostrism"
-                iconFile.set(rootProject.file("docs/store/icon-512.png"))
+                iconFile.set(rootProject.file("docs/store/icon.icns"))
             }
             windows {
                 menuGroup = "Nostrism"
                 upgradeUuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-                iconFile.set(rootProject.file("docs/store/icon-512.png"))
+                iconFile.set(rootProject.file("docs/store/icon.ico"))
             }
         }
     }
