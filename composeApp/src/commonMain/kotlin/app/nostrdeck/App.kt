@@ -93,7 +93,7 @@ fun App(
             if (loggedIn && !wasLoggedIn) repository?.reloadForNewIdentity()
             wasLoggedIn = loggedIn
         }
-        // [#122] リレー保存モードで取り込んだカラム構成を UI に反映（ローカル保存は Repository 側で済み）。
+        // [#374] リレー同期の差分適用で確定したカラム構成を UI に反映（ローカル保存は Repository 側で済み）。
         LaunchedEffect(state, repository) {
             repository?.remoteDeckColumnsFlow()?.collect { specs -> state.applyPinnedColumns(specs) }
         }
