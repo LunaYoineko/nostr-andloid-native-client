@@ -127,8 +127,6 @@ compose.desktop {
             description = "Nostr Decentralized Client"
             vendor = "Nostrism"
             copyright = "Copyright 2025 Nostrism"
-            // DMG/インストーラ自体のアイコン（各 OS の iconFile が優先されるがフォールバックとして設定）
-            iconFile.set(rootProject.file("docs/store/icon-512.png"))
             // [#sql] JDBC/SQLDelight は java.sql が必要。jpackage の runtime はデフォルトで含まない
             modules("java.sql", "java.naming", "jdk.unsupported")
             linux {
