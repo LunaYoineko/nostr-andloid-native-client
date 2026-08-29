@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import app.nostrdeck.model.ChannelMessage
 import app.nostrdeck.model.NoteUi
 import app.nostrdeck.theme.DeckColors
 import nostr_deck_client.composeapp.generated.resources.Res
@@ -54,6 +55,18 @@ private val ZAP_PRESETS = listOf(21L, 100L, 500L, 1000L, 5000L, 10000L)
 fun ZapSheet(note: NoteUi, onDismiss: () -> Unit) = ZapSheetImpl(
     recipientPubkey = note.event.pubkey, recipientName = note.author.name,
     lud16 = note.author.lud16.orEmpty(), eventId = note.event.id, targetKind = note.event.kind,
+    onDismiss = onDismiss,
+)
+
+/**
+ * [#370] チャンネルメッセージ(NIP-28 / kind:42)への Zap。zap request(kind:9734)は
+ * 通常ノートと同じ組み立て（対象の e タグ + 投稿者の p タグ + k=42）で発行する。
+ * lud16 が無い相手には呼び出し側で出さない（メニュー項目自体を非表示）。
+ */
+@Composable
+fun ChannelZapSheet(m: ChannelMessage, onDismiss: () -> Unit) = ZapSheetImpl(
+    recipientPubkey = m.event.pubkey, recipientName = m.author.name,
+    lud16 = m.author.lud16.orEmpty(), eventId = m.event.id, targetKind = m.event.kind,
     onDismiss = onDismiss,
 )
 
