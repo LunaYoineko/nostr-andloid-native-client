@@ -1439,20 +1439,9 @@ private fun DataSettings() {
     var confirm by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf(false) }
 
-    // [#122] カラム構成のリレー保存。読み込みは常時（リレーに保存済みなら追従＝後勝ち）で、
-    // トグルは「この端末での変更をリレー(kind:30078/NIP-78)へ保存するか」だけを選ぶ。
+    // [#374] リレー同期（NIP-78 kind:30078 の手動保存 / 差分確認つき読み込み）。
     if (repo != null) {
-        val syncRelay by repo.columnSyncRelayFlow().collectAsState()
-        Text(stringResource(Res.string.colsync_title), color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Strong)
-        Spacer(Modifier.size(DeckSpace.Xs))
-        Text(
-            stringResource(Res.string.colsync_desc),
-            color = DeckColors.Text2, fontSize = DeckType.Caption, lineHeight = 17.sp,
-        )
-        SettingToggle(
-            stringResource(Res.string.colsync_toggle), syncRelay,
-            enabled = repo.columnSyncFeatureEnabled,
-        ) { repo.setColumnSyncRelay(it) }
+        RelaySyncSection()
         Spacer(Modifier.size(DeckSpace.Lg))
         HorizontalDivider(color = DeckColors.Border)
         Spacer(Modifier.size(DeckSpace.Lg))
