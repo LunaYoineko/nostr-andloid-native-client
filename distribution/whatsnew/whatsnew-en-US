@@ -1,2 +1,5 @@
-- New "Translate" in the post menu: translate any post to your device language with one tap, shown below the original. Translation runs on your device — nothing is sent to a server (language data downloads once on first use)
-- Link preview cards now appear right away: a loading spinner while fetching, and the link URL is always visible on the card
+- Zap channel posts with the ⚡ button next to each message (shown when the author has a Lightning address)
+- Back up your settings and deck columns to relays. When loading, review only what changes and apply items individually
+- Link preview cards show before loading finishes and are cached for instant redisplay. Also fixed web URLs containing note IDs expanding as quoted notes
+- Less data usage: image quality auto-adjusts on mobile networks, reconnects fetch only new posts, and connections pause after 5 minutes in background
+- Developer mode: new connection & traffic monitor
