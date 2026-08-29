@@ -115,14 +115,34 @@ kotlin {
     }
 }
 
-// [#218] Compose Desktop 配布設定。`./gradlew :composeApp:run` で起動、packageDmg で .dmg。
+// [#218] Compose Desktop 配布設定。各ターゲット別のネイティブ配布形式を指定。
+// Windows: MSI, Linux: DEB/RPM, macOS: DMG
 compose.desktop {
     application {
         mainClass = "app.nostrdeck.MainKt"
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg)
+            targetFormats(TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.Dmg)
             packageName = "Nostrism"
             packageVersion = "1.0.0"
+            description = "Nostr Decentralized Client"
+            vendor = "Nostrism"
+            copyright = "Copyright 2025 Nostrism"
+            // [#sql] JDBC/SQLDelight は java.sql が必要。jpackage の runtime はデフォルトで含まない
+            modules("java.sql", "java.naming", "jdk.unsupported")
+            linux {
+                debMaintainer = "Nostrism <noreply@nostrism.example>"
+                menuGroup = "Network;Chat;"
+                iconFile.set(rootProject.file("docs/store/icon-512.png"))
+            }
+            macOS {
+                bundleID = "net.shino3.nostrism"
+                iconFile.set(rootProject.file("docs/store/icon-512.png"))
+            }
+            windows {
+                menuGroup = "Nostrism"
+                upgradeUuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                iconFile.set(rootProject.file("docs/store/icon-512.png"))
+            }
         }
     }
 }
