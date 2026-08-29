@@ -60,8 +60,10 @@ import app.nostrdeck.model.NetworkTier
 import app.nostrdeck.model.OgpData
 import app.nostrdeck.ui.ImageProxy
 import app.nostrdeck.model.FeedEntry
+import app.nostrdeck.model.ContentToken
 import app.nostrdeck.model.NostrEvent
 import app.nostrdeck.model.NoteUi
+import app.nostrdeck.model.tokenizeNostrContent
 import app.nostrdeck.model.AuthPolicy
 import app.nostrdeck.model.FeedNoticeCategory
 import app.nostrdeck.model.NotificationKind
@@ -3419,12 +3421,18 @@ class EventRepository(
     /**
      * 本文を走査し最初の解決可能な nevent1.../note1... を返す（id と nevent TLV のリレーヒント付き）。
      * `nostr:` 接頭辞付き・素の表記の両方に対応（接頭辞があれば開始位置に含めて除去する）。
+     *
+     * [#369] 走査は共通トークナイザ [tokenizeNostrContent] に一本化。URL が先に1トークンとして
+     * 確定するので、`https://…/post/note1…` のような URL パス中の bech32 は引用扱いにならない
+     * （URL は表示側の OGP カードに委ねる。njump.me 等の例外ドメインも作らない）。
+     * 以前は独自 Regex（直前が英数字の場合のみ除外）で、`/` 区切りの URL 内 note1 を拾っていた。
      */
     private fun findEventRef(text: String): EventRef? {
-        for (m in EVENT_REF_REGEX.findAll(text)) {
-            val bech = m.value.removePrefix("nostr:")
-            Nip19.eventBechToIdAndRelays(bech)?.let { (id, relays) ->
-                return EventRef(m.range.first, m.range.last + 1, id, relays)
+        for (tok in tokenizeNostrContent(text)) {
+            if (tok !is ContentToken.NostrRef) continue
+            if (!tok.bech.startsWith("note1") && !tok.bech.startsWith("nevent1")) continue
+            Nip19.eventBechToIdAndRelays(tok.bech)?.let { (id, relays) ->
+                return EventRef(tok.start, tok.end, id, relays)
             }
         }
         return null
@@ -4455,9 +4463,6 @@ class EventRepository(
 
         /** [M11] 既定のメディアサーバ(NIP-96)。start() で insert-if-absent して投入する。 */
         val DEFAULT_MEDIA_SERVERS = listOf("https://nostrcheck.me", "https://nostr.build")
-
-        /** 本文中の nevent1.../note1...（nostr: 接頭辞は任意）。直前が英数字の語中ヒットは除外。 */
-        val EVENT_REF_REGEX = Regex("(?<![a-z0-9])(nostr:)?(nevent1|note1)[a-z0-9]+")
 
         /** 引用/返信ヒント + インデクサで一時接続するリレーの上限（接続数の暴発防止）。 */
         const val HINT_RELAY_CAP = 16

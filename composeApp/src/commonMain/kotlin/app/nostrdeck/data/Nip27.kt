@@ -1,6 +1,8 @@
 package app.nostrdeck.data
 
 import app.nostrdeck.crypto.Nip19
+import app.nostrdeck.model.ContentToken
+import app.nostrdeck.model.tokenizeNostrContent
 
 /**
  * [#350] NIP-27（本文中の nostr: 参照）のメンション抽出。
@@ -13,24 +15,23 @@ import app.nostrdeck.crypto.Nip19
 object Nip27 {
 
     /**
-     * 本文中のメンション（`nostr:` 接頭辞は任意）。npub に加えて nprofile も拾う。
+     * [content] からメンション先の hex pubkey を抽出する（出現順・重複除去）。
+     * `nostr:` 接頭辞は任意。npub に加えて nprofile も拾う。
      * 表示側（ContentText）は nprofile も @名前 に展開するので、抽出だけ npub 限定だと
      * 「見た目はメンションなのに通知が飛ばない」不一致になる。
-     * 直前が英数字なら bech32 文字列の途中なので拾わない（負の後読み）。
-     */
-    val MENTION_REGEX = Regex("(?<![a-z0-9])(nostr:)?(npub1|nprofile1)[a-z0-9]+")
-
-    /**
-     * [content] からメンション先の hex pubkey を抽出する（出現順・重複除去）。
      * チェックサム不正など解析できないものは黙って捨てる（本文は自由入力のため）。
+     *
+     * [#369] 走査は共通トークナイザ [tokenizeNostrContent] に一本化。URL が先に
+     * 1トークンとして確定するので、`https://…/user/npub1…` のような URL パス中の
+     * bech32 は拾わない（表示側がメンション扱いしないものへ p タグを付けない）。
+     * 語中ヒット（直前が英数字）を拾わない規則もトークナイザ側が持つ。
      */
     fun mentionPubkeys(content: String): List<String> =
-        MENTION_REGEX.findAll(content)
-            .mapNotNull { m ->
-                val bech = m.value.substringAfter("nostr:", m.value)
-                Nip19.mentionBechToHex(bech)
-            }
-            .distinct().toList()
+        tokenizeNostrContent(content)
+            .filterIsInstance<ContentToken.NostrRef>()
+            .filter { it.bech.startsWith("npub1") || it.bech.startsWith("nprofile1") }
+            .mapNotNull { Nip19.mentionBechToHex(it.bech) }
+            .distinct()
 
     /**
      * メンション先の `p` タグを組み立てる。[existing] に既にある pubkey は重複させない

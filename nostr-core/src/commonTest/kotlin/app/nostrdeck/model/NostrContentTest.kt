@@ -51,6 +51,20 @@ class NostrContentTest {
     }
 
     @Test
+    fun bech_inside_url_path_stays_part_of_url() {
+        // [#369] URL パス中の note1/nevent1/npub1 等は URL の一部（引用/メンション扱いしない）。
+        // URL が先に1トークンとして確定するため、njump.me なども例外なく OGP 側に乗る。
+        val t = "see https://njump.me/note1qqqq and note1zzz"
+        val toks = tokenizeNostrContent(t)
+        assertEquals(listOf("https://njump.me/note1qqqq"), toks.filterIsInstance<ContentToken.Url>().map { it.url })
+        assertEquals(listOf("note1zzz"), toks.filterIsInstance<ContentToken.NostrRef>().map { it.bech })
+
+        // nostr: 接頭辞付きでも URL クエリ/パスに埋まっていれば同様。
+        assertTrue(refs("https://example.com/p/npub1abcdef").isEmpty())
+        assertTrue(refs("https://example.com/open?ref=nevent1qqqqq").isEmpty())
+    }
+
+    @Test
     fun only_valid_entity_prefixes() {
         assertTrue(refs("nostr:hello world").isEmpty())     // 有効プレフィックスでない
         assertEquals("nprofile1qqq", refs("nostr:nprofile1qqq").single().bech)
