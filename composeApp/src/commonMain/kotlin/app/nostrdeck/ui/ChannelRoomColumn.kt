@@ -313,6 +313,12 @@ private fun MessageBubble(
     // [#dm-idiom] DM(1:1) は自分＝右寄せ・明色バブル（iMessage流）。パブチャは全員左寄せで統一し、
     // 自分の投稿は色反転の白ではなく少し明るいダークサーフェスで区別する（Slack/Discord流・Bubble 側）。
     val mineRight = mineOnRight && m.isMine
+    // [#370] Zap: 投稿者に lud16 があるときだけ吹き出し横の常設アイコンに ⚡ を出す
+    // （NoteItem の⚡と同じ条件）。押すと既存の ZapSheet フロー（NWC対応）を開く。
+    val repo = LocalRepository.current
+    val canZap = repo != null && !m.author.lud16.isNullOrBlank()
+    var showZap by remember { mutableStateOf(false) }
+    val onZap: (() -> Unit)? = if (canZap) ({ showZap = true }) else null
     Row(
         Modifier.fillMaxWidth().padding(top = if (m.continuation) 1.dp else 8.dp),
         horizontalArrangement = if (mineRight) Arrangement.End else Arrangement.Start,
@@ -343,11 +349,11 @@ private fun MessageBubble(
             // 左寄せは吹き出しの右、右寄せ(DM自分)は吹き出しの左に置く（画面端側に寄せない）。
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 if (mineRight) {
-                    MessageActions(onReply = onReply, onReact = onReact)
+                    MessageActions(onReply = onReply, onReact = onReact, onZap = onZap)
                     Bubble(m, names = names, mineOnRight = mineOnRight, onReply = onReply, onReact = onReact, modifier = Modifier.weight(1f, fill = false))
                 } else {
                     Bubble(m, names = names, mineOnRight = mineOnRight, onReply = onReply, onReact = onReact, modifier = Modifier.weight(1f, fill = false))
-                    MessageActions(onReply = onReply, onReact = onReact)
+                    MessageActions(onReply = onReply, onReact = onReact, onZap = onZap)
                 }
             }
             // Slack 風の集約リアクション（絵文字 + 件数）。
@@ -357,15 +363,19 @@ private fun MessageBubble(
         }
         if (mineRight) AvatarSlot(m)
     }
+    // [#370] Zap シート（既存の ZapSheet フロー。e タグ + k=42 で zap request を発行）。
+    if (showZap) {
+        ChannelZapSheet(m, onDismiss = { showZap = false })
+    }
 }
 
 /**
- * [#107][#108] メッセージ横の常設アクション（リプライ/リアクション）。
+ * [#107][#108] メッセージ横の常設アクション（リプライ/リアクション/Zap）。
  * デッキの狭いカラムでも邪魔にならないよう IconSm + Text3 で控えめに。
  */
 @Composable
-private fun MessageActions(onReply: (() -> Unit)?, onReact: (() -> Unit)?) {
-    if (onReply == null && onReact == null) return
+private fun MessageActions(onReply: (() -> Unit)?, onReact: (() -> Unit)?, onZap: (() -> Unit)? = null) {
+    if (onReply == null && onReact == null && onZap == null) return
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 2.dp)) {
         if (onReply != null) {
             Box(
@@ -378,6 +388,13 @@ private fun MessageActions(onReply: (() -> Unit)?, onReact: (() -> Unit)?) {
                 Modifier.size(28.dp).clip(CircleShape).clickable(onClick = onReact),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Outlined.AddReaction, stringResource(Res.string.section_reaction), tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconSm)) }
+        }
+        // [#370] Zap（投稿者に lud16 があるときだけ渡される）。
+        if (onZap != null) {
+            Box(
+                Modifier.size(28.dp).clip(CircleShape).clickable(onClick = onZap),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Outlined.Bolt, stringResource(Res.string.chat_zap), tint = DeckColors.Text3, modifier = Modifier.size(DeckDimens.IconSm)) }
         }
     }
 }
@@ -440,12 +457,9 @@ private fun Bubble(
     val repo = LocalRepository.current
     val devMode by (repo?.developerModeFlow()?.collectAsState()
         ?: remember { mutableStateOf(false) })
-    // [#370] Zap: 投稿者に lud16 があるときだけ長押しメニューに出す（NoteItem の⚡と同じ条件）。
-    val canZap = repo != null && !m.author.lud16.isNullOrBlank()
-    val hasActions = onReply != null || onReact != null || canZap || devMode
+    val hasActions = onReply != null || onReact != null || devMode
     var menu by remember { mutableStateOf(false) }
     var showJson by remember { mutableStateOf(false) }
-    var showZap by remember { mutableStateOf(false) }
     // タイムライン(NoteItem)と同じコンテンツ処理:
     //  - 画像URLは本文から除去し、吹き出しの下にサムネ([NoteImages])で表示（LINE/WhatsApp 風）
     //  - :shortcode: はインライン画像、@メンション/#タグ/リンクは装飾（[CollapsibleText]→[noteAnnotated]）
@@ -486,14 +500,6 @@ private fun Bubble(
                             onClick = { menu = false; onReply() },
                         )
                     }
-                    // [#370] Zap: 既存の ZapSheet フローで kind:42 へ投げ銭（e タグ + k=42）。
-                    if (canZap) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.chat_zap)) },
-                            leadingIcon = { Icon(Icons.Outlined.Bolt, null, modifier = Modifier.size(18.dp)) },
-                            onClick = { menu = false; showZap = true },
-                        )
-                    }
                     // [#351] 開発者モード: 発言(kind:42)の生JSON。
                     if (devMode) {
                         DropdownMenuItem(
@@ -505,9 +511,6 @@ private fun Bubble(
                 }
                 if (showJson) {
                     EventJsonDialog(m.event.id, onDismiss = { showJson = false })
-                }
-                if (showZap) {
-                    ChannelZapSheet(m, onDismiss = { showZap = false })
                 }
             }
         }
