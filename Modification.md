@@ -6,7 +6,6 @@
 
 - **アーキテクチャ**: 既存の `jvm("desktop")` ターゲットを活用。JVM はクロスプラットフォームのため、同一 JAR/ランタイムで Windows / Linux / macOS 全てで動作。ネイティブインストーラは `compose.desktop.nativeDistributions` でホスト OS ごとに生成。
 - **対応 OS**: Android (既存), iOS (既存), Windows 10/11, Linux (Ubuntu 22.04+/ Debian), macOS 13+ (Intel/Apple Silicon 共に JVM 経由)
-- **ブランチ**: `desktop` で作業。ビルド検証は `JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64`, `ANDROID_HOME=/home/luna/android-sdk` (platform 36, build-tools 36.0.0), `GRADLE_USER_HOME=/mnt/workspace/gradle-cache` で実施。
 
 ## 追加ファイル
 
@@ -104,15 +103,14 @@ private fun buildKeyVault(): KeyVault {
 ### 共通準備
 
 ```bash
-export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
-export ANDROID_HOME=/home/luna/android-sdk   # platforms;android-36, build-tools;36.0.0, platform-tools
-export GRADLE_USER_HOME=/mnt/workspace/gradle-cache  # / が逼迫するため /mnt/workspace を使用
-# local.properties に sdk.dir=/home/luna/android-sdk が必要（既設置）
+export JAVA_HOME=<JDK 17 のパス>
+export ANDROID_HOME=<Android SDK のパス>   # platforms;android-36, build-tools;36.0.0, platform-tools
+# local.properties に sdk.dir=<Android SDK のパス> を設定
 ```
 
 依存パッケージ（Linux ホスト例）:
 ```bash
-sudo apt install -y libsecret-tools xvfb   # secret-tool, ヘッドレス検証用
+sudo apt install -y libsecret-tools
 ```
 
 ### Windows
@@ -128,13 +126,13 @@ java -jar composeApp/build/compose/jars/Nostrism-*.jar
 ### Linux (Ubuntu/Debian)
 
 ```bash
-./gradlew :composeApp:packageDeb          # build/compose/binaries/main/deb/*.deb (検証済み 107M)
+./gradlew :composeApp:packageDeb          # build/compose/binaries/main/deb/*.deb
 sudo dpkg -i composeApp/build/compose/binaries/main/deb/*.deb
 sudo update-desktop-database /usr/share/applications  # アイコンが反映されない場合
 /opt/nostrism/bin/Nostrism                # ランタイム同梱バイナリ
 # または
 ./gradlew :composeApp:createDistributable # build/compose/binaries/main/app/Nostrism/
-./gradlew :composeApp:packageUberJarForCurrentOS # build/compose/jars/*.jar (101M)
+./gradlew :composeApp:packageUberJarForCurrentOS # build/compose/jars/*.jar
 sudo dpkg -r nostrism                      # アンインストール
 ```
 
@@ -155,32 +153,17 @@ JVM なので Apple Silicon / Intel 共に同一 JAR で動作。`linuxX64Main` 
 従来通り:
 
 ```bash
-./gradlew :composeApp:assembleDebug       # build/outputs/apk/debug/*.apk (検証済み 97M)
+./gradlew :composeApp:assembleDebug       # build/outputs/apk/debug/*.apk
 ./gradlew :nostr-core:assemble            # iOS framework (iosArm64 / iosSimulatorArm64) も同時ビルド
 ```
-
-## 検証結果
-
-| タスク | 結果 | 成果物 |
-|---|---|---|
-| `:nostr-core:assemble` | SUCCESS (9m56s) | AAR + desktopJar + iOS klib |
-| `:composeApp:compileKotlinDesktop` | SUCCESS (34s → 2s) | `LinuxSecretKeyVault` の `*toTypedArray()` と Windows の `${'$'}` 修正後 |
-| `:composeApp:packageUberJarForCurrentOS` | SUCCESS | `Nostrism-linux-x64-1.0.0.jar` (101M) |
-| `:composeApp:packageDeb` | SUCCESS | `nostrism_1.0.0-1_amd64.deb` (107M), `Nostrism.png` 512px, `Categories=Network;Chat;` |
-| `:composeApp:createDistributable` | SUCCESS | `bin/Nostrism` (ELF) + `lib/runtime` (java.sql 含む) |
-| `:composeApp:assembleDebug` | SUCCESS | `composeApp-debug.apk` (97M) |
-| `:composeApp:packageRpm` | FAILED (jpackage rpm 未対応) | `rpm` 導入で解消可能 |
-| 実行時 `java/sql/DriverManager` | 解消 | `modules("java.sql", ...)` 追加で jlink ランタイムに含む |
-| 実行時 `secret-tool not found` | 解消 | `libsecret-tools` 導入 + `Main.kt` で自動フォールバック |
-
-ヘッドレスでの `xvfb-run /opt/nostrism/bin/Nostrism` は `Cannot create Linux GL context` となるが、これはヘッドレス環境で GL が無いためで実デスクトップでは正常起動。`java -jar` の uberJar も同様。
 
 ## トラブルシューティング
 
 - **secret-tool がない**: `sudo apt install libsecret-tools`。無い場合は自動で `~/.nostrism/key.bin`（平文）へフォールバック。GNOME 環境で `gnome-keyring` が無効だと D-Bus エラーになる場合も file へフォールバック。
 - **deb アイコンが出ない**: `sudo update-desktop-database` / `sudo gtk-update-icon-cache` / ログアウトで再読み込み。`iconFile` は `docs/store/icon-512.png` を使用。
 - **deb 起動で `NoClassDefFoundError: java/sql/DriverManager`**: 本修正で `modules("java.sql", ...)` を追加済み。再発時は `composeApp/build.gradle.kts` の `modules` を確認。
-- **容量不足**: ルート (`/`) が逼迫する場合は `GRADLE_USER_HOME=/mnt/workspace/gradle-cache` と `ANDROID_HOME=/home/luna/android-sdk`（または `/mnt` 配下）を使用。プロジェクト外の削除は行わないこと。
+- **`packageRpm` が `jpackage: invalid type [rpm]` で失敗**: `rpmbuild` 未導入の場合。必要なら `sudo apt install rpm` 後に再実行。
+- **ヘッドレスで `Cannot create Linux GL context`**: ヘッドレス環境で GL が無いため。実デスクトップでは正常起動。
 
 ## 今後の拡張
 
