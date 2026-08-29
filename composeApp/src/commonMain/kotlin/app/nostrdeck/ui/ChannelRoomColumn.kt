@@ -49,6 +49,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Reply
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.AddReaction
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Mood
@@ -439,9 +440,12 @@ private fun Bubble(
     val repo = LocalRepository.current
     val devMode by (repo?.developerModeFlow()?.collectAsState()
         ?: remember { mutableStateOf(false) })
-    val hasActions = onReply != null || onReact != null || devMode
+    // [#370] Zap: 投稿者に lud16 があるときだけ長押しメニューに出す（NoteItem の⚡と同じ条件）。
+    val canZap = repo != null && !m.author.lud16.isNullOrBlank()
+    val hasActions = onReply != null || onReact != null || canZap || devMode
     var menu by remember { mutableStateOf(false) }
     var showJson by remember { mutableStateOf(false) }
+    var showZap by remember { mutableStateOf(false) }
     // タイムライン(NoteItem)と同じコンテンツ処理:
     //  - 画像URLは本文から除去し、吹き出しの下にサムネ([NoteImages])で表示（LINE/WhatsApp 風）
     //  - :shortcode: はインライン画像、@メンション/#タグ/リンクは装飾（[CollapsibleText]→[noteAnnotated]）
@@ -482,6 +486,14 @@ private fun Bubble(
                             onClick = { menu = false; onReply() },
                         )
                     }
+                    // [#370] Zap: 既存の ZapSheet フローで kind:42 へ投げ銭（e タグ + k=42）。
+                    if (canZap) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.chat_zap)) },
+                            leadingIcon = { Icon(Icons.Outlined.Bolt, null, modifier = Modifier.size(18.dp)) },
+                            onClick = { menu = false; showZap = true },
+                        )
+                    }
                     // [#351] 開発者モード: 発言(kind:42)の生JSON。
                     if (devMode) {
                         DropdownMenuItem(
@@ -493,6 +505,9 @@ private fun Bubble(
                 }
                 if (showJson) {
                     EventJsonDialog(m.event.id, onDismiss = { showJson = false })
+                }
+                if (showZap) {
+                    ChannelZapSheet(m, onDismiss = { showZap = false })
                 }
             }
         }
