@@ -232,7 +232,7 @@ fun NoteItem(
             }
             // メディアのみの投稿は本文が空文字になる。空の Text を描くと無駄な行高が出るので飛ばす。
             if (bodyText.isNotBlank()) {
-                CollapsibleText(bodyText, emojis = note.customEmojis) // [M8-collapse]
+                CollapsibleText(bodyText, emojis = note.customEmojis, authorPubkey = note.event.pubkey) // [M8-collapse][#378]
             }
 
             // [#356] 翻訳は原文の下に別ブロックで表示する（原文は残し、突き合わせて読めるように）。
@@ -259,7 +259,7 @@ fun NoteItem(
                     }
                     translation?.takeIf { showTranslation }?.let {
                         Spacer(Modifier.size(DeckSpace.Xs))
-                        CollapsibleText(it, emojis = note.customEmojis)
+                        CollapsibleText(it, emojis = note.customEmojis, authorPubkey = note.event.pubkey)
                     }
                 }
             }

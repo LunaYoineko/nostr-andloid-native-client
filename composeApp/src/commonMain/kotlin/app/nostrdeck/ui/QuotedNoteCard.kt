@@ -86,7 +86,9 @@ fun QuotedNoteCard(
         val videos = remember(rawBody) { videoUrlsIn(rawBody) }
         val body = remember(rawBody) { removeUrls(rawBody, videos).orEmpty() }
         if (body.isNotBlank()) {
-            val annotated = remember(body, names) { noteAnnotated(body, { names[it] }, shortenUrls = true) }
+            // [#378] 引用カード本文にもにゃいずを通す（判定は remember の外で読み key に含める）。
+            val nyaize = Nyan.appliesTo(note.author.pubkey)
+            val annotated = remember(body, names, nyaize) { noteAnnotated(body, { names[it] }, shortenUrls = true, nyaize = nyaize) }
             Text(
                 annotated,
                 color = DeckColors.Text2,

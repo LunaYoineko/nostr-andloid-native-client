@@ -483,7 +483,7 @@ private fun Bubble(
                         .combinedClickable(enabled = hasActions, onClick = {}, onLongClick = { menu = true })
                         .padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
                 ) {
-                    CollapsibleText(bodyText, emojis = emojis, color = textColor, linkColor = linkColor)
+                    CollapsibleText(bodyText, emojis = emojis, color = textColor, linkColor = linkColor, authorPubkey = m.event.pubkey)   // [#378]
                 }
                 // 長押しメニュー: リアクション / リプライ。
                 DeckDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {

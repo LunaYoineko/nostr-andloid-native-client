@@ -54,6 +54,8 @@ fun CollapsibleText(
     emojis: Map<String, String> = emptyMap(),
     color: Color = DeckColors.Text,
     linkColor: Color = DeckColors.Accent,
+    // [#378] 本文の著者 pubkey（hex）。にゃいず（オフ/自分のみ/全員）の判定に使う。表示専用。
+    authorPubkey: String? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     // 折りたたみ時に溢れたか。初回(折りたたみ)レイアウトで判定する。
@@ -63,8 +65,10 @@ fun CollapsibleText(
     // nav があれば @→プロフィール/#→カラム/note→スレッド をタップで開ける。
     val names = LocalProfileNames.current
     val nav = LocalNoteNav.current
-    val annotated = remember(text, names, emojis, nav, linkColor) {
-        noteAnnotated(text, { names[it] }, emojis, nav, linkColor = linkColor)
+    // [#378] にゃいず判定は remember の外で読む（snapshot state の変化で再計算させるため key にも入れる）。
+    val nyaize = Nyan.appliesTo(authorPubkey)
+    val annotated = remember(text, names, emojis, nav, linkColor, nyaize) {
+        noteAnnotated(text, { names[it] }, emojis, nav, linkColor = linkColor, nyaize = nyaize)
     }
     // NIP-30 カスタム絵文字のインライン描画（shortcode→画像）。
     val inline = remember(emojis) {
