@@ -38,6 +38,10 @@ fun noteAnnotated(
     linkColor: Color = DeckColors.Accent,
     // [#254] URL をホスト+パスの短縮ラベルで表示（引用カード等の行数が限られる場所用）。
     shortenUrls: Boolean = false,
+    // [#378] にゃにゃにゃウイルス: プレーンテキスト断片だけを nyaize 変換する（表示専用）。
+    // URL/メンション/#タグ/:shortcode: はトークンのまま素通しなので参照は壊れない。
+    // 判定（オフ/自分のみ/全員 × 著者）は呼び出し側が Nyan.appliesTo で行い真偽で渡す。
+    nyaize: Boolean = false,
 ): AnnotatedString = buildAnnotatedString {
     val accent = SpanStyle(color = linkColor, fontWeight = DeckWeight.Link)
     val linkStyles = TextLinkStyles(style = accent)
@@ -76,7 +80,10 @@ fun noteAnnotated(
     // ここは「トークン列 → 装飾付き AnnotatedString」への変換に専念する。
     for (tok in tokenizeNostrContent(text)) {
         when (tok) {
-            is ContentToken.Text -> append(text.substring(tok.start, tok.end))
+            is ContentToken.Text -> {
+                val frag = text.substring(tok.start, tok.end)
+                append(if (nyaize) app.nostrdeck.model.nyaize(frag) else frag)   // [#378]
+            }
             is ContentToken.Url -> withLink(LinkAnnotation.Url(tok.url, linkStyles)) {
                 append(if (shortenUrls) shortUrlLabel(tok.url) else tok.url)
             }

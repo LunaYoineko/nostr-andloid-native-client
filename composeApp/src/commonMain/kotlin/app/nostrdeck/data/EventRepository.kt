@@ -47,6 +47,7 @@ import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
 import app.nostrdeck.model.NoteAccentStyle
+import app.nostrdeck.model.NyanMode
 import app.nostrdeck.model.CustomThemePrefs
 import app.nostrdeck.model.ThemeEntry
 import app.nostrdeck.model.ImageCompressionPrefs
@@ -321,6 +322,7 @@ class EventRepository(
         // 表示サイズ（標準/大きめ/最大）を KV から復元。
         loadUiScale()
         loadBoldText()   // [#327]
+        loadNyanMode()   // [#378]
         loadDeveloperMode()   // [#351]
         loadNoteAccentStyle()
         loadCustomTheme()
@@ -3830,6 +3832,19 @@ class EventRepository(
         boldTextState.value = q.getSetting(BOLD_TEXT_KEY).executeAsOneOrNull() == "1"
     }
 
+    // ---- [#378] にゃにゃにゃウイルス（オフ/自分のみ/全員。既定オフ）----
+    // お遊びの猫化モード。**この端末の表示だけ**の演出で、発行イベントには一切影響しない。
+    // 端末ローカル設定（#374 の SettingsSync ホワイトリストには入れない）。
+    private val nyanModeState = MutableStateFlow(NyanMode.OFF)
+    fun nyanModeFlow(): StateFlow<NyanMode> = nyanModeState
+    fun setNyanMode(mode: NyanMode) {
+        nyanModeState.value = mode
+        putSettingAsync(NYAN_MODE_KEY, mode.id)
+    }
+    private fun loadNyanMode() {
+        nyanModeState.value = NyanMode.fromId(q.getSetting(NYAN_MODE_KEY).executeAsOneOrNull())
+    }
+
     // ---- [#351] 開発者モード（既定OFF）----
     // ON にすると投稿/チャットの ⋯ メニューに「イベントJSONを表示」が出る。
     private val developerModeState = MutableStateFlow(false)
@@ -4558,6 +4573,7 @@ class EventRepository(
         const val UI_SCALE_KEY = "ui:ui_scale"
         const val BOLD_TEXT_KEY = "appearance_bold_text"   // [#327]       // [#appearance] 表示サイズ（s/m/l）
         const val DEVELOPER_MODE_KEY = "developer_mode"   // [#351]
+        const val NYAN_MODE_KEY = "ui:nyan_mode"   // [#378] にゃにゃにゃウイルス（off/self/all）
         const val NOTE_ACCENT_STYLE_KEY = "ui:note_accent"  // [#256][#257] 種別の視覚表示（none/line/bg）
         const val THEME_CUSTOM_BG = "ui:theme_custom_bg"         // [#258] カスタムテーマ 背景色
         const val THEME_CUSTOM_TEXT = "ui:theme_custom_text"     // [#258] カスタムテーマ 文字色

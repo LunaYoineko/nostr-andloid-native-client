@@ -423,6 +423,7 @@ private fun AvatarSlot(m: ChannelMessage) {
             Avatar(
                 m.author.name, m.author.pictureUrl,
                 Modifier.padding(top = DeckSpace.Xs), size = DeckDimens.AvatarSize,
+                pubkey = m.event.pubkey,   // [#378] 猫耳判定用
             )
         } else {
             Spacer(Modifier.size(DeckDimens.AvatarSize))
@@ -482,7 +483,7 @@ private fun Bubble(
                         .combinedClickable(enabled = hasActions, onClick = {}, onLongClick = { menu = true })
                         .padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm),
                 ) {
-                    CollapsibleText(bodyText, emojis = emojis, color = textColor, linkColor = linkColor)
+                    CollapsibleText(bodyText, emojis = emojis, color = textColor, linkColor = linkColor, authorPubkey = m.event.pubkey)   // [#378]
                 }
                 // 長押しメニュー: リアクション / リプライ。
                 DeckDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {

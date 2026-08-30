@@ -662,6 +662,12 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="bold_text_title">Bold text</string>
     <string name="bold_text_desc">Makes all text one step heavier. Helps readability on low-contrast themes.</string>
     <string name="bold_text_toggle">Use bolder text</string>
+    <!-- [#378] にゃにゃにゃウイルス（猫化モード） -->
+    <string name="nyan_mode_title">Nyan-nyan-nya virus</string>
+    <string name="nyan_mode_desc">A just-for-fun cat mode: cat ears on avatars and "nya-ized" text (na → nya). Display-only on this device — your actual posts are never changed.</string>
+    <string name="nyan_mode_off">Off</string>
+    <string name="nyan_mode_self">Me only</string>
+    <string name="nyan_mode_all">Everyone</string>
     <!-- [#326] カード化したリンクのURLを本文から畳む -->
     <string name="embed_hide_carded_urls">Hide the URL text when a card is shown</string>
     <!-- [#351] 開発者モード / イベントJSONビューア -->

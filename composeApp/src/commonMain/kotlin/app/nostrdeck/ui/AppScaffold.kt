@@ -308,7 +308,7 @@ private fun BottomBar(state: DeckState) {
         NavigationBarItem(
             selected = state.navDest == NavDest.SETTINGS,
             onClick = { state.clearDetail(); state.navDest = NavDest.SETTINGS },
-            icon = { Avatar(myProfile?.name ?: pk ?: "me", myProfile?.pictureUrl, size = 24.dp) },
+            icon = { Avatar(myProfile?.name ?: pk ?: "me", myProfile?.pictureUrl, size = 24.dp, pubkey = pk) },
         )
     }
 }

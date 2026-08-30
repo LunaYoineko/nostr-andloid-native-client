@@ -658,6 +658,12 @@
     <string name="bold_text_title">文字を太くする</string>
     <string name="bold_text_desc">全体の文字を1段太くします。コントラストの低いテーマで読みやすくなります。</string>
     <string name="bold_text_toggle">太い文字を使う</string>
+    <!-- [#378] にゃにゃにゃウイルス（猫化モード） -->
+    <string name="nyan_mode_title">にゃにゃにゃウイルス</string>
+    <string name="nyan_mode_desc">お遊びの猫化モード。アバターに猫耳が生え、本文の「な」が「にゃ」に化けます。この端末の表示だけの演出で、実際の投稿内容は変わりません。</string>
+    <string name="nyan_mode_off">オフ</string>
+    <string name="nyan_mode_self">自分のみ</string>
+    <string name="nyan_mode_all">全員</string>
     <!-- [#326] カード化したリンクのURLを本文から畳む -->
     <string name="embed_hide_carded_urls">カードを出したリンクのURLを本文から隠す</string>
     <!-- [#351] 開発者モード / イベントJSONビューア -->
