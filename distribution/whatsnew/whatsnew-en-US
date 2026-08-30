@@ -1,5 +1,2 @@
-- Zap channel posts with the ⚡ button next to each message
-- Back up settings and deck columns to relays; when loading, review the changes and apply items individually
-- Link previews now cache for instant redisplay; fixed URLs containing note IDs expanding as quoted notes
-- Less data usage: quality auto-adjusts on mobile, reconnects fetch only new posts, connections pause in background
-- Developer mode: connection & traffic monitor
+- New "Nyanyanya virus" mode: cat ears on avatars and な→にゃ text play. Pick off / yourself only / everyone in Settings → Display
+- Display only — your posts themselves are unchanged
