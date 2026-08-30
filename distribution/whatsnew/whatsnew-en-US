@@ -1,5 +1,5 @@
-- Zap channel posts with the ⚡ button next to each message (shown when the author has a Lightning address)
-- Back up your settings and deck columns to relays. When loading, review only what changes and apply items individually
-- Link preview cards show before loading finishes and are cached for instant redisplay. Also fixed web URLs containing note IDs expanding as quoted notes
-- Less data usage: image quality auto-adjusts on mobile networks, reconnects fetch only new posts, and connections pause after 5 minutes in background
-- Developer mode: new connection & traffic monitor
+- Zap channel posts with the ⚡ button next to each message
+- Back up settings and deck columns to relays; when loading, review the changes and apply items individually
+- Link previews now cache for instant redisplay; fixed URLs containing note IDs expanding as quoted notes
+- Less data usage: quality auto-adjusts on mobile, reconnects fetch only new posts, connections pause in background
+- Developer mode: connection & traffic monitor
