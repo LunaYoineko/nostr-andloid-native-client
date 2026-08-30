@@ -1,0 +1,6 @@
+node_modules/
+package-lock.json
+# 生の公開鍵名簿・秘密鍵はコミットしない
+roster.json
+*.nsec
+.env
