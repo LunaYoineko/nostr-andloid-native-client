@@ -192,7 +192,7 @@ fun NoteItem(
     Row(Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Md)) {
         // アバターを少し下げて名前の文字位置に揃える。
         Avatar(note.author.name, note.author.pictureUrl, Modifier.padding(top = DeckSpace.Xs).then(authorTap),
-            size = DeckDimens.AvatarSize)
+            size = DeckDimens.AvatarSize, pubkey = note.event.pubkey)   // [#378] 猫耳判定用
         Spacer(Modifier.width(DeckSpace.Sm))
         Column(Modifier.weight(1f)) {
             // 名前+ハンドルを左、時刻は右端に固定（残り幅はグループが占有）。

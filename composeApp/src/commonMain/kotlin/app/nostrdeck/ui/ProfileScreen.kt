@@ -438,7 +438,7 @@ private fun ProfileHeaderCard(
                 Modifier.align(Alignment.BottomStart).padding(start = DeckSpace.Lg)
                     .clip(CircleShape).background(DeckColors.Surface).padding(DeckSpace.Xs),
             ) {
-                Avatar(profile?.name ?: pubkey, profile?.pictureUrl, size = 72.dp)
+                Avatar(profile?.name ?: pubkey, profile?.pictureUrl, size = 72.dp, pubkey = pubkey)
             }
             // 右下ボタン: 自分は「編集」（プロフ札の上＝プロフ編集）、他人は「… + フォロー」。
             // 設定はトップバー右上の⚙️へ分離（編集との誤読を避ける）。
@@ -794,7 +794,7 @@ private fun UserListRow(pubkey: String, profile: app.nostrdeck.db.Profile?, onCl
             .padding(horizontal = DeckSpace.Lg, vertical = DeckSpace.Sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(profile?.name ?: pubkey, profile?.picture_url, size = 40.dp)
+        Avatar(profile?.name ?: pubkey, profile?.picture_url, size = 40.dp, pubkey = pubkey)
         Spacer(Modifier.width(DeckSpace.Sm))
         Column(Modifier.weight(1f)) {
             Text(

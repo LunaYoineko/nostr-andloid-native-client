@@ -423,6 +423,7 @@ private fun AvatarSlot(m: ChannelMessage) {
             Avatar(
                 m.author.name, m.author.pictureUrl,
                 Modifier.padding(top = DeckSpace.Xs), size = DeckDimens.AvatarSize,
+                pubkey = m.event.pubkey,   // [#378] 猫耳判定用
             )
         } else {
             Spacer(Modifier.size(DeckDimens.AvatarSize))

@@ -774,7 +774,7 @@ private fun AccountHeader(pubkey: String?, profile: Profile?, modifier: Modifier
         ?: pubkey?.let { runCatching { Nip19.hexToNpub(it).take(12) + "…" }.getOrNull() }
         ?: stringResource(Res.string.compose_you)
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Avatar(seed = pubkey ?: "me", pictureUrl = profile?.pictureUrl, size = 22.dp)
+        Avatar(seed = pubkey ?: "me", pictureUrl = profile?.pictureUrl, size = 22.dp, pubkey = pubkey)
         Spacer(Modifier.width(DeckSpace.Sm))
         Text(name, color = DeckColors.Text, fontSize = DeckType.Body, fontWeight = DeckWeight.Name,
             lineHeight = DeckType.LineTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)

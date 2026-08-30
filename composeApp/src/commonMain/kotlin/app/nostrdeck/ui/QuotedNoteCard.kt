@@ -64,7 +64,7 @@ fun QuotedNoteCard(
     ) {
         // ヘッダは「アバター(小) + 名前」の横並び。アバターは文字サイズに合わせてコンパクト(16dp)。
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(seed = note.author.pubkey, pictureUrl = note.author.pictureUrl, size = 16.dp)
+            Avatar(seed = note.author.pubkey, pictureUrl = note.author.pictureUrl, size = 16.dp, pubkey = note.author.pubkey)
             Spacer(Modifier.width(DeckSpace.Xs))
             Text(
                 note.author.name,

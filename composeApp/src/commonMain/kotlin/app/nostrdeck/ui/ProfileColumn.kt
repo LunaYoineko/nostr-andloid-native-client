@@ -110,7 +110,7 @@ private fun ProfileHeaderCard(
     val npub = remember(pubkey) { runCatching { Nip19.hexToNpub(pubkey) }.getOrNull() }
     Column(Modifier.fillMaxWidth().background(DeckColors.Surface).padding(DeckSpace.Lg)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(profile?.name ?: pubkey, profile?.pictureUrl, Modifier.size(60.dp))
+            Avatar(profile?.name ?: pubkey, profile?.pictureUrl, Modifier.size(60.dp), pubkey = pubkey)
             Spacer(Modifier.width(DeckSpace.Md))
             Column(Modifier.weight(1f)) {
                 Text(

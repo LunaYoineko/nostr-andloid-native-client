@@ -1549,7 +1549,7 @@ private fun SignerSettings() {
             .background(DeckColors.Surface2).padding(DeckSpace.Md),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(myProfile?.name ?: myPubkey ?: "me", myProfile?.pictureUrl, size = 40.dp)
+            Avatar(myProfile?.name ?: myPubkey ?: "me", myProfile?.pictureUrl, size = 40.dp, pubkey = myPubkey)
             Spacer(Modifier.width(DeckSpace.Sm))
             Column {
                 Text(

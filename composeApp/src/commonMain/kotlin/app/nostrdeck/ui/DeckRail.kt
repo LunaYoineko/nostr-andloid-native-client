@@ -139,7 +139,7 @@ fun DeckRail(state: DeckState) {
             // [#hub] 自分=アバター1枠のみ。タップで設定一覧へ（プロフ/ふぁぼ/ブクマ/ミュートは
             // 設定内の「よく使う」パネルに集約）。レールにボタンを増やさず煩雑さを避ける。
             RailSlot(active = state.navDest == NavDest.SETTINGS, onClick = { state.clearDetail(); state.navDest = NavDest.SETTINGS }) {
-                Avatar(myProfile?.name ?: myPubkey ?: "me", myProfile?.pictureUrl, modifier = Modifier.size(DeckDimens.RailMark))
+                Avatar(myProfile?.name ?: myPubkey ?: "me", myProfile?.pictureUrl, modifier = Modifier.size(DeckDimens.RailMark), pubkey = myPubkey)
             }
         }
     }
