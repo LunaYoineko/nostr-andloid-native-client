@@ -110,6 +110,23 @@ enum class NoteAccentStyle(val id: String) {
 enum class NoteAccentKind { REPOST, QUOTE, REPLY, REACTION }
 
 /**
+ * [#378] にゃにゃにゃウイルス（設定 > 表示）。お遊びの猫化モード。既定はオフ。
+ * **この端末の表示だけ**に効く演出（猫耳＋にゃいず）で、発行するイベントには影響しない。
+ * 端末ローカル設定（#374 のリレー同期ホワイトリストには入れない）。
+ *  - SELF: 自分の投稿・自分のアバターだけ猫化
+ *  - ALL : タイムライン全員を猫化
+ */
+enum class NyanMode(val id: String) {
+    OFF("off"),
+    SELF("self"),
+    ALL("all");
+
+    companion object {
+        fun fromId(id: String?): NyanMode = entries.firstOrNull { it.id == id } ?: OFF
+    }
+}
+
+/**
  * [#152] テーマ（設定 > 表示）。既定はダーク（従来挙動そのまま）。
  * SYSTEM は OS のダークモード設定に追従する。
  */
