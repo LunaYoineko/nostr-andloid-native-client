@@ -80,9 +80,10 @@ fun NoteNaddrEmbeds(content: String, modifier: Modifier = Modifier) {
 /**
  * naddr を解決し、kind:30023 なら OGP 風カード（画像 + タイトル + 概要/1行目）を表示する。
  * 解決前はプレースホルダ、失敗・非対応 kind は淡色メッセージ（本文リンクで開ける前提）。
+ * [#380] コメントスレッドの根カード（CommentRootCard）からも使うため internal。
  */
 @Composable
-private fun ArticleEmbedCard(addr: Nip19.AddrRef) {
+internal fun ArticleEmbedCard(addr: Nip19.AddrRef) {
     val repo = LocalRepository.current ?: return
     val nav = LocalNoteNav.current
     var resolvedId by remember(addr) { mutableStateOf<String?>(null) }
@@ -116,7 +117,7 @@ private fun ArticleEmbedCard(addr: Nip19.AddrRef) {
 }
 
 @Composable
-private fun ArticleCardBody(event: NostrEvent, boxModifier: Modifier) {
+internal fun ArticleCardBody(event: NostrEvent, boxModifier: Modifier) {
     fun tag(name: String): String? =
         event.tags.firstOrNull { it.size >= 2 && it[0] == name }?.get(1)?.takeIf { it.isNotBlank() }
 

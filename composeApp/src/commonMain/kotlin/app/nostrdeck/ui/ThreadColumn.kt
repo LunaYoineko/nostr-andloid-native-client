@@ -75,6 +75,8 @@ fun ThreadColumn(
     onReply: (NoteUi) -> Unit = {},
     onQuote: (NoteUi) -> Unit = {},
     onAuthorClick: ((String) -> Unit)? = null,
+    // [#380] NIP-22 コメントスレッドの「根のカード」（ルートが記事/外部URL等の非ノートのとき）。
+    rootCard: (@Composable () -> Unit)? = null,
 ) {
     Column(modifier.background(DeckColors.Surface)) {
         ColumnHeader(
@@ -85,6 +87,7 @@ fun ThreadColumn(
         )
         HorizontalDivider(color = DeckColors.Border)
         LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
+            rootCard?.let { card -> item("comment-root-card") { card() } }
             itemsIndexed(entries, key = { _, it -> it.note.event.id }) { index, entry ->
                 ThreadRow(
                     entry,
