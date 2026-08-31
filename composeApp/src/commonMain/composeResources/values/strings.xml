@@ -521,6 +521,10 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="article_comment">Comment</string>
     <string name="article_emoji_reaction">Emoji reaction</string>
     <string name="article_comments_fmt">Comments (%1$d)</string>
+    <!-- [#380] NIP-22 (kind:1111) comment context -->
+    <string name="comment_root_kind_fmt">Comment on kind %1$s</string>
+    <string name="comment_root_url_fmt">Comment on %1$s</string>
+    <string name="comment_root_loading">Loading comment target…</string>
     <string name="connecting_1">Connecting to relays…</string>
     <string name="connecting_2">Chasing the ostrich…</string>
     <string name="connecting_3">Swimming the decentralized seas…</string>

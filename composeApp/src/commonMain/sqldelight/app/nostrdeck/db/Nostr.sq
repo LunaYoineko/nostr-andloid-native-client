@@ -343,9 +343,10 @@ JOIN event_tag et ON e.id = et.event_id
 WHERE e.kind = 7 AND et.tag = 'e';
 
 -- [M8-repost] フォロー中タイムライン（kind:1 通常 + kind:6/16 NIP-18 リポスト）を新しい順に。
+-- [#380] kind:1111 NIP-22 コメントも表示対象（返信と同じ体裁でルート文脈行付き）。
 feedFollowingWithReposts:
 SELECT * FROM event
-WHERE kind IN (1, 6, 16) AND pubkey IN ? AND created_at > ?
+WHERE kind IN (1, 1111, 6, 16) AND pubkey IN ? AND created_at > ?
 ORDER BY created_at DESC
 LIMIT 300;
 
@@ -418,12 +419,13 @@ WHERE e.kind IN (6, 16) AND et.value = :id
 GROUP BY e.pubkey
 ORDER BY at DESC;
 
--- [#270] 投稿詳細: 対象ノートへの反応数を kind 別に数える（1=リプライ / 6,16=リポスト）。
+-- [#270] 投稿詳細: 対象ノートへの反応数を kind 別に数える（1,1111=リプライ / 6,16=リポスト）。
 -- 対象判定はリアクションと同じ「最後の e タグ」（NIP-10 は返信対象の e が末尾に来る）。
+-- [#380] NIP-22 コメント(1111)もリプライとして数える。
 engagementCountsForNote:
 SELECT e.kind, COUNT(*) AS cnt FROM event e
 JOIN event_tag et ON et.event_id = e.id AND et.tag = 'e'
-WHERE e.kind IN (1, 6, 16) AND et.value = :id
+WHERE e.kind IN (1, 1111, 6, 16) AND et.value = :id
   AND et.rowid = (SELECT MAX(et2.rowid) FROM event_tag et2 WHERE et2.event_id = e.id AND et2.tag = 'e')
 GROUP BY e.kind;
 
@@ -494,12 +496,24 @@ WHERE e.kind = 7 AND e.pubkey = ? AND et.tag = 'e';
 -- [M9-thread] スレッド構成イベント: 指定 id 群そのもの + それらを e タグで参照する kind:1。
 -- [#84] 参照側は kind:1 に限定する。絞らないと同じ投稿を e タグ参照する kind:7(リアクション)や
 -- kind:6(リポスト)等が「返信」としてスレッドに混入する（購読側 Filter は kinds=[1] 済み）。
+-- [#380] NIP-22 コメント(kind:1111)も返信として含める。小文字 e=親 に加え、
+-- 大文字 E=ルート参照でツリー全体（孫コメント含む）が一括で載る。
 threadEvents:
 SELECT DISTINCT event.* FROM event
 LEFT JOIN event_tag ON event.id = event_tag.event_id
 WHERE event.id IN :ids
-   OR (event_tag.tag = 'e' AND event_tag.value IN :ids AND event.kind = 1)
+   OR (event_tag.tag = 'e' AND event_tag.value IN :ids AND event.kind IN (1, 1111))
+   OR (event_tag.tag = 'E' AND event_tag.value IN :ids AND event.kind = 1111)
 ORDER BY event.created_at ASC;
+
+-- [#380] ルートがアドレス（記事等の addressable）の NIP-22 コメントツリー。
+-- どのコメントもルート A を持つ（NIP-22 の root scope はツリー全体で同一）ため、
+-- A=アドレス の1条件で記事のコメント全件（ネスト含む）が取れる。
+commentsByRootAddress:
+SELECT DISTINCT event.* FROM event
+JOIN event_tag ON event.id = event_tag.event_id
+WHERE event.kind = 1111 AND event_tag.tag = 'A' AND event_tag.value = ?
+ORDER BY event.created_at ASC LIMIT 300;
 
 deleteEventById:
 DELETE FROM event WHERE id = ?;
