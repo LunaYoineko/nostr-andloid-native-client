@@ -26,6 +26,8 @@ data class Filter(
     val eTags: List<String>? = null,      // #e
     val pTags: List<String>? = null,      // #p（自分宛=通知の購読に使う）
     val dTags: List<String>? = null,      // #d（parameterized replaceable の識別子）
+    val rootETags: List<String>? = null,  // #E（[#380] NIP-22 コメントのルートイベント id）
+    val rootATags: List<String>? = null,  // #A（[#380] NIP-22 コメントのルートアドレス）
     val since: Long? = null,
     val until: Long? = null,
     val limit: Int? = null,
@@ -39,6 +41,8 @@ data class Filter(
         eTags?.let { putJsonArray("#e") { it.forEach { v -> add(v) } } }
         pTags?.let { putJsonArray("#p") { it.forEach { v -> add(v) } } }
         dTags?.let { putJsonArray("#d") { it.forEach { v -> add(v) } } }
+        rootETags?.let { putJsonArray("#E") { it.forEach { v -> add(v) } } }
+        rootATags?.let { putJsonArray("#A") { it.forEach { v -> add(v) } } }
         since?.let { put("since", it) }
         until?.let { put("until", it) }
         limit?.let { put("limit", it) }
