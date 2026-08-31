@@ -1388,8 +1388,9 @@ class EventRepository(
         notifJobs[columnId] = scope.launch {
             myPubkeyFlow.collect { me ->
                 if (me != null) {
-                    // 返信/メンション(1)・リポスト(6/16)・リアクション(7)・Zap受領(9735) を自分宛(#p)で購読。
-                    subscribeAll(columnId, Filter(kinds = listOf(1, 6, 16, 7, 9735), pTags = listOf(me), limit = 200))
+                    // 返信/メンション(1)・リポスト(6/16)・リアクション(7)・Zap受領(9735)・
+                    // NIP-22 コメント(1111)[#380] を自分宛(#p)で購読（1111 は P/p 必須なので #p で拾える）。
+                    subscribeAll(columnId, Filter(kinds = listOf(1, 6, 16, 7, 9735, 1111), pTags = listOf(me), limit = 200))
                 }
             }
         }
@@ -1464,7 +1465,15 @@ class EventRepository(
         val actor = profileFor(actorPubkey, byPubkey)
         // 対象イベント本体（抜粋＋種別判定に使う）。
         val targetEvent = target?.let { q.eventById(it).executeAsOneOrNull() }
-        val snippet = targetEvent?.let { (extractMedia(it.content).first ?: it.content).take(80) }
+        // [#380] 対象が記事(30023)ならタイトルを抜粋に（Markdown 全文の先頭より文脈になる）。
+        val snippet = targetEvent?.let { t ->
+            if (t.kind.toInt() == 30023) {
+                parseTags(t.tags_json).firstOrNull { it.size >= 2 && it[0] == "title" }?.get(1)
+                    ?: (extractMedia(t.content).first ?: t.content).take(80)
+            } else {
+                (extractMedia(t.content).first ?: t.content).take(80)
+            }
+        }
         // [#254] 対象の著者（通知行の1行プレビューにアバターを出す）。
         val targetAuthor = targetEvent?.let { profileFor(it.pubkey, byPubkey) }
         // [#298] 通知の本体に使うノート。
@@ -1472,7 +1481,8 @@ class EventRepository(
         //  - 返信/メンションは相手の投稿そのものを投稿フォーマットで出す。返信元は見出し行が担うため
         //    replyParent は落とす（NoteItem の ◁ 行と二重になる）
         val targetNote = targetEvent?.let { toNoteUi(it, byPubkey[it.pubkey]) }
-        val selfNote = if (row.kind.toInt() == 1) {
+        // [#380] kind:1111（NIP-22 コメント）も返信と同じく相手の投稿そのものを本体に出す。
+        val selfNote = if (row.kind.toInt() == 1 || row.kind.toInt() == Nip22.KIND) {
             withQuoteAndReply(toNoteUi(row, byPubkey[row.pubkey]), row, byPubkey).copy(replyParent = null)
         } else {
             null
@@ -1500,7 +1510,9 @@ class EventRepository(
                 targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId,
                 targetAuthor = targetAuthor, note = selfNote, targetNote = targetNote)
             else -> {
-                val isReply = tags.any { it.size >= 2 && it[0] == "e" }
+                // [#380] kind:1111 は常にコメント=返信扱い（トップレベルコメントは小文字 e を
+                // 持たないことがあるが、メンションではない）。
+                val isReply = row.kind.toInt() == Nip22.KIND || tags.any { it.size >= 2 && it[0] == "e" }
                 NotificationUi(
                     row.id, if (isReply) NotificationKind.REPLY else NotificationKind.MENTION,
                     actor, row.created_at,
