@@ -2192,6 +2192,19 @@ class EventRepository(
         val targetTags = target.tags.ifEmpty {
             q.eventById(target.id).executeAsOneOrNull()?.let { parseTags(it.tags_json) }.orEmpty()
         }
+        // [#380] NIP-22 コメント(kind:1111)への返信は kind:1111 で発行してツリーの一貫性を保つ。
+        // それ以外（新規コメント・kind:1 への返信）は従来どおり kind:1（旧クライアント互換）。
+        if (target.kind == Nip22.KIND) {
+            val nip22Tags = Nip22.replyTags(target.id, target.pubkey, targetTags)
+            val inheritedPs22 = nip22Tags.mapNotNull { if (it.size >= 2 && (it[0] == "p" || it[0] == "P")) it[1] else null }
+            val tags = nip22Tags +
+                hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(text) +
+                Nip27.mentionPTags(text, inheritedPs22) +
+                (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
+            val signed = publishSigned(UnsignedEvent(kind = Nip22.KIND, content = text, tags = tags))
+            recordHashtags(text, signed.createdAt)
+            return
+        }
         // ルート作者は e タグ5番目に入れる。ローカルに無ければ省く（無理に埋めない）。
         val rootId = rootOf(targetTags)
         val rootAuthor = if (rootId == null || rootId == target.id) target.pubkey
@@ -4669,8 +4682,9 @@ class EventRepository(
         fun isAmazonUrl(url: String): Boolean =
             Regex("""^https?://(www\.)?amazon\.[a-z.]+/""", RegexOption.IGNORE_CASE).containsMatchIn(url) ||
                 Regex("""^https?://amzn\.(to|asia)/""", RegexOption.IGNORE_CASE).containsMatchIn(url)
-        /** client タグを付与する公開コンテンツ kind（投稿/リポスト/リアクション/パブリックチャット）。 */
-        val CLIENT_TAG_KINDS = setOf(1, 6, 16, 7, 42)
+        /** client タグを付与する公開コンテンツ kind（投稿/リポスト/リアクション/パブリックチャット/
+         *  NIP-22 コメント[#380]）。 */
+        val CLIENT_TAG_KINDS = setOf(1, 6, 16, 7, 42, 1111)
 
         /** カラム別「ミュートを表示」設定の KV キー接頭辞（app_setting）。 */
         const val REVEAL_MUTED_PREFIX = "col_reveal_muted:"
