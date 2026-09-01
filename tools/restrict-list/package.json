@@ -1,0 +1,16 @@
+{
+  "name": "nostrism-restrict-list",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Nostrism の利用制限リスト(kind:30078)をローカルから管理・発行するツール",
+  "bin": {
+    "restrict": "./restrict.mjs"
+  },
+  "scripts": {
+    "restrict": "node ./restrict.mjs"
+  },
+  "dependencies": {
+    "nostr-tools": "^2.10.4"
+  }
+}

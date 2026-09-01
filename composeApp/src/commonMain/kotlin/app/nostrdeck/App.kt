@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.Density
 import app.nostrdeck.data.EventRepository
+import app.nostrdeck.model.NyanMode
 import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
@@ -37,6 +38,7 @@ import app.nostrdeck.ui.LocalProfileNames
 import app.nostrdeck.ui.LocalRepository
 import app.nostrdeck.ui.LoginGate
 import app.nostrdeck.ui.NoteNav
+import app.nostrdeck.ui.Nyan
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -93,7 +95,7 @@ fun App(
             if (loggedIn && !wasLoggedIn) repository?.reloadForNewIdentity()
             wasLoggedIn = loggedIn
         }
-        // [#122] リレー保存モードで取り込んだカラム構成を UI に反映（ローカル保存は Repository 側で済み）。
+        // [#374] リレー同期の差分適用で確定したカラム構成を UI に反映（ローカル保存は Repository 側で済み）。
         LaunchedEffect(state, repository) {
             repository?.remoteDeckColumnsFlow()?.collect { specs -> state.applyPinnedColumns(specs) }
         }
@@ -149,6 +151,13 @@ fun App(
         val boldText by (repository?.boldTextFlow()?.collectAsState()
             ?: remember { mutableStateOf(false) })
         DeckWeight.apply(boldText)
+        // [#378] にゃにゃにゃウイルス。Nyan は snapshot state なので apply するだけで
+        // 猫耳(Avatar)とにゃいず(noteAnnotated)の両方に効く。表示専用・発行には無関係。
+        val nyanMode by (repository?.nyanModeFlow()?.collectAsState()
+            ?: remember { mutableStateOf(NyanMode.OFF) })
+        val nyanMe by (repository?.loggedInPubkey()?.collectAsState(null)
+            ?: remember { mutableStateOf<String?>(null) })
+        Nyan.apply(nyanMode, nyanMe)
         val density = LocalDensity.current
         // [#196] スケール込み density を1つ作り、LocalDensity と（Dialog へ伝播させる用の）
         // LocalDeckDensity の両方へ供給する。Dialog/Popup 内では DeckScaled で再適用する。

@@ -20,12 +20,16 @@ import io.ktor.client.request.forms.formData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
+import io.ktor.client.request.prepareGet
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.encodeURLParameter
 import io.ktor.util.encodeBase64
+import io.ktor.utils.io.cancel
+import io.ktor.utils.io.readAvailable
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.buildJsonObject
@@ -43,6 +47,7 @@ import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
 import app.nostrdeck.model.NoteAccentStyle
+import app.nostrdeck.model.NyanMode
 import app.nostrdeck.model.CustomThemePrefs
 import app.nostrdeck.model.ThemeEntry
 import app.nostrdeck.model.ImageCompressionPrefs
@@ -56,8 +61,10 @@ import app.nostrdeck.model.NetworkTier
 import app.nostrdeck.model.OgpData
 import app.nostrdeck.ui.ImageProxy
 import app.nostrdeck.model.FeedEntry
+import app.nostrdeck.model.ContentToken
 import app.nostrdeck.model.NostrEvent
 import app.nostrdeck.model.NoteUi
+import app.nostrdeck.model.tokenizeNostrContent
 import app.nostrdeck.model.AuthPolicy
 import app.nostrdeck.model.FeedNoticeCategory
 import app.nostrdeck.model.NotificationKind
@@ -265,6 +272,8 @@ class EventRepository(
         q.transaction { q.clearTimelineEvents(); q.clearOrphanTags() }
         // 末尾スラッシュ違い（例: nos.lol と nos.lol/）で二重登録された既存行を一度だけ統合する。
         dedupeRelayUrls()
+        // [#368] 古い OGP キャッシュを掃除（14日超。TL に流れた URL の数だけ増えるため）。
+        q.purgeOgpCache(currentUnixTime() - OGP_PURGE_SEC)
         // ブートストラップ・リレーは**初回（リレー表が空）のみ** seed する。
         // 以前は毎回 insert+接続していたため、設定で削除した default リレーが再起動で復活していた。
         if (q.allRelays().executeAsList().isEmpty()) {
@@ -313,6 +322,7 @@ class EventRepository(
         // 表示サイズ（標準/大きめ/最大）を KV から復元。
         loadUiScale()
         loadBoldText()   // [#327]
+        loadNyanMode()   // [#378]
         loadDeveloperMode()   // [#351]
         loadNoteAccentStyle()
         loadCustomTheme()
@@ -322,9 +332,8 @@ class EventRepository(
         loadThemeMode()
         // デフォルトリアクション（♡ボタンの送信内容）を KV から復元。
         loadDefaultReaction()
-        // 「古のSNS廃人モード」を KV から復元。
-        // [#122] カラム構成の保存先（ローカル/リレー）を KV から復元。リレーなら 30078 を購読。
-        loadColumnSync()
+        // [#287] 絵文字リストの生タグを KV から復元。
+        loadEmojiListBackup()
         // [NIP-42] AUTH 応答ポリシーを KV から復元。
         loadAuthPolicy()
         // [#9] 通知/DM の最終閲覧時刻を KV から復元。
@@ -646,9 +655,8 @@ class EventRepository(
             follows.value = emptyList(); followsAt = 0L
             relayList.value = emptyList(); relayListAt = 0L
             emojiListAt = 0L
-            // [#122] 旧アカウントの 30078 タイムスタンプが新アカウントの取込を阻害しないように。
-            deckColumnsAt = 0L
-            putSettingAsync(DECK_COLUMNS_AT, "0")
+            // [#374] 旧アカウントの 30078 スナップショットを新アカウントで見せないように。
+            syncEventByD.value = emptyMap()
 
             // 履歴・キャッシュを全消去（NIP-65 リレーも。default/manual は維持）。
             q.transaction {
@@ -734,11 +742,10 @@ class EventRepository(
     /**
      * 現在のピン留めカラム集合を丸ごと保存する（全消し→並び順で再INSERT）。
      * 追加/固定/解除/並べ替えのたびに呼ぶ。順序は引数のリスト順。
-     * [#122] 保存先が「リレー」のときは kind:30078 も発行する（ローカルはオフラインキャッシュ兼用）。
+     * [#374] リレー(kind:30078)への保存は自動では行わない（設定画面の「リレーへ保存」のみ）。
      */
     fun persistPinnedColumns(specs: List<ColumnSpec>) {
         persistPinnedLocal(specs)
-        if (columnSyncRelayState.value) scope.launch { publishDeckColumns(specs) }
     }
 
     private fun persistPinnedLocal(specs: List<ColumnSpec>) {
@@ -753,15 +760,16 @@ class EventRepository(
         }
     }
 
-    // ---- [#122] カラム構成のリレー保存（NIP-78 kind:30078）----
+    // ---- [#374] リレー同期（NIP-78 kind:30078 の手動保存/読み込み）----
     //
-    // ミュートリスト(kind:10000)と同じく「リレー上のリストは常に存在しうる」前提。
-    //  - 読み込み: 常時購読し、手元より新しい構成が届けば取り込む（単純な LWW・確認UIなし）。
-    //    後発端末は起動時点でリレー構成へ追従するため、有効化操作で他端末を初期化する事故が起きない。
-    //  - 書き込み: トグル（COLUMN_SYNC_RELAY）が ON の端末だけが、保存のたびに
-    //    kind:30078（d = DECK_COLUMNS_D, content = カラム構成のJSON配列）を発行する。
+    // #122 の「常時購読 + 確認UIなしの単純LWW」は廃止し、明示操作だけで動くフローに置き換えた。
+    //  - 保存: 設定画面の「リレーへ保存」で、設定スナップショット（d=SETTINGS_SYNC_D）と
+    //    カラム構成（d=DECK_COLUMNS_D）の2イベントを発行する。自動発行はしない。
+    //  - 読み込み: 「リレーから読み込む」で一時REQにより最新1件ずつ取得し、UI 側で
+    //    ローカル現在値との差分を確認 → チェックした項目だけ適用する。常時購読はしない。
 
-    /** 30078 の content に載せるカラム1件分。他クライアントからも読める素直な JSON。 */
+    /** 30078 の content に載せるカラム1件分。他クライアントからも読める素直な JSON。
+     *  #122 時代に発行済みのイベントと互換のある形式なので変更しないこと。 */
     @Serializable
     private data class DeckColumnDto(
         val id: String,
@@ -773,99 +781,113 @@ class EventRepository(
         val order: Int = 0,
     )
 
-    /**
-     * [#122] 機能フラグ。仕様（読み込み常時+書き込み選択）の検討中は無効化しておく。
-     * false の間は 30078 の購読・発行を一切行わず、設定のトグルも押せない。
-     */
-    val columnSyncFeatureEnabled = false
-
-    private val columnSyncRelayState = MutableStateFlow(false)
-    /** カラム構成をリレー(kind:30078)にも保存するか。 */
-    fun columnSyncRelayFlow(): StateFlow<Boolean> = columnSyncRelayState
-
-    // 自分が発行/取込した 30078 の created_at（LWW 判定・自分の発行エコーの除外）。KV 永続。
-    private var deckColumnsAt = 0L
-
-    // リレーから取り込んだカラム構成。App が collect して DeckState へ適用する。
+    // 適用したカラム構成。App が collect して DeckState へ反映する（UI 反映の既存経路）。
     private val remoteColumnsFlow = MutableSharedFlow<List<ColumnSpec>>(replay = 1)
     fun remoteDeckColumnsFlow(): SharedFlow<List<ColumnSpec>> = remoteColumnsFlow
 
+    // 受信/発行した自分の 30078 スナップショット（d タグ → 最新イベント）。in-memory のみ。
+    private val syncEventByD = MutableStateFlow<Map<String, NostrEvent>>(emptyMap())
+    private var syncFetchSeq = 0
+
+    /** リレーから取得した同期スナップショット。null のフィールド = リレーに未保存。 */
+    data class RelaySyncSnapshot(
+        val settings: Map<String, String>?,
+        val columns: List<ColumnSpec>?,
+    )
+
     /**
-     * 「この端末の変更をリレーに保存するか」を切り替える（読み込みは常時なので影響しない）。
-     * ON にした時点の構成も発行する。常時読み込みにより有効化前にリレー構成へ追従済みなので、
-     * ここでの発行が他端末の構成を巻き戻すことはない（リレーに無ければ種になる）。
+     * ingest から: 自分の 30078（対象 d タグ）を新しい版だけメモリへ控える。
+     * ここでは適用しない（適用は差分確認 UI でユーザーが選んだ項目のみ）。
      */
-    fun setColumnSyncRelay(on: Boolean) {
-        if (!columnSyncFeatureEnabled) return
-        columnSyncRelayState.value = on
-        putSettingAsync(COLUMN_SYNC_RELAY, if (on) "1" else "0")
-        if (on) scope.launch { publishDeckColumns(loadPinnedColumns()) }
+    private fun captureSyncEvent(e: NostrEvent) {
+        if (e.pubkey != myPubkey) return
+        val d = e.tags.firstOrNull { it.size >= 2 && it[0] == "d" }?.get(1) ?: return
+        if (d != DECK_COLUMNS_D && d != SETTINGS_SYNC_D) return
+        val prev = syncEventByD.value[d]
+        if (prev != null && prev.createdAt >= e.createdAt) return
+        syncEventByD.value = syncEventByD.value + (d to e)
     }
 
-    private fun loadColumnSync() {
-        if (!columnSyncFeatureEnabled) return
-        deckColumnsAt = q.getSetting(DECK_COLUMNS_AT).executeAsOneOrNull()?.toLongOrNull() ?: 0L
-        // [#287] 絵文字リストの生タグを復元（リレーから 10030 が届く前でも編集を壊さない）。
-        q.getSetting(EMOJI_LIST_TAGS_KEY).executeAsOneOrNull()?.let { raw ->
-            runCatching { json.decodeFromString(ListSerializer(ListSerializer(String.serializer())), raw) }
-                .getOrNull()?.let { emojiListTags = it; myEmojiState.value = emojiTagsToList(it) }
-        }
-        columnSyncRelayState.value = q.getSetting(COLUMN_SYNC_RELAY).executeAsOneOrNull() == "1"
-        // 読み込みはトグルに関係なく常時（ミュートリストと同じ扱い）。
-        subscribeDeckColumns()
-    }
-
-    /** 自分の kind:30078（d=DECK_COLUMNS_D）を常時1件購読する。 */
-    private fun subscribeDeckColumns() {
-        if (!openColumns.add(DECK_COLUMNS_SUB)) return
-        notifJobs[DECK_COLUMNS_SUB] = scope.launch {
-            myPubkeyFlow.collect { me ->
-                if (me != null) {
-                    subscribeAll(
-                        DECK_COLUMNS_SUB,
-                        Filter(kinds = listOf(30078), authors = listOf(me), dTags = listOf(DECK_COLUMNS_D), limit = 1),
-                    )
-                }
+    /**
+     * 自分の 30078（設定 + カラム構成）を一時REQで取得する（手動ロード）。
+     * 両方揃うか [timeoutMs] で打ち切り。未ログインなら null。
+     */
+    suspend fun fetchRelaySync(timeoutMs: Long = 6_000): RelaySyncSnapshot? {
+        val me = myPubkey ?: return null
+        val subId = "syncfetch-${syncFetchSeq++}"
+        subscribeAll(
+            subId,
+            Filter(kinds = listOf(30078), authors = listOf(me), dTags = listOf(SETTINGS_SYNC_D), limit = 1),
+            Filter(kinds = listOf(30078), authors = listOf(me), dTags = listOf(DECK_COLUMNS_D), limit = 1),
+        )
+        withTimeoutOrNull(timeoutMs) {
+            while (syncEventByD.value[SETTINGS_SYNC_D] == null || syncEventByD.value[DECK_COLUMNS_D] == null) {
+                delay(200)
             }
         }
+        unsubscribeAll(subId)
+        val settings = syncEventByD.value[SETTINGS_SYNC_D]?.let { e ->
+            runCatching { json.decodeFromString(SettingsSyncPayload.serializer(), e.content).settings }.getOrNull()
+        }
+        val columns = syncEventByD.value[DECK_COLUMNS_D]?.let { decodeDeckColumns(it.content) }
+        return RelaySyncSnapshot(settings, columns)
     }
 
-    private suspend fun publishDeckColumns(specs: List<ColumnSpec>) = runCatching {
-        val dtos = specs.mapIndexed { i, s ->
+    /** ホワイトリスト設定の現在値スナップショット（正規化済み文字列）。差分計算・発行に使う。 */
+    fun currentSyncSettings(): Map<String, String> =
+        SETTINGS_SYNC_WHITELIST.associate { it.key to it.read(this) }
+
+    /** ホワイトリスト設定のスナップショットを kind:30078（d=SETTINGS_SYNC_D）として発行する。 */
+    suspend fun publishSettingsSync(): Boolean = runCatching {
+        val content = json.encodeToString(
+            SettingsSyncPayload.serializer(),
+            SettingsSyncPayload(version = 1, settings = currentSyncSettings()),
+        )
+        val signed = publishSigned(
+            UnsignedEvent(kind = 30078, content = content, tags = listOf(listOf("d", SETTINGS_SYNC_D))),
+        )
+        captureSyncEvent(signed)   // 直後のロードで「差分なし」になるように控えも更新
+        true
+    }.getOrElse { println("Nostrism publishSettingsSync failed: $it"); false }
+
+    /** 現在のピン留めカラム構成を kind:30078（d=DECK_COLUMNS_D）として発行する。 */
+    suspend fun publishDeckColumnsSync(): Boolean = runCatching {
+        val dtos = loadPinnedColumns().sortedBy { it.order }.mapIndexed { i, s ->
             DeckColumnDto(s.id, s.title, s.subtitle, s.kind.name, s.renderer.name, s.filter, i)
         }
         val content = json.encodeToString(ListSerializer(DeckColumnDto.serializer()), dtos)
         val signed = publishSigned(
             UnsignedEvent(kind = 30078, content = content, tags = listOf(listOf("d", DECK_COLUMNS_D))),
         )
-        deckColumnsAt = signed.createdAt
-        putSettingAsync(DECK_COLUMNS_AT, signed.createdAt.toString())
-    }.getOrElse { println("Nostrism publishDeckColumns failed: $it") }
+        captureSyncEvent(signed)
+        true
+    }.getOrElse { println("Nostrism publishDeckColumnsSync failed: $it"); false }
+
+    /** d=DECK_COLUMNS_D の content（#122 互換の DeckColumnDto 配列）を ColumnSpec 群へ。壊れていれば null。 */
+    private fun decodeDeckColumns(content: String): List<ColumnSpec>? = runCatching {
+        json.decodeFromString(ListSerializer(DeckColumnDto.serializer()), content).map { d ->
+            ColumnSpec(
+                id = d.id, title = d.title, subtitle = d.subtitle,
+                kind = ColumnKind.valueOf(d.kind), renderer = ColumnRenderer.valueOf(d.renderer),
+                filter = d.filter, pinned = true, order = d.order,
+            )
+        }
+    }.getOrNull()
 
     /**
-     * 受信した kind:30078 を検査し、自分の・対象 d タグの・手元より新しいものだけ取り込む。
-     * 取り込みはローカル保存（pinned_column）+ [remoteColumnsFlow] への通知（UI 反映は App 側）。
+     * 差分適用後のカラム構成を反映する（ローカル保存 + [remoteColumnsFlow] 経由で DeckState へ）。
+     * 差分確認 UI で「適用」されたときだけ呼ばれる。
      */
-    private fun updateDeckColumns(e: NostrEvent) {
-        if (!columnSyncFeatureEnabled) return
-        if (e.pubkey != myPubkey) return
-        if (e.tags.none { it.size >= 2 && it[0] == "d" && it[1] == DECK_COLUMNS_D }) return
-        if (e.createdAt <= deckColumnsAt) return
-        val specs = runCatching {
-            json.decodeFromString(ListSerializer(DeckColumnDto.serializer()), e.content).map { d ->
-                ColumnSpec(
-                    id = d.id, title = d.title, subtitle = d.subtitle,
-                    kind = ColumnKind.valueOf(d.kind), renderer = ColumnRenderer.valueOf(d.renderer),
-                    filter = d.filter, pinned = true, order = d.order,
-                )
-            }
-        }.getOrNull() ?: return
-        if (specs.isEmpty()) return  // 空構成は事故（別クライアントの初期化等）とみなし採用しない
-        deckColumnsAt = e.createdAt
-        putSettingAsync(DECK_COLUMNS_AT, e.createdAt.toString())
-        scope.launch {
-            persistPinnedLocal(specs)
-            remoteColumnsFlow.emit(specs)
+    fun applySyncedColumns(specs: List<ColumnSpec>) {
+        persistPinnedLocal(specs)
+        scope.launch { remoteColumnsFlow.emit(specs) }
+    }
+
+    /** [#287] 絵文字リストの生タグを KV から復元（リレーから 10030 が届く前でも編集を壊さない）。 */
+    private fun loadEmojiListBackup() {
+        q.getSetting(EMOJI_LIST_TAGS_KEY).executeAsOneOrNull()?.let { raw ->
+            runCatching { json.decodeFromString(ListSerializer(ListSerializer(String.serializer())), raw) }
+                .getOrNull()?.let { emojiListTags = it; myEmojiState.value = emojiTagsToList(it) }
         }
     }
 
@@ -2560,11 +2582,10 @@ class EventRepository(
             10030 -> updateEmojiList(e)   // NIP-51 自分の絵文字リスト
             30030 -> updateEmojiSet(e)    // NIP-51 絵文字セット（10030 の a タグ参照先）
             30078 -> {
-                updateDeckColumns(e) // [#122] NIP-78 アプリデータ（カラム構成の任意リレー保存）
+                captureSyncEvent(e) // [#374] NIP-78 アプリデータ（設定/カラム構成の手動同期用の控え）
                 // [#288] 配布テーマ（t=nostrism-theme）は **他人の分も** event テーブルへ保存する。
                 // themeEntriesFlow は event テーブルを読むので、保存しないとストア一覧に出ない。
-                // 自分のテーマだけ出ていたのは publishSigned がローカル保存していたから
-                // （updateDeckColumns は columnSync 凍結中(#138)で即 return し、何も保存しない）。
+                // 自分のテーマだけ出ていたのは publishSigned がローカル保存していたから。
                 if (e.tags.any { it.size >= 2 && it[0] == "t" && it[1] == ThemeEntry.DISCOVERY_TAG }) {
                     // 本体とタグ索引は原子的に（索引前を読むと t タグ無しに見え、一覧から漏れる #78）。
                     q.transaction {
@@ -3413,12 +3434,18 @@ class EventRepository(
     /**
      * 本文を走査し最初の解決可能な nevent1.../note1... を返す（id と nevent TLV のリレーヒント付き）。
      * `nostr:` 接頭辞付き・素の表記の両方に対応（接頭辞があれば開始位置に含めて除去する）。
+     *
+     * [#369] 走査は共通トークナイザ [tokenizeNostrContent] に一本化。URL が先に1トークンとして
+     * 確定するので、`https://…/post/note1…` のような URL パス中の bech32 は引用扱いにならない
+     * （URL は表示側の OGP カードに委ねる。njump.me 等の例外ドメインも作らない）。
+     * 以前は独自 Regex（直前が英数字の場合のみ除外）で、`/` 区切りの URL 内 note1 を拾っていた。
      */
     private fun findEventRef(text: String): EventRef? {
-        for (m in EVENT_REF_REGEX.findAll(text)) {
-            val bech = m.value.removePrefix("nostr:")
-            Nip19.eventBechToIdAndRelays(bech)?.let { (id, relays) ->
-                return EventRef(m.range.first, m.range.last + 1, id, relays)
+        for (tok in tokenizeNostrContent(text)) {
+            if (tok !is ContentToken.NostrRef) continue
+            if (!tok.bech.startsWith("note1") && !tok.bech.startsWith("nevent1")) continue
+            Nip19.eventBechToIdAndRelays(tok.bech)?.let { (id, relays) ->
+                return EventRef(tok.start, tok.end, id, relays)
             }
         }
         return null
@@ -3805,6 +3832,19 @@ class EventRepository(
         boldTextState.value = q.getSetting(BOLD_TEXT_KEY).executeAsOneOrNull() == "1"
     }
 
+    // ---- [#378] にゃにゃにゃウイルス（オフ/自分のみ/全員。既定オフ）----
+    // お遊びの猫化モード。**この端末の表示だけ**の演出で、発行イベントには一切影響しない。
+    // 端末ローカル設定（#374 の SettingsSync ホワイトリストには入れない）。
+    private val nyanModeState = MutableStateFlow(NyanMode.OFF)
+    fun nyanModeFlow(): StateFlow<NyanMode> = nyanModeState
+    fun setNyanMode(mode: NyanMode) {
+        nyanModeState.value = mode
+        putSettingAsync(NYAN_MODE_KEY, mode.id)
+    }
+    private fun loadNyanMode() {
+        nyanModeState.value = NyanMode.fromId(q.getSetting(NYAN_MODE_KEY).executeAsOneOrNull())
+    }
+
     // ---- [#351] 開発者モード（既定OFF）----
     // ON にすると投稿/チャットの ⋯ メニューに「イベントJSONを表示」が出る。
     private val developerModeState = MutableStateFlow(false)
@@ -3869,16 +3909,47 @@ class EventRepository(
     /**
      * URL の OGP(OpenGraph) メタを取得する。成功/失敗ともメモリキャッシュ（null もキャッシュ）。
      * HTML 先頭のみを走査して og:title/og:description/og:image/og:site_name を拾う簡易実装。
+     * [#368] ボディは先頭のみ読んで打ち切り（通常200KB / Amazonは画像JSONが後半のため512KB）、
+     * 結果は DB にも TTL 付きで永続化する（成功7日・失敗1日。再起動時の全URL再取得を防ぐ）。
      */
     suspend fun fetchOgp(url: String): OgpData? {
         ogpMutex.withLock { if (ogpCache.containsKey(url)) return ogpCache[url] }
+        // [#368] DB キャッシュ。TTL 内ならネットワークへ行かない。
+        val cached = withContext(Dispatchers.Default) { q.getOgpCache(url).executeAsOneOrNull() }
+        if (cached != null) {
+            val ttl = if (cached.ok != 0L) OGP_TTL_OK_SEC else OGP_TTL_NG_SEC
+            if (currentUnixTime() - cached.fetched_at < ttl) {
+                val data = if (cached.ok == 0L) null else OgpData(
+                    url, title = cached.title, description = cached.description,
+                    image = cached.image, siteName = cached.site_name,
+                )
+                ogpMutex.withLock { putOgpMemory(url, data) }
+                return data
+            }
+        }
         val data = runCatching {
             withContext(Dispatchers.Default) {
+                // [#368] 全量ダウンロードをやめ、先頭 cap バイトで打ち切る（数MBのページ対策）。
+                // OG タグは <head> にあるため通常は 200KB で足りる。Amazon の商品画像 JSON は
+                // ページ後半に来る構成があるため 512KB まで緩和（それでも無ければ画像なしに劣化）。
+                val cap = if (isAmazonUrl(url)) 512_000 else 200_000
                 // [#137] ブラウザ風 UA を名乗らないと Amazon 等がボット扱いで 404/簡易ページを返す。
-                val html = uploadHttp.get(url) {
+                val html = uploadHttp.prepareGet(url) {
                     header(HttpHeaders.UserAgent, OGP_UA)
                     header(HttpHeaders.AcceptLanguage, "ja-JP,ja;q=0.9,en;q=0.5")
-                }.bodyAsText()
+                }.execute { resp ->
+                    val ch = resp.bodyAsChannel()
+                    val buf = ByteArray(cap)
+                    var read = 0
+                    while (read < cap) {
+                        val n = ch.readAvailable(buf, read, cap - read)
+                        if (n == -1) break
+                        read += n
+                    }
+                    runCatching { ch.cancel(null) }   // 残りは読まない（execute を抜けると接続ごと破棄される）
+                    // 途中で切れた多バイト文字は decodeToString が置換文字にするだけで走査には影響しない。
+                    buf.decodeToString(0, read)
+                }
                 val head = html.take(200_000)  // <head> を含む先頭のみ
                 fun meta(prop: String): String? {
                     // property="og:x" content="..." と content="..." property="og:x" の両順序に対応。
@@ -3906,12 +3977,21 @@ class EventRepository(
                 else OgpData(url, title = title, description = meta("og:description"), image = image, siteName = meta("og:site_name"))
             }
         }.getOrNull()
-        ogpMutex.withLock {
-            ogpCache[url] = data
-            // [#80] TL に流れた URL の数だけ無制限に増えるので上限を設ける（挿入順で最古を破棄）。
-            if (ogpCache.size > 256) ogpCache.remove(ogpCache.keys.first())
+        ogpMutex.withLock { putOgpMemory(url, data) }
+        // [#368] DB へも保存。失敗も記録して、取れない URL の再試行を TTL(1日)に抑える。
+        scope.launch(relayDispatcher) {
+            q.putOgpCache(
+                url, currentUnixTime(), if (data != null) 1L else 0L,
+                data?.title, data?.description, data?.image, data?.siteName,
+            )
         }
         return data
+    }
+
+    /** [#80] メモリ側 OGP キャッシュへの追加（呼び出し側で ogpMutex を取ること）。上限256件。 */
+    private fun putOgpMemory(url: String, data: OgpData?) {
+        ogpCache[url] = data
+        if (ogpCache.size > 256) ogpCache.remove(ogpCache.keys.first())
     }
 
     private fun decodeHtmlEntities(s: String): String = s
@@ -4404,14 +4484,12 @@ class EventRepository(
         put("sig", e.sig)
     }.toString()
 
-    private companion object {
+    // [#374] SettingsSync（ホワイトリスト定義）と単体テストから KV キー定数を参照するため internal。
+    internal companion object {
         val TAG_KEYS = setOf("t", "e", "p", "q")  // [M8-repost] "q"=NIP-18 引用参照を索引
 
         /** [M11] 既定のメディアサーバ(NIP-96)。start() で insert-if-absent して投入する。 */
         val DEFAULT_MEDIA_SERVERS = listOf("https://nostrcheck.me", "https://nostr.build")
-
-        /** 本文中の nevent1.../note1...（nostr: 接頭辞は任意）。直前が英数字の語中ヒットは除外。 */
-        val EVENT_REF_REGEX = Regex("(?<![a-z0-9])(nostr:)?(nevent1|note1)[a-z0-9]+")
 
         /** 引用/返信ヒント + インデクサで一時接続するリレーの上限（接続数の暴発防止）。 */
         const val HINT_RELAY_CAP = 16
@@ -4444,6 +4522,11 @@ class EventRepository(
         const val SEARCH_FETCH_LIMIT = 300
         // [#358] バックグラウンドでリレーを一時停止するまでの猶予（5分）。
         const val BG_PAUSE_DELAY_MS = 5 * 60 * 1000L
+        // [#368] OGP の DB キャッシュ TTL（秒）。成功は7日、失敗は1日で取り直す。
+        const val OGP_TTL_OK_SEC = 7L * 24 * 3600
+        const val OGP_TTL_NG_SEC = 24L * 3600
+        // [#368] 起動時に消す古い OGP キャッシュのしきい値（14日）。
+        const val OGP_PURGE_SEC = 14L * 24 * 3600
         // [#259] キーワード検索のローカル読み出し上限。1条件あたり / 合成後の総数。
         const val SEARCH_ROWS_PER_QUERY = 300L
         const val SEARCH_ROWS_TOTAL = 300
@@ -4490,6 +4573,7 @@ class EventRepository(
         const val UI_SCALE_KEY = "ui:ui_scale"
         const val BOLD_TEXT_KEY = "appearance_bold_text"   // [#327]       // [#appearance] 表示サイズ（s/m/l）
         const val DEVELOPER_MODE_KEY = "developer_mode"   // [#351]
+        const val NYAN_MODE_KEY = "ui:nyan_mode"   // [#378] にゃにゃにゃウイルス（off/self/all）
         const val NOTE_ACCENT_STYLE_KEY = "ui:note_accent"  // [#256][#257] 種別の視覚表示（none/line/bg）
         const val THEME_CUSTOM_BG = "ui:theme_custom_bg"         // [#258] カスタムテーマ 背景色
         const val THEME_CUSTOM_TEXT = "ui:theme_custom_text"     // [#258] カスタムテーマ 文字色
@@ -4506,15 +4590,11 @@ class EventRepository(
         const val DEFAULT_REACTION_IMAGE = "default_reaction:image"
 
 
-        /** [#122] カラム構成をリレー(kind:30078)にも保存するか（"1"/"0"）。 */
-        const val COLUMN_SYNC_RELAY = "column_sync_relay"
-        /** [#122] 自分が発行/取込した 30078 の created_at（LWW 判定）。 */
-        const val DECK_COLUMNS_AT = "deck_columns_at"
         const val EMOJI_LIST_TAGS_KEY = "emoji_list_tags"
-        /** [#122] 30078 の d タグ（このアプリのカラム構成を示す識別子）。 */
+        /** [#122][#374] 30078 の d タグ（このアプリのカラム構成を示す識別子）。#122 発行分と互換。 */
         const val DECK_COLUMNS_D = "app.nostrdeck:deck-columns"
-        /** [#122] 30078 購読の subId。 */
-        const val DECK_COLUMNS_SUB = "deckcolumns"
+        /** [#374] 30078 の d タグ（設定スナップショット）。 */
+        const val SETTINGS_SYNC_D = "nostrism-settings"
 
         /** 自分の最新 kind:0 生JSON（プロフィール編集の未知フィールド温存・purge 耐性用）。 */
         const val MY_PROFILE_JSON = "my_profile_json"

@@ -300,10 +300,32 @@
     <string name="reaction_star">Star</string>
     <string name="reaction_other">Other emoji</string>
     <string name="settings_unavailable">Settings are unavailable</string>
-    <string name="colsync_title">Save deck layout to relays</string>
-    <string name="colsync_desc">If a deck layout saved to relays (kind:30078 / NIP-78) exists, it is always imported (newest wins). Enabling this also saves changes made on this device to relays so other devices/clients can read them. When off (default), it is read-only.
-* Temporarily disabled while in preparation.</string>
-    <string name="colsync_toggle">Save changes from this device to relays (kind:30078)</string>
+    <string name="sync_title">Relay sync</string>
+    <string name="sync_desc">Manually saves your settings and deck layout to relays as kind:30078 (NIP-78). Loading fetches your latest snapshot and shows a per-item diff so you can choose what to apply. Nothing is synced automatically.</string>
+    <string name="sync_save">Save to relays</string>
+    <string name="sync_load">Load from relays</string>
+    <string name="sync_save_confirm_title">Save to relays?</string>
+    <string name="sync_save_confirm_text">Publishes two events (settings and deck layout, kind:30078) to your write relays, replacing the previous snapshots.</string>
+    <string name="sync_save_confirm">Save</string>
+    <string name="sync_save_done">Saved to relays.</string>
+    <string name="sync_save_failed">Failed to save to relays.</string>
+    <string name="sync_loading">Loading from relays…</string>
+    <string name="sync_no_data">No saved data found on relays.</string>
+    <string name="sync_no_diff">No differences.</string>
+    <string name="sync_diff_title">Review differences</string>
+    <string name="sync_diff_desc">Only checked items will be applied.</string>
+    <string name="sync_group_settings">Settings</string>
+    <string name="sync_group_columns">Deck columns</string>
+    <string name="sync_apply">Apply</string>
+    <string name="sync_applied">Applied.</string>
+    <string name="sync_col_added_fmt">Add: %1$s</string>
+    <string name="sync_col_removed_fmt">Remove: %1$s</string>
+    <string name="sync_col_changed_fmt">Change: %1$s</string>
+    <string name="sync_col_reordered">Column order</string>
+    <string name="sync_value_on">On</string>
+    <string name="sync_value_off">Off</string>
+    <string name="sync_value_none">None</string>
+    <string name="sync_name_reaction_image">Default reaction image</string>
     <string name="data_purge_desc">Clears all locally cached data (timeline history, profiles, channels, pending posts) and refetches from relays. Keys, relay settings, and hashtag history are kept.</string>
     <string name="data_purge_button">Force-clear cache</string>
     <string name="data_purge_done">Cache cleared; refetching started.</string>
@@ -551,6 +573,7 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="chat_loading_channel">Loading channel…</string>
     <string name="chat_write_message">✏️ Write a message</string>
     <string name="chat_reply">Reply</string>
+    <string name="chat_zap">Zap</string>
     <string name="chat_reply_to_fmt">Replying to %1$s: %2$s</string>
     <string name="chat_cancel_reply">Cancel reply</string>
     <string name="chat_input_placeholder">Type a message…</string>
@@ -639,6 +662,12 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="bold_text_title">Bold text</string>
     <string name="bold_text_desc">Makes all text one step heavier. Helps readability on low-contrast themes.</string>
     <string name="bold_text_toggle">Use bolder text</string>
+    <!-- [#378] にゃにゃにゃウイルス（猫化モード） -->
+    <string name="nyan_mode_title">Nyan-nyan-nya virus</string>
+    <string name="nyan_mode_desc">A just-for-fun cat mode: cat ears on avatars and "nya-ized" text (na → nya). Display-only on this device — your actual posts are never changed.</string>
+    <string name="nyan_mode_off">Off</string>
+    <string name="nyan_mode_self">Me only</string>
+    <string name="nyan_mode_all">Everyone</string>
     <!-- [#326] カード化したリンクのURLを本文から畳む -->
     <string name="embed_hide_carded_urls">Hide the URL text when a card is shown</string>
     <!-- [#351] 開発者モード / イベントJSONビューア -->

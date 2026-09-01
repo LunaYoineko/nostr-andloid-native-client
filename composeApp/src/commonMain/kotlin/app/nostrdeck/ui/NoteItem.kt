@@ -192,7 +192,7 @@ fun NoteItem(
     Row(Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Md)) {
         // アバターを少し下げて名前の文字位置に揃える。
         Avatar(note.author.name, note.author.pictureUrl, Modifier.padding(top = DeckSpace.Xs).then(authorTap),
-            size = DeckDimens.AvatarSize)
+            size = DeckDimens.AvatarSize, pubkey = note.event.pubkey)   // [#378] 猫耳判定用
         Spacer(Modifier.width(DeckSpace.Sm))
         Column(Modifier.weight(1f)) {
             // 名前+ハンドルを左、時刻は右端に固定（残り幅はグループが占有）。
@@ -232,7 +232,7 @@ fun NoteItem(
             }
             // メディアのみの投稿は本文が空文字になる。空の Text を描くと無駄な行高が出るので飛ばす。
             if (bodyText.isNotBlank()) {
-                CollapsibleText(bodyText, emojis = note.customEmojis) // [M8-collapse]
+                CollapsibleText(bodyText, emojis = note.customEmojis, authorPubkey = note.event.pubkey) // [M8-collapse][#378]
             }
 
             // [#356] 翻訳は原文の下に別ブロックで表示する（原文は残し、突き合わせて読めるように）。
@@ -259,7 +259,7 @@ fun NoteItem(
                     }
                     translation?.takeIf { showTranslation }?.let {
                         Spacer(Modifier.size(DeckSpace.Xs))
-                        CollapsibleText(it, emojis = note.customEmojis)
+                        CollapsibleText(it, emojis = note.customEmojis, authorPubkey = note.event.pubkey)
                     }
                 }
             }

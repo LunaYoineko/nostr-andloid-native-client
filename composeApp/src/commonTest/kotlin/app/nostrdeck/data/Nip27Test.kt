@@ -50,8 +50,17 @@ class Nip27Test {
 
     @Test
     fun ignores_bech_inside_longer_token() {
-        // 直前が英数字なら別文字列の一部（負の後読み）。
+        // 直前が英数字なら別文字列の一部（語中ヒット回避）。
         assertTrue(Nip27.mentionPubkeys("xx$aliceNpub").isEmpty())
+    }
+
+    @Test
+    fun ignores_bech_inside_url() {
+        // [#369] URL パス中の npub/nprofile は URL の一部。表示側もメンション扱いしないので
+        // p タグを付けない（付けると本人に意図しない通知が飛ぶ）。
+        assertTrue(Nip27.mentionPubkeys("see https://example.com/user/$aliceNpub").isEmpty())
+        // URL の外にあるものは従来どおり拾う。
+        assertEquals(listOf(bob), Nip27.mentionPubkeys("https://example.com/user/$aliceNpub nostr:$bobNprofile"))
     }
 
     // ---- p タグ組み立て ----

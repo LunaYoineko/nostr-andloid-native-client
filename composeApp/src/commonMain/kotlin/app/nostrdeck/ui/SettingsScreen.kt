@@ -1157,6 +1157,14 @@ private fun themeModeLabel(m: app.nostrdeck.model.ThemeMode): String = when (m) 
     app.nostrdeck.model.ThemeMode.CUSTOM -> stringResource(Res.string.theme_custom)
 }
 
+// [#378] にゃにゃにゃウイルスの適用範囲ラベル。
+@Composable
+private fun nyanModeLabel(m: app.nostrdeck.model.NyanMode): String = when (m) {
+    app.nostrdeck.model.NyanMode.OFF -> stringResource(Res.string.nyan_mode_off)
+    app.nostrdeck.model.NyanMode.SELF -> stringResource(Res.string.nyan_mode_self)
+    app.nostrdeck.model.NyanMode.ALL -> stringResource(Res.string.nyan_mode_all)
+}
+
 // [#256][#257] 種別表示スタイル / 種別のラベル。
 @Composable
 private fun noteAccentStyleLabel(s: NoteAccentStyle): String = when (s) {
@@ -1378,6 +1386,24 @@ private fun AppearanceSettings() {
     }
     Spacer(Modifier.height(DeckSpace.Lg))
 
+    // [#378] にゃにゃにゃウイルス（オフ/自分のみ/全員）。この端末の表示だけの猫化演出。
+    SectionCaption(stringResource(Res.string.nyan_mode_title))
+    Spacer(Modifier.height(DeckSpace.Xs))
+    Text(
+        stringResource(Res.string.nyan_mode_desc),
+        color = DeckColors.Text3, fontSize = DeckType.Label,
+    )
+    Spacer(Modifier.size(DeckSpace.Md))
+    run {
+        val nyanMode by repo.nyanModeFlow().collectAsState()
+        Row(horizontalArrangement = Arrangement.spacedBy(DeckSpace.Sm)) {
+            app.nostrdeck.model.NyanMode.entries.forEach { m ->
+                ChoiceChip(nyanModeLabel(m), selected = nyanMode == m) { repo.setNyanMode(m) }
+            }
+        }
+    }
+    Spacer(Modifier.size(DeckSpace.Xl))
+
     SectionCaption(stringResource(Res.string.embed_section))
     Spacer(Modifier.size(DeckSpace.Xs))
     Text(
@@ -1439,20 +1465,9 @@ private fun DataSettings() {
     var confirm by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf(false) }
 
-    // [#122] カラム構成のリレー保存。読み込みは常時（リレーに保存済みなら追従＝後勝ち）で、
-    // トグルは「この端末での変更をリレー(kind:30078/NIP-78)へ保存するか」だけを選ぶ。
+    // [#374] リレー同期（NIP-78 kind:30078 の手動保存 / 差分確認つき読み込み）。
     if (repo != null) {
-        val syncRelay by repo.columnSyncRelayFlow().collectAsState()
-        Text(stringResource(Res.string.colsync_title), color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Strong)
-        Spacer(Modifier.size(DeckSpace.Xs))
-        Text(
-            stringResource(Res.string.colsync_desc),
-            color = DeckColors.Text2, fontSize = DeckType.Caption, lineHeight = 17.sp,
-        )
-        SettingToggle(
-            stringResource(Res.string.colsync_toggle), syncRelay,
-            enabled = repo.columnSyncFeatureEnabled,
-        ) { repo.setColumnSyncRelay(it) }
+        RelaySyncSection()
         Spacer(Modifier.size(DeckSpace.Lg))
         HorizontalDivider(color = DeckColors.Border)
         Spacer(Modifier.size(DeckSpace.Lg))
@@ -1560,7 +1575,7 @@ private fun SignerSettings() {
             .background(DeckColors.Surface2).padding(DeckSpace.Md),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(myProfile?.name ?: myPubkey ?: "me", myProfile?.pictureUrl, size = 40.dp)
+            Avatar(myProfile?.name ?: myPubkey ?: "me", myProfile?.pictureUrl, size = 40.dp, pubkey = myPubkey)
             Spacer(Modifier.width(DeckSpace.Sm))
             Column {
                 Text(

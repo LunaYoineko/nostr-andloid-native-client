@@ -26,6 +26,27 @@ import kotlinx.coroutines.withTimeoutOrNull
 /** リレー接続状態（UI のステータス表示用・モノクロ ●/◑/○）。 */
 enum class RelayConnState { CONNECTING, CONNECTED, DISCONNECTED }
 
+// [#365] 再接続時の since に引くマージン。順不同・遅延で届くイベントの取りこぼし対策。
+private const val SINCE_MARGIN_SEC = 60L
+
+// [#365] 差分基準に採用する created_at の未来側スキュー上限（壊れた時計の投稿対策）。
+private const val FUTURE_SKEW_SEC = 300L
+
+/**
+ * [#365] 再接続時の張り直し用フィルタ調整（純ロジック・テスト可能）。
+ * [lastEventAt]（その購読で受信済みの最大 created_at）があれば、since/until が明示されていない
+ * フィルタへ `since = lastEventAt - margin` を差し込む。無ければ従来どおり全量。
+ */
+internal fun applySinceForResend(
+    filters: List<Filter>,
+    lastEventAt: Long?,
+    marginSec: Long = SINCE_MARGIN_SEC,
+): List<Filter> {
+    if (lastEventAt == null) return filters
+    val since = (lastEventAt - marginSec).coerceAtLeast(0)
+    return filters.map { if (it.since != null || it.until != null) it else it.copy(since = since) }
+}
+
 /** [#364] 購読(subId)単位の受信量。EVENT フレームのバイト数を購読に帰属させた概算。 */
 data class RelaySubTraffic(val subId: String, val events: Long, val bytes: Long)
 
@@ -57,7 +78,10 @@ class RelayClient(
     val messages = _messages.asSharedFlow()
 
     private val outgoing = Channel<String>(Channel.BUFFERED)
-    private val activeReqs = mutableMapOf<String, String>()  // subId → REQ json
+    // [#365] REQ は json でなくフィルタで保持する（再接続時に since を差し込んで組み立て直すため）。
+    private val activeReqs = mutableMapOf<String, List<Filter>>()  // subId → filters
+    // [#365] subId ごとの受信イベント最大 created_at。再接続時の差分取得(since)の基準。
+    private val lastEventAtBySub = mutableMapOf<String, Long>()
     private var job: Job? = null
     // 現在の WebSocket セッション。強制再接続([forceReconnect])で閉じるために保持する。
     private var currentSession: DefaultClientWebSocketSession? = null
@@ -121,8 +145,9 @@ class RelayClient(
         _state.value = RelayConnState.CONNECTED
         connectedAtSec = currentUnixTime()
         currentSession = session
-        // (再)接続時に購読中の REQ を張り直す
-        activeReqs.values.forEach { outgoing.trySend(it) }
+        // (再)接続時に購読中の REQ を張り直す。[#365] 受信済みのある購読は since 付きで差分だけ取る
+        // （切断のたびに limit 分を丸ごと再取得しない。バックグラウンド5分切断(#358)の相殺を防ぐ）。
+        activeReqs.forEach { (subId, filters) -> outgoing.trySend(reqWithSince(subId, filters)) }
         val sender = scope.launch {
             try {
                 while (true) {
@@ -148,6 +173,13 @@ class RelayClient(
                         val c = trafficBySub.getOrPut(msg.subscriptionId) { SubCounter() }
                         c.events++
                         c.bytes += frame.data.size
+                        // [#365] 差分取得の基準を更新。未来すぎる created_at（壊れた時計の投稿）を
+                        // 採用すると以後の since が未来になり全部取りこぼすため、スキュー上限で弾く。
+                        val ca = msg.event.createdAt
+                        if (ca <= currentUnixTime() + FUTURE_SKEW_SEC) {
+                            val prev = lastEventAtBySub[msg.subscriptionId]
+                            if (prev == null || ca > prev) lastEventAtBySub[msg.subscriptionId] = ca
+                        }
                     }
                     _messages.emit(msg)
                 }
@@ -161,16 +193,30 @@ class RelayClient(
 
     /** 購読開始（同じ subId は上書き）。 */
     fun subscribe(subId: String, vararg filters: Filter) {
-        val req = RelayProtocol.req(subId, *filters)
-        activeReqs[subId] = req
-        outgoing.trySend(req)
+        activeReqs[subId] = filters.toList()
+        // [#365] フィルタが変わったら差分の基準もリセット（別条件の購読に古い since を持ち越さない）。
+        lastEventAtBySub.remove(subId)
+        outgoing.trySend(RelayProtocol.req(subId, *filters))
     }
 
     /** 購読停止（CLOSE 送信）。 */
     fun unsubscribe(subId: String) {
         activeReqs.remove(subId)
+        lastEventAtBySub.remove(subId)
         outgoing.trySend(RelayProtocol.close(subId))
     }
+
+    /**
+     * [#365] 再接続時の張り直し用 REQ。受信済みのある購読には
+     * `since = 最終受信 created_at - マージン(60秒)` を差し込んで差分だけ取得する。
+     *  - 元のフィルタに since/until が明示されている場合は上書きしない
+     *  - limit は安全上限としてそのまま残す（since が効けば通常は届かない）
+     *  - 受信記録が無い購読（初回接続・AUTH 直後リセット等）は従来どおり全量
+     * マージンは順不同で届く遅延イベントの取りこぼし対策。重複分はローカル DB が
+     * イベント id で弾くため、通信は増えても処理コストはほぼ無い。
+     */
+    private fun reqWithSince(subId: String, filters: List<Filter>): String =
+        RelayProtocol.req(subId, *applySinceForResend(filters, lastEventAtBySub[subId]).toTypedArray())
 
     /** イベント送信（publish）。 */
     fun publish(eventJson: String) {
@@ -179,7 +225,12 @@ class RelayClient(
 
     /** [NIP-42] AUTH 成立後などに、現在アクティブな購読(REQ)を張り直して制限イベントを取り直す。 */
     fun resendSubscriptions() {
-        activeReqs.values.forEach { outgoing.trySend(it) }
+        // [#365] AUTH 前は制限で古いイベントが届いていない可能性があるため、
+        // ここは since を付けず全量を取り直す（差分基準もリセット）。
+        activeReqs.forEach { (subId, filters) ->
+            lastEventAtBySub.remove(subId)
+            outgoing.trySend(RelayProtocol.req(subId, *filters.toTypedArray()))
+        }
     }
 
     /** バックオフ待機中なら即再接続を促す（フォアグラウンド復帰時に呼ぶ）。接続中なら無害。 */

@@ -28,7 +28,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.nostrdeck.crypto.Nip19
+import app.nostrdeck.model.ContentToken
 import app.nostrdeck.model.NostrEvent
+import app.nostrdeck.model.tokenizeNostrContent
 import app.nostrdeck.theme.DeckColors
 import app.nostrdeck.theme.DeckRadius
 import app.nostrdeck.theme.DeckSpace
@@ -42,12 +44,16 @@ import nostr_deck_client.composeapp.generated.resources.md_naddr_failed
 import nostr_deck_client.composeapp.generated.resources.md_resolving
 import org.jetbrains.compose.resources.stringResource
 
-/** 本文中の naddr1（先頭に nostr: が付く場合あり）を抽出する。重複除去し最大数を制限。 */
-private val naddrRegex = Regex("""(?:nostr:)?(naddr1[a-z0-9]+)""")
-
+/**
+ * 本文中の naddr1（先頭に nostr: が付く場合あり）を抽出する。重複除去し最大数を制限。
+ * [#369] 共通トークナイザ経由にし、`https://…/a/naddr1…` のような URL パス中の naddr は
+ * 拾わない（URL は OGP カードに委ねる。従来の Regex は URL 内でもマッチしていた）。
+ */
 private fun extractNaddrs(content: String): List<Nip19.AddrRef> =
-    naddrRegex.findAll(content)
-        .mapNotNull { Nip19.naddrDecode(it.groupValues[1]) }
+    tokenizeNostrContent(content)
+        .filterIsInstance<ContentToken.NostrRef>()
+        .filter { it.bech.startsWith("naddr1") }
+        .mapNotNull { Nip19.naddrDecode(it.bech) }
         // 現状は kind:30023(長文記事)のみカード展開。他 kind は個別対応まで本文リンクのみ。
         .filter { it.kind == 30023 }
         .distinctBy { "${it.kind}:${it.pubkey}:${it.dTag}" }
