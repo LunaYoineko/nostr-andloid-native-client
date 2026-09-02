@@ -92,8 +92,8 @@ import kotlinx.coroutines.launch
  * ふぁぼ/ブックマークは「公開プロフ」ではなく私的リストなので、ここではなく
  * 独立の目的地（レール自分ゾーン / コンパクトの自分シート）で開く。
  */
-// [#149] ラベルは文字列リソース（UI 層で解決）。
-private enum class ProfileTab(val label: StringResource) {
+// [#149] ラベルは文字列リソース（UI 層で解決）。internal は profileTabOf の単体テスト用。
+internal enum class ProfileTab(val label: StringResource) {
     POSTS(Res.string.tab_posts),
     MEDIA(Res.string.tab_media),
     // [#384] 本人の長文記事(NIP-23 kind:30023)。0件でもタブは出す（購読前と0件を区別できないため）。
@@ -108,9 +108,7 @@ private val ALL_TABS = ProfileTab.entries.toList()
  * [#383] 保存済みタブ名 → タブ。タブ構成が変わっても壊れないよう、
  * 知らない名前（統合で消えた REPLIES 等）は既定の「投稿」へ倒す。
  */
-internal fun profileTabNameOrDefault(name: String?): String = profileTabOf(name).name
-
-private fun profileTabOf(name: String?): ProfileTab =
+internal fun profileTabOf(name: String?): ProfileTab =
     ProfileTab.entries.firstOrNull { it.name == name } ?: ProfileTab.POSTS
 
 /**

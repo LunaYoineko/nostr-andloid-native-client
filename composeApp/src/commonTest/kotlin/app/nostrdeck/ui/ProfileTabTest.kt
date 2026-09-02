@@ -12,15 +12,14 @@ class ProfileTabTest {
     @Test
     fun unknown_saved_tab_falls_back_to_posts() {
         // 統合で消えた旧タブ名 / 旧実装の序数保存 / 空 / null のいずれも既定へ。
-        assertEquals("POSTS", profileTabNameOrDefault("REPLIES"))
-        assertEquals("POSTS", profileTabNameOrDefault("1"))
-        assertEquals("POSTS", profileTabNameOrDefault(""))
-        assertEquals("POSTS", profileTabNameOrDefault(null))
+        assertEquals(ProfileTab.POSTS, profileTabOf("REPLIES"))
+        assertEquals(ProfileTab.POSTS, profileTabOf("1"))
+        assertEquals(ProfileTab.POSTS, profileTabOf(""))
+        assertEquals(ProfileTab.POSTS, profileTabOf(null))
     }
 
     @Test
     fun known_tab_is_kept() {
-        assertEquals("POSTS", profileTabNameOrDefault("POSTS"))
-        assertEquals("MEDIA", profileTabNameOrDefault("MEDIA"))
+        ProfileTab.entries.forEach { assertEquals(it, profileTabOf(it.name)) }
     }
 }
