@@ -106,6 +106,13 @@ fun ColumnHeader(
     onBack: (() -> Unit)? = null,
     /** デッキカラムの ⋯ メニュー（移動 ◀▶ / フィルター編集 / 削除）。 */
     menu: ColumnMenuActions? = null,
+    /**
+     * [#382] 非null ならタイトル+説明のブロックをタップできる（DM スレッドで相手の
+     * プロフィールを開く等）。渡さなければ従来どおり非クリック。
+     */
+    onTitleClick: (() -> Unit)? = null,
+    /** [#382] onTitleClick の操作ラベル（TalkBack 等に読ませる「プロフィールを開く」など）。 */
+    titleClickLabel: String? = null,
 ) {
     // [#324] シングルカラムではタブが名前を持つのでヘッダは描かない。ただし onBack がある
     // 画面（設定配下など単体で開くもの）は戻る導線が消えると詰むため残す。
@@ -126,7 +133,16 @@ fun ColumnHeader(
         }
         Spacer(Modifier.width(DeckSpace.Sm))
         // タイトル+説明のテキストブロックは行高で合計40dp（LineTitle+LineDesc）に固定。
-        Column(Modifier.weight(1f)) {
+        // [#382] onTitleClick があるときだけタップ可能にする（行高で 40dp 確保済み）。
+        Column(
+            Modifier.weight(1f)
+                .then(
+                    if (onTitleClick != null) {
+                        Modifier.clip(RoundedCornerShape(DeckRadius.Sm))
+                            .clickable(onClickLabel = titleClickLabel, onClick = onTitleClick)
+                    } else Modifier,
+                ),
+        ) {
             Text(columnDisplayTitle(title), color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,
                 lineHeight = DeckType.LineTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(columnDisplaySubtitle(subtitle), color = DeckColors.Text3, fontSize = DeckType.Label,
