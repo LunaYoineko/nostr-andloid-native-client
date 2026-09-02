@@ -898,9 +898,32 @@ class EventRepository(
     // ---- カラム = REQ ライフサイクル ----
     private val openColumns = mutableSetOf<String>()
 
+    /**
+     * [#388-review] 購読中カラム → 著者（少数著者のフィルタのみ）。プロフィール画面/カラムが
+     * いま見ている著者の集合で、メモリ保持マップ（NIP-65 / NIP-51 セット）の上限退避から守る。
+     */
+    private val columnAuthors = mutableMapOf<String, List<String>>()
+
+    /** 現在プロフィール系で購読中の著者集合（退避の保護対象）。 */
+    private fun protectedAuthors(): Set<String> = columnAuthors.values.flatten().toSet()
+
+    /**
+     * [#388-review] 著者キーのメモリマップを上限まで縮める。投入順に古いものから捨てるが、
+     * 購読中（表示中）の著者は飛ばす。全員が保護対象なら上限を超えたままにする（消える方が害）。
+     */
+    private fun <V> evictAuthors(map: MutableMap<String, V>, cap: Int, onEvict: (String) -> Unit = {}) {
+        if (map.size <= cap) return
+        val keep = protectedAuthors()
+        val victims = map.keys.filter { it !in keep }.take(map.size - cap)
+        victims.forEach { map.remove(it); onEvict(it) }
+    }
+
     /** カラム表示時に購読開始（subId = columnId）。filter.relays 指定時はそのリレーだけへ配信。 */
     fun subscribeColumn(columnId: String, filter: ReqFilter) {
         if (!openColumns.add(columnId)) return
+        // [#388-review] 少数著者（プロフィール系）の購読中は、その著者のメモリ保持情報
+        // （NIP-65 / NIP-51 セット）を上限退避の対象から外す。表示中に消えないようにするため。
+        if (filter.authors.isNotEmpty() && filter.authors.size <= 3) columnAuthors[columnId] = filter.authors
         columnLoadedState.value = columnLoadedState.value - columnId  // [#17] 再購読でロード中に戻す
         // [#17] EOSE が来ない/遅いリレーでも無限ロードにしない安全網（8秒でロード済み扱い）。
         scope.launch {
@@ -1007,6 +1030,7 @@ class EventRepository(
     fun unsubscribeColumn(columnId: String) {
         followingJobs.remove(columnId)?.cancel()
         notifJobs.remove(columnId)?.cancel()
+        columnAuthors.remove(columnId)
         columnLoadedState.value = columnLoadedState.value - columnId  // [#17]
         if (openColumns.remove(columnId)) unsubscribeAll(columnId)
         // [#209] アウトボックスの追加購読も CLOSE。
@@ -3262,7 +3286,7 @@ class EventRepository(
         if (prefs.isNotEmpty()) {
             val next = nip65PrefsByAuthor.value.toMutableMap()
             next[e.pubkey] = prefs
-            while (next.size > NIP65_PREFS_AUTHOR_CAP) next.remove(next.keys.first())
+            evictAuthors(next, NIP65_PREFS_AUTHOR_CAP)   // 表示中の著者は残す [#388-review]
             nip65PrefsByAuthor.value = next
         }
     }
@@ -3298,12 +3322,8 @@ class EventRepository(
         byAddr[addr] = e
         val next = listSetsByAuthor.value.toMutableMap()
         next[e.pubkey] = parseNip51Sets(byAddr.values.toList())
-        // 閲覧履歴ぶん無限に持たない（落としても再訪時に REQ で入り直す）。
-        while (next.size > LIST_SET_AUTHOR_CAP) {
-            val oldest = next.keys.first()
-            next.remove(oldest)
-            listSetEvents.remove(oldest)
-        }
+        // 閲覧履歴ぶん無限に持たない（落としても再訪時に REQ で入り直す）。表示中の著者は残す [#388-review]。
+        evictAuthors(next, LIST_SET_AUTHOR_CAP) { listSetEvents.remove(it) }
         listSetsByAuthor.value = next
     }
 
