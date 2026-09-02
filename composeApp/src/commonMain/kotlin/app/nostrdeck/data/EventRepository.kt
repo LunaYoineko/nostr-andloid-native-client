@@ -64,6 +64,8 @@ import app.nostrdeck.model.FeedEntry
 import app.nostrdeck.model.ContentToken
 import app.nostrdeck.model.NostrEvent
 import app.nostrdeck.model.latestByDTag
+import app.nostrdeck.model.Nip51Set
+import app.nostrdeck.model.parseNip51Sets
 import app.nostrdeck.model.NoteUi
 import app.nostrdeck.model.tokenizeNostrContent
 import app.nostrdeck.model.AuthPolicy
@@ -2678,6 +2680,18 @@ class EventRepository(
             10000 -> updateMuteList(e)    // NIP-51 ミュートリスト
             10001 -> updatePinnedList(e)  // NIP-51 固定投稿（プロフィール上部）
             10003 -> updateBookmarkList(e) // NIP-51 ブックマーク
+            // [#385] NIP-51 セット（フォローセット/ブックマークセット）。プロフィールの
+            // 「リスト」タブでしか使わないので DB には入れずメモリに置く（p タグが数百件ある
+            // セットを event_tag へ索引すると、閲覧しただけで索引が肥大する）。
+            30000, 30003 -> {
+                captureListSet(e)
+                // ただし naddr 解決中（resolveAddress）は従来どおり保存する。id を返せないと
+                // 本文中の naddr リンクが開けなくなるため。
+                if (e.kind in addressKindsWanted) {
+                    q.insertEvent(e.id, e.pubkey, e.kind.toLong(), e.createdAt, e.content, tagsToJson(e.tags), e.sig)
+                    indexTags(e)
+                }
+            }
             4 -> ingestLegacyDm(e)        // NIP-04 旧型DM（kind:4）を復号して kind:14 に統合保存
             1059 -> ingestGiftWrap(e)     // NIP-17 DM（gift wrap を復号して kind:14 保存）
             9735 -> ingestZapReceipt(e)   // NIP-57 Zap 受領（#e 集計・受信通知に使う）
@@ -3245,6 +3259,39 @@ class EventRepository(
 
     /** [#254-profile] 著者 → write リレー（captureNip65 が更新。メモリのみ・セッション内）。 */
     private val nip65WriteByAuthor = mutableMapOf<String, List<String>>()
+
+    // ---- [#385] NIP-51 セット（kind:30000 フォローセット / 30003 ブックマークセット）----
+
+    /**
+     * 著者 → 受信済みセット（公開タグのみ解析）。プロフィールの「リスト」タブ用。
+     * event テーブルには入れずここだけに持つ。閲覧した相手のぶん溜まるので上限を設ける。
+     */
+    private val listSetsByAuthor = MutableStateFlow<Map<String, List<Nip51Set>>>(emptyMap())
+    private val listSetEvents = mutableMapOf<String, MutableMap<String, NostrEvent>>()
+
+    private fun captureListSet(e: NostrEvent) {
+        val byAddr = listSetEvents.getOrPut(e.pubkey) { mutableMapOf() }
+        val addr = "${e.kind}:${e.pubkey}:${e.tags.firstOrNull { it.size >= 2 && it[0] == "d" }?.get(1) ?: ""}"
+        val prev = byAddr[addr]
+        if (prev != null && prev.createdAt >= e.createdAt) return   // 古い版は無視
+        byAddr[addr] = e
+        val next = listSetsByAuthor.value.toMutableMap()
+        next[e.pubkey] = parseNip51Sets(byAddr.values.toList())
+        // 閲覧履歴ぶん無限に持たない（落としても再訪時に REQ で入り直す）。
+        while (next.size > LIST_SET_AUTHOR_CAP) {
+            val oldest = next.keys.first()
+            next.remove(oldest)
+            listSetEvents.remove(oldest)
+        }
+        listSetsByAuthor.value = next
+    }
+
+    /** [#385] 指定ユーザーの公開 NIP-51 セット（新しい順）。購読は [subscribeColumn] 側で行う。 */
+    fun listSetsOf(pubkey: String): Flow<List<Nip51Set>> =
+        listSetsByAuthor.map { it[pubkey].orEmpty() }.distinctUntilChanged()
+
+    /** [#385] ブックマークセットの中身表示用（id 順に DB から解決。未取得はスキップ）。 */
+    fun notesByIdsFlow(ids: List<String>): Flow<List<NoteUi>> = notesByIds(ids)
 
     /**
      * 「フォロー中でよく使われているリレー」を返す（url → 使用人数、多い順）。
@@ -4646,6 +4693,9 @@ class EventRepository(
 
         /** 引用/返信ヒント + インデクサで一時接続するリレーの上限（接続数の暴発防止）。 */
         const val HINT_RELAY_CAP = 16
+
+        /** [#385] メモリに保持する NIP-51 セットの著者数上限（閲覧履歴ぶん溜め込まない）。 */
+        const val LIST_SET_AUTHOR_CAP = 32
 
         /** 取り込みループが1トランザクションでまとめる最大イベント数。 */
         const val INGEST_BATCH = 400

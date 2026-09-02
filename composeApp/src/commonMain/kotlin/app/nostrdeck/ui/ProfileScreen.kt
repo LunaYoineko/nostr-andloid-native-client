@@ -61,7 +61,10 @@ import app.nostrdeck.model.ColumnKind
 import app.nostrdeck.model.ColumnRenderer
 import app.nostrdeck.model.ColumnSpec
 import app.nostrdeck.model.FeedEntry
+import app.nostrdeck.model.NIP51_SET_KINDS
+import app.nostrdeck.model.Nip51Set
 import app.nostrdeck.model.NostrEvent
+import app.nostrdeck.model.buildListColumn
 import app.nostrdeck.model.NoteUi
 import app.nostrdeck.model.Profile
 import app.nostrdeck.model.ReqFilter
@@ -83,10 +86,11 @@ import app.nostrdeck.theme.DeckWeight
 import kotlinx.coroutines.launch
 
 /**
- * プロフィールのタブ（投稿 / メディア）。
+ * プロフィールのタブ（投稿 / メディア / 記事 / リスト）。
  * [#383] 「投稿」と「投稿とリプライ」は中身がほぼ重複していた（前者は後者から返信を抜いただけ）ので
- * **返信込みの1つ**に統合した。ふぁぼ/ブックマークは「公開プロフ」ではなく私的リストなので、
- * ここではなく独立の目的地（レール自分ゾーン / コンパクトの自分シート）で開く。
+ * **返信込みの1つ**に統合した。[#384][#385] そこへ本人の長文記事と公開リストを足している。
+ * ふぁぼ/ブックマークは「公開プロフ」ではなく私的リストなので、ここではなく
+ * 独立の目的地（レール自分ゾーン / コンパクトの自分シート）で開く。
  */
 // [#149] ラベルは文字列リソース（UI 層で解決）。
 private enum class ProfileTab(val label: StringResource) {
@@ -94,6 +98,8 @@ private enum class ProfileTab(val label: StringResource) {
     MEDIA(Res.string.tab_media),
     // [#384] 本人の長文記事(NIP-23 kind:30023)。0件でもタブは出す（購読前と0件を区別できないため）。
     ARTICLES(Res.string.tab_articles),
+    // [#385] 本人が公開している NIP-51 セット（フォローセット/ブックマークセット）。
+    LISTS(Res.string.tab_lists),
 }
 
 private val ALL_TABS = ProfileTab.entries.toList()
@@ -112,7 +118,8 @@ private fun profileTabOf(name: String?): ProfileTab =
  *  - Expanded(展開): 左=プロフィール詳細（固定幅）/ 右=タブ付きの投稿リスト の2ペイン
  *  - Compact(畳み) : 上にヘッダ、その下にタブ、本文はタブ切替で1カラム
  *
- * 投稿は kind:1 を購読し、クライアント側でタブ（返信有無/メディア有無）に振り分ける。
+ * 投稿は kind:1（+リポスト 6/16）を購読してクライアント側でタブ（メディア有無）に振り分ける。
+ * 記事(30023)と NIP-51 セット(30000/30003)は、そのタブを開いている間だけ購読する。
  */
 @Composable
 fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
@@ -167,8 +174,8 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
             // [#383] 投稿タブは返信込み（統合前の「投稿とリプライ」相当）。
             ProfileTab.POSTS -> notes
             ProfileTab.MEDIA -> notes.filter { it.images.isNotEmpty() }
-            // ノート一覧ではないタブ（記事）は別ソースを使うのでここでは空。
-            ProfileTab.ARTICLES -> emptyList()
+            // ノート一覧ではないタブ（記事/リスト）は別ソースを使うのでここでは空。
+            ProfileTab.ARTICLES, ProfileTab.LISTS -> emptyList()
         }
     }
     // 固定投稿は統合後の「投稿」タブの最上部に出す [#383]。重複を避けるため通常一覧からは除外。
@@ -176,17 +183,36 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
     val pinnedForTab = if (tab == ProfileTab.POSTS) pinnedNotes else emptyList()
     val visibleNoPins = if (pinnedForTab.isEmpty()) visible else visible.filterNot { it.event.id in pinnedIds }
 
-    // [#384] 記事(kind:30023)は開いているタブでだけ購読する（プロフィールを開くたびに
-    // REQ が増えないように）。表示は DB キャッシュ経由なのでタブを往復しても消えない。
+    // [#384/#385] 記事(kind:30023)と NIP-51 セット(30000/30003)は**開いているタブでだけ**購読する
+    // （プロフィールを開くたびに REQ が増えないように）。タブを離れたら CLOSE。
+    // 記事の表示は DB キャッシュ経由・セットはメモリ保持なので、往復しても内容は消えない。
     androidx.compose.runtime.DisposableEffect(pubkey, tab) {
-        val subId = "profile_articles_$pubkey"
-        if (tab == ProfileTab.ARTICLES) {
-            repo?.subscribeColumn(subId, ReqFilter(kinds = listOf(30023), authors = listOf(pubkey)))
+        val subId = "profile_tab_$pubkey"
+        val kinds = when (tab) {
+            ProfileTab.ARTICLES -> listOf(30023)
+            ProfileTab.LISTS -> NIP51_SET_KINDS
+            else -> emptyList()
         }
-        onDispose { repo?.unsubscribeColumn(subId) }
+        if (kinds.isNotEmpty()) {
+            repo?.subscribeColumn(subId, ReqFilter(kinds = kinds, authors = listOf(pubkey)))
+        }
+        // 張っていないときに CLOSE を送らない（購読しないタブへの切り替えで無駄な往復を作らない）。
+        onDispose { if (kinds.isNotEmpty()) repo?.unsubscribeColumn(subId) }
     }
     val articles = repo?.let { remember(pubkey) { it.addressableEventsFlow(30023, pubkey) } }
         ?.collectAsState(emptyList())?.value ?: emptyList()
+    val listSets = repo?.let { remember(pubkey) { it.listSetsOf(pubkey) } }
+        ?.collectAsState(emptyList())?.value ?: emptyList()
+    // 展開中のリスト（アコーディオン。1つだけ開く）。
+    var openedList by remember(pubkey) { mutableStateOf<String?>(null) }
+    // リストタブのメンバー行に出す名前/アバター。タブを開いている間だけ購読する
+    // （kind:0 受信のたびに流れるサンプリング済みマップ。全タブで持つ必要はない）。
+    val listProfiles: Map<String, app.nostrdeck.db.Profile> =
+        if (tab == ProfileTab.LISTS && repo != null) {
+            remember(repo) { repo.profilesMapSampled() }.collectAsState(emptyMap()).value
+        } else {
+            emptyMap()
+        }
 
     val onFollowToggle: () -> Unit = {
         scope.launch { if (following) repo?.unfollow(pubkey) else repo?.follow(pubkey) }
@@ -261,6 +287,23 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
             notesItems(visibleNoPins, onNoteClick, onReply, onQuote, onAuthorClick, pinnedForTab)
         })
         ProfileTab.ARTICLES -> ({ articleItems(articles) { state.openThreadDetail(it.id) } })
+        ProfileTab.LISTS -> ({
+            listSetItems(
+                sets = listSets,
+                opened = openedList,
+                profiles = listProfiles,
+                onToggle = { addr -> openedList = if (openedList == addr) null else addr },
+                onOpenProfile = onAuthorClick,
+                onNoteClick = onNoteClick,
+                onReply = onReply,
+                onQuote = onQuote,
+                onOpenAsColumn = { set ->
+                    // 既存のカラム機構にそのまま載せる（authors 指定の一時カラム）。
+                    state.clearDetail()
+                    state.openTransient(buildListColumn(set.title, set.members))
+                },
+            )
+        })
     }
     if (isCompact) {
         ProfileCompact(
@@ -437,6 +480,124 @@ private fun LazyListScope.articleItems(articles: List<NostrEvent>, onClick: (Nos
                     .clickable { onClick(ev) }
                     .background(DeckColors.Surface2, RoundedCornerShape(DeckRadius.Md)),
             )
+        }
+    }
+}
+
+/**
+ * [#385] リストタブ（NIP-51 セット）の行。名前 + 件数を並べ、タップで中身を展開する。
+ *  - フォローセット(30000) … メンバーのプロフィール一覧 + 「カラムで開く」
+ *  - ブックマークセット(30003) … ブックマークされたイベント
+ * 他人の非公開項目（暗号化 content）は復号できないので、その旨だけ添えて公開タグのみ出す。
+ */
+private fun LazyListScope.listSetItems(
+    sets: List<Nip51Set>,
+    opened: String?,
+    profiles: Map<String, app.nostrdeck.db.Profile>,
+    onToggle: (String) -> Unit,
+    onOpenProfile: (String) -> Unit,
+    onNoteClick: (NoteUi) -> Unit,
+    onReply: (NoteUi) -> Unit,
+    onQuote: (NoteUi) -> Unit,
+    onOpenAsColumn: (Nip51Set) -> Unit,
+) {
+    if (sets.isEmpty()) {
+        item(key = "lists_empty") {
+            Box(Modifier.fillMaxWidth().padding(DeckSpace.Xl), contentAlignment = Alignment.Center) {
+                Text(stringResource(Res.string.profile_no_lists), color = DeckColors.Text3, fontSize = DeckType.Caption)
+            }
+        }
+        return
+    }
+    sets.forEach { set ->
+        item(key = "set_${set.address}") {
+            ListSetRow(set, expanded = opened == set.address, onClick = { onToggle(set.address) })
+            HorizontalDivider(color = DeckColors.Border)
+        }
+        if (opened != set.address) return@forEach
+        // --- 展開: フォローセットは「カラムで開く」+ メンバー一覧 ---
+        if (set.members.isNotEmpty()) {
+            item(key = "set_col_${set.address}") {
+                Box(Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Lg, vertical = DeckSpace.Sm)) {
+                    DeckGhostButton(stringResource(Res.string.list_open_as_column), onClick = { onOpenAsColumn(set) })
+                }
+            }
+            items(set.members.take(LIST_MEMBERS_SHOWN), key = { "m_${set.address}_$it" }) { pk ->
+                UserListRow(pk, profiles[pk], onClick = { onOpenProfile(pk) })
+                HorizontalDivider(color = DeckColors.Border)
+            }
+        }
+        // --- 展開: ブックマークセットは対象イベント ---
+        if (set.eventIds.isNotEmpty()) {
+            item(key = "set_notes_${set.address}") {
+                ListSetNotes(set.eventIds.take(LIST_NOTES_SHOWN), onNoteClick, onReply, onQuote, onOpenProfile)
+            }
+        }
+        if (set.hasPrivate) {
+            item(key = "set_private_${set.address}") {
+                Text(
+                    stringResource(Res.string.list_private_note),
+                    color = DeckColors.Text3, fontSize = DeckType.Label,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Lg, vertical = DeckSpace.Sm),
+                )
+                HorizontalDivider(color = DeckColors.Border)
+            }
+        }
+    }
+}
+
+/** 展開時に一度に描くメンバー/ノートの上限（巨大なセットで固まらないように）。 */
+private const val LIST_MEMBERS_SHOWN = 200
+private const val LIST_NOTES_SHOWN = 30
+
+@Composable
+private fun ListSetRow(set: Nip51Set, expanded: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .padding(horizontal = DeckSpace.Lg, vertical = DeckSpace.Md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                set.title, color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                stringResource(Res.string.list_count_fmt, set.count.toString()),
+                color = DeckColors.Text3, fontSize = DeckType.Label,
+            )
+        }
+        Text(if (expanded) "\u25BE" else "\u25B8", color = DeckColors.Text3, fontSize = DeckType.Caption)
+    }
+}
+
+/** ブックマークセットの中身（イベント id を DB から解決して投稿として並べる）。 */
+@Composable
+private fun ListSetNotes(
+    ids: List<String>,
+    onNoteClick: (NoteUi) -> Unit,
+    onReply: (NoteUi) -> Unit,
+    onQuote: (NoteUi) -> Unit,
+    onAuthorClick: (String) -> Unit,
+) {
+    val repo = LocalRepository.current
+    // 未取得のものはリレーへ要求（届いたら DB Flow 経由で行が埋まる）。
+    androidx.compose.runtime.LaunchedEffect(ids) { ids.forEach { repo?.requestEvent(it) } }
+    val notes = repo?.let { remember(ids) { it.notesByIdsFlow(ids) } }
+        ?.collectAsState(emptyList())?.value ?: emptyList()
+    if (notes.isEmpty()) {
+        Box(Modifier.fillMaxWidth().padding(DeckSpace.Lg), contentAlignment = Alignment.Center) {
+            Text(stringResource(Res.string.md_resolving), color = DeckColors.Text3, fontSize = DeckType.Caption)
+        }
+        return
+    }
+    Column(Modifier.fillMaxWidth()) {
+        notes.forEach { note ->
+            NoteItem(
+                note, onClick = { onNoteClick(note) },
+                onReply = { onReply(note) }, onQuote = { onQuote(note) }, onAuthorClick = onAuthorClick,
+            )
+            HorizontalDivider(color = DeckColors.Border)
         }
     }
 }
@@ -738,15 +899,19 @@ private fun ProfileTabs(selected: ProfileTab, tabs: List<ProfileTab>, onSelect: 
         tabs.forEach { t ->
             val active = t == selected
             Column(
-                Modifier.weight(1f).clickable { onSelect(t) }.padding(vertical = DeckSpace.Md),
+                Modifier.weight(1f).clickable { onSelect(t) }
+                    .padding(horizontal = DeckSpace.Xs, vertical = DeckSpace.Md),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // [#383-#385] タブが4つ（投稿/メディア/記事/リスト）になったので、狭い端末や
+                // 長いロケール文字列（"Articles"）でも等幅の枠に収まるよう折り返さず省略する。
                 Text(
                     stringResource(t.label),
                     color = if (active) DeckColors.Text else DeckColors.Text3,
                     fontSize = DeckType.Caption,
                     fontWeight = if (active) DeckWeight.Strong else DeckWeight.Body,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(DeckSpace.Sm))
                 Box(

@@ -153,6 +153,7 @@
     <string name="tab_posts">Posts</string>
     <string name="tab_media">Media</string>
     <string name="tab_articles">Articles</string>
+    <string name="tab_lists">Lists</string>
 
     <!-- [#160] Phase 2: columns / mute / presets / common -->
     <string name="common_add">Add</string>
@@ -551,6 +552,10 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="pinned_post">Pinned post</string>
     <string name="profile_no_posts">No posts yet</string>
     <string name="profile_no_articles">No articles yet</string>
+    <string name="profile_no_lists">No public lists</string>
+    <string name="list_count_fmt">%1$s items</string>
+    <string name="list_open_as_column">Open as column</string>
+    <string name="list_private_note">This list has private entries that only its owner can read.</string>
     <string name="menu">Menu</string>
     <string name="copy_nprofile">Copy nprofile</string>
     <string name="nprofile_copied">nprofile copied</string>

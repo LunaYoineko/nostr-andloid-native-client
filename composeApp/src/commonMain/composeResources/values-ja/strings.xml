@@ -149,6 +149,7 @@
     <string name="tab_posts">投稿</string>
     <string name="tab_media">メディア</string>
     <string name="tab_articles">記事</string>
+    <string name="tab_lists">リスト</string>
 
     <!-- [#160] Phase 2: columns / mute / presets / common -->
     <string name="common_add">追加</string>
@@ -547,6 +548,10 @@
     <string name="pinned_post">固定された投稿</string>
     <string name="profile_no_posts">まだ投稿がありません</string>
     <string name="profile_no_articles">まだ記事がありません</string>
+    <string name="profile_no_lists">公開されているリストはありません</string>
+    <string name="list_count_fmt">%1$s 件</string>
+    <string name="list_open_as_column">カラムで開く</string>
+    <string name="list_private_note">このリストには非公開の項目があります（本人以外は読めません）。</string>
     <string name="menu">メニュー</string>
     <string name="copy_nprofile">nprofile をコピー</string>
     <string name="nprofile_copied">nprofile をコピーしました</string>
