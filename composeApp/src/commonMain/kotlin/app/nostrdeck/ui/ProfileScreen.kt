@@ -787,6 +787,9 @@ private fun ProfileHeaderCard(
                 Spacer(Modifier.height(DeckSpace.Xs))
                 Text(noteAnnotated(it), color = DeckColors.Accent, fontSize = DeckType.Caption, maxLines = 1)
             }
+            // [#386] 使用リレー（NIP-65 kind:10002）。件数が少ないのでタブではなく
+            // プロフィール詳細の折りたたみに置く（Compact/Expanded 共通のこのカード内）。
+            ProfileRelaysSection(pubkey)
         }
     }
 
@@ -834,6 +837,68 @@ private fun ProfileHeaderCard(
             },
             onDismiss = { showReport = false },
         )
+    }
+}
+
+/**
+ * [#386] そのユーザーが使っているリレー（NIP-65 kind:10002 の `r` タグ）の折りたたみ。
+ * read/write マーカーも併記し、各行から自分の接続先へ追加できる。
+ * kind:10002 を受信していないユーザーでは何も出さない（「未設定」も出さない）。
+ */
+@Composable
+private fun ProfileRelaysSection(pubkey: String) {
+    val repo = LocalRepository.current ?: return
+    val relays = remember(pubkey) { repo.nip65PrefsOf(pubkey) }.collectAsState(emptyList()).value
+    if (relays.isEmpty()) return
+    // 自分の接続先（重複追加のガードに使う）。
+    val mine = remember(repo) { repo.relaysFlow() }.collectAsState(emptyList()).value
+        .map { it.url }.toSet()
+    val toast = rememberToaster()
+    val addedMsg = stringResource(Res.string.relay_added)
+    var expanded by rememberSaveable(pubkey) { mutableStateOf(false) }
+    Spacer(Modifier.height(DeckSpace.Md))
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(DeckRadius.Sm))
+            .clickable { expanded = !expanded }
+            .padding(vertical = DeckSpace.Xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(Res.string.profile_relays_fmt, relays.size.toString()),
+            color = DeckColors.Text2, fontSize = DeckType.Caption, fontWeight = DeckWeight.Strong,
+        )
+        Spacer(Modifier.width(DeckSpace.Xs))
+        Text(if (expanded) "\u25BE" else "\u25B8", color = DeckColors.Text3, fontSize = DeckType.Caption)
+    }
+    if (!expanded) return
+    relays.forEach { r ->
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = DeckSpace.Xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    r.url.removePrefix("wss://"),
+                    color = DeckColors.Text, fontSize = DeckType.Caption,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                // マーカー（第3要素）。無印は read+write の両用。
+                Text(
+                    listOfNotNull("read".takeIf { r.read }, "write".takeIf { r.write }).joinToString(" · "),
+                    color = DeckColors.Text3, fontSize = DeckType.Label,
+                )
+            }
+            Spacer(Modifier.width(DeckSpace.Sm))
+            if (r.url in mine) {
+                Text(stringResource(Res.string.relay_already_added), color = DeckColors.Text3, fontSize = DeckType.Label)
+            } else {
+                // 既存のリレー追加処理を再利用（read/write 既定 true で手動追加扱い）。
+                DeckGhostButton(stringResource(Res.string.relay_add_to_mine), onClick = {
+                    repo.addRelay(r.url)
+                    toast(addedMsg)
+                })
+            }
+        }
     }
 }
 

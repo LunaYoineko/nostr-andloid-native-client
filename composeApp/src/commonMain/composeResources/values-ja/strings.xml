@@ -552,6 +552,10 @@
     <string name="list_count_fmt">%1$s 件</string>
     <string name="list_open_as_column">カラムで開く</string>
     <string name="list_private_note">このリストには非公開の項目があります（本人以外は読めません）。</string>
+    <string name="profile_relays_fmt">使用リレー (%1$s)</string>
+    <string name="relay_add_to_mine">追加</string>
+    <string name="relay_already_added">追加済み</string>
+    <string name="relay_added">自分のリレーに追加しました</string>
     <string name="menu">メニュー</string>
     <string name="copy_nprofile">nprofile をコピー</string>
     <string name="nprofile_copied">nprofile をコピーしました</string>

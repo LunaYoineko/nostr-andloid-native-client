@@ -556,6 +556,10 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="list_count_fmt">%1$s items</string>
     <string name="list_open_as_column">Open as column</string>
     <string name="list_private_note">This list has private entries that only its owner can read.</string>
+    <string name="profile_relays_fmt">Relays used (%1$s)</string>
+    <string name="relay_add_to_mine">Add</string>
+    <string name="relay_already_added">Added</string>
+    <string name="relay_added">Added to your relays</string>
     <string name="menu">Menu</string>
     <string name="copy_nprofile">Copy nprofile</string>
     <string name="nprofile_copied">nprofile copied</string>

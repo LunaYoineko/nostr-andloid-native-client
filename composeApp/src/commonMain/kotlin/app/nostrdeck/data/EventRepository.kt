@@ -75,6 +75,7 @@ import app.nostrdeck.model.NotificationUi
 import app.nostrdeck.model.Profile
 import app.nostrdeck.model.ReactionUi
 import app.nostrdeck.model.RelayPref
+import app.nostrdeck.model.nip65PrefsFromTags
 import app.nostrdeck.model.ReqFilter
 import app.nostrdeck.model.ThreadEntry
 import app.nostrdeck.model.UnsignedEvent
@@ -3255,7 +3256,27 @@ class EventRepository(
             .map { normalizeRelayUrl(it[1]) }
             .filter { it.startsWith("wss://") }
         nip65WriteByAuthor[e.pubkey] = writeUrls
+        // [#386] プロフィールの「使用リレー」表示用に read/write マーカー付きで保持する
+        // （上の2つは購読先の解決用で、マーカーを落としてしまっている）。
+        val prefs = nip65PrefsFromTags(e.tags) { normalizeRelayUrl(it) }
+        if (prefs.isNotEmpty()) {
+            val next = nip65PrefsByAuthor.value.toMutableMap()
+            next[e.pubkey] = prefs
+            while (next.size > NIP65_PREFS_AUTHOR_CAP) next.remove(next.keys.first())
+            nip65PrefsByAuthor.value = next
+        }
     }
+
+    /** [#386] 著者 → NIP-65 の `r` タグ（read/write マーカー込み）。メモリのみ・セッション内。 */
+    private val nip65PrefsByAuthor = MutableStateFlow<Map<String, List<RelayPref>>>(emptyMap())
+
+    /**
+     * [#386] 指定ユーザーの使用リレー（kind:10002）。未受信なら空。
+     * 購読はプロフィール画面が張っている kind:10002 の REQ に相乗りする。
+     */
+    fun nip65PrefsOf(pubkey: String): Flow<List<RelayPref>> =
+        nip65PrefsByAuthor.map { it[pubkey].orEmpty() }.distinctUntilChanged()
+
 
     /** [#254-profile] 著者 → write リレー（captureNip65 が更新。メモリのみ・セッション内）。 */
     private val nip65WriteByAuthor = mutableMapOf<String, List<String>>()
@@ -4696,6 +4717,9 @@ class EventRepository(
 
         /** [#385] メモリに保持する NIP-51 セットの著者数上限（閲覧履歴ぶん溜め込まない）。 */
         const val LIST_SET_AUTHOR_CAP = 32
+
+        /** [#386] メモリに保持する他人の NIP-65 リレーリストの著者数上限。 */
+        const val NIP65_PREFS_AUTHOR_CAP = 128
 
         /** 取り込みループが1トランザクションでまとめる最大イベント数。 */
         const val INGEST_BATCH = 400
