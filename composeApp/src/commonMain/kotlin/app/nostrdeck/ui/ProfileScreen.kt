@@ -183,7 +183,7 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
 
     // [#384/#385] 記事(kind:30023)と NIP-51 セット(30000/30003)は**開いているタブでだけ**購読する
     // （プロフィールを開くたびに REQ が増えないように）。タブを離れたら CLOSE。
-    // 記事の表示は DB キャッシュ経由・セットはメモリ保持なので、往復しても内容は消えない。
+    // 表示はどちらも DB キャッシュ経由なので、往復しても内容は消えない。
     // subId はタブごとに分ける（同じ id を使い回すと、前タブの CLOSE と次タブの REQ が
     // 同一 id で交錯し、アウトボックスの追加購読の取り消しも噛み合わない）。
     androidx.compose.runtime.DisposableEffect(pubkey, tab) {
@@ -205,8 +205,13 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
         } else {
             emptyList()
         }
-    val listSets = repo?.let { remember(pubkey) { it.listSetsOf(pubkey) } }
-        ?.collectAsState(emptyList())?.value ?: emptyList()
+    // [#389] セットも記事と同じ DB Flow（addressableEventsFlow + parseNip51Sets）。リストタブ表示中だけ collect。
+    val listSets: List<Nip51Set> =
+        if (tab == ProfileTab.LISTS && repo != null) {
+            remember(pubkey) { repo.listSetsOf(pubkey) }.collectAsState(emptyList()).value
+        } else {
+            emptyList()
+        }
     // 展開中のリスト（アコーディオン。1つだけ開く）。
     var openedList by remember(pubkey) { mutableStateOf<String?>(null) }
     // リストタブで展開中のセットのメンバー（表示分だけ）の名前/アバター。

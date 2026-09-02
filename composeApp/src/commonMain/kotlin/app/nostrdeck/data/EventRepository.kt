@@ -917,7 +917,7 @@ class EventRepository(
 
     /**
      * [#388-review] 購読中カラム → 著者（少数著者のフィルタのみ）。プロフィール画面/カラムが
-     * いま見ている著者の集合で、メモリ保持マップ（NIP-65 / NIP-51 セット）の上限退避から守る。
+     * いま見ている著者の集合で、メモリ保持マップ（NIP-65）の上限退避から守る。
      */
     private val columnAuthors = mutableMapOf<String, List<String>>()
 
@@ -939,7 +939,7 @@ class EventRepository(
     fun subscribeColumn(columnId: String, filter: ReqFilter) {
         if (!openColumns.add(columnId)) return
         // [#388-review] 少数著者（プロフィール系）の購読中は、その著者のメモリ保持情報
-        // （NIP-65 / NIP-51 セット）を上限退避の対象から外す。表示中に消えないようにするため。
+        // （NIP-65）を上限退避の対象から外す。表示中に消えないようにするため。
         if (filter.authors.isNotEmpty() && filter.authors.size <= 3) columnAuthors[columnId] = filter.authors
         columnLoadedState.value = columnLoadedState.value - columnId  // [#17] 再購読でロード中に戻す
         // [#17] EOSE が来ない/遅いリレーでも無限ロードにしない安全網（8秒でロード済み扱い）。
@@ -2733,18 +2733,6 @@ class EventRepository(
             10000 -> updateMuteList(e)    // NIP-51 ミュートリスト
             10001 -> updatePinnedList(e)  // NIP-51 固定投稿（プロフィール上部）
             10003 -> updateBookmarkList(e) // NIP-51 ブックマーク
-            // [#385] NIP-51 セット（フォローセット/ブックマークセット）。プロフィールの
-            // 「リスト」タブでしか使わないので DB には入れずメモリに置く（p タグが数百件ある
-            // セットを event_tag へ索引すると、閲覧しただけで索引が肥大する）。
-            30000, 30003 -> {
-                captureListSet(e)
-                // ただし naddr 解決中（resolveAddress）は従来どおり保存する。id を返せないと
-                // 本文中の naddr リンクが開けなくなるため。
-                if (e.kind in addressKindsWanted) {
-                    q.insertEvent(e.id, e.pubkey, e.kind.toLong(), e.createdAt, e.content, tagsToJson(e.tags), e.sig)
-                    indexTags(e)
-                }
-            }
             4 -> ingestLegacyDm(e)        // NIP-04 旧型DM（kind:4）を復号して kind:14 に統合保存
             1059 -> ingestGiftWrap(e)     // NIP-17 DM（gift wrap を復号して kind:14 保存）
             9735 -> ingestZapReceipt(e)   // NIP-57 Zap 受領（#e 集計・受信通知に使う）
@@ -2768,7 +2756,9 @@ class EventRepository(
                 }
             }
             // [#124] NIP-23 長文記事。nevent 参照から記事ビューワーで開けるよう本体を保存する。
-            30023 -> {
+            // [#389] NIP-51 セット（30000 フォローセット / 30003 ブックマークセット）も同じ経路。
+            // p タグ数百件のセットで event_tag が肥大しないよう、索引は kind 別に絞る（indexTags）。
+            30000, 30003, 30023 -> {
                 q.insertEvent(e.id, e.pubkey, e.kind.toLong(), e.createdAt, e.content, tagsToJson(e.tags), e.sig)
                 indexTags(e)
                 requestProfile(e.pubkey)
@@ -3336,28 +3326,16 @@ class EventRepository(
     // ---- [#385] NIP-51 セット（kind:30000 フォローセット / 30003 ブックマークセット）----
 
     /**
-     * 著者 → 受信済みセット（公開タグのみ解析）。プロフィールの「リスト」タブ用。
-     * event テーブルには入れずここだけに持つ。閲覧した相手のぶん溜まるので上限を設ける。
+     * [#385][#389] 指定ユーザーの公開 NIP-51 セット（新しい順）。記事(30023)と同じく
+     * event テーブルを読む（版の畳み込みは addressableEventsFlow / parseNip51Sets）。
+     * 購読は [subscribeColumn] 側で行う。
      */
-    private val listSetsByAuthor = MutableStateFlow<Map<String, List<Nip51Set>>>(emptyMap())
-    private val listSetEvents = mutableMapOf<String, MutableMap<String, NostrEvent>>()
-
-    private fun captureListSet(e: NostrEvent) {
-        val byAddr = listSetEvents.getOrPut(e.pubkey) { mutableMapOf() }
-        val addr = "${e.kind}:${e.pubkey}:${e.tags.firstOrNull { it.size >= 2 && it[0] == "d" }?.get(1) ?: ""}"
-        val prev = byAddr[addr]
-        if (prev != null && prev.createdAt >= e.createdAt) return   // 古い版は無視
-        byAddr[addr] = e
-        val next = listSetsByAuthor.value.toMutableMap()
-        next[e.pubkey] = parseNip51Sets(byAddr.values.toList())
-        // 閲覧履歴ぶん無限に持たない（落としても再訪時に REQ で入り直す）。表示中の著者は残す [#388-review]。
-        evictAuthors(next, LIST_SET_AUTHOR_CAP) { listSetEvents.remove(it) }
-        listSetsByAuthor.value = next
-    }
-
-    /** [#385] 指定ユーザーの公開 NIP-51 セット（新しい順）。購読は [subscribeColumn] 側で行う。 */
     fun listSetsOf(pubkey: String): Flow<List<Nip51Set>> =
-        listSetsByAuthor.map { it[pubkey].orEmpty() }.distinctUntilChanged()
+        combine(
+            addressableEventsFlow(30000, pubkey),
+            addressableEventsFlow(30003, pubkey),
+        ) { follows, bookmarks -> parseNip51Sets(follows + bookmarks) }
+            .flowOn(Dispatchers.Default)
 
     /** [#385] ブックマークセットの中身表示用（id 順に DB から解決。未取得はスキップ）。 */
     fun notesByIdsFlow(ids: List<String>): Flow<List<NoteUi>> = notesByIds(ids)
@@ -3453,10 +3431,12 @@ class EventRepository(
         }
     }
 
-    /** #t/#e/#p をタグ索引へ（ハッシュタグ等のカラム検索用）。't' は小文字化。 */
+    /** #t/#e/#p をタグ索引へ（ハッシュタグ等のカラム検索用）。't' は小文字化。
+     *  [#389] 索引するタグ名は kind 別（[indexableTagKeys]）。 */
     private fun indexTags(e: NostrEvent) {
+        val keys = indexableTagKeys(e.kind)
         e.tags.forEach { tag ->
-            if (tag.size >= 2 && tag[0] in TAG_KEYS) {
+            if (tag.size >= 2 && tag[0] in keys) {
                 val value = if (tag[0] == "t") tag[1].lowercase() else tag[1]
                 q.insertTag(e.id, tag[0], value)
             }
@@ -4757,14 +4737,21 @@ class EventRepository(
         // [#380] "E"/"A"=NIP-22 コメントのルート参照（スレッド/記事コメント欄のローカル検索用）。
         val TAG_KEYS = setOf("t", "e", "p", "q", "E", "A")
 
+        /**
+         * [#389] kind 別にタグ索引を絞る。NIP-51 セット（30000/30003）の `p` はメンバー列挙で
+         * 数百件になり得るうえ「この人を含むリスト」の逆引きは使っていないので索引しない。
+         * 30003 の `e` は件数が少なく、将来「誰がブックマークしたか」に使えるので残す。
+         */
+        fun indexableTagKeys(kind: Int): Set<String> = when (kind) {
+            30000, 30003 -> TAG_KEYS - "p"
+            else -> TAG_KEYS
+        }
+
         /** [M11] 既定のメディアサーバ(NIP-96)。start() で insert-if-absent して投入する。 */
         val DEFAULT_MEDIA_SERVERS = listOf("https://nostrcheck.me", "https://nostr.build")
 
         /** 引用/返信ヒント + インデクサで一時接続するリレーの上限（接続数の暴発防止）。 */
         const val HINT_RELAY_CAP = 16
-
-        /** [#385] メモリに保持する NIP-51 セットの著者数上限（閲覧履歴ぶん溜め込まない）。 */
-        const val LIST_SET_AUTHOR_CAP = 32
 
         /** [#386] メモリに保持する他人の NIP-65 リレーリストの著者数上限。 */
         const val NIP65_PREFS_AUTHOR_CAP = 128
