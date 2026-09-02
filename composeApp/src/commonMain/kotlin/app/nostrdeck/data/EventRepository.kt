@@ -868,15 +868,21 @@ class EventRepository(
     }.getOrElse { println("Nostrism publishDeckColumnsSync failed: $it"); false }
 
     /** d=DECK_COLUMNS_D の content（#122 互換の DeckColumnDto 配列）を ColumnSpec 群へ。壊れていれば null。 */
-    private fun decodeDeckColumns(content: String): List<ColumnSpec>? = runCatching {
-        json.decodeFromString(ListSerializer(DeckColumnDto.serializer()), content).map { d ->
-            ColumnSpec(
-                id = d.id, title = d.title, subtitle = d.subtitle,
-                kind = ColumnKind.valueOf(d.kind), renderer = ColumnRenderer.valueOf(d.renderer),
-                filter = d.filter, pinned = true, order = d.order,
-            )
-        }
-    }.getOrNull()
+    // [#388-review] JSON 全体の decode 失敗だけを null にし、行の変換は loadPinnedColumns と同じく
+    // 1件ずつ runCatching で包む。旧ビルドが未知の ColumnKind（LIST 等）を1件読んだだけで
+    // 全カラムが null（＝同期の全件失敗）になっていた。
+    private fun decodeDeckColumns(content: String): List<ColumnSpec>? =
+        runCatching { json.decodeFromString(ListSerializer(DeckColumnDto.serializer()), content) }
+            .getOrNull()
+            ?.mapNotNull { d ->
+                runCatching {
+                    ColumnSpec(
+                        id = d.id, title = d.title, subtitle = d.subtitle,
+                        kind = ColumnKind.valueOf(d.kind), renderer = ColumnRenderer.valueOf(d.renderer),
+                        filter = d.filter, pinned = true, order = d.order,
+                    )
+                }.getOrNull()
+            }
 
     /**
      * 差分適用後のカラム構成を反映する（ローカル保存 + [remoteColumnsFlow] 経由で DeckState へ）。
