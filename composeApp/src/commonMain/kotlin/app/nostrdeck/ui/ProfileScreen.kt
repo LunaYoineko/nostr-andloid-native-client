@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -60,6 +61,7 @@ import app.nostrdeck.model.ColumnKind
 import app.nostrdeck.model.ColumnRenderer
 import app.nostrdeck.model.ColumnSpec
 import app.nostrdeck.model.FeedEntry
+import app.nostrdeck.model.NostrEvent
 import app.nostrdeck.model.NoteUi
 import app.nostrdeck.model.Profile
 import app.nostrdeck.model.ReqFilter
@@ -88,7 +90,10 @@ import kotlinx.coroutines.launch
  */
 // [#149] ラベルは文字列リソース（UI 層で解決）。
 private enum class ProfileTab(val label: StringResource) {
-    POSTS(Res.string.tab_posts), MEDIA(Res.string.tab_media),
+    POSTS(Res.string.tab_posts),
+    MEDIA(Res.string.tab_media),
+    // [#384] 本人の長文記事(NIP-23 kind:30023)。0件でもタブは出す（購読前と0件を区別できないため）。
+    ARTICLES(Res.string.tab_articles),
 }
 
 private val ALL_TABS = ProfileTab.entries.toList()
@@ -157,17 +162,31 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
     // 保存済みの旧値（序数/削除された値）がそのまま復元されて落ちないよう、知らない名前は既定へ倒す。
     var tabName by rememberSaveable(pubkey) { mutableStateOf(ProfileTab.POSTS.name) }
     val tab = remember(tabName) { profileTabOf(tabName) }
-    val visible = remember(notes, tab) {
+    val visible: List<NoteUi> = remember(notes, tab) {
         when (tab) {
             // [#383] 投稿タブは返信込み（統合前の「投稿とリプライ」相当）。
             ProfileTab.POSTS -> notes
             ProfileTab.MEDIA -> notes.filter { it.images.isNotEmpty() }
+            // ノート一覧ではないタブ（記事）は別ソースを使うのでここでは空。
+            ProfileTab.ARTICLES -> emptyList()
         }
     }
     // 固定投稿は統合後の「投稿」タブの最上部に出す [#383]。重複を避けるため通常一覧からは除外。
     val pinnedIds = remember(pinnedNotes) { pinnedNotes.map { it.event.id }.toSet() }
     val pinnedForTab = if (tab == ProfileTab.POSTS) pinnedNotes else emptyList()
     val visibleNoPins = if (pinnedForTab.isEmpty()) visible else visible.filterNot { it.event.id in pinnedIds }
+
+    // [#384] 記事(kind:30023)は開いているタブでだけ購読する（プロフィールを開くたびに
+    // REQ が増えないように）。表示は DB キャッシュ経由なのでタブを往復しても消えない。
+    androidx.compose.runtime.DisposableEffect(pubkey, tab) {
+        val subId = "profile_articles_$pubkey"
+        if (tab == ProfileTab.ARTICLES) {
+            repo?.subscribeColumn(subId, ReqFilter(kinds = listOf(30023), authors = listOf(pubkey)))
+        }
+        onDispose { repo?.unsubscribeColumn(subId) }
+    }
+    val articles = repo?.let { remember(pubkey) { it.addressableEventsFlow(30023, pubkey) } }
+        ?.collectAsState(emptyList())?.value ?: emptyList()
 
     val onFollowToggle: () -> Unit = {
         scope.launch { if (following) repo?.unfollow(pubkey) else repo?.follow(pubkey) }
@@ -235,19 +254,25 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
         )
         Unit
     }
+    // [#384] タブごとに中身の型が違う（ノート / 記事）ので、本文は LazyListScope の
+    // ブロックとして組み立てて Compact/Expanded の両レイアウトへ渡す。
+    val tabBody: LazyListScope.() -> Unit = when (tab) {
+        ProfileTab.POSTS, ProfileTab.MEDIA -> ({
+            notesItems(visibleNoPins, onNoteClick, onReply, onQuote, onAuthorClick, pinnedForTab)
+        })
+        ProfileTab.ARTICLES -> ({ articleItems(articles) { state.openThreadDetail(it.id) } })
+    }
     if (isCompact) {
         ProfileCompact(
-            pubkey, profile, following, tab, tabs, isMe, visibleNoPins,
+            pubkey, profile, following, tab, tabs, isMe,
             onTab = { tabName = it.name }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
-            onNoteClick = onNoteClick, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick,
-            pinnedNotes = pinnedForTab, social = social, onRefresh = onRefresh,
+            social = social, onRefresh = onRefresh, body = tabBody,
         )
     } else {
         ProfileExpanded(
-            pubkey, profile, following, tab, tabs, isMe, visibleNoPins,
+            pubkey, profile, following, tab, tabs, isMe,
             onTab = { tabName = it.name }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
-            onNoteClick = onNoteClick, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick,
-            pinnedNotes = pinnedForTab, social = social, onRefresh = onRefresh,
+            social = social, onRefresh = onRefresh, body = tabBody,
         )
     }
 }
@@ -272,19 +297,15 @@ private fun ProfileCompact(
     tab: ProfileTab,
     tabs: List<ProfileTab>,
     isMe: Boolean,
-    visible: List<NoteUi>,
     onTab: (ProfileTab) -> Unit,
     onFollowToggle: () -> Unit,
     onEdit: () -> Unit,
     onBack: () -> Unit,
-    onNoteClick: (NoteUi) -> Unit,
-    onReply: (NoteUi) -> Unit,
-    onQuote: (NoteUi) -> Unit,
-    onAuthorClick: (String) -> Unit,
-    pinnedNotes: List<NoteUi> = emptyList(),
     social: ProfileSocial? = null,
     listState: LazyListState = rememberLazyListState(),
     onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新
+    // [#384] 選択中タブの中身（投稿 / 記事 …）。タブごとに要素の型が違うので呼び出し側で組む。
+    body: LazyListScope.() -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(DeckColors.Surface)) {
         ProfileTopBar(profile?.name?.takeIf { it.isNotBlank() } ?: pubkey.take(10), onBack)
@@ -299,7 +320,7 @@ private fun ProfileCompact(
                 ProfileTabs(tab, tabs, onTab)
                 HorizontalDivider(color = DeckColors.Border)
             }
-            notesItems(visible, onNoteClick, onReply, onQuote, onAuthorClick, pinnedNotes)
+            body()
         }
         }
     }
@@ -315,19 +336,14 @@ private fun ProfileExpanded(
     tab: ProfileTab,
     tabs: List<ProfileTab>,
     isMe: Boolean,
-    visible: List<NoteUi>,
     onTab: (ProfileTab) -> Unit,
     onFollowToggle: () -> Unit,
     onEdit: () -> Unit,
     onBack: () -> Unit,
-    onNoteClick: (NoteUi) -> Unit,
-    onReply: (NoteUi) -> Unit,
-    onQuote: (NoteUi) -> Unit,
-    onAuthorClick: (String) -> Unit,
-    pinnedNotes: List<NoteUi> = emptyList(),
     social: ProfileSocial? = null,
     listState: LazyListState = rememberLazyListState(),
     onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新
+    body: LazyListScope.() -> Unit,    // [#384] 選択中タブの中身
 ) {
     Row(Modifier.fillMaxSize().background(DeckColors.Surface)) {
         // 左ペイン: プロフィール詳細（縦スクロール）
@@ -345,7 +361,7 @@ private fun ProfileExpanded(
             HorizontalDivider(color = DeckColors.Border)
             RefreshableBox(onRefresh) {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                    notesItems(visible, onNoteClick, onReply, onQuote, onAuthorClick, pinnedNotes)
+                    body()
                 }
             }
         }
@@ -354,7 +370,7 @@ private fun ProfileExpanded(
 
 /* ---------- 共通パーツ ---------- */
 
-private fun androidx.compose.foundation.lazy.LazyListScope.notesItems(
+private fun LazyListScope.notesItems(
     visible: List<NoteUi>,
     onNoteClick: (NoteUi) -> Unit,
     onReply: (NoteUi) -> Unit,
@@ -394,6 +410,32 @@ private fun androidx.compose.foundation.lazy.LazyListScope.notesItems(
             NoteItem(
                 note, onClick = { onNoteClick(note) },
                 onReply = { onReply(note) }, onQuote = { onQuote(note) }, onAuthorClick = onAuthorClick,
+            )
+        }
+    }
+}
+
+/**
+ * [#384] 記事タブ（NIP-23 kind:30023）の行。本文中の naddr 展開と同じ記事カードを流用し、
+ * タップで記事リーダー（ThreadDetail が kind:30023 を見て切り替える）へ。
+ */
+private fun LazyListScope.articleItems(articles: List<NostrEvent>, onClick: (NostrEvent) -> Unit) {
+    if (articles.isEmpty()) {
+        item(key = "articles_empty") {
+            Box(Modifier.fillMaxWidth().padding(DeckSpace.Xl), contentAlignment = Alignment.Center) {
+                Text(stringResource(Res.string.profile_no_articles), color = DeckColors.Text3, fontSize = DeckType.Caption)
+            }
+        }
+        return
+    }
+    items(articles, key = { it.id }) { ev ->
+        Box(Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm)) {
+            ArticleCardBody(
+                ev,
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(DeckRadius.Md))
+                    .clickable { onClick(ev) }
+                    .background(DeckColors.Surface2, RoundedCornerShape(DeckRadius.Md)),
             )
         }
     }

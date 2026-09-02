@@ -152,6 +152,7 @@
     <!-- Profile tabs -->
     <string name="tab_posts">Posts</string>
     <string name="tab_media">Media</string>
+    <string name="tab_articles">Articles</string>
 
     <!-- [#160] Phase 2: columns / mute / presets / common -->
     <string name="common_add">Add</string>
@@ -549,6 +550,7 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="notif_empty">No notifications yet</string>
     <string name="pinned_post">Pinned post</string>
     <string name="profile_no_posts">No posts yet</string>
+    <string name="profile_no_articles">No articles yet</string>
     <string name="menu">Menu</string>
     <string name="copy_nprofile">Copy nprofile</string>
     <string name="nprofile_copied">nprofile copied</string>

@@ -63,6 +63,7 @@ import app.nostrdeck.ui.ImageProxy
 import app.nostrdeck.model.FeedEntry
 import app.nostrdeck.model.ContentToken
 import app.nostrdeck.model.NostrEvent
+import app.nostrdeck.model.latestByDTag
 import app.nostrdeck.model.NoteUi
 import app.nostrdeck.model.tokenizeNostrContent
 import app.nostrdeck.model.AuthPolicy
@@ -1667,6 +1668,21 @@ class EventRepository(
         mineReaction = meta.myReaction[ui.event.id],
         mineReposted = ui.event.id in meta.myReposted,
     )
+
+    /**
+     * [#384] 指定ユーザーの addressable イベント（記事 kind:30023 等）を新しい順で流す。
+     * replaceable なので同一 `d` タグは最新版だけに畳む（リレーには古い版も残っている）。
+     * 購読は呼び出し側が [subscribeColumn] で行う（ここは DB の読み出しのみ）。
+     */
+    fun addressableEventsFlow(kind: Int, pubkey: String, limit: Long = 100): Flow<List<NostrEvent>> =
+        q.eventsByKindAuthorLimit(kind.toLong(), pubkey, limit).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                latestByDTag(
+                    rows.map {
+                        NostrEvent(it.id, it.pubkey, it.kind.toInt(), it.created_at, it.content, parseTags(it.tags_json), it.sig)
+                    },
+                )
+            }.flowOn(Dispatchers.Default)
 
     // ---- [M9-profile] プロフィール表示 / フォロー操作 ----
 

@@ -148,6 +148,7 @@
     <!-- Profile tabs -->
     <string name="tab_posts">投稿</string>
     <string name="tab_media">メディア</string>
+    <string name="tab_articles">記事</string>
 
     <!-- [#160] Phase 2: columns / mute / presets / common -->
     <string name="common_add">追加</string>
@@ -545,6 +546,7 @@
     <string name="notif_empty">通知はまだありません</string>
     <string name="pinned_post">固定された投稿</string>
     <string name="profile_no_posts">まだ投稿がありません</string>
+    <string name="profile_no_articles">まだ記事がありません</string>
     <string name="menu">メニュー</string>
     <string name="copy_nprofile">nprofile をコピー</string>
     <string name="nprofile_copied">nprofile をコピーしました</string>
