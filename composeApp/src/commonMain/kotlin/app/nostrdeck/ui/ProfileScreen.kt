@@ -69,7 +69,6 @@ import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
 import nostr_deck_client.composeapp.generated.resources.tab_media
 import nostr_deck_client.composeapp.generated.resources.tab_posts
-import nostr_deck_client.composeapp.generated.resources.tab_posts_replies
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
@@ -82,16 +81,26 @@ import app.nostrdeck.theme.DeckWeight
 import kotlinx.coroutines.launch
 
 /**
- * プロフィールのタブ（投稿 / 投稿とリプライ / メディア）。
- * ふぁぼ/ブックマークは「公開プロフ」ではなく私的リストなので、ここではなく
- * 独立の目的地（レール自分ゾーン / コンパクトの自分シート）で開く。
+ * プロフィールのタブ（投稿 / メディア）。
+ * [#383] 「投稿」と「投稿とリプライ」は中身がほぼ重複していた（前者は後者から返信を抜いただけ）ので
+ * **返信込みの1つ**に統合した。ふぁぼ/ブックマークは「公開プロフ」ではなく私的リストなので、
+ * ここではなく独立の目的地（レール自分ゾーン / コンパクトの自分シート）で開く。
  */
 // [#149] ラベルは文字列リソース（UI 層で解決）。
 private enum class ProfileTab(val label: StringResource) {
-    POSTS(Res.string.tab_posts), REPLIES(Res.string.tab_posts_replies), MEDIA(Res.string.tab_media),
+    POSTS(Res.string.tab_posts), MEDIA(Res.string.tab_media),
 }
 
 private val ALL_TABS = ProfileTab.entries.toList()
+
+/**
+ * [#383] 保存済みタブ名 → タブ。タブ構成が変わっても壊れないよう、
+ * 知らない名前（統合で消えた REPLIES 等）は既定の「投稿」へ倒す。
+ */
+internal fun profileTabNameOrDefault(name: String?): String = profileTabOf(name).name
+
+private fun profileTabOf(name: String?): ProfileTab =
+    ProfileTab.entries.firstOrNull { it.name == name } ?: ProfileTab.POSTS
 
 /**
  * [M9-profile] ユーザー名タップで開く全幅プロフィール。
@@ -144,17 +153,18 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
     // [#96/#97] フォロー中/フォロワーの一覧表示。null なら通常のプロフィール表示。
     var userList by remember(pubkey) { mutableStateOf<UserListMode?>(null) }
 
-    var tabRaw by rememberSaveable(pubkey) { mutableStateOf(ProfileTab.POSTS) }
-    val tab = tabRaw
+    // [#383] タブ状態は**enum ではなく名前**で保存する。タブ構成を変えたときに
+    // 保存済みの旧値（序数/削除された値）がそのまま復元されて落ちないよう、知らない名前は既定へ倒す。
+    var tabName by rememberSaveable(pubkey) { mutableStateOf(ProfileTab.POSTS.name) }
+    val tab = remember(tabName) { profileTabOf(tabName) }
     val visible = remember(notes, tab) {
         when (tab) {
-            // [#134] リポスト（repostedBy 非null）は元が返信でも「投稿」に出す（フォロー中と同じ扱い）。
-            ProfileTab.POSTS -> notes.filter { !it.isReply || it.repostedBy != null }
-            ProfileTab.REPLIES -> notes
+            // [#383] 投稿タブは返信込み（統合前の「投稿とリプライ」相当）。
+            ProfileTab.POSTS -> notes
             ProfileTab.MEDIA -> notes.filter { it.images.isNotEmpty() }
         }
     }
-    // 固定投稿は「投稿」タブでのみ最上部に出す。重複を避けるため通常一覧からは除外。
+    // 固定投稿は統合後の「投稿」タブの最上部に出す [#383]。重複を避けるため通常一覧からは除外。
     val pinnedIds = remember(pinnedNotes) { pinnedNotes.map { it.event.id }.toSet() }
     val pinnedForTab = if (tab == ProfileTab.POSTS) pinnedNotes else emptyList()
     val visibleNoPins = if (pinnedForTab.isEmpty()) visible else visible.filterNot { it.event.id in pinnedIds }
@@ -228,14 +238,14 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
     if (isCompact) {
         ProfileCompact(
             pubkey, profile, following, tab, tabs, isMe, visibleNoPins,
-            onTab = { tabRaw = it }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
+            onTab = { tabName = it.name }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
             onNoteClick = onNoteClick, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick,
             pinnedNotes = pinnedForTab, social = social, onRefresh = onRefresh,
         )
     } else {
         ProfileExpanded(
             pubkey, profile, following, tab, tabs, isMe, visibleNoPins,
-            onTab = { tabRaw = it }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
+            onTab = { tabName = it.name }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
             onNoteClick = onNoteClick, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick,
             pinnedNotes = pinnedForTab, social = social, onRefresh = onRefresh,
         )

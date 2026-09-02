@@ -151,7 +151,6 @@
 
     <!-- Profile tabs -->
     <string name="tab_posts">Posts</string>
-    <string name="tab_posts_replies">Posts &amp; replies</string>
     <string name="tab_media">Media</string>
 
     <!-- [#160] Phase 2: columns / mute / presets / common -->

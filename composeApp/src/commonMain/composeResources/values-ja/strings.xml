@@ -147,7 +147,6 @@
 
     <!-- Profile tabs -->
     <string name="tab_posts">投稿</string>
-    <string name="tab_posts_replies">投稿とリプライ</string>
     <string name="tab_media">メディア</string>
 
     <!-- [#160] Phase 2: columns / mute / presets / common -->
