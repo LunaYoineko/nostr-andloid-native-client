@@ -147,8 +147,9 @@
 
     <!-- Profile tabs -->
     <string name="tab_posts">投稿</string>
-    <string name="tab_posts_replies">投稿とリプライ</string>
     <string name="tab_media">メディア</string>
+    <string name="tab_articles">記事</string>
+    <string name="tab_lists">リスト</string>
 
     <!-- [#160] Phase 2: columns / mute / presets / common -->
     <string name="common_add">追加</string>
@@ -546,6 +547,15 @@
     <string name="notif_empty">通知はまだありません</string>
     <string name="pinned_post">固定された投稿</string>
     <string name="profile_no_posts">まだ投稿がありません</string>
+    <string name="profile_no_articles">まだ記事がありません</string>
+    <string name="profile_no_lists">公開されているリストはありません</string>
+    <string name="list_count_fmt">%1$s 件</string>
+    <string name="list_open_as_column">カラムで開く</string>
+    <string name="list_private_note">このリストには非公開の項目があります（本人以外は読めません）。</string>
+    <string name="profile_relays_fmt">使用リレー (%1$s)</string>
+    <string name="relay_add_to_mine">追加</string>
+    <string name="relay_already_added">追加済み</string>
+    <string name="relay_added">自分のリレーに追加しました</string>
     <string name="menu">メニュー</string>
     <string name="copy_nprofile">nprofile をコピー</string>
     <string name="nprofile_copied">nprofile をコピーしました</string>

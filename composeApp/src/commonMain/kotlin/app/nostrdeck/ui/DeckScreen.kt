@@ -692,6 +692,7 @@ private fun SubscribeZaps(repo: EventRepository?, colId: String, noteIds: List<S
 /** 実データ購読の対象とするフィード種別（通知/DM はログイン pubkey/復号が要るため除外）。 */
 private val LIVE_FEED_KINDS = setOf(
     ColumnKind.FOLLOWING, ColumnKind.GLOBAL, ColumnKind.HASHTAG, ColumnKind.PROFILE,
+    ColumnKind.LIST,   // [#385] NIP-51 リストのメンバー（authors 指定の素のフィード）
 )
 
 /** [#10] カラム幅プリセット（S=狭 / M=標準 / L=広）。 */

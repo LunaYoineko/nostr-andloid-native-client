@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -60,6 +61,10 @@ import app.nostrdeck.model.ColumnKind
 import app.nostrdeck.model.ColumnRenderer
 import app.nostrdeck.model.ColumnSpec
 import app.nostrdeck.model.FeedEntry
+import app.nostrdeck.model.NIP51_SET_KINDS
+import app.nostrdeck.model.Nip51Set
+import app.nostrdeck.model.NostrEvent
+import app.nostrdeck.model.buildListColumn
 import app.nostrdeck.model.NoteUi
 import app.nostrdeck.model.Profile
 import app.nostrdeck.model.ReqFilter
@@ -69,7 +74,6 @@ import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
 import nostr_deck_client.composeapp.generated.resources.tab_media
 import nostr_deck_client.composeapp.generated.resources.tab_posts
-import nostr_deck_client.composeapp.generated.resources.tab_posts_replies
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.getString
 import org.jetbrains.compose.resources.stringResource
@@ -82,23 +86,38 @@ import app.nostrdeck.theme.DeckWeight
 import kotlinx.coroutines.launch
 
 /**
- * プロフィールのタブ（投稿 / 投稿とリプライ / メディア）。
+ * プロフィールのタブ（投稿 / メディア / 記事 / リスト）。
+ * [#383] 「投稿」と「投稿とリプライ」は中身がほぼ重複していた（前者は後者から返信を抜いただけ）ので
+ * **返信込みの1つ**に統合した。[#384][#385] そこへ本人の長文記事と公開リストを足している。
  * ふぁぼ/ブックマークは「公開プロフ」ではなく私的リストなので、ここではなく
  * 独立の目的地（レール自分ゾーン / コンパクトの自分シート）で開く。
  */
-// [#149] ラベルは文字列リソース（UI 層で解決）。
-private enum class ProfileTab(val label: StringResource) {
-    POSTS(Res.string.tab_posts), REPLIES(Res.string.tab_posts_replies), MEDIA(Res.string.tab_media),
+// [#149] ラベルは文字列リソース（UI 層で解決）。internal は profileTabOf の単体テスト用。
+internal enum class ProfileTab(val label: StringResource) {
+    POSTS(Res.string.tab_posts),
+    MEDIA(Res.string.tab_media),
+    // [#384] 本人の長文記事(NIP-23 kind:30023)。0件でもタブは出す（購読前と0件を区別できないため）。
+    ARTICLES(Res.string.tab_articles),
+    // [#385] 本人が公開している NIP-51 セット（フォローセット/ブックマークセット）。
+    LISTS(Res.string.tab_lists),
 }
 
 private val ALL_TABS = ProfileTab.entries.toList()
+
+/**
+ * [#383] 保存済みタブ名 → タブ。タブ構成が変わっても壊れないよう、
+ * 知らない名前（統合で消えた REPLIES 等）は既定の「投稿」へ倒す。
+ */
+internal fun profileTabOf(name: String?): ProfileTab =
+    ProfileTab.entries.firstOrNull { it.name == name } ?: ProfileTab.POSTS
 
 /**
  * [M9-profile] ユーザー名タップで開く全幅プロフィール。
  *  - Expanded(展開): 左=プロフィール詳細（固定幅）/ 右=タブ付きの投稿リスト の2ペイン
  *  - Compact(畳み) : 上にヘッダ、その下にタブ、本文はタブ切替で1カラム
  *
- * 投稿は kind:1 を購読し、クライアント側でタブ（返信有無/メディア有無）に振り分ける。
+ * 投稿は kind:1（+リポスト 6/16）を購読してクライアント側でタブ（メディア有無）に振り分ける。
+ * 記事(30023)と NIP-51 セット(30000/30003)は、そのタブを開いている間だけ購読する。
  */
 @Composable
 fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
@@ -144,20 +163,63 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
     // [#96/#97] フォロー中/フォロワーの一覧表示。null なら通常のプロフィール表示。
     var userList by remember(pubkey) { mutableStateOf<UserListMode?>(null) }
 
-    var tabRaw by rememberSaveable(pubkey) { mutableStateOf(ProfileTab.POSTS) }
-    val tab = tabRaw
-    val visible = remember(notes, tab) {
+    // [#383] タブ状態は**enum ではなく名前**で保存する。タブ構成を変えたときに
+    // 保存済みの旧値（序数/削除された値）がそのまま復元されて落ちないよう、知らない名前は既定へ倒す。
+    var tabName by rememberSaveable(pubkey) { mutableStateOf(ProfileTab.POSTS.name) }
+    val tab = remember(tabName) { profileTabOf(tabName) }
+    val visible: List<NoteUi> = remember(notes, tab) {
         when (tab) {
-            // [#134] リポスト（repostedBy 非null）は元が返信でも「投稿」に出す（フォロー中と同じ扱い）。
-            ProfileTab.POSTS -> notes.filter { !it.isReply || it.repostedBy != null }
-            ProfileTab.REPLIES -> notes
+            // [#383] 投稿タブは返信込み（統合前の「投稿とリプライ」相当）。
+            ProfileTab.POSTS -> notes
             ProfileTab.MEDIA -> notes.filter { it.images.isNotEmpty() }
+            // ノート一覧ではないタブ（記事/リスト）は別ソースを使うのでここでは空。
+            ProfileTab.ARTICLES, ProfileTab.LISTS -> emptyList()
         }
     }
-    // 固定投稿は「投稿」タブでのみ最上部に出す。重複を避けるため通常一覧からは除外。
+    // 固定投稿は統合後の「投稿」タブの最上部に出す [#383]。重複を避けるため通常一覧からは除外。
     val pinnedIds = remember(pinnedNotes) { pinnedNotes.map { it.event.id }.toSet() }
     val pinnedForTab = if (tab == ProfileTab.POSTS) pinnedNotes else emptyList()
     val visibleNoPins = if (pinnedForTab.isEmpty()) visible else visible.filterNot { it.event.id in pinnedIds }
+
+    // [#384/#385] 記事(kind:30023)と NIP-51 セット(30000/30003)は**開いているタブでだけ**購読する
+    // （プロフィールを開くたびに REQ が増えないように）。タブを離れたら CLOSE。
+    // 記事の表示は DB キャッシュ経由・セットはメモリ保持なので、往復しても内容は消えない。
+    // subId はタブごとに分ける（同じ id を使い回すと、前タブの CLOSE と次タブの REQ が
+    // 同一 id で交錯し、アウトボックスの追加購読の取り消しも噛み合わない）。
+    androidx.compose.runtime.DisposableEffect(pubkey, tab) {
+        val (subId, kinds) = when (tab) {
+            ProfileTab.ARTICLES -> "profile_articles_$pubkey" to listOf(30023)
+            ProfileTab.LISTS -> "profile_lists_$pubkey" to NIP51_SET_KINDS
+            else -> null to emptyList()
+        }
+        if (subId != null) {
+            repo?.subscribeColumn(subId, ReqFilter(kinds = kinds, authors = listOf(pubkey)))
+        }
+        // 張っていないときに CLOSE を送らない（購読しないタブへの切り替えで無駄な往復を作らない）。
+        onDispose { if (subId != null) repo?.unsubscribeColumn(subId) }
+    }
+    // 記事の DB Flow も記事タブを開いている間だけ collect する（listProfiles と同じ形）。
+    val articles: List<NostrEvent> =
+        if (tab == ProfileTab.ARTICLES && repo != null) {
+            remember(pubkey) { repo.addressableEventsFlow(30023, pubkey) }.collectAsState(emptyList()).value
+        } else {
+            emptyList()
+        }
+    val listSets = repo?.let { remember(pubkey) { it.listSetsOf(pubkey) } }
+        ?.collectAsState(emptyList())?.value ?: emptyList()
+    // 展開中のリスト（アコーディオン。1つだけ開く）。
+    var openedList by remember(pubkey) { mutableStateOf<String?>(null) }
+    // リストタブで展開中のセットのメンバー（表示分だけ）の名前/アバター。
+    // 全プロフィール表ではなく、そのメンバーだけを引く（他の kind:0 受信で発火しない）。
+    val openedMembers: List<String> = remember(listSets, openedList) {
+        listSets.firstOrNull { it.address == openedList }?.members?.take(LIST_MEMBERS_SHOWN).orEmpty()
+    }
+    val listProfiles: Map<String, app.nostrdeck.db.Profile> =
+        if (tab == ProfileTab.LISTS && repo != null) {
+            remember(openedMembers) { repo.profilesByPubkeysFlow(openedMembers) }.collectAsState(emptyMap()).value
+        } else {
+            emptyMap()
+        }
 
     val onFollowToggle: () -> Unit = {
         scope.launch { if (following) repo?.unfollow(pubkey) else repo?.follow(pubkey) }
@@ -225,19 +287,42 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
         )
         Unit
     }
+    // [#384] タブごとに中身の型が違う（ノート / 記事）ので、本文は LazyListScope の
+    // ブロックとして組み立てて Compact/Expanded の両レイアウトへ渡す。
+    val tabBody: LazyListScope.() -> Unit = when (tab) {
+        ProfileTab.POSTS, ProfileTab.MEDIA -> ({
+            notesItems(visibleNoPins, onNoteClick, onReply, onQuote, onAuthorClick, pinnedForTab)
+        })
+        ProfileTab.ARTICLES -> ({ articleItems(articles) { state.openThreadDetail(it.id) } })
+        ProfileTab.LISTS -> ({
+            listSetItems(
+                sets = listSets,
+                opened = openedList,
+                profiles = listProfiles,
+                onToggle = { addr -> openedList = if (openedList == addr) null else addr },
+                onOpenProfile = onAuthorClick,
+                onNoteClick = onNoteClick,
+                onReply = onReply,
+                onQuote = onQuote,
+                onOpenAsColumn = { set ->
+                    // 既存のカラム機構にそのまま載せる（authors 指定の一時カラム）。
+                    state.clearDetail()
+                    state.openTransient(buildListColumn(set.title, set.members))
+                },
+            )
+        })
+    }
     if (isCompact) {
         ProfileCompact(
-            pubkey, profile, following, tab, tabs, isMe, visibleNoPins,
-            onTab = { tabRaw = it }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
-            onNoteClick = onNoteClick, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick,
-            pinnedNotes = pinnedForTab, social = social, onRefresh = onRefresh,
+            pubkey, profile, following, tab, tabs, isMe,
+            onTab = { tabName = it.name }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
+            social = social, onRefresh = onRefresh, body = tabBody,
         )
     } else {
         ProfileExpanded(
-            pubkey, profile, following, tab, tabs, isMe, visibleNoPins,
-            onTab = { tabRaw = it }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
-            onNoteClick = onNoteClick, onReply = onReply, onQuote = onQuote, onAuthorClick = onAuthorClick,
-            pinnedNotes = pinnedForTab, social = social, onRefresh = onRefresh,
+            pubkey, profile, following, tab, tabs, isMe,
+            onTab = { tabName = it.name }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
+            social = social, onRefresh = onRefresh, body = tabBody,
         )
     }
 }
@@ -262,19 +347,15 @@ private fun ProfileCompact(
     tab: ProfileTab,
     tabs: List<ProfileTab>,
     isMe: Boolean,
-    visible: List<NoteUi>,
     onTab: (ProfileTab) -> Unit,
     onFollowToggle: () -> Unit,
     onEdit: () -> Unit,
     onBack: () -> Unit,
-    onNoteClick: (NoteUi) -> Unit,
-    onReply: (NoteUi) -> Unit,
-    onQuote: (NoteUi) -> Unit,
-    onAuthorClick: (String) -> Unit,
-    pinnedNotes: List<NoteUi> = emptyList(),
     social: ProfileSocial? = null,
     listState: LazyListState = rememberLazyListState(),
     onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新
+    // [#384] 選択中タブの中身（投稿 / 記事 …）。タブごとに要素の型が違うので呼び出し側で組む。
+    body: LazyListScope.() -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(DeckColors.Surface)) {
         ProfileTopBar(profile?.name?.takeIf { it.isNotBlank() } ?: pubkey.take(10), onBack)
@@ -289,7 +370,7 @@ private fun ProfileCompact(
                 ProfileTabs(tab, tabs, onTab)
                 HorizontalDivider(color = DeckColors.Border)
             }
-            notesItems(visible, onNoteClick, onReply, onQuote, onAuthorClick, pinnedNotes)
+            body()
         }
         }
     }
@@ -305,19 +386,14 @@ private fun ProfileExpanded(
     tab: ProfileTab,
     tabs: List<ProfileTab>,
     isMe: Boolean,
-    visible: List<NoteUi>,
     onTab: (ProfileTab) -> Unit,
     onFollowToggle: () -> Unit,
     onEdit: () -> Unit,
     onBack: () -> Unit,
-    onNoteClick: (NoteUi) -> Unit,
-    onReply: (NoteUi) -> Unit,
-    onQuote: (NoteUi) -> Unit,
-    onAuthorClick: (String) -> Unit,
-    pinnedNotes: List<NoteUi> = emptyList(),
     social: ProfileSocial? = null,
     listState: LazyListState = rememberLazyListState(),
     onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新
+    body: LazyListScope.() -> Unit,    // [#384] 選択中タブの中身
 ) {
     Row(Modifier.fillMaxSize().background(DeckColors.Surface)) {
         // 左ペイン: プロフィール詳細（縦スクロール）
@@ -335,7 +411,7 @@ private fun ProfileExpanded(
             HorizontalDivider(color = DeckColors.Border)
             RefreshableBox(onRefresh) {
                 LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                    notesItems(visible, onNoteClick, onReply, onQuote, onAuthorClick, pinnedNotes)
+                    body()
                 }
             }
         }
@@ -344,7 +420,7 @@ private fun ProfileExpanded(
 
 /* ---------- 共通パーツ ---------- */
 
-private fun androidx.compose.foundation.lazy.LazyListScope.notesItems(
+private fun LazyListScope.notesItems(
     visible: List<NoteUi>,
     onNoteClick: (NoteUi) -> Unit,
     onReply: (NoteUi) -> Unit,
@@ -385,6 +461,150 @@ private fun androidx.compose.foundation.lazy.LazyListScope.notesItems(
                 note, onClick = { onNoteClick(note) },
                 onReply = { onReply(note) }, onQuote = { onQuote(note) }, onAuthorClick = onAuthorClick,
             )
+        }
+    }
+}
+
+/**
+ * [#384] 記事タブ（NIP-23 kind:30023）の行。本文中の naddr 展開と同じ記事カードを流用し、
+ * タップで記事リーダー（ThreadDetail が kind:30023 を見て切り替える）へ。
+ */
+private fun LazyListScope.articleItems(articles: List<NostrEvent>, onClick: (NostrEvent) -> Unit) {
+    if (articles.isEmpty()) {
+        item(key = "articles_empty") {
+            Box(Modifier.fillMaxWidth().padding(DeckSpace.Xl), contentAlignment = Alignment.Center) {
+                Text(stringResource(Res.string.profile_no_articles), color = DeckColors.Text3, fontSize = DeckType.Caption)
+            }
+        }
+        return
+    }
+    items(articles, key = { it.id }) { ev ->
+        Box(Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Sm)) {
+            ArticleCardBody(
+                ev,
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(DeckRadius.Md))
+                    .clickable { onClick(ev) }
+                    .background(DeckColors.Surface2, RoundedCornerShape(DeckRadius.Md)),
+            )
+        }
+    }
+}
+
+/**
+ * [#385] リストタブ（NIP-51 セット）の行。名前 + 件数を並べ、タップで中身を展開する。
+ *  - フォローセット(30000) … メンバーのプロフィール一覧 + 「カラムで開く」
+ *  - ブックマークセット(30003) … ブックマークされたイベント
+ * 他人の非公開項目（暗号化 content）は復号できないので、その旨だけ添えて公開タグのみ出す。
+ */
+private fun LazyListScope.listSetItems(
+    sets: List<Nip51Set>,
+    opened: String?,
+    profiles: Map<String, app.nostrdeck.db.Profile>,
+    onToggle: (String) -> Unit,
+    onOpenProfile: (String) -> Unit,
+    onNoteClick: (NoteUi) -> Unit,
+    onReply: (NoteUi) -> Unit,
+    onQuote: (NoteUi) -> Unit,
+    onOpenAsColumn: (Nip51Set) -> Unit,
+) {
+    if (sets.isEmpty()) {
+        item(key = "lists_empty") {
+            Box(Modifier.fillMaxWidth().padding(DeckSpace.Xl), contentAlignment = Alignment.Center) {
+                Text(stringResource(Res.string.profile_no_lists), color = DeckColors.Text3, fontSize = DeckType.Caption)
+            }
+        }
+        return
+    }
+    sets.forEach { set ->
+        item(key = "set_${set.address}") {
+            ListSetRow(set, expanded = opened == set.address, onClick = { onToggle(set.address) })
+            HorizontalDivider(color = DeckColors.Border)
+        }
+        if (opened != set.address) return@forEach
+        // --- 展開: フォローセットは「カラムで開く」+ メンバー一覧 ---
+        if (set.members.isNotEmpty()) {
+            item(key = "set_col_${set.address}") {
+                Box(Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Lg, vertical = DeckSpace.Sm)) {
+                    DeckGhostButton(stringResource(Res.string.list_open_as_column), onClick = { onOpenAsColumn(set) })
+                }
+            }
+            items(set.members.take(LIST_MEMBERS_SHOWN), key = { "m_${set.address}_$it" }) { pk ->
+                UserListRow(pk, profiles[pk], onClick = { onOpenProfile(pk) })
+                HorizontalDivider(color = DeckColors.Border)
+            }
+        }
+        // --- 展開: ブックマークセットは対象イベント ---
+        if (set.eventIds.isNotEmpty()) {
+            item(key = "set_notes_${set.address}") {
+                ListSetNotes(set.eventIds.take(LIST_NOTES_SHOWN), onNoteClick, onReply, onQuote, onOpenProfile)
+            }
+        }
+        if (set.hasPrivate) {
+            item(key = "set_private_${set.address}") {
+                Text(
+                    stringResource(Res.string.list_private_note),
+                    color = DeckColors.Text3, fontSize = DeckType.Label,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Lg, vertical = DeckSpace.Sm),
+                )
+                HorizontalDivider(color = DeckColors.Border)
+            }
+        }
+    }
+}
+
+/** 展開時に一度に描くメンバー/ノートの上限（巨大なセットで固まらないように）。 */
+private const val LIST_MEMBERS_SHOWN = 200
+private const val LIST_NOTES_SHOWN = 30
+
+@Composable
+private fun ListSetRow(set: Nip51Set, expanded: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick)
+            .padding(horizontal = DeckSpace.Lg, vertical = DeckSpace.Md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                set.title, color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                stringResource(Res.string.list_count_fmt, set.count.toString()),
+                color = DeckColors.Text3, fontSize = DeckType.Label,
+            )
+        }
+        Text(if (expanded) "\u25BE" else "\u25B8", color = DeckColors.Text3, fontSize = DeckType.Caption)
+    }
+}
+
+/** ブックマークセットの中身（イベント id を DB から解決して投稿として並べる）。 */
+@Composable
+private fun ListSetNotes(
+    ids: List<String>,
+    onNoteClick: (NoteUi) -> Unit,
+    onReply: (NoteUi) -> Unit,
+    onQuote: (NoteUi) -> Unit,
+    onAuthorClick: (String) -> Unit,
+) {
+    val repo = LocalRepository.current
+    // 未取得のものはリレーへ要求（届いたら DB Flow 経由で行が埋まる）。
+    androidx.compose.runtime.LaunchedEffect(ids) { ids.forEach { repo?.requestEvent(it) } }
+    val notes = repo?.let { remember(ids) { it.notesByIdsFlow(ids) } }
+        ?.collectAsState(emptyList())?.value ?: emptyList()
+    if (notes.isEmpty()) {
+        Box(Modifier.fillMaxWidth().padding(DeckSpace.Lg), contentAlignment = Alignment.Center) {
+            Text(stringResource(Res.string.md_resolving), color = DeckColors.Text3, fontSize = DeckType.Caption)
+        }
+        return
+    }
+    Column(Modifier.fillMaxWidth()) {
+        notes.forEach { note ->
+            NoteItem(
+                note, onClick = { onNoteClick(note) },
+                onReply = { onReply(note) }, onQuote = { onQuote(note) }, onAuthorClick = onAuthorClick,
+            )
+            HorizontalDivider(color = DeckColors.Border)
         }
     }
 }
@@ -574,6 +794,9 @@ private fun ProfileHeaderCard(
                 Spacer(Modifier.height(DeckSpace.Xs))
                 Text(noteAnnotated(it), color = DeckColors.Accent, fontSize = DeckType.Caption, maxLines = 1)
             }
+            // [#386] 使用リレー（NIP-65 kind:10002）。件数が少ないのでタブではなく
+            // プロフィール詳細の折りたたみに置く（Compact/Expanded 共通のこのカード内）。
+            ProfileRelaysSection(pubkey)
         }
     }
 
@@ -621,6 +844,68 @@ private fun ProfileHeaderCard(
             },
             onDismiss = { showReport = false },
         )
+    }
+}
+
+/**
+ * [#386] そのユーザーが使っているリレー（NIP-65 kind:10002 の `r` タグ）の折りたたみ。
+ * read/write マーカーも併記し、各行から自分の接続先へ追加できる。
+ * kind:10002 を受信していないユーザーでは何も出さない（「未設定」も出さない）。
+ */
+@Composable
+private fun ProfileRelaysSection(pubkey: String) {
+    val repo = LocalRepository.current ?: return
+    val relays = remember(pubkey) { repo.nip65PrefsOf(pubkey) }.collectAsState(emptyList()).value
+    if (relays.isEmpty()) return
+    // 自分の接続先（重複追加のガードに使う）。
+    val mine = remember(repo) { repo.relaysFlow() }.collectAsState(emptyList()).value
+        .map { it.url }.toSet()
+    val toast = rememberToaster()
+    val addedMsg = stringResource(Res.string.relay_added)
+    var expanded by rememberSaveable(pubkey) { mutableStateOf(false) }
+    Spacer(Modifier.height(DeckSpace.Md))
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(DeckRadius.Sm))
+            .clickable { expanded = !expanded }
+            .padding(vertical = DeckSpace.Xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(Res.string.profile_relays_fmt, relays.size.toString()),
+            color = DeckColors.Text2, fontSize = DeckType.Caption, fontWeight = DeckWeight.Strong,
+        )
+        Spacer(Modifier.width(DeckSpace.Xs))
+        Text(if (expanded) "\u25BE" else "\u25B8", color = DeckColors.Text3, fontSize = DeckType.Caption)
+    }
+    if (!expanded) return
+    relays.forEach { r ->
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = DeckSpace.Xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    r.url.removePrefix("wss://"),
+                    color = DeckColors.Text, fontSize = DeckType.Caption,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                // マーカー（第3要素）。無印は read+write の両用。
+                Text(
+                    listOfNotNull("read".takeIf { r.read }, "write".takeIf { r.write }).joinToString(" · "),
+                    color = DeckColors.Text3, fontSize = DeckType.Label,
+                )
+            }
+            Spacer(Modifier.width(DeckSpace.Sm))
+            if (r.url in mine) {
+                Text(stringResource(Res.string.relay_already_added), color = DeckColors.Text3, fontSize = DeckType.Label)
+            } else {
+                // 既存のリレー追加処理を再利用（read/write 既定 true で手動追加扱い）。
+                DeckGhostButton(stringResource(Res.string.relay_add_to_mine), onClick = {
+                    repo.addRelay(r.url)
+                    toast(addedMsg)
+                })
+            }
+        }
     }
 }
 
@@ -686,15 +971,19 @@ private fun ProfileTabs(selected: ProfileTab, tabs: List<ProfileTab>, onSelect: 
         tabs.forEach { t ->
             val active = t == selected
             Column(
-                Modifier.weight(1f).clickable { onSelect(t) }.padding(vertical = DeckSpace.Md),
+                Modifier.weight(1f).clickable { onSelect(t) }
+                    .padding(horizontal = DeckSpace.Xs, vertical = DeckSpace.Md),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                // [#383-#385] タブが4つ（投稿/メディア/記事/リスト）になったので、狭い端末や
+                // 長いロケール文字列（"Articles"）でも等幅の枠に収まるよう折り返さず省略する。
                 Text(
                     stringResource(t.label),
                     color = if (active) DeckColors.Text else DeckColors.Text3,
                     fontSize = DeckType.Caption,
                     fontWeight = if (active) DeckWeight.Strong else DeckWeight.Body,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.height(DeckSpace.Sm))
                 Box(

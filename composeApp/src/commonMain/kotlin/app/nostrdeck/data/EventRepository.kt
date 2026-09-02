@@ -63,6 +63,9 @@ import app.nostrdeck.ui.ImageProxy
 import app.nostrdeck.model.FeedEntry
 import app.nostrdeck.model.ContentToken
 import app.nostrdeck.model.NostrEvent
+import app.nostrdeck.model.latestByDTag
+import app.nostrdeck.model.Nip51Set
+import app.nostrdeck.model.parseNip51Sets
 import app.nostrdeck.model.NoteUi
 import app.nostrdeck.model.tokenizeNostrContent
 import app.nostrdeck.model.AuthPolicy
@@ -72,6 +75,7 @@ import app.nostrdeck.model.NotificationUi
 import app.nostrdeck.model.Profile
 import app.nostrdeck.model.ReactionUi
 import app.nostrdeck.model.RelayPref
+import app.nostrdeck.model.nip65PrefsFromTags
 import app.nostrdeck.model.ReqFilter
 import app.nostrdeck.model.ThreadEntry
 import app.nostrdeck.model.UnsignedEvent
@@ -191,6 +195,17 @@ class EventRepository(
     @OptIn(kotlinx.coroutines.FlowPreview::class)
     fun profilesMapSampled(): Flow<Map<String, app.nostrdeck.db.Profile>> =
         profilesFlow.sample(400).map { list -> list.associateBy { it.pubkey } }
+            .flowOn(Dispatchers.Default)
+
+    /**
+     * [#388-review] 指定 pubkey 群のプロフィール（pubkey→行）。プロフィールの「リスト」タブで
+     * 展開中セットのメンバー（高々数百）を引くのに使う。全プロフィール表を流す
+     * [profilesMapSampled] と違い、対象外の kind:0 受信では発火しない。
+     */
+    fun profilesByPubkeysFlow(pubkeys: List<String>): Flow<Map<String, app.nostrdeck.db.Profile>> =
+        if (pubkeys.isEmpty()) flowOf(emptyMap())
+        else q.profilesByPubkeys(pubkeys).asFlow().mapToList(Dispatchers.Default)
+            .map { list -> list.associateBy { it.pubkey } }
             .flowOn(Dispatchers.Default)
 
     // [M10] リアクション数/リプライ数/リポスト数の集約はタイムライン表示に不要（数字は出さない）。
@@ -864,15 +879,21 @@ class EventRepository(
     }.getOrElse { println("Nostrism publishDeckColumnsSync failed: $it"); false }
 
     /** d=DECK_COLUMNS_D の content（#122 互換の DeckColumnDto 配列）を ColumnSpec 群へ。壊れていれば null。 */
-    private fun decodeDeckColumns(content: String): List<ColumnSpec>? = runCatching {
-        json.decodeFromString(ListSerializer(DeckColumnDto.serializer()), content).map { d ->
-            ColumnSpec(
-                id = d.id, title = d.title, subtitle = d.subtitle,
-                kind = ColumnKind.valueOf(d.kind), renderer = ColumnRenderer.valueOf(d.renderer),
-                filter = d.filter, pinned = true, order = d.order,
-            )
-        }
-    }.getOrNull()
+    // [#388-review] JSON 全体の decode 失敗だけを null にし、行の変換は loadPinnedColumns と同じく
+    // 1件ずつ runCatching で包む。旧ビルドが未知の ColumnKind（LIST 等）を1件読んだだけで
+    // 全カラムが null（＝同期の全件失敗）になっていた。
+    private fun decodeDeckColumns(content: String): List<ColumnSpec>? =
+        runCatching { json.decodeFromString(ListSerializer(DeckColumnDto.serializer()), content) }
+            .getOrNull()
+            ?.mapNotNull { d ->
+                runCatching {
+                    ColumnSpec(
+                        id = d.id, title = d.title, subtitle = d.subtitle,
+                        kind = ColumnKind.valueOf(d.kind), renderer = ColumnRenderer.valueOf(d.renderer),
+                        filter = d.filter, pinned = true, order = d.order,
+                    )
+                }.getOrNull()
+            }
 
     /**
      * 差分適用後のカラム構成を反映する（ローカル保存 + [remoteColumnsFlow] 経由で DeckState へ）。
@@ -894,9 +915,32 @@ class EventRepository(
     // ---- カラム = REQ ライフサイクル ----
     private val openColumns = mutableSetOf<String>()
 
+    /**
+     * [#388-review] 購読中カラム → 著者（少数著者のフィルタのみ）。プロフィール画面/カラムが
+     * いま見ている著者の集合で、メモリ保持マップ（NIP-65 / NIP-51 セット）の上限退避から守る。
+     */
+    private val columnAuthors = mutableMapOf<String, List<String>>()
+
+    /** 現在プロフィール系で購読中の著者集合（退避の保護対象）。 */
+    private fun protectedAuthors(): Set<String> = columnAuthors.values.flatten().toSet()
+
+    /**
+     * [#388-review] 著者キーのメモリマップを上限まで縮める。投入順に古いものから捨てるが、
+     * 購読中（表示中）の著者は飛ばす。全員が保護対象なら上限を超えたままにする（消える方が害）。
+     */
+    private fun <V> evictAuthors(map: MutableMap<String, V>, cap: Int, onEvict: (String) -> Unit = {}) {
+        if (map.size <= cap) return
+        val keep = protectedAuthors()
+        val victims = map.keys.filter { it !in keep }.take(map.size - cap)
+        victims.forEach { map.remove(it); onEvict(it) }
+    }
+
     /** カラム表示時に購読開始（subId = columnId）。filter.relays 指定時はそのリレーだけへ配信。 */
     fun subscribeColumn(columnId: String, filter: ReqFilter) {
         if (!openColumns.add(columnId)) return
+        // [#388-review] 少数著者（プロフィール系）の購読中は、その著者のメモリ保持情報
+        // （NIP-65 / NIP-51 セット）を上限退避の対象から外す。表示中に消えないようにするため。
+        if (filter.authors.isNotEmpty() && filter.authors.size <= 3) columnAuthors[columnId] = filter.authors
         columnLoadedState.value = columnLoadedState.value - columnId  // [#17] 再購読でロード中に戻す
         // [#17] EOSE が来ない/遅いリレーでも無限ロードにしない安全網（8秒でロード済み扱い）。
         scope.launch {
@@ -929,7 +973,10 @@ class EventRepository(
      */
     private fun subscribeAuthorOutbox(columnId: String, filter: ReqFilter, proto: Filter) {
         subscribeAll(columnId, proto)   // 自分のリレーで即購読
-        scope.launch {
+        // [#388-review] 10002 待ちのジョブをカラム id で記録し、unsubscribeColumn で取り消す。
+        // これが無いと、閉じた後に最大10秒遅れて「~outbox」購読が張られて漏れる。
+        outboxJobs.remove(columnId)?.cancel()
+        outboxJobs[columnId] = scope.launch {
             // 著者の NIP-65 を indexer + 自分のリレーから取得。
             // [#254-profile] 旧実装の2つの穴を塞ぐ:
             //  1. 同じ subId で subscribeTargeted → subscribeAll を呼んでいたため、subscribeAll が
@@ -941,11 +988,15 @@ class EventRepository(
                 val f = Filter(kinds = listOf(10002), authors = needs, limit = needs.size)
                 subscribeTargeted("$columnId~relaylist", INDEXER_RELAYS.toSet(), f)
                 subscribeAll("$columnId~relaylist2", f)
-                withTimeoutOrNull(10_000) {
-                    while (needs.any { authorWriteRelays(it).isEmpty() }) delay(500)
+                try {
+                    withTimeoutOrNull(10_000) {
+                        while (needs.any { authorWriteRelays(it).isEmpty() }) delay(500)
+                    }
+                } finally {
+                    // キャンセル（カラム閉）でも一時 REQ を残さない。
+                    unsubscribeAll("$columnId~relaylist")
+                    unsubscribeAll("$columnId~relaylist2")
                 }
-                unsubscribeAll("$columnId~relaylist")
-                unsubscribeAll("$columnId~relaylist2")
             }
             // DB から write リレーを取り出し、著者の投稿を outbox リレーからも購読（未接続のものだけ）。
             val writeRelays = filter.authors.flatMap { authorWriteRelays(it) }.distinct()
@@ -999,10 +1050,15 @@ class EventRepository(
         scope.launch { delay(6000); unsubscribeAll(subId); openColumns.remove(subId) }
     }
 
+    /** [#388-review] カラム id → アウトボックス解決ジョブ（subscribeAuthorOutbox）。閉じたら cancel。 */
+    private val outboxJobs = mutableMapOf<String, Job>()
+
     /** カラム除去/オフスクリーン時に CLOSE。 */
     fun unsubscribeColumn(columnId: String) {
         followingJobs.remove(columnId)?.cancel()
         notifJobs.remove(columnId)?.cancel()
+        outboxJobs.remove(columnId)?.cancel()
+        columnAuthors.remove(columnId)
         columnLoadedState.value = columnLoadedState.value - columnId  // [#17]
         if (openColumns.remove(columnId)) unsubscribeAll(columnId)
         // [#209] アウトボックスの追加購読も CLOSE。
@@ -1667,6 +1723,21 @@ class EventRepository(
         mineReaction = meta.myReaction[ui.event.id],
         mineReposted = ui.event.id in meta.myReposted,
     )
+
+    /**
+     * [#384] 指定ユーザーの addressable イベント（記事 kind:30023 等）を新しい順で流す。
+     * replaceable なので同一 `d` タグは最新版だけに畳む（リレーには古い版も残っている）。
+     * 購読は呼び出し側が [subscribeColumn] で行う（ここは DB の読み出しのみ）。
+     */
+    fun addressableEventsFlow(kind: Int, pubkey: String, limit: Long = 100): Flow<List<NostrEvent>> =
+        q.eventsByKindAuthorLimit(kind.toLong(), pubkey, limit).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                latestByDTag(
+                    rows.map {
+                        NostrEvent(it.id, it.pubkey, it.kind.toInt(), it.created_at, it.content, parseTags(it.tags_json), it.sig)
+                    },
+                )
+            }.flowOn(Dispatchers.Default)
 
     // ---- [M9-profile] プロフィール表示 / フォロー操作 ----
 
@@ -2662,6 +2733,18 @@ class EventRepository(
             10000 -> updateMuteList(e)    // NIP-51 ミュートリスト
             10001 -> updatePinnedList(e)  // NIP-51 固定投稿（プロフィール上部）
             10003 -> updateBookmarkList(e) // NIP-51 ブックマーク
+            // [#385] NIP-51 セット（フォローセット/ブックマークセット）。プロフィールの
+            // 「リスト」タブでしか使わないので DB には入れずメモリに置く（p タグが数百件ある
+            // セットを event_tag へ索引すると、閲覧しただけで索引が肥大する）。
+            30000, 30003 -> {
+                captureListSet(e)
+                // ただし naddr 解決中（resolveAddress）は従来どおり保存する。id を返せないと
+                // 本文中の naddr リンクが開けなくなるため。
+                if (e.kind in addressKindsWanted) {
+                    q.insertEvent(e.id, e.pubkey, e.kind.toLong(), e.createdAt, e.content, tagsToJson(e.tags), e.sig)
+                    indexTags(e)
+                }
+            }
             4 -> ingestLegacyDm(e)        // NIP-04 旧型DM（kind:4）を復号して kind:14 に統合保存
             1059 -> ingestGiftWrap(e)     // NIP-17 DM（gift wrap を復号して kind:14 保存）
             9735 -> ingestZapReceipt(e)   // NIP-57 Zap 受領（#e 集計・受信通知に使う）
@@ -3225,10 +3308,59 @@ class EventRepository(
             .map { normalizeRelayUrl(it[1]) }
             .filter { it.startsWith("wss://") }
         nip65WriteByAuthor[e.pubkey] = writeUrls
+        // [#386] プロフィールの「使用リレー」表示用に read/write マーカー付きで保持する
+        // （上の2つは購読先の解決用で、マーカーを落としてしまっている）。
+        val prefs = nip65PrefsFromTags(e.tags) { normalizeRelayUrl(it) }
+        if (prefs.isNotEmpty()) {
+            val next = nip65PrefsByAuthor.value.toMutableMap()
+            next[e.pubkey] = prefs
+            evictAuthors(next, NIP65_PREFS_AUTHOR_CAP)   // 表示中の著者は残す [#388-review]
+            nip65PrefsByAuthor.value = next
+        }
     }
+
+    /** [#386] 著者 → NIP-65 の `r` タグ（read/write マーカー込み）。メモリのみ・セッション内。 */
+    private val nip65PrefsByAuthor = MutableStateFlow<Map<String, List<RelayPref>>>(emptyMap())
+
+    /**
+     * [#386] 指定ユーザーの使用リレー（kind:10002）。未受信なら空。
+     * 購読はプロフィール画面が張っている kind:10002 の REQ に相乗りする。
+     */
+    fun nip65PrefsOf(pubkey: String): Flow<List<RelayPref>> =
+        nip65PrefsByAuthor.map { it[pubkey].orEmpty() }.distinctUntilChanged()
+
 
     /** [#254-profile] 著者 → write リレー（captureNip65 が更新。メモリのみ・セッション内）。 */
     private val nip65WriteByAuthor = mutableMapOf<String, List<String>>()
+
+    // ---- [#385] NIP-51 セット（kind:30000 フォローセット / 30003 ブックマークセット）----
+
+    /**
+     * 著者 → 受信済みセット（公開タグのみ解析）。プロフィールの「リスト」タブ用。
+     * event テーブルには入れずここだけに持つ。閲覧した相手のぶん溜まるので上限を設ける。
+     */
+    private val listSetsByAuthor = MutableStateFlow<Map<String, List<Nip51Set>>>(emptyMap())
+    private val listSetEvents = mutableMapOf<String, MutableMap<String, NostrEvent>>()
+
+    private fun captureListSet(e: NostrEvent) {
+        val byAddr = listSetEvents.getOrPut(e.pubkey) { mutableMapOf() }
+        val addr = "${e.kind}:${e.pubkey}:${e.tags.firstOrNull { it.size >= 2 && it[0] == "d" }?.get(1) ?: ""}"
+        val prev = byAddr[addr]
+        if (prev != null && prev.createdAt >= e.createdAt) return   // 古い版は無視
+        byAddr[addr] = e
+        val next = listSetsByAuthor.value.toMutableMap()
+        next[e.pubkey] = parseNip51Sets(byAddr.values.toList())
+        // 閲覧履歴ぶん無限に持たない（落としても再訪時に REQ で入り直す）。表示中の著者は残す [#388-review]。
+        evictAuthors(next, LIST_SET_AUTHOR_CAP) { listSetEvents.remove(it) }
+        listSetsByAuthor.value = next
+    }
+
+    /** [#385] 指定ユーザーの公開 NIP-51 セット（新しい順）。購読は [subscribeColumn] 側で行う。 */
+    fun listSetsOf(pubkey: String): Flow<List<Nip51Set>> =
+        listSetsByAuthor.map { it[pubkey].orEmpty() }.distinctUntilChanged()
+
+    /** [#385] ブックマークセットの中身表示用（id 順に DB から解決。未取得はスキップ）。 */
+    fun notesByIdsFlow(ids: List<String>): Flow<List<NoteUi>> = notesByIds(ids)
 
     /**
      * 「フォロー中でよく使われているリレー」を返す（url → 使用人数、多い順）。
@@ -4630,6 +4762,12 @@ class EventRepository(
 
         /** 引用/返信ヒント + インデクサで一時接続するリレーの上限（接続数の暴発防止）。 */
         const val HINT_RELAY_CAP = 16
+
+        /** [#385] メモリに保持する NIP-51 セットの著者数上限（閲覧履歴ぶん溜め込まない）。 */
+        const val LIST_SET_AUTHOR_CAP = 32
+
+        /** [#386] メモリに保持する他人の NIP-65 リレーリストの著者数上限。 */
+        const val NIP65_PREFS_AUTHOR_CAP = 128
 
         /** 取り込みループが1トランザクションでまとめる最大イベント数。 */
         const val INGEST_BATCH = 400
