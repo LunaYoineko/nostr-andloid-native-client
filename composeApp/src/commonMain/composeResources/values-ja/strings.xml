@@ -517,6 +517,10 @@
     <string name="article_comment">コメント</string>
     <string name="article_emoji_reaction">絵文字リアクション</string>
     <string name="article_comments_fmt">コメント (%1$d)</string>
+    <!-- [#380] NIP-22 (kind:1111) コメントの文脈表示 -->
+    <string name="comment_root_kind_fmt">kind %1$s へのコメント</string>
+    <string name="comment_root_url_fmt">%1$s へのコメント</string>
+    <string name="comment_root_loading">コメント対象を取得中…</string>
     <string name="connecting_1">リレーに接続中…</string>
     <string name="connecting_2">ダチョウを追いかけています…</string>
     <string name="connecting_3">分散の海を泳いでいます…</string>

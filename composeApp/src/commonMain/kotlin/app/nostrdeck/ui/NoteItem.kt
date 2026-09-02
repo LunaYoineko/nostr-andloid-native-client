@@ -189,6 +189,21 @@ fun NoteItem(
             modifier = Modifier.padding(start = DeckSpace.Md, end = DeckSpace.Md, top = DeckSpace.Sm),
         )
     }
+    // [#380] NIP-22 コメント(kind:1111)で親を NoteUi に解決できていない間の汎用文脈行。
+    // 外部URLルートはホスト名、それ以外はルート kind、どちらも無ければ取得中の表示。
+    if (note.replyParent == null) note.commentRoot?.let { ref ->
+        val nav = LocalNoteNav.current
+        val label = when {
+            ref.external != null -> stringResource(Res.string.comment_root_url_fmt, externalRefLabel(ref.external!!))
+            ref.kind != null -> stringResource(Res.string.comment_root_kind_fmt, ref.kind.toString())
+            else -> stringResource(Res.string.comment_root_loading)
+        }
+        ReplyContextLine(
+            name = null, content = label,
+            onClick = ref.eventId?.let { id -> nav?.let { { it.onEvent(id) } } },
+            modifier = Modifier.padding(start = DeckSpace.Md, end = DeckSpace.Md, top = DeckSpace.Sm),
+        )
+    }
     Row(Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Md)) {
         // アバターを少し下げて名前の文字位置に揃える。
         Avatar(note.author.name, note.author.pictureUrl, Modifier.padding(top = DeckSpace.Xs).then(authorTap),
@@ -730,3 +745,10 @@ private fun relativeTime(createdAt: Long): String {
         else -> "${diff / 604800}w"
     }
 }
+
+/**
+ * [#380] NIP-22 の外部識別子(I タグ)の表示用ラベル。URL ならホスト名だけに縮める
+ * （文脈行は1行なのでフルURLだと本文を圧迫する）。URL 以外（podcast guid 等）はそのまま。
+ */
+internal fun externalRefLabel(value: String): String =
+    Regex("^https?://([^/]+)").find(value)?.groupValues?.get(1) ?: value

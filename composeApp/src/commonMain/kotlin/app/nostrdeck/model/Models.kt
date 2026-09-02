@@ -135,6 +135,21 @@ data class NoteUi(
      */
     val clientName: String? = null,
     val contentWarning: String? = null, // [#5] NIP-36 content-warning（非nullなら表示前に折りたたむ。""=理由なし）
+    /**
+     * [#380] kind:1111（NIP-22 コメント）で親を NoteUi に解決できなかったときのルート参照。
+     * NoteItem がこれから「kind X へのコメント」「<host> へのコメント」等の汎用文脈行を出す
+     * （replyParent が解決できたときは通常の返信元1行プレビューが出るので null）。
+     */
+    val commentRoot: CommentRootRef? = null,
+)
+
+/** [#380] NIP-22 コメントのルート参照（E=イベントid / A=アドレス / I=外部識別子 / K=kind）。 */
+@Immutable
+data class CommentRootRef(
+    val eventId: String? = null,   // ルート/親のイベント id（タップでスレッドを開ける）
+    val address: String? = null,   // "kind:pubkey:d"（記事等の addressable）
+    val external: String? = null,  // URL 等の外部識別子（NIP-73）
+    val kind: Int? = null,         // ルートの kind（K タグ。外部識別子では null）
 )
 
 /**

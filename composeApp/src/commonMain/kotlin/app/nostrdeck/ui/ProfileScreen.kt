@@ -854,6 +854,9 @@ fun ThreadDetail(state: DeckState, eventId: String) {
         ?.collectAsState(emptyList())?.value ?: emptyList()
     val focusEngagement = repo?.let { remember(eventId) { it.noteEngagementFlow(eventId) } }
         ?.collectAsState(null)?.value
+    // [#380] 起点が NIP-22 コメント(kind:1111)なら、ルート（記事/外部URL等）の根カードを先頭に。
+    val rootCard: (@Composable () -> Unit)? =
+        if (rootEvent != null && rootEvent.kind == 1111) ({ CommentRootCard(rootEvent) }) else null
     ThreadColumn(
         spec, entries, Modifier.fillMaxSize(), zaps = zaps,
         focusReactions = focusReactions, focusEngagement = focusEngagement,
@@ -861,5 +864,6 @@ fun ThreadDetail(state: DeckState, eventId: String) {
         onReply = { state.replyTo = it.event; state.showCompose = true },
         onQuote = { state.quoting = it.event; state.showCompose = true },
         onAuthorClick = { state.openProfile(it) },
+        rootCard = rootCard,
     )
 }
