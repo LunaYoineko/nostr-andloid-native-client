@@ -121,6 +121,7 @@ fun DmScreen(state: DeckState, isCompact: Boolean) {
                     mineOnRight = true,
                     // [#382] ヘッダの名前をタップ → 相手のプロフィールへ。
                     onTitleClick = { state.openProfile(selected.pubkey) },
+                    titleClickLabel = stringResource(Res.string.open_profile),
                 )
             }
         },
@@ -188,6 +189,7 @@ private fun DmList(
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = ripple(bounded = false, radius = DeckDimens.TouchTargetSm / 2),
+                                onClickLabel = stringResource(Res.string.open_profile),
                             ) { onOpenProfile(c) },
                         pubkey = c.pubkey,
                     )

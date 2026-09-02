@@ -165,6 +165,7 @@ fun ChannelRoomColumn(
     mineOnRight: Boolean = false,
     /** [#382] 非null ならヘッダのタイトルをタップできる（DM は相手のプロフィールを開く）。 */
     onTitleClick: (() -> Unit)? = null,
+    titleClickLabel: String? = null,
 ) {
     // 長押しで開いた操作対象。返信中のメッセージ／リアクションピッカー対象。
     var replyingTo by remember { mutableStateOf<ChannelMessage?>(null) }
@@ -202,7 +203,7 @@ fun ChannelRoomColumn(
             leadingIcon = columnIcon(spec.kind), pinned = spec.pinned,
             iconTint = DeckColors.Zap, iconBg = DeckColors.Zap.copy(alpha = 0.14f),
             onPin = onPin, onClose = onClose, menu = menu, onBack = onBack,
-            onTitleClick = onTitleClick,
+            onTitleClick = onTitleClick, titleClickLabel = titleClickLabel,
         )
         HorizontalDivider(color = DeckColors.Border)
         Box(Modifier.weight(1f)) {

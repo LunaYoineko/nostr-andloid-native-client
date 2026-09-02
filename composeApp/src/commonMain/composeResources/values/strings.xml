@@ -700,4 +700,5 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="conn_tier_offline">Offline</string>
     <string name="json_refs">Referenced events</string>
     <string name="json_copied_toast">JSON copied</string>
+    <string name="open_profile">Open profile</string>
 </resources>

@@ -111,6 +111,8 @@ fun ColumnHeader(
      * プロフィールを開く等）。渡さなければ従来どおり非クリック。
      */
     onTitleClick: (() -> Unit)? = null,
+    /** [#382] onTitleClick の操作ラベル（TalkBack 等に読ませる「プロフィールを開く」など）。 */
+    titleClickLabel: String? = null,
 ) {
     // [#324] シングルカラムではタブが名前を持つのでヘッダは描かない。ただし onBack がある
     // 画面（設定配下など単体で開くもの）は戻る導線が消えると詰むため残す。
@@ -136,7 +138,8 @@ fun ColumnHeader(
             Modifier.weight(1f)
                 .then(
                     if (onTitleClick != null) {
-                        Modifier.clip(RoundedCornerShape(DeckRadius.Sm)).clickable(onClick = onTitleClick)
+                        Modifier.clip(RoundedCornerShape(DeckRadius.Sm))
+                            .clickable(onClickLabel = titleClickLabel, onClick = onTitleClick)
                     } else Modifier,
                 ),
         ) {
