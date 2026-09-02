@@ -36,6 +36,38 @@ class Nip65Test {
     }
 
     @Test
+    fun own_relay_list_keeps_ws_but_drops_blank() {
+        // [#390] 自分側(requireWss=false): ローカル開発リレーの ws:// はそのまま通し、空 URL だけ捨てる。
+        val prefs = nip65PrefsFromTags(
+            listOf(
+                listOf("r", "ws://localhost:7777", "write"),
+                listOf("r", "wss://a.example"),
+                listOf("r", "   "),
+                listOf("r", "wss://a.example/"),   // 正規化後に重複
+            ),
+            requireWss = false,
+        )
+        assertEquals(listOf("ws://localhost:7777", "wss://a.example"), prefs.map { it.url })
+        assertEquals(false to true, prefs[0].read to prefs[0].write)
+    }
+
+    @Test
+    fun own_relay_list_normalizes_marker_case_and_spaces() {
+        // [#390] 旧 updateRelayList は生比較だったため "Write" を両用と誤解釈して接続していた。
+        val prefs = nip65PrefsFromTags(
+            listOf(
+                listOf("r", "wss://w.example", "Write"),
+                listOf("r", "wss://r.example", " read "),
+                listOf("r", "wss://both.example", ""),   // 空マーカー = 無印
+            ),
+            requireWss = false,
+        )
+        assertEquals(false to true, prefs[0].read to prefs[0].write)
+        assertEquals(true to false, prefs[1].read to prefs[1].write)
+        assertEquals(true to true, prefs[2].read to prefs[2].write)
+    }
+
+    @Test
     fun non_wss_and_malformed_tags_are_dropped() {
         val prefs = nip65PrefsFromTags(
             listOf(
