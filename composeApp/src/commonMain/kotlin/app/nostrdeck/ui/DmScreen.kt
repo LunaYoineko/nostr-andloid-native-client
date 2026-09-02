@@ -2,6 +2,7 @@ package app.nostrdeck.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -178,10 +180,16 @@ private fun DmList(
                 ) {
                     // [#382] アバターだけ個別に clickable（行タップ＝会話を開く、は据え置き）。
                     // 40dp = DeckDimens.TouchTargetSm（実用最小のタッチ領域）を実寸で確保する。
+                    // 呼び出し側で clip すると [#378] 猫耳の先端が切れる（非にゃん時は Avatar が
+                    // 自分で丸く clip する）ので clip はせず、リップルだけ非クリップの円にする。
                     Avatar(
                         c.name, c.pictureUrl,
-                        modifier = Modifier.size(DeckDimens.TouchTargetSm).clip(CircleShape)
-                            .clickable { onOpenProfile(c) },
+                        modifier = Modifier.size(DeckDimens.TouchTargetSm)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = ripple(bounded = false, radius = DeckDimens.TouchTargetSm / 2),
+                            ) { onOpenProfile(c) },
+                        pubkey = c.pubkey,
                     )
                     Spacer(Modifier.width(DeckSpace.Sm))
                     Column(Modifier.weight(1f)) {
