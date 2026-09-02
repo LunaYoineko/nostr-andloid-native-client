@@ -47,6 +47,7 @@ import app.nostrdeck.theme.DeckColors
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.theme.DeckDimens
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckType
 import app.nostrdeck.theme.DeckWeight
@@ -84,6 +85,7 @@ fun DmScreen(state: DeckState, isCompact: Boolean) {
                 convos, selectedPubkey = state.dmThread,
                 onNew = { showNew = true },
                 onSelect = { state.dmThread = it.pubkey },
+                onOpenProfile = { state.openProfile(it.pubkey) },
             )
         },
         detail = {
@@ -115,6 +117,8 @@ fun DmScreen(state: DeckState, isCompact: Boolean) {
                     onBack = if (isCompact) ({ state.dmThread = null }) else null,
                     // DM(1:1) は自分＝右寄せ・明色バブル（iMessage流）を維持。
                     mineOnRight = true,
+                    // [#382] ヘッダの名前をタップ → 相手のプロフィールへ。
+                    onTitleClick = { state.openProfile(selected.pubkey) },
                 )
             }
         },
@@ -148,6 +152,7 @@ private fun DmList(
     selectedPubkey: String?,
     onNew: () -> Unit,
     onSelect: (DmConversation) -> Unit,
+    onOpenProfile: (DmConversation) -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(DeckColors.Surface)) {
         Row(
@@ -171,7 +176,13 @@ private fun DmList(
                         .clickable { onSelect(c) }.padding(DeckSpace.Md, DeckSpace.Sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Avatar(c.name, c.pictureUrl, modifier = Modifier.size(40.dp))
+                    // [#382] アバターだけ個別に clickable（行タップ＝会話を開く、は据え置き）。
+                    // 40dp = DeckDimens.TouchTargetSm（実用最小のタッチ領域）を実寸で確保する。
+                    Avatar(
+                        c.name, c.pictureUrl,
+                        modifier = Modifier.size(DeckDimens.TouchTargetSm).clip(CircleShape)
+                            .clickable { onOpenProfile(c) },
+                    )
                     Spacer(Modifier.width(DeckSpace.Sm))
                     Column(Modifier.weight(1f)) {
                         Text(c.name, color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,
