@@ -200,8 +200,13 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
         // 張っていないときに CLOSE を送らない（購読しないタブへの切り替えで無駄な往復を作らない）。
         onDispose { if (subId != null) repo?.unsubscribeColumn(subId) }
     }
-    val articles = repo?.let { remember(pubkey) { it.addressableEventsFlow(30023, pubkey) } }
-        ?.collectAsState(emptyList())?.value ?: emptyList()
+    // 記事の DB Flow も記事タブを開いている間だけ collect する（listProfiles と同じ形）。
+    val articles: List<NostrEvent> =
+        if (tab == ProfileTab.ARTICLES && repo != null) {
+            remember(pubkey) { repo.addressableEventsFlow(30023, pubkey) }.collectAsState(emptyList()).value
+        } else {
+            emptyList()
+        }
     val listSets = repo?.let { remember(pubkey) { it.listSetsOf(pubkey) } }
         ?.collectAsState(emptyList())?.value ?: emptyList()
     // 展開中のリスト（アコーディオン。1つだけ開く）。
