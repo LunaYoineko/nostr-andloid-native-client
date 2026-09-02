@@ -962,7 +962,10 @@ class EventRepository(
      */
     private fun subscribeAuthorOutbox(columnId: String, filter: ReqFilter, proto: Filter) {
         subscribeAll(columnId, proto)   // 自分のリレーで即購読
-        scope.launch {
+        // [#388-review] 10002 待ちのジョブをカラム id で記録し、unsubscribeColumn で取り消す。
+        // これが無いと、閉じた後に最大10秒遅れて「~outbox」購読が張られて漏れる。
+        outboxJobs.remove(columnId)?.cancel()
+        outboxJobs[columnId] = scope.launch {
             // 著者の NIP-65 を indexer + 自分のリレーから取得。
             // [#254-profile] 旧実装の2つの穴を塞ぐ:
             //  1. 同じ subId で subscribeTargeted → subscribeAll を呼んでいたため、subscribeAll が
@@ -974,11 +977,15 @@ class EventRepository(
                 val f = Filter(kinds = listOf(10002), authors = needs, limit = needs.size)
                 subscribeTargeted("$columnId~relaylist", INDEXER_RELAYS.toSet(), f)
                 subscribeAll("$columnId~relaylist2", f)
-                withTimeoutOrNull(10_000) {
-                    while (needs.any { authorWriteRelays(it).isEmpty() }) delay(500)
+                try {
+                    withTimeoutOrNull(10_000) {
+                        while (needs.any { authorWriteRelays(it).isEmpty() }) delay(500)
+                    }
+                } finally {
+                    // キャンセル（カラム閉）でも一時 REQ を残さない。
+                    unsubscribeAll("$columnId~relaylist")
+                    unsubscribeAll("$columnId~relaylist2")
                 }
-                unsubscribeAll("$columnId~relaylist")
-                unsubscribeAll("$columnId~relaylist2")
             }
             // DB から write リレーを取り出し、著者の投稿を outbox リレーからも購読（未接続のものだけ）。
             val writeRelays = filter.authors.flatMap { authorWriteRelays(it) }.distinct()
@@ -1032,10 +1039,14 @@ class EventRepository(
         scope.launch { delay(6000); unsubscribeAll(subId); openColumns.remove(subId) }
     }
 
+    /** [#388-review] カラム id → アウトボックス解決ジョブ（subscribeAuthorOutbox）。閉じたら cancel。 */
+    private val outboxJobs = mutableMapOf<String, Job>()
+
     /** カラム除去/オフスクリーン時に CLOSE。 */
     fun unsubscribeColumn(columnId: String) {
         followingJobs.remove(columnId)?.cancel()
         notifJobs.remove(columnId)?.cancel()
+        outboxJobs.remove(columnId)?.cancel()
         columnAuthors.remove(columnId)
         columnLoadedState.value = columnLoadedState.value - columnId  // [#17]
         if (openColumns.remove(columnId)) unsubscribeAll(columnId)

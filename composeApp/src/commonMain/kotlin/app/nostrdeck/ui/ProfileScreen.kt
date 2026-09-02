@@ -186,18 +186,19 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
     // [#384/#385] 記事(kind:30023)と NIP-51 セット(30000/30003)は**開いているタブでだけ**購読する
     // （プロフィールを開くたびに REQ が増えないように）。タブを離れたら CLOSE。
     // 記事の表示は DB キャッシュ経由・セットはメモリ保持なので、往復しても内容は消えない。
+    // subId はタブごとに分ける（同じ id を使い回すと、前タブの CLOSE と次タブの REQ が
+    // 同一 id で交錯し、アウトボックスの追加購読の取り消しも噛み合わない）。
     androidx.compose.runtime.DisposableEffect(pubkey, tab) {
-        val subId = "profile_tab_$pubkey"
-        val kinds = when (tab) {
-            ProfileTab.ARTICLES -> listOf(30023)
-            ProfileTab.LISTS -> NIP51_SET_KINDS
-            else -> emptyList()
+        val (subId, kinds) = when (tab) {
+            ProfileTab.ARTICLES -> "profile_articles_$pubkey" to listOf(30023)
+            ProfileTab.LISTS -> "profile_lists_$pubkey" to NIP51_SET_KINDS
+            else -> null to emptyList()
         }
-        if (kinds.isNotEmpty()) {
+        if (subId != null) {
             repo?.subscribeColumn(subId, ReqFilter(kinds = kinds, authors = listOf(pubkey)))
         }
         // 張っていないときに CLOSE を送らない（購読しないタブへの切り替えで無駄な往復を作らない）。
-        onDispose { if (kinds.isNotEmpty()) repo?.unsubscribeColumn(subId) }
+        onDispose { if (subId != null) repo?.unsubscribeColumn(subId) }
     }
     val articles = repo?.let { remember(pubkey) { it.addressableEventsFlow(30023, pubkey) } }
         ?.collectAsState(emptyList())?.value ?: emptyList()
