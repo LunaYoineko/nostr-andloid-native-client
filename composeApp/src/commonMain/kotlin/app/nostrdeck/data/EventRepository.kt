@@ -3427,10 +3427,9 @@ class EventRepository(
         if (e.pubkey != myPubkey) return
         if (e.createdAt < relayListAt) return
         relayListAt = e.createdAt
-        val entries = e.tags.filter { it.size >= 2 && it[0] == "r" }.map { t ->
-            val marker = t.getOrNull(2)
-            RelayPref(normalizeRelayUrl(t[1]), read = marker != "write", write = marker != "read", source = "nip65")
-        }
+        // [#390] 他人の 10002 表示と同じ解釈（marker の trim+lowercase / URL の重複畳み）。
+        // 自分の設定はローカル開発リレー（ws://）を壊さないよう wss:// 以外も従来どおり通す。
+        val entries = nip65PrefsFromTags(e.tags, requireWss = false) { normalizeRelayUrl(it) }
         entries.forEach {
             q.upsertRelay(it.url, if (it.read) 1 else 0, if (it.write) 1 else 0, "nip65")
             if (it.read) ensureRelay(it.url)
