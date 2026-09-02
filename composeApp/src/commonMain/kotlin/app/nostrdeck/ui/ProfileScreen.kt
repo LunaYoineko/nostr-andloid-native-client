@@ -209,11 +209,14 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
         ?.collectAsState(emptyList())?.value ?: emptyList()
     // 展開中のリスト（アコーディオン。1つだけ開く）。
     var openedList by remember(pubkey) { mutableStateOf<String?>(null) }
-    // リストタブのメンバー行に出す名前/アバター。タブを開いている間だけ購読する
-    // （kind:0 受信のたびに流れるサンプリング済みマップ。全タブで持つ必要はない）。
+    // リストタブで展開中のセットのメンバー（表示分だけ）の名前/アバター。
+    // 全プロフィール表ではなく、そのメンバーだけを引く（他の kind:0 受信で発火しない）。
+    val openedMembers: List<String> = remember(listSets, openedList) {
+        listSets.firstOrNull { it.address == openedList }?.members?.take(LIST_MEMBERS_SHOWN).orEmpty()
+    }
     val listProfiles: Map<String, app.nostrdeck.db.Profile> =
         if (tab == ProfileTab.LISTS && repo != null) {
-            remember(repo) { repo.profilesMapSampled() }.collectAsState(emptyMap()).value
+            remember(openedMembers) { repo.profilesByPubkeysFlow(openedMembers) }.collectAsState(emptyMap()).value
         } else {
             emptyMap()
         }

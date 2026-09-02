@@ -197,6 +197,17 @@ class EventRepository(
         profilesFlow.sample(400).map { list -> list.associateBy { it.pubkey } }
             .flowOn(Dispatchers.Default)
 
+    /**
+     * [#388-review] 指定 pubkey 群のプロフィール（pubkey→行）。プロフィールの「リスト」タブで
+     * 展開中セットのメンバー（高々数百）を引くのに使う。全プロフィール表を流す
+     * [profilesMapSampled] と違い、対象外の kind:0 受信では発火しない。
+     */
+    fun profilesByPubkeysFlow(pubkeys: List<String>): Flow<Map<String, app.nostrdeck.db.Profile>> =
+        if (pubkeys.isEmpty()) flowOf(emptyMap())
+        else q.profilesByPubkeys(pubkeys).asFlow().mapToList(Dispatchers.Default)
+            .map { list -> list.associateBy { it.pubkey } }
+            .flowOn(Dispatchers.Default)
+
     // [M10] リアクション数/リプライ数/リポスト数の集約はタイムライン表示に不要（数字は出さない）。
     // 集計クエリ(reactionsForTargets/engagementForTargets)は購読/DBを無駄に使うため使用しない。
     // 自分宛のリアクション/リポストは通知としてタイムラインに混ぜ込む（notificationsFeed）。
