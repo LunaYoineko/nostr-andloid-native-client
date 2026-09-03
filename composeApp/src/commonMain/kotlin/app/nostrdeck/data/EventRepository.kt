@@ -63,6 +63,9 @@ import app.nostrdeck.ui.ImageProxy
 import app.nostrdeck.model.FeedEntry
 import app.nostrdeck.model.ContentToken
 import app.nostrdeck.model.NostrEvent
+import app.nostrdeck.model.latestByDTag
+import app.nostrdeck.model.Nip51Set
+import app.nostrdeck.model.parseNip51Sets
 import app.nostrdeck.model.NoteUi
 import app.nostrdeck.model.tokenizeNostrContent
 import app.nostrdeck.model.AuthPolicy
@@ -72,6 +75,7 @@ import app.nostrdeck.model.NotificationUi
 import app.nostrdeck.model.Profile
 import app.nostrdeck.model.ReactionUi
 import app.nostrdeck.model.RelayPref
+import app.nostrdeck.model.nip65PrefsFromTags
 import app.nostrdeck.model.ReqFilter
 import app.nostrdeck.model.ThreadEntry
 import app.nostrdeck.model.UnsignedEvent
@@ -191,6 +195,17 @@ class EventRepository(
     @OptIn(kotlinx.coroutines.FlowPreview::class)
     fun profilesMapSampled(): Flow<Map<String, app.nostrdeck.db.Profile>> =
         profilesFlow.sample(400).map { list -> list.associateBy { it.pubkey } }
+            .flowOn(Dispatchers.Default)
+
+    /**
+     * [#388-review] 指定 pubkey 群のプロフィール（pubkey→行）。プロフィールの「リスト」タブで
+     * 展開中セットのメンバー（高々数百）を引くのに使う。全プロフィール表を流す
+     * [profilesMapSampled] と違い、対象外の kind:0 受信では発火しない。
+     */
+    fun profilesByPubkeysFlow(pubkeys: List<String>): Flow<Map<String, app.nostrdeck.db.Profile>> =
+        if (pubkeys.isEmpty()) flowOf(emptyMap())
+        else q.profilesByPubkeys(pubkeys).asFlow().mapToList(Dispatchers.Default)
+            .map { list -> list.associateBy { it.pubkey } }
             .flowOn(Dispatchers.Default)
 
     // [M10] リアクション数/リプライ数/リポスト数の集約はタイムライン表示に不要（数字は出さない）。
@@ -864,15 +879,21 @@ class EventRepository(
     }.getOrElse { println("Nostrism publishDeckColumnsSync failed: $it"); false }
 
     /** d=DECK_COLUMNS_D の content（#122 互換の DeckColumnDto 配列）を ColumnSpec 群へ。壊れていれば null。 */
-    private fun decodeDeckColumns(content: String): List<ColumnSpec>? = runCatching {
-        json.decodeFromString(ListSerializer(DeckColumnDto.serializer()), content).map { d ->
-            ColumnSpec(
-                id = d.id, title = d.title, subtitle = d.subtitle,
-                kind = ColumnKind.valueOf(d.kind), renderer = ColumnRenderer.valueOf(d.renderer),
-                filter = d.filter, pinned = true, order = d.order,
-            )
-        }
-    }.getOrNull()
+    // [#388-review] JSON 全体の decode 失敗だけを null にし、行の変換は loadPinnedColumns と同じく
+    // 1件ずつ runCatching で包む。旧ビルドが未知の ColumnKind（LIST 等）を1件読んだだけで
+    // 全カラムが null（＝同期の全件失敗）になっていた。
+    private fun decodeDeckColumns(content: String): List<ColumnSpec>? =
+        runCatching { json.decodeFromString(ListSerializer(DeckColumnDto.serializer()), content) }
+            .getOrNull()
+            ?.mapNotNull { d ->
+                runCatching {
+                    ColumnSpec(
+                        id = d.id, title = d.title, subtitle = d.subtitle,
+                        kind = ColumnKind.valueOf(d.kind), renderer = ColumnRenderer.valueOf(d.renderer),
+                        filter = d.filter, pinned = true, order = d.order,
+                    )
+                }.getOrNull()
+            }
 
     /**
      * 差分適用後のカラム構成を反映する（ローカル保存 + [remoteColumnsFlow] 経由で DeckState へ）。
@@ -894,9 +915,32 @@ class EventRepository(
     // ---- カラム = REQ ライフサイクル ----
     private val openColumns = mutableSetOf<String>()
 
+    /**
+     * [#388-review] 購読中カラム → 著者（少数著者のフィルタのみ）。プロフィール画面/カラムが
+     * いま見ている著者の集合で、メモリ保持マップ（NIP-65）の上限退避から守る。
+     */
+    private val columnAuthors = mutableMapOf<String, List<String>>()
+
+    /** 現在プロフィール系で購読中の著者集合（退避の保護対象）。 */
+    private fun protectedAuthors(): Set<String> = columnAuthors.values.flatten().toSet()
+
+    /**
+     * [#388-review] 著者キーのメモリマップを上限まで縮める。投入順に古いものから捨てるが、
+     * 購読中（表示中）の著者は飛ばす。全員が保護対象なら上限を超えたままにする（消える方が害）。
+     */
+    private fun <V> evictAuthors(map: MutableMap<String, V>, cap: Int, onEvict: (String) -> Unit = {}) {
+        if (map.size <= cap) return
+        val keep = protectedAuthors()
+        val victims = map.keys.filter { it !in keep }.take(map.size - cap)
+        victims.forEach { map.remove(it); onEvict(it) }
+    }
+
     /** カラム表示時に購読開始（subId = columnId）。filter.relays 指定時はそのリレーだけへ配信。 */
     fun subscribeColumn(columnId: String, filter: ReqFilter) {
         if (!openColumns.add(columnId)) return
+        // [#388-review] 少数著者（プロフィール系）の購読中は、その著者のメモリ保持情報
+        // （NIP-65）を上限退避の対象から外す。表示中に消えないようにするため。
+        if (filter.authors.isNotEmpty() && filter.authors.size <= 3) columnAuthors[columnId] = filter.authors
         columnLoadedState.value = columnLoadedState.value - columnId  // [#17] 再購読でロード中に戻す
         // [#17] EOSE が来ない/遅いリレーでも無限ロードにしない安全網（8秒でロード済み扱い）。
         scope.launch {
@@ -929,7 +973,10 @@ class EventRepository(
      */
     private fun subscribeAuthorOutbox(columnId: String, filter: ReqFilter, proto: Filter) {
         subscribeAll(columnId, proto)   // 自分のリレーで即購読
-        scope.launch {
+        // [#388-review] 10002 待ちのジョブをカラム id で記録し、unsubscribeColumn で取り消す。
+        // これが無いと、閉じた後に最大10秒遅れて「~outbox」購読が張られて漏れる。
+        outboxJobs.remove(columnId)?.cancel()
+        outboxJobs[columnId] = scope.launch {
             // 著者の NIP-65 を indexer + 自分のリレーから取得。
             // [#254-profile] 旧実装の2つの穴を塞ぐ:
             //  1. 同じ subId で subscribeTargeted → subscribeAll を呼んでいたため、subscribeAll が
@@ -941,11 +988,15 @@ class EventRepository(
                 val f = Filter(kinds = listOf(10002), authors = needs, limit = needs.size)
                 subscribeTargeted("$columnId~relaylist", INDEXER_RELAYS.toSet(), f)
                 subscribeAll("$columnId~relaylist2", f)
-                withTimeoutOrNull(10_000) {
-                    while (needs.any { authorWriteRelays(it).isEmpty() }) delay(500)
+                try {
+                    withTimeoutOrNull(10_000) {
+                        while (needs.any { authorWriteRelays(it).isEmpty() }) delay(500)
+                    }
+                } finally {
+                    // キャンセル（カラム閉）でも一時 REQ を残さない。
+                    unsubscribeAll("$columnId~relaylist")
+                    unsubscribeAll("$columnId~relaylist2")
                 }
-                unsubscribeAll("$columnId~relaylist")
-                unsubscribeAll("$columnId~relaylist2")
             }
             // DB から write リレーを取り出し、著者の投稿を outbox リレーからも購読（未接続のものだけ）。
             val writeRelays = filter.authors.flatMap { authorWriteRelays(it) }.distinct()
@@ -999,10 +1050,15 @@ class EventRepository(
         scope.launch { delay(6000); unsubscribeAll(subId); openColumns.remove(subId) }
     }
 
+    /** [#388-review] カラム id → アウトボックス解決ジョブ（subscribeAuthorOutbox）。閉じたら cancel。 */
+    private val outboxJobs = mutableMapOf<String, Job>()
+
     /** カラム除去/オフスクリーン時に CLOSE。 */
     fun unsubscribeColumn(columnId: String) {
         followingJobs.remove(columnId)?.cancel()
         notifJobs.remove(columnId)?.cancel()
+        outboxJobs.remove(columnId)?.cancel()
+        columnAuthors.remove(columnId)
         columnLoadedState.value = columnLoadedState.value - columnId  // [#17]
         if (openColumns.remove(columnId)) unsubscribeAll(columnId)
         // [#209] アウトボックスの追加購読も CLOSE。
@@ -1035,7 +1091,8 @@ class EventRepository(
                     // kind:1 本文 + kind:6/16 リポスト[M8-repost]（リアクション数は出さないので kind:7 は購読しない）。
                     // [#319] kind:5 削除リクエストも取る。これが無いと、別端末で消した自分の投稿が
                     // こちらに残り続ける（フォロー先が消したものも同じ）。件数は少なく負荷にならない。
-                    subscribeAll(columnId, Filter(kinds = listOf(1, 6, 16, 5), authors = withMe, limit = 100))
+                    // [#380] kind:1111 NIP-22 コメントも流す（ルート文脈の1行プレビュー付きで表示）。
+                    subscribeAll(columnId, Filter(kinds = listOf(1, 6, 16, 5, 1111), authors = withMe, limit = 100))
                 }
             }
         }
@@ -1387,8 +1444,9 @@ class EventRepository(
         notifJobs[columnId] = scope.launch {
             myPubkeyFlow.collect { me ->
                 if (me != null) {
-                    // 返信/メンション(1)・リポスト(6/16)・リアクション(7)・Zap受領(9735) を自分宛(#p)で購読。
-                    subscribeAll(columnId, Filter(kinds = listOf(1, 6, 16, 7, 9735), pTags = listOf(me), limit = 200))
+                    // 返信/メンション(1)・リポスト(6/16)・リアクション(7)・Zap受領(9735)・
+                    // NIP-22 コメント(1111)[#380] を自分宛(#p)で購読（1111 は P/p 必須なので #p で拾える）。
+                    subscribeAll(columnId, Filter(kinds = listOf(1, 6, 16, 7, 9735, 1111), pTags = listOf(me), limit = 200))
                 }
             }
         }
@@ -1463,7 +1521,15 @@ class EventRepository(
         val actor = profileFor(actorPubkey, byPubkey)
         // 対象イベント本体（抜粋＋種別判定に使う）。
         val targetEvent = target?.let { q.eventById(it).executeAsOneOrNull() }
-        val snippet = targetEvent?.let { (extractMedia(it.content).first ?: it.content).take(80) }
+        // [#380] 対象が記事(30023)ならタイトルを抜粋に（Markdown 全文の先頭より文脈になる）。
+        val snippet = targetEvent?.let { t ->
+            if (t.kind.toInt() == 30023) {
+                parseTags(t.tags_json).firstOrNull { it.size >= 2 && it[0] == "title" }?.get(1)
+                    ?: (extractMedia(t.content).first ?: t.content).take(80)
+            } else {
+                (extractMedia(t.content).first ?: t.content).take(80)
+            }
+        }
         // [#254] 対象の著者（通知行の1行プレビューにアバターを出す）。
         val targetAuthor = targetEvent?.let { profileFor(it.pubkey, byPubkey) }
         // [#298] 通知の本体に使うノート。
@@ -1471,7 +1537,8 @@ class EventRepository(
         //  - 返信/メンションは相手の投稿そのものを投稿フォーマットで出す。返信元は見出し行が担うため
         //    replyParent は落とす（NoteItem の ◁ 行と二重になる）
         val targetNote = targetEvent?.let { toNoteUi(it, byPubkey[it.pubkey]) }
-        val selfNote = if (row.kind.toInt() == 1) {
+        // [#380] kind:1111（NIP-22 コメント）も返信と同じく相手の投稿そのものを本体に出す。
+        val selfNote = if (row.kind.toInt() == 1 || row.kind.toInt() == Nip22.KIND) {
             withQuoteAndReply(toNoteUi(row, byPubkey[row.pubkey]), row, byPubkey).copy(replyParent = null)
         } else {
             null
@@ -1499,7 +1566,9 @@ class EventRepository(
                 targetNoteId = target, targetSnippet = snippet, targetChannelId = channelId,
                 targetAuthor = targetAuthor, note = selfNote, targetNote = targetNote)
             else -> {
-                val isReply = tags.any { it.size >= 2 && it[0] == "e" }
+                // [#380] kind:1111 は常にコメント=返信扱い（トップレベルコメントは小文字 e を
+                // 持たないことがあるが、メンションではない）。
+                val isReply = row.kind.toInt() == Nip22.KIND || tags.any { it.size >= 2 && it[0] == "e" }
                 NotificationUi(
                     row.id, if (isReply) NotificationKind.REPLY else NotificationKind.MENTION,
                     actor, row.created_at,
@@ -1513,15 +1582,32 @@ class EventRepository(
 
     // ---- [M9-thread] NIP-10 スレッド ----
 
-    /** スレッド購読：起点ノートとその root を id 指定で取得し、root/起点宛の返信(#e)を購読する。 */
+    /**
+     * スレッド購読：起点ノートとその root を id 指定で取得し、root/起点宛の返信(#e)を購読する。
+     * [#380] NIP-22 コメント(kind:1111)も購読する。#E=ルート指定でツリー全体（孫コメント含む）が
+     * 一括で取れる。ルートが記事等の addressable なら #A とルート本体（座標）も購読する。
+     */
     fun subscribeThread(columnId: String, focusId: String) {
         if (!openColumns.add(columnId)) return
         val ids = threadAnchorIds(focusId)
-        subscribeAll(
-            columnId,
+        val filters = mutableListOf(
             Filter(ids = ids),
-            Filter(kinds = listOf(1), eTags = ids, limit = 200),
+            Filter(kinds = listOf(1, 1111), eTags = ids, limit = 200),
+            Filter(kinds = listOf(1111), rootETags = ids, limit = 200),
         )
+        threadRootAddress(focusId)?.let { addr ->
+            filters += Filter(kinds = listOf(1111), rootATags = listOf(addr), limit = 200)
+            // ルート本体（記事 30023 等）を座標で取得。根カード/記事リーダーの表示に使う。
+            val parts = addr.split(":")
+            val kind = parts.getOrNull(0)?.toIntOrNull()
+            if (kind != null && parts.size >= 3) {
+                filters += Filter(
+                    kinds = listOf(kind), authors = listOf(parts[1]),
+                    dTags = listOf(parts.drop(2).joinToString(":")), limit = 1,
+                )
+            }
+        }
+        subscribeAll(columnId, *filters.toTypedArray())
     }
 
     /** [#124] 単一イベントの DB 監視（記事ビューワー等、id 参照の表示用）。未取得なら null を流す。 */
@@ -1530,34 +1616,77 @@ class EventRepository(
             row?.let { NostrEvent(it.id, it.pubkey, it.kind.toInt(), it.created_at, it.content, parseTags(it.tags_json), it.sig) }
         }
 
-    /** スレッド表示（深さ付きで root→返信を並べる）。DB の差分に追従する。 */
+    /** スレッド表示（深さ付きで root→返信を並べる）。DB の差分に追従する。
+     *  [#380] ルートがアドレス（記事等）のときは A タグ参照のコメント群もマージする。 */
     fun threadFeed(focusId: String): Flow<List<ThreadEntry>> {
         val ids = threadAnchorIds(focusId)
         val rootId = ids.lastOrNull() ?: focusId
-        return combine(
-            q.threadEvents(ids).asFlow().mapToList(Dispatchers.Default),
-            profilesFlow,
-        ) { rows, profiles ->
+        val addr = threadRootAddress(focusId)
+        val rowsFlow: Flow<List<Event>> =
+            if (addr == null) {
+                q.threadEvents(ids).asFlow().mapToList(Dispatchers.Default)
+            } else {
+                combine(
+                    q.threadEvents(ids).asFlow().mapToList(Dispatchers.Default),
+                    q.commentsByRootAddress(addr).asFlow().mapToList(Dispatchers.Default),
+                ) { a, b -> (a + b).distinctBy { it.id }.sortedBy { it.created_at } }
+            }
+        return combine(rowsFlow, profilesFlow) { rows, profiles ->
             buildThread(rows, focusId, rootId, profiles.associateBy { it.pubkey })
         }.flowOn(Dispatchers.Default)
     }
 
-    /** 起点 id とその root id（DB の focus イベントの e タグから解決。無ければ focus 自身）。 */
+    /** 起点 id とその root id（DB の focus イベントの e タグから解決。無ければ focus 自身）。
+     *  [#380] kind:1111 は NIP-22 のルート E タグで解決する。 */
     private fun threadAnchorIds(focusId: String): List<String> {
         val focus = q.eventById(focusId).executeAsOneOrNull()
-        val rootId = focus?.let { rootOf(parseTags(it.tags_json)) } ?: focusId
+        val rootId = focus?.let {
+            val tags = parseTags(it.tags_json)
+            if (it.kind.toInt() == Nip22.KIND) Nip22.rootEventIdOf(tags) else rootOf(tags)
+        } ?: focusId
         return listOf(focusId, rootId).distinct()
     }
 
-    /** 取得済みイベント群から深さ優先のスレッドを組む（NIP-10 の e マーカー/位置で親を決める）。 */
+    /**
+     * [#380] スレッドのルートがアドレス（記事等の addressable）ならその座標 "kind:pubkey:d"。
+     *  - focus が kind:1111 … ルート A タグ
+     *  - focus 自身が addressable（記事リーダーから開いたコメント欄）… 自分の座標
+     */
+    private fun threadRootAddress(focusId: String): String? {
+        val focus = q.eventById(focusId).executeAsOneOrNull() ?: return null
+        val kind = focus.kind.toInt()
+        return when {
+            kind == Nip22.KIND -> Nip22.rootAddressOf(parseTags(focus.tags_json))
+            kind in 30_000..39_999 -> {
+                val d = parseTags(focus.tags_json).firstOrNull { it.size >= 2 && it[0] == "d" }?.get(1) ?: ""
+                "$kind:${focus.pubkey}:$d"
+            }
+            else -> null
+        }
+    }
+
+    /** 取得済みイベント群から深さ優先のスレッドを組む（NIP-10 の e マーカー/位置で親を決める）。
+     *  [#380] kind:1111 は NIP-22 解釈（小文字 e=親、無ければルート E/A 直下）で並立させる。 */
     private fun buildThread(
         rows: List<Event>, focusId: String, rootId: String,
         byPubkey: Map<String, app.nostrdeck.db.Profile>,
     ): List<ThreadEntry> {
-        val byId = rows.associateBy { it.id }
-        val parentOf = rows.associate { it.id to replyParentOf(parseTags(it.tags_json)) }
+        // アドレス→id（1111 の親 a 解決用）。ルートの記事等が取得済みならここに載る。
+        val addrToId = rows.filter { it.kind in 30_000..39_999 }.associate { row ->
+            val d = parseTags(row.tags_json).firstOrNull { it.size >= 2 && it[0] == "d" }?.get(1) ?: ""
+            "${row.kind}:${row.pubkey}:$d" to row.id
+        }
+        // ノートとして並べるのは kind:1/1111 のみ。記事本体等の非ノートルートは
+        // 行として出さない（根カード/記事リーダー側が担う。全文がノート面に出るのを防ぐ）。
+        val notes = rows.filter { it.kind.toInt() == 1 || it.kind.toInt() == Nip22.KIND }
+        val byId = notes.associateBy { it.id }
+        val parentOf = notes.associate { row ->
+            val tags = parseTags(row.tags_json)
+            row.id to if (row.kind.toInt() == Nip22.KIND) Nip22.threadParentOf(tags, addrToId)
+            else replyParentOf(tags)
+        }
         val children = HashMap<String, MutableList<Event>>()
-        rows.forEach { row ->
+        notes.forEach { row ->
             val p = parentOf[row.id]
             if (p != null && byId.containsKey(p)) children.getOrPut(p) { mutableListOf() }.add(row)
         }
@@ -1577,7 +1706,7 @@ class EventRepository(
             children[row.id]?.sortedBy { it.created_at }?.forEach { visit(it, depth + 1) }
         }
         // 親が取得集合に居ない（=スレッドの起点）行から DFS。
-        rows.filter { parentOf[it.id] == null || parentOf[it.id] !in byId }
+        notes.filter { parentOf[it.id] == null || parentOf[it.id] !in byId }
             .sortedBy { it.created_at }
             .forEach { visit(it, 0) }
         return out
@@ -1594,6 +1723,21 @@ class EventRepository(
         mineReaction = meta.myReaction[ui.event.id],
         mineReposted = ui.event.id in meta.myReposted,
     )
+
+    /**
+     * [#384] 指定ユーザーの addressable イベント（記事 kind:30023 等）を新しい順で流す。
+     * replaceable なので同一 `d` タグは最新版だけに畳む（リレーには古い版も残っている）。
+     * 購読は呼び出し側が [subscribeColumn] で行う（ここは DB の読み出しのみ）。
+     */
+    fun addressableEventsFlow(kind: Int, pubkey: String, limit: Long = 100): Flow<List<NostrEvent>> =
+        q.eventsByKindAuthorLimit(kind.toLong(), pubkey, limit).asFlow().mapToList(Dispatchers.Default)
+            .map { rows ->
+                latestByDTag(
+                    rows.map {
+                        NostrEvent(it.id, it.pubkey, it.kind.toInt(), it.created_at, it.content, parseTags(it.tags_json), it.sig)
+                    },
+                )
+            }.flowOn(Dispatchers.Default)
 
     // ---- [M9-profile] プロフィール表示 / フォロー操作 ----
 
@@ -2119,6 +2263,19 @@ class EventRepository(
         val targetTags = target.tags.ifEmpty {
             q.eventById(target.id).executeAsOneOrNull()?.let { parseTags(it.tags_json) }.orEmpty()
         }
+        // [#380] NIP-22 コメント(kind:1111)への返信は kind:1111 で発行してツリーの一貫性を保つ。
+        // それ以外（新規コメント・kind:1 への返信）は従来どおり kind:1（旧クライアント互換）。
+        if (target.kind == Nip22.KIND) {
+            val nip22Tags = Nip22.replyTags(target.id, target.pubkey, targetTags)
+            val inheritedPs22 = nip22Tags.mapNotNull { if (it.size >= 2 && (it[0] == "p" || it[0] == "P")) it[1] else null }
+            val tags = nip22Tags +
+                hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(text) +
+                Nip27.mentionPTags(text, inheritedPs22) +
+                (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
+            val signed = publishSigned(UnsignedEvent(kind = Nip22.KIND, content = text, tags = tags))
+            recordHashtags(text, signed.createdAt)
+            return
+        }
         // ルート作者は e タグ5番目に入れる。ローカルに無ければ省く（無理に埋めない）。
         val rootId = rootOf(targetTags)
         val rootAuthor = if (rootId == null || rootId == target.id) target.pubkey
@@ -2533,7 +2690,8 @@ class EventRepository(
         }
         when (e.kind) {
             5 -> ingestDeletion(e)   // [#319] NIP-09 削除リクエスト
-            1 -> {
+            // [#380] 1111=NIP-22 コメント。kind:1 と同じ扱いで保存する（タグ索引に E/A も入る）。
+            1, 1111 -> {
                 q.insertEvent(e.id, e.pubkey, e.kind.toLong(), e.createdAt, e.content, tagsToJson(e.tags), e.sig)
                 indexTags(e)
                 requestProfile(e.pubkey)
@@ -2598,7 +2756,9 @@ class EventRepository(
                 }
             }
             // [#124] NIP-23 長文記事。nevent 参照から記事ビューワーで開けるよう本体を保存する。
-            30023 -> {
+            // [#389] NIP-51 セット（30000 フォローセット / 30003 ブックマークセット）も同じ経路。
+            // p タグ数百件のセットで event_tag が肥大しないよう、索引は kind 別に絞る（indexTags）。
+            30000, 30003, 30023 -> {
                 q.insertEvent(e.id, e.pubkey, e.kind.toLong(), e.createdAt, e.content, tagsToJson(e.tags), e.sig)
                 indexTags(e)
                 requestProfile(e.pubkey)
@@ -3138,10 +3298,47 @@ class EventRepository(
             .map { normalizeRelayUrl(it[1]) }
             .filter { it.startsWith("wss://") }
         nip65WriteByAuthor[e.pubkey] = writeUrls
+        // [#386] プロフィールの「使用リレー」表示用に read/write マーカー付きで保持する
+        // （上の2つは購読先の解決用で、マーカーを落としてしまっている）。
+        val prefs = nip65PrefsFromTags(e.tags) { normalizeRelayUrl(it) }
+        if (prefs.isNotEmpty()) {
+            val next = nip65PrefsByAuthor.value.toMutableMap()
+            next[e.pubkey] = prefs
+            evictAuthors(next, NIP65_PREFS_AUTHOR_CAP)   // 表示中の著者は残す [#388-review]
+            nip65PrefsByAuthor.value = next
+        }
     }
+
+    /** [#386] 著者 → NIP-65 の `r` タグ（read/write マーカー込み）。メモリのみ・セッション内。 */
+    private val nip65PrefsByAuthor = MutableStateFlow<Map<String, List<RelayPref>>>(emptyMap())
+
+    /**
+     * [#386] 指定ユーザーの使用リレー（kind:10002）。未受信なら空。
+     * 購読はプロフィール画面が張っている kind:10002 の REQ に相乗りする。
+     */
+    fun nip65PrefsOf(pubkey: String): Flow<List<RelayPref>> =
+        nip65PrefsByAuthor.map { it[pubkey].orEmpty() }.distinctUntilChanged()
+
 
     /** [#254-profile] 著者 → write リレー（captureNip65 が更新。メモリのみ・セッション内）。 */
     private val nip65WriteByAuthor = mutableMapOf<String, List<String>>()
+
+    // ---- [#385] NIP-51 セット（kind:30000 フォローセット / 30003 ブックマークセット）----
+
+    /**
+     * [#385][#389] 指定ユーザーの公開 NIP-51 セット（新しい順）。記事(30023)と同じく
+     * event テーブルを読む（版の畳み込みは addressableEventsFlow / parseNip51Sets）。
+     * 購読は [subscribeColumn] 側で行う。
+     */
+    fun listSetsOf(pubkey: String): Flow<List<Nip51Set>> =
+        combine(
+            addressableEventsFlow(30000, pubkey),
+            addressableEventsFlow(30003, pubkey),
+        ) { follows, bookmarks -> parseNip51Sets(follows + bookmarks) }
+            .flowOn(Dispatchers.Default)
+
+    /** [#385] ブックマークセットの中身表示用（id 順に DB から解決。未取得はスキップ）。 */
+    fun notesByIdsFlow(ids: List<String>): Flow<List<NoteUi>> = notesByIds(ids)
 
     /**
      * 「フォロー中でよく使われているリレー」を返す（url → 使用人数、多い順）。
@@ -3208,10 +3405,9 @@ class EventRepository(
         if (e.pubkey != myPubkey) return
         if (e.createdAt < relayListAt) return
         relayListAt = e.createdAt
-        val entries = e.tags.filter { it.size >= 2 && it[0] == "r" }.map { t ->
-            val marker = t.getOrNull(2)
-            RelayPref(normalizeRelayUrl(t[1]), read = marker != "write", write = marker != "read", source = "nip65")
-        }
+        // [#390] 他人の 10002 表示と同じ解釈（marker の trim+lowercase / URL の重複畳み）。
+        // 自分の設定はローカル開発リレー（ws://）を壊さないよう wss:// 以外も従来どおり通す。
+        val entries = nip65PrefsFromTags(e.tags, requireWss = false) { normalizeRelayUrl(it) }
         entries.forEach {
             q.upsertRelay(it.url, if (it.read) 1 else 0, if (it.write) 1 else 0, "nip65")
             if (it.read) ensureRelay(it.url)
@@ -3234,10 +3430,12 @@ class EventRepository(
         }
     }
 
-    /** #t/#e/#p をタグ索引へ（ハッシュタグ等のカラム検索用）。't' は小文字化。 */
+    /** #t/#e/#p をタグ索引へ（ハッシュタグ等のカラム検索用）。't' は小文字化。
+     *  [#389] 索引するタグ名は kind 別（[indexableTagKeys]）。 */
     private fun indexTags(e: NostrEvent) {
+        val keys = indexableTagKeys(e.kind)
         e.tags.forEach { tag ->
-            if (tag.size >= 2 && tag[0] in TAG_KEYS) {
+            if (tag.size >= 2 && tag[0] in keys) {
                 val value = if (tag[0] == "t") tag[1].lowercase() else tag[1]
                 q.insertTag(e.id, tag[0], value)
             }
@@ -3320,7 +3518,9 @@ class EventRepository(
         val text = strippedText ?: ""
         val tags = parseTags(row.tags_json)
         // NIP-10: kind:1 が #e を持てば返信（プロフィールの「投稿/リプライ」振り分け用）。
-        val isReply = row.kind.toInt() == 1 && tags.any { it.size >= 2 && it[0] == "e" }
+        // [#380] kind:1111 NIP-22 コメントは常に返信扱い。
+        val isReply = (row.kind.toInt() == 1 && tags.any { it.size >= 2 && it[0] == "e" }) ||
+            row.kind.toInt() == Nip22.KIND
         // NIP-30: 本文中の :shortcode: → 画像URL のマップ。
         val emojis = tags.filter { it.size >= 3 && it[0] == "emoji" }.associate { it[1] to it[2] }
         // NIP-36: content-warning タグ（あれば表示前に折りたたむ）。2要素目が理由（任意）。
@@ -3406,7 +3606,20 @@ class EventRepository(
         // 引用カードで表示済みのものを返信文脈でも出すと二重表示になるので抑止する。
         val replyParent = resolveReplyParent(row, byPubkey)
             ?.takeIf { it.event.id != quoted?.event?.id }
-        return base.copy(text = newText, quoted = quoted, replyParent = replyParent)
+        // [#380] 1111 で親を NoteUi に解決できなかった場合は、ルート参照（K/E/A/I）から
+        // 汎用の文脈行（「kind X へのコメント」等）を出せるよう構造情報を渡す。
+        val commentRoot = if (row.kind.toInt() == Nip22.KIND && replyParent == null) {
+            val tags = parseTags(row.tags_json)
+            app.nostrdeck.model.CommentRootRef(
+                eventId = Nip22.parentEventIdOf(tags) ?: Nip22.rootEventIdOf(tags),
+                address = Nip22.rootAddressOf(tags),
+                external = Nip22.rootExternalOf(tags),
+                kind = Nip22.rootKindOf(tags),
+            )
+        } else {
+            null
+        }
+        return base.copy(text = newText, quoted = quoted, replyParent = replyParent, commentRoot = commentRoot)
     }
 
     /**
@@ -3460,14 +3673,47 @@ class EventRepository(
     /**
      * [M10] kind:1 が返信(#e)なら、その親ノートを解決して返す（返信の文脈表示用）。
      * キャッシュに無ければ id 指定で取得を促し、届き次第フィードが再解決される。
+     * [#380] kind:1111（NIP-22）は 小文字 e=親 → ルート E → 親 a(ローカル解決のみ) の順で引く。
+     * 親が記事(30023)なら1行プレビューにタイトルを出す（本文 Markdown 全文を流し込まない）。
      */
     private fun resolveReplyParent(row: Event, byPubkey: Map<String, app.nostrdeck.db.Profile>): NoteUi? {
-        if (row.kind.toInt() != 1) return null
+        val kind = row.kind.toInt()
         val tags = parseTags(row.tags_json)
-        val parentId = replyParentOf(tags) ?: return null
+        val parentId = when (kind) {
+            1 -> replyParentOf(tags)
+            Nip22.KIND -> Nip22.parentEventIdOf(tags)
+                ?: Nip22.rootEventIdOf(tags)
+                ?: Nip22.parentAddressOf(tags)?.let { addressToIdLocal(it) }
+            else -> null
+        } ?: return null
         // 返信先 e タグの relay ヒント（3要素目）があれば取得に使う。
-        val hints = tags.firstOrNull { it.size >= 3 && it[0] == "e" && it[1] == parentId }?.get(2)?.let { listOf(it) }.orEmpty()
-        return resolveNoteUi(parentId, byPubkey) ?: run { requestEvent(parentId, hints); null }
+        val hints = tags.firstOrNull { it.size >= 3 && it[0] == "e" && it[1] == parentId }?.get(2)
+            ?.takeIf { it.isNotEmpty() }?.let { listOf(it) }.orEmpty()
+        val parent = resolveNoteUi(parentId, byPubkey) ?: run { requestEvent(parentId, hints); return null }
+        if (parent.event.kind != 30023) return parent
+        // 記事: 1行プレビュー用にタイトル（無ければ summary → 本文の最初の非空行）を text へ。
+        val parentRow = q.eventById(parentId).executeAsOneOrNull()
+        val ptags = parentRow?.let { parseTags(it.tags_json) }.orEmpty()
+        fun tagOf(name: String) = ptags.firstOrNull { it.size >= 2 && it[0] == name }?.get(1)?.takeIf { it.isNotBlank() }
+        val title = tagOf("title") ?: tagOf("summary")
+            ?: parent.event.content.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() }
+        return parent.copy(text = title ?: parent.text)
+    }
+
+    /**
+     * [#380] アドレス "kind:pubkey:d" をローカル DB だけで event id へ解決する（能動取得はしない。
+     * フィードの変換ループから呼ばれるため。取得込みの解決は resolveAddress）。
+     */
+    private fun addressToIdLocal(address: String): String? {
+        val parts = address.split(":")
+        val kind = parts.getOrNull(0)?.toLongOrNull() ?: return null
+        if (parts.size < 3) return null
+        val author = parts[1]
+        val d = parts.drop(2).joinToString(":")
+        return q.eventsByKindAuthor(kind, author).executeAsList().firstOrNull { row ->
+            runCatching { parseTags(row.tags_json).any { it.size >= 2 && it[0] == "d" && it[1] == d } }
+                .getOrDefault(false)
+        }?.id
     }
 
     /** [M8-repost] NostrEvent + 解決済み profile → NoteUi（content 埋め込みの元ノート用）。 */
@@ -4197,7 +4443,7 @@ class EventRepository(
                 var reposts = 0
                 rows.forEach { r ->
                     when (r.kind) {
-                        1L -> replies = r.cnt.toInt()
+                        1L, 1111L -> replies += r.cnt.toInt()   // [#380] NIP-22 コメントもリプライに合算
                         6L, 16L -> reposts += r.cnt.toInt()
                     }
                 }
@@ -4486,13 +4732,28 @@ class EventRepository(
 
     // [#374] SettingsSync（ホワイトリスト定義）と単体テストから KV キー定数を参照するため internal。
     internal companion object {
-        val TAG_KEYS = setOf("t", "e", "p", "q")  // [M8-repost] "q"=NIP-18 引用参照を索引
+        // [M8-repost] "q"=NIP-18 引用参照を索引。
+        // [#380] "E"/"A"=NIP-22 コメントのルート参照（スレッド/記事コメント欄のローカル検索用）。
+        val TAG_KEYS = setOf("t", "e", "p", "q", "E", "A")
+
+        /**
+         * [#389] kind 別にタグ索引を絞る。NIP-51 セット（30000/30003）の `p` はメンバー列挙で
+         * 数百件になり得るうえ「この人を含むリスト」の逆引きは使っていないので索引しない。
+         * 30003 の `e` は件数が少なく、将来「誰がブックマークしたか」に使えるので残す。
+         */
+        fun indexableTagKeys(kind: Int): Set<String> = when (kind) {
+            30000, 30003 -> TAG_KEYS - "p"
+            else -> TAG_KEYS
+        }
 
         /** [M11] 既定のメディアサーバ(NIP-96)。start() で insert-if-absent して投入する。 */
         val DEFAULT_MEDIA_SERVERS = listOf("https://nostrcheck.me", "https://nostr.build")
 
         /** 引用/返信ヒント + インデクサで一時接続するリレーの上限（接続数の暴発防止）。 */
         const val HINT_RELAY_CAP = 16
+
+        /** [#386] メモリに保持する他人の NIP-65 リレーリストの著者数上限。 */
+        const val NIP65_PREFS_AUTHOR_CAP = 128
 
         /** 取り込みループが1トランザクションでまとめる最大イベント数。 */
         const val INGEST_BATCH = 400
@@ -4545,8 +4806,9 @@ class EventRepository(
         fun isAmazonUrl(url: String): Boolean =
             Regex("""^https?://(www\.)?amazon\.[a-z.]+/""", RegexOption.IGNORE_CASE).containsMatchIn(url) ||
                 Regex("""^https?://amzn\.(to|asia)/""", RegexOption.IGNORE_CASE).containsMatchIn(url)
-        /** client タグを付与する公開コンテンツ kind（投稿/リポスト/リアクション/パブリックチャット）。 */
-        val CLIENT_TAG_KINDS = setOf(1, 6, 16, 7, 42)
+        /** client タグを付与する公開コンテンツ kind（投稿/リポスト/リアクション/パブリックチャット/
+         *  NIP-22 コメント[#380]）。 */
+        val CLIENT_TAG_KINDS = setOf(1, 6, 16, 7, 42, 1111)
 
         /** カラム別「ミュートを表示」設定の KV キー接頭辞（app_setting）。 */
         const val REVEAL_MUTED_PREFIX = "col_reveal_muted:"

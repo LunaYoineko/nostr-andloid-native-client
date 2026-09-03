@@ -50,6 +50,7 @@ data class ColumnSpec(
 enum class ColumnKind {
     FOLLOWING, HASHTAG, NOTIFICATIONS, DM, GLOBAL, PROFILE,
     FAVS,           // [#12] ふぁぼ欄: 自分がリアクション(kind:7)した投稿の一覧
+    LIST,           // [#385] NIP-51 フォローセット(kind:30000)のメンバーのタイムライン
     THREAD,         // NIP-10 返信ツリー（ツリー表示・返信ボックス）
     CHANNEL_LIST,   // NIP-28 チャンネル一覧（kind:40/41）
     CHANNEL_ROOM,   // NIP-28 チャンネルルーム（kind:42・チャット表示・下部入力）
@@ -135,6 +136,21 @@ data class NoteUi(
      */
     val clientName: String? = null,
     val contentWarning: String? = null, // [#5] NIP-36 content-warning（非nullなら表示前に折りたたむ。""=理由なし）
+    /**
+     * [#380] kind:1111（NIP-22 コメント）で親を NoteUi に解決できなかったときのルート参照。
+     * NoteItem がこれから「kind X へのコメント」「<host> へのコメント」等の汎用文脈行を出す
+     * （replyParent が解決できたときは通常の返信元1行プレビューが出るので null）。
+     */
+    val commentRoot: CommentRootRef? = null,
+)
+
+/** [#380] NIP-22 コメントのルート参照（E=イベントid / A=アドレス / I=外部識別子 / K=kind）。 */
+@Immutable
+data class CommentRootRef(
+    val eventId: String? = null,   // ルート/親のイベント id（タップでスレッドを開ける）
+    val address: String? = null,   // "kind:pubkey:d"（記事等の addressable）
+    val external: String? = null,  // URL 等の外部識別子（NIP-73）
+    val kind: Int? = null,         // ルートの kind（K タグ。外部識別子では null）
 )
 
 /**

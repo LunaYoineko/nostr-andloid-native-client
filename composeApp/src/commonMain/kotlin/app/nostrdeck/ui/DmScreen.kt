@@ -2,6 +2,7 @@ package app.nostrdeck.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,6 +49,7 @@ import app.nostrdeck.theme.DeckColors
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.theme.DeckDimens
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckType
 import app.nostrdeck.theme.DeckWeight
@@ -84,6 +87,7 @@ fun DmScreen(state: DeckState, isCompact: Boolean) {
                 convos, selectedPubkey = state.dmThread,
                 onNew = { showNew = true },
                 onSelect = { state.dmThread = it.pubkey },
+                onOpenProfile = { state.openProfile(it.pubkey) },
             )
         },
         detail = {
@@ -115,6 +119,9 @@ fun DmScreen(state: DeckState, isCompact: Boolean) {
                     onBack = if (isCompact) ({ state.dmThread = null }) else null,
                     // DM(1:1) は自分＝右寄せ・明色バブル（iMessage流）を維持。
                     mineOnRight = true,
+                    // [#382] ヘッダの名前をタップ → 相手のプロフィールへ。
+                    onTitleClick = { state.openProfile(selected.pubkey) },
+                    titleClickLabel = stringResource(Res.string.open_profile),
                 )
             }
         },
@@ -148,6 +155,7 @@ private fun DmList(
     selectedPubkey: String?,
     onNew: () -> Unit,
     onSelect: (DmConversation) -> Unit,
+    onOpenProfile: (DmConversation) -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(DeckColors.Surface)) {
         Row(
@@ -171,7 +179,20 @@ private fun DmList(
                         .clickable { onSelect(c) }.padding(DeckSpace.Md, DeckSpace.Sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Avatar(c.name, c.pictureUrl, modifier = Modifier.size(40.dp))
+                    // [#382] アバターだけ個別に clickable（行タップ＝会話を開く、は据え置き）。
+                    // 40dp = DeckDimens.TouchTargetSm（実用最小のタッチ領域）を実寸で確保する。
+                    // 呼び出し側で clip すると [#378] 猫耳の先端が切れる（非にゃん時は Avatar が
+                    // 自分で丸く clip する）ので clip はせず、リップルだけ非クリップの円にする。
+                    Avatar(
+                        c.name, c.pictureUrl,
+                        modifier = Modifier.size(DeckDimens.TouchTargetSm)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = ripple(bounded = false, radius = DeckDimens.TouchTargetSm / 2),
+                                onClickLabel = stringResource(Res.string.open_profile),
+                            ) { onOpenProfile(c) },
+                        pubkey = c.pubkey,
+                    )
                     Spacer(Modifier.width(DeckSpace.Sm))
                     Column(Modifier.weight(1f)) {
                         Text(c.name, color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,

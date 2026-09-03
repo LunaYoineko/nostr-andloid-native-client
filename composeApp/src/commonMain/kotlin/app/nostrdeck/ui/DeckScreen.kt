@@ -617,6 +617,12 @@ private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyList
                     onReply = { note -> state.replyTo = note.event; state.showCompose = true },
                     onRepost = { note -> state.quoting = note.event; state.showCompose = true },
                 )
+                // [#380] 起点が NIP-22 コメント(kind:1111)なら、ルート（記事/外部URL等）の根カードを
+                // スレッド先頭に出す。eventByIdFlow は完全なタグを持つので大文字タグを読める。
+                val focusEvent = remember(spec.id) { repo.eventByIdFlow(focusId) }
+                    .collectAsState(null).value
+                val rootCard: (@Composable () -> Unit)? =
+                    if (focusEvent != null && focusEvent.kind == 1111) ({ CommentRootCard(focusEvent) }) else null
                 ThreadColumn(
                     spec, entries, modifier, listState, menu = menu, zaps = zaps,
                     focusReactions = focusReactions, focusEngagement = focusEngagement,
@@ -624,6 +630,7 @@ private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyList
                     onReply = { note -> state.replyTo = note.event; state.showCompose = true },
                     onQuote = { note -> state.quoting = note.event; state.showCompose = true },
                     onAuthorClick = { pk -> state.openProfile(pk) },
+                    rootCard = rootCard,
                 )
             } else {
                 ThreadColumn(spec, SampleData.thread(), modifier, listState, menu = menu)
@@ -685,6 +692,7 @@ private fun SubscribeZaps(repo: EventRepository?, colId: String, noteIds: List<S
 /** 実データ購読の対象とするフィード種別（通知/DM はログイン pubkey/復号が要るため除外）。 */
 private val LIVE_FEED_KINDS = setOf(
     ColumnKind.FOLLOWING, ColumnKind.GLOBAL, ColumnKind.HASHTAG, ColumnKind.PROFILE,
+    ColumnKind.LIST,   // [#385] NIP-51 リストのメンバー（authors 指定の素のフィード）
 )
 
 /** [#10] カラム幅プリセット（S=狭 / M=標準 / L=広）。 */

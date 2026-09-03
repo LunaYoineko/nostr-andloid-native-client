@@ -106,6 +106,25 @@ fun buildSearchColumn(words: List<String>, hashtags: List<String>): ColumnSpec {
 }
 
 /**
+ * [#385] NIP-51 フォローセット(kind:30000)のメンバーのタイムラインを1カラムにする。
+ * 既存のカラム機構（authors 指定の FEED）にそのまま載せるだけで、新しい基盤は要らない。
+ * REQ が肥大しないよう著者数は [LIST_COLUMN_AUTHOR_CAP] で頭打ちにする。
+ */
+fun buildListColumn(title: String, members: List<String>): ColumnSpec = ColumnSpec(
+    id = "col_list_${currentUnixTime()}",
+    title = title.ifBlank { "リスト" },
+    subtitle = "list",
+    kind = ColumnKind.LIST,
+    renderer = ColumnRenderer.FEED,
+    // 投稿＋リポスト。プロフィールのタイムラインと同じ組み合わせ。
+    filter = ReqFilter(kinds = listOf(1, 6, 16), authors = members.distinct().take(LIST_COLUMN_AUTHOR_CAP)),
+    pinned = false,   // 一時カラムとして開く（ヘッダの📌で固定できる）
+)
+
+/** リストカラムに載せる著者数の上限（REQ とローカル絞り込みの現実的な上限）。 */
+const val LIST_COLUMN_AUTHOR_CAP = 500
+
+/**
  * 既存カラムの「フィルター再設定」に使うテンプレ（設定を持たないカラムは null）。
  * FOLLOWING/DM/スレッド/チャンネル系は設定項目が無いので編集対象外。
  */

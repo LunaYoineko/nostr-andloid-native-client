@@ -58,6 +58,8 @@ fun columnSubtitleFor(spec: ColumnSpec): String = when (spec.kind) {
     ColumnKind.DM -> "NIP-17"
     ColumnKind.PROFILE -> stringResource(Res.string.profile_section)
     ColumnKind.FAVS -> stringResource(Res.string.sub_my_reactions)
+    // [#385] NIP-51 リストから開いたタイムライン（タイトルはリスト名）。
+    ColumnKind.LIST -> stringResource(Res.string.tab_lists)
     ColumnKind.THREAD, ColumnKind.CHANNEL_LIST, ColumnKind.CHANNEL_ROOM ->
         columnDisplaySubtitle(spec.subtitle)
 }
