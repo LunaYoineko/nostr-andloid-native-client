@@ -331,8 +331,9 @@ INSERT OR IGNORE INTO used_hashtag(tag, last_used, uses) VALUES (?, ?, 1);
 touchHashtag:
 UPDATE used_hashtag SET last_used = ?, uses = uses + 1 WHERE tag = ?;
 
-usedHashtagsByRecency:
-SELECT tag FROM used_hashtag ORDER BY last_used DESC;
+-- [#393][#395] 最近順の一覧（投稿画面のチップ/サジェスト・整理画面）。タグだけ欲しい側は tag を取り出す。
+usedHashtagsWithTime:
+SELECT tag, last_used FROM used_hashtag ORDER BY last_used DESC;
 
 -- [M8-react] kind:7 リアクション行を対象ノート(最後の e タグ=event_tag)単位で取得。
 -- 集約/カスタム絵文字URL解決(tags_json)は Kotlin 側で行う。
