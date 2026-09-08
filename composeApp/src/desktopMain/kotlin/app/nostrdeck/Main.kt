@@ -38,7 +38,10 @@ private val appScope = CoroutineScope(
 private val appDir: File = File(System.getProperty("user.home"), ".nostrism").apply { mkdirs() }
 
 private fun isCommandAvailable(cmd: String): Boolean = runCatching {
-    ProcessBuilder("which", cmd).redirectErrorStream(true).start().waitFor() == 0
+    val osName = System.getProperty("os.name").orEmpty().lowercase()
+    val isWindows = osName.contains("win")
+    val checkCmd = if (isWindows) listOf("where", cmd) else listOf("which", cmd)
+    ProcessBuilder(*checkCmd.toTypedArray()).redirectErrorStream(true).start().waitFor() == 0
 }.getOrDefault(false)
 
 private fun isSecretToolAvailable(): Boolean = isCommandAvailable("secret-tool") && runCatching {
@@ -62,14 +65,19 @@ private fun buildKeyVault(): KeyVault {
         isMac -> if (isCommandAvailable("security")) MacKeychainKeyVault() else {
             println("Nostrism [#221] security CLI not found, using file vault"); DesktopKeyVault(legacy)
         }
-        isWindows -> if (isCommandAvailable("powershell") || isCommandAvailable("pwsh")) WindowsCredentialKeyVault() else {
+        isWindows -> if (isCommandAvailable("powershell") || isCommandAvailable("pwsh")) {
+            println("Nostrism [#221] using Windows Credential Manager")
+            WindowsCredentialKeyVault()
+        } else {
             println("Nostrism [#221] powershell not found, using file vault"); DesktopKeyVault(legacy)
         }
         isLinux -> if (isSecretToolAvailable()) {
-            // secret-tool は存在するが D-Bus / gnome-keyring が無ければ hasKey() が例外を投げる場合がある
             val candidate = LinuxSecretKeyVault()
             val usable = runCatching { candidate.hasKey(); true }.isSuccess
-            if (usable) candidate else {
+            if (usable) {
+                println("Nostrism [#221] using Linux secret-tool")
+                candidate
+            } else {
                 println("Nostrism [#221] secret service not available, using file vault"); DesktopKeyVault(legacy)
             }
         } else {
