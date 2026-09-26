@@ -43,6 +43,7 @@ import app.nostrdeck.model.ColumnRenderer
 import app.nostrdeck.model.ColumnSpec
 import app.nostrdeck.model.CustomEmoji
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.async
 import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
@@ -103,6 +104,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -258,8 +262,14 @@ class EventRepository(
     }
 
     /** [M10] フィードに載せるメタ: 自分が♡/リポスト済みか + 自分のリアクション絵文字。 */
+    /** [#423] 画面上で「未送信」と出す行の id（確認待ちの間は含めない）。noteMetaFlow より前に置く。 */
+    private val unsentIdsFlow: Flow<Set<String>> =
+        q.unsentLocalIds().asFlow().mapToList(Dispatchers.Default).map { it.toSet() }
+
     private val noteMetaFlow: Flow<NoteMeta> =
-        combine(myReactedFlow, myRepostedFlow, myReactionMapFlow) { mr, mp, rx -> NoteMeta(mr, mp, rx) }
+        combine(myReactedFlow, myRepostedFlow, myReactionMapFlow, unsentIdsFlow) { mr, mp, rx, unsent ->
+            NoteMeta(mr, mp, rx, unsent)
+        }
 
     /** 自分の kind:3 由来のフォロー集合（p タグ）。FOLLOWING カラムの authors。 */
     private val follows = MutableStateFlow<List<String>>(emptyList())
@@ -334,7 +344,9 @@ class EventRepository(
         }
         // [M15] 過去タイムラインはキャッシュしない: 起動毎に DM 以外のイベントを解放し、
         // リレーから読み直す。コールド起動を軽く保ち、DB を溜め込まない。
-        q.transaction { q.clearTimelineEvents(); q.clearOrphanTags() }
+        // [#423] 未送信（publish_queue にあるもの）は消さない。消すと画面から消え、再送も下書きへの
+        // 戻しもできなくなる。前回の確認待ちのまま終了した分は再送の対象に入れる。
+        q.transaction { q.clearTimelineEvents(); q.clearOrphanTags(); q.promoteOrphanPublishes() }
         // 末尾スラッシュ違い（例: nos.lol と nos.lol/）で二重登録された既存行を一度だけ統合する。
         dedupeRelayUrls()
         // [#368] 古い OGP キャッシュを掃除（14日超。TL に流れた URL の数だけ増えるため）。
@@ -479,6 +491,8 @@ class EventRepository(
             scope.launch {
                 client.state.collect { st ->
                     if (st == RelayConnState.DISCONNECTED) authChallengeByRelay.remove(key)
+                    // [#423] つながったら未送信を送り直す（間隔の制限つき。立て続けの再接続で暴発させない）。
+                    if (st == RelayConnState.CONNECTED) retryUnsent()
                     withContext(relayDispatcher) { refreshRelayConns() }
                 }
             }
@@ -512,6 +526,7 @@ class EventRepository(
                 it.wake()    // バックオフ待機中なら即リトライ
             }
         }
+        retryUnsent()   // [#423] 未送信を送り直す
     }
 
     /**
@@ -1233,6 +1248,8 @@ class EventRepository(
                     // リポスト/返信はフォロー中の人のものだと本文側で展開表示され重複するので、フォロー外のみ。
                     NotificationKind.REPOST -> n.actor.pubkey !in followSet
                     NotificationKind.REPLY, NotificationKind.MENTION -> n.actor.pubkey !in followSet
+                    // [#419] DM 受信は相手がフォロー中かに関わらず出す（見逃すと困る種別）。
+                    NotificationKind.DM -> true
                     else -> false
                 }
             }
@@ -1284,6 +1301,14 @@ class EventRepository(
             map[key] = v
             if (map.size > cap) map.remove(map.keys.first())
             return v
+        }
+        /** 触れずに読む（順序は変えない）。 */
+        operator fun get(key: K): V? = map[key]
+        /** 入れ直して末尾へ（最近使ったものとして残す）。 */
+        fun put(key: K, value: V) {
+            map.remove(key)
+            map[key] = value
+            if (map.size > cap) map.remove(map.keys.first())
         }
     }
 
@@ -1522,41 +1547,56 @@ class EventRepository(
     }
     fun notificationsFeed(): StateFlow<List<NotificationUi>> = notificationsCache
 
-    // ---- [#9] 通知/DM の未読（最終閲覧時刻方式）----
-    private val notifLastSeen = MutableStateFlow(0L)
+    // ---- [#9] DM の未読（最終閲覧時刻方式）。[#405] 通知の未読カウントは廃止した ----
+    //
+    // [#416] 既読は**会話ごと**に持つ。以前はアプリ全体で1つの時刻しか無く、DM 画面を
+    // 開いた瞬間に全会話が既読になっていた（3人から来ていて1人ぶん読んでも残り2人も既読）。
+    // 会話ごとの記録が無い相手は [dmLastSeen]（初回起動時刻）を基準にする。これが無いと
+    // 過去の全 DM が未読として出る。
     private val dmLastSeen = MutableStateFlow(0L)
+    private val dmSeenByPeer = MutableStateFlow<Map<String, Long>>(emptyMap())
+
     private fun loadUnreadSeen() {
-        // 初回は「今」を既読基準にする（過去の全通知でバッジが巨大化するのを防ぐ）。
+        // 初回は「今」を既読基準にする（過去の全 DM でバッジが巨大化するのを防ぐ）。
         val now = currentUnixTime()
-        notifLastSeen.value = q.getSetting(NOTIF_LAST_SEEN).executeAsOneOrNull()?.toLongOrNull()
-            ?: now.also { q.putSetting(NOTIF_LAST_SEEN, it.toString()) }
         dmLastSeen.value = q.getSetting(DM_LAST_SEEN).executeAsOneOrNull()?.toLongOrNull()
             ?: now.also { q.putSetting(DM_LAST_SEEN, it.toString()) }
+        dmSeenByPeer.value = q.settingsByPrefix(DM_SEEN_PREFIX).executeAsList()
+            .mapNotNull { r -> r.value_.toLongOrNull()?.let { r.key.removePrefix(DM_SEEN_PREFIX) to it } }
+            .toMap()
     }
 
-    /** 通知の未読件数（最終閲覧時刻より新しい通知の数）。 */
-    fun notifUnreadFlow(): Flow<Int> =
-        combine(notificationsFeed(), notifLastSeen) { list, seen -> list.count { it.createdAt > seen } }
+    /** 相手ごとの既読基準時刻（未記録なら初回起動時刻 [firstSeen]）。 */
+    private fun dmSeenOf(peer: String, byPeer: Map<String, Long>, firstSeen: Long): Long =
+        byPeer[peer] ?: firstSeen
 
-    /** 通知を既読にする（最終閲覧時刻を現在時刻に進める）。 */
-    fun markNotificationsSeen() {
-        val now = currentUnixTime()
-        if (now > notifLastSeen.value) { notifLastSeen.value = now; putSettingAsync(NOTIF_LAST_SEEN, now.toString()) }
+    /**
+     * DM の未読件数（全会話の合計）。レール/ナビのバッジ用。
+     * 会話一覧（[dmConversationsFlow]）の unread を足すだけにして、未読の判定規則を1か所に保つ。
+     */
+    private val dmUnreadCache: StateFlow<Int> by lazy {
+        dmConversationsCache.map { list -> list?.sumOf { it.unread } ?: 0 }
+            .stateIn(scope, feedSharing, 0)
     }
+    fun dmUnreadFlow(): StateFlow<Int> = dmUnreadCache
 
-    /** DM の未読件数（相手からの kind:14 のうち最終閲覧時刻より新しい数）。 */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun dmUnreadFlow(): Flow<Int> = myPubkeyFlow.flatMapLatest { me ->
-        if (me == null) flowOf(0)
-        else combine(q.dmAllForMe(me).asFlow().mapToList(Dispatchers.Default), dmLastSeen) { rows, seen ->
-            rows.count { it.pubkey != me && it.created_at > seen }
+    /**
+     * [#416] 指定の会話を既読にする（その相手ぶんだけ進める）。会話を開いたとき・開いている
+     * 会話に新着が来たときに呼ぶ。
+     *
+     * 基準は「今」と「その相手の最新発言時刻」の大きいほう。相手の時計が進んでいると
+     * created_at が未来になり、今を基準にすると開いたのに未読のまま残るため。
+     */
+    fun markDmSeen(peer: String) {
+        val me = myPubkey ?: return
+        // UI から呼ばれるので DB 読み出しはメインスレッドから外す。
+        scope.launch(Dispatchers.Default) {
+            val newest = q.dmNewestFrom(peer, me).executeAsOneOrNull()?.newest ?: 0L
+            val mark = maxOf(currentUnixTime(), newest)
+            if (mark <= (dmSeenByPeer.value[peer] ?: 0L)) return@launch
+            dmSeenByPeer.value = dmSeenByPeer.value + (peer to mark)
+            putSettingAsync(DM_SEEN_PREFIX + peer, mark.toString())
         }
-    }
-
-    /** DM を既読にする（最終閲覧時刻を現在時刻に進める）。 */
-    fun markDmSeen() {
-        val now = currentUnixTime()
-        if (now > dmLastSeen.value) { dmLastSeen.value = now; putSettingAsync(DM_LAST_SEEN, now.toString()) }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -1566,14 +1606,17 @@ class EventRepository(
             else combine(
                 q.notificationsFor(me).asFlow().mapToList(Dispatchers.Default),
                 profilesFlow,
-            ) { rows, profiles ->
+                noteMetaFlow,  // [#403] 自分の♡/リポスト状態。無いと通知内の投稿でボタン押下が反映されない
+                dmConversationsCache,  // [#419] 未読のある DM 会話を1件ずつ混ぜる
+            ) { rows, profiles, meta, convos ->
                 val byPubkey = profiles.associateBy { it.pubkey }
-                rows.map { toNotification(it, byPubkey) }
+                (rows.map { toNotification(it, byPubkey, meta) } + dmNotices(convos.orEmpty()))
+                    .sortedByDescending { it.createdAt }
             }.flowOn(Dispatchers.Default)
         }
 
     /** 自分宛イベント1件を通知行へ整形。種別は kind と #e の有無で判定（NIP-10/18/25）。 */
-    private fun toNotification(row: Event, byPubkey: Map<String, app.nostrdeck.db.Profile>): NotificationUi {
+    private fun toNotification(row: Event, byPubkey: Map<String, app.nostrdeck.db.Profile>, meta: NoteMeta): NotificationUi {
         val tags = parseTags(row.tags_json)
         // 直接の対象ノート＝最後の #e（NIP-10 では末尾が reply 先になりがち）。
         val target = tags.lastOrNull { it.size >= 2 && it[0] == "e" }?.get(1)
@@ -1599,10 +1642,11 @@ class EventRepository(
         //  - 対象（自分の投稿）は引用カードで出すので NoteUi 化しておく（引用/返信の再解決はしない＝安い）
         //  - 返信/メンションは相手の投稿そのものを投稿フォーマットで出す。返信元は見出し行が担うため
         //    replyParent は落とす（NoteItem の ◁ 行と二重になる）
-        val targetNote = targetEvent?.let { toNoteUi(it, byPubkey[it.pubkey]) }
+        // [#403] 他フィードと同じく applyMeta で自分の♡/リポスト状態を載せる（通知からのリアクション反映）。
+        val targetNote = targetEvent?.let { applyMeta(toNoteUi(it, byPubkey[it.pubkey]), meta) }
         // [#380] kind:1111（NIP-22 コメント）も返信と同じく相手の投稿そのものを本体に出す。
         val selfNote = if (row.kind.toInt() == 1 || row.kind.toInt() == Nip22.KIND) {
-            withQuoteAndReply(toNoteUi(row, byPubkey[row.pubkey]), row, byPubkey).copy(replyParent = null)
+            applyMeta(withQuoteAndReply(toNoteUi(row, byPubkey[row.pubkey]), row, byPubkey), meta).copy(replyParent = null)
         } else {
             null
         }
@@ -1785,6 +1829,7 @@ class EventRepository(
         mineReacted = ui.event.id in meta.myReacted,
         mineReaction = meta.myReaction[ui.event.id],
         mineReposted = ui.event.id in meta.myReposted,
+        unsent = ui.event.id in meta.unsent,
     )
 
     /**
@@ -2029,7 +2074,7 @@ class EventRepository(
         val tags = hashtagsIn(content).map { listOf("t", it) } + emojiTagsIn(content) +
             Nip27.mentionPTags(content) +
             (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
-        val signed = publishSigned(UnsignedEvent(kind = 1, content = content, tags = tags))
+        val signed = publishSigned(UnsignedEvent(kind = 1, content = content, tags = withRelayHints(tags)))
         recordHashtags(content, signed.createdAt)
     }
 
@@ -2062,7 +2107,7 @@ class EventRepository(
                 // タイムラインでは各セグメントが独立したノートとして流れるため意味を成さない。
                 if (contentWarning != null) add(listOf("content-warning", contentWarning))
             }
-            val signed = publishSigned(UnsignedEvent(kind = 1, content = seg, tags = tags))
+            val signed = publishSigned(UnsignedEvent(kind = 1, content = seg, tags = withRelayHints(tags)))
             recordHashtags(seg, signed.createdAt)
             if (rootId == null) { rootId = signed.id; myPk = signed.pubkey }
             prevId = signed.id
@@ -2115,7 +2160,7 @@ class EventRepository(
                 add(listOf("emoji", emoji.substring(1, emoji.length - 1), imageUrl))
             }
         }
-        publishSigned(UnsignedEvent(kind = 7, content = emoji, tags = tags))
+        publishSigned(UnsignedEvent(kind = 7, content = emoji, tags = withRelayHints(tags)))
         recordUsedEmoji(emoji, imageUrl)
     }
 
@@ -2201,12 +2246,15 @@ class EventRepository(
         putSettingAsync(DEFAULT_REACTION_IMAGE, imageUrl ?: "")
     }
 
-    /** [M8] NIP-18 リポスト（kind:6）。content は空でよく、表示側は e タグから元ノートを解決する。 */
+    /**
+     * [M8] NIP-18 リポスト（kind:6）。content は空でよく、表示側は e タグから元ノートを解決する。
+     * [#411] e タグの relay URL は NIP-18 で MUST（"That tag MUST include a relay URL as its third entry"）。
+     */
     suspend fun publishRepost(target: NostrEvent) {
         publishSigned(
             UnsignedEvent(
                 kind = 6, content = "",
-                tags = listOf(listOf("e", target.id), listOf("p", target.pubkey)),
+                tags = withRelayHints(listOf(listOf("e", target.id), listOf("p", target.pubkey))),
             ),
         )
     }
@@ -2216,13 +2264,20 @@ class EventRepository(
      * 表示側は q タグから引用元を解決して埋め込みカードにする（toFollowingNoteUi）。
      */
     suspend fun publishQuote(target: NostrEvent, text: String, contentWarning: String? = null) {
-        val note = runCatching { Nip19.hexToNote(target.id) }.getOrNull()
-        val body = if (note != null) (if (text.isBlank()) "nostr:$note" else "$text\nnostr:$note") else text
         // [#350] NIP-27 メンションの p タグ（引用先の作者と重複させない）。
-        val tags = listOf(listOf("q", target.id), listOf("p", target.pubkey)) +
-            hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(body) +
-            Nip27.mentionPTags(text, listOf(target.pubkey)) +
-            (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
+        // [#411] q タグは NIP-18 の `["q", id, relay, pubkey]`。ヒントを埋めてから、本文の参照にも
+        // 同じヒントを入れた nevent を使う（以前は note1 でリレー情報を持てなかった）。
+        val tags = withRelayHints(
+            listOf(listOf("q", target.id, "", target.pubkey), listOf("p", target.pubkey)) +
+                hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(text) +
+                Nip27.mentionPTags(text, listOf(target.pubkey)) +
+                (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList()),
+        )
+        val hint = tags.first().getOrNull(2)?.takeIf { it.isNotEmpty() }
+        val ref = runCatching {
+            Nip19.hexToNevent(target.id, author = target.pubkey, relays = listOfNotNull(hint), kind = target.kind)
+        }.getOrNull()
+        val body = if (ref != null) (if (text.isBlank()) "nostr:$ref" else "$text\nnostr:$ref") else text
         val signed = publishSigned(UnsignedEvent(kind = 1, content = body, tags = tags))
         recordHashtags(text, signed.createdAt)
     }
@@ -2335,7 +2390,7 @@ class EventRepository(
                 hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(text) +
                 Nip27.mentionPTags(text, inheritedPs22) +
                 (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
-            val signed = publishSigned(UnsignedEvent(kind = Nip22.KIND, content = text, tags = tags))
+            val signed = publishSigned(UnsignedEvent(kind = Nip22.KIND, content = text, tags = withRelayHints(tags)))
             recordHashtags(text, signed.createdAt)
             return
         }
@@ -2354,7 +2409,7 @@ class EventRepository(
             hashtagsIn(text).map { listOf("t", it) } + emojiTagsIn(text) +
             Nip27.mentionPTags(text, inheritedPs) +
             (if (contentWarning != null) listOf(listOf("content-warning", contentWarning)) else emptyList())
-        val signed = publishSigned(UnsignedEvent(kind = 1, content = text, tags = tags))
+        val signed = publishSigned(UnsignedEvent(kind = 1, content = text, tags = withRelayHints(tags)))
         recordHashtags(text, signed.createdAt)
     }
 
@@ -2388,9 +2443,119 @@ class EventRepository(
             q.enqueuePublish(signed.id, payload, signed.createdAt, 0)
         }
         // NIP-65 outbox: write(Outbox) リレー ∪ 接続中(Inbox)リレーへ配信する。
+        // [#423] 送る前に受理待ちを登録する（先に OK が返ってきても取りこぼさない）。
+        registerAck(signed.id)
         publishTo(payload)
-        // TODO: handle OK/NIP-20, retry from publish_queue
+        scope.launch { confirmPublish(signed.id, notify = true) }
         return signed
+    }
+
+    // ---- [#423] 送信の受理確認（NIP-01 OK）と未送信の再送 ----
+
+    /**
+     * 自分が送ったイベントがリレーから返ってきたら、それも受理の証拠とみなす。
+     * NIP-01 はリレーに OK を返すよう求めているが、返さないリレーもある。そういうリレーだけに
+     * 書いている人は、届いているのに毎回「未送信」になってしまう。
+     *  - 待っている id なら受理として記録（[recordAck] は待っていない id を無視する）
+     *  - 自分のイベントなら未送信からも外す（再起動をまたいで待っていない分）
+     */
+    private fun confirmByEcho(origins: List<Pair<NostrEvent, String>>) {
+        val me = myPubkey
+        origins.forEach { (e, url) ->
+            recordAck(e.id, url)
+            if (e.pubkey == me) q.dequeuePublish(e.id)
+        }
+    }
+
+    /** 受理を待っている event id → 受理したリレー。待っていない id の OK は記録しない。 */
+    private val ackWaiters = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
+
+    /** 受理待ちを登録する。**送る前に**呼ぶ（先に OK が返ってきても取りこぼさないように）。 */
+    private fun registerAck(id: String) = ackWaiters.update { it + (id to (it[id] ?: emptySet())) }
+
+    private fun recordAck(id: String, relay: String) =
+        ackWaiters.update { m -> m[id]?.let { m + (id to (it + relay)) } ?: m }
+
+    /** どれかのリレーが受理するのを最大 [timeoutMs] 待つ。受理されたら true。終わったら登録を外す。 */
+    private suspend fun awaitAck(id: String, timeoutMs: Long = PublishAck.TIMEOUT_MS): Boolean = try {
+        withTimeoutOrNull(timeoutMs) { ackWaiters.first { !it[id].isNullOrEmpty() } } != null
+    } finally {
+        ackWaiters.update { it - id }
+    }
+
+    /**
+     * 受理を確認できたら未送信から外し、できなければ試行回数を増やして残す。
+     * [notify] なら確認できなかったことを画面へ知らせる（トースト）。
+     */
+    private suspend fun confirmPublish(id: String, notify: Boolean): Boolean {
+        val ok = awaitAck(id)
+        if (ok) q.dequeuePublish(id) else {
+            q.bumpPublishAttempts(id)
+            if (notify) notifyPublishUnconfirmed()
+        }
+        return ok
+    }
+
+    /** 未送信の通知（画面側でトーストにする）。オフラインで連投したときに何度も出さないよう間引く。 */
+    private val _publishUnconfirmed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    fun publishUnconfirmedFlow(): SharedFlow<Unit> = _publishUnconfirmed.asSharedFlow()
+    private var lastUnconfirmedNoticeAt = 0L
+    private fun notifyPublishUnconfirmed() {
+        val now = currentUnixTime()
+        if (now - lastUnconfirmedNoticeAt < PublishAck.RETRY_MIN_INTERVAL_SEC) return
+        lastUnconfirmedNoticeAt = now
+        _publishUnconfirmed.tryEmit(Unit)
+    }
+
+    /** 1件を送り直して受理を確認する。配信先が決まっているもの（DM の gift wrap）はそこへ送る。 */
+    private suspend fun resend(row: app.nostrdeck.db.Publish_queue): Boolean {
+        registerAck(row.event_id)
+        val targets = row.relays?.let { runCatching { json.decodeFromString<List<String>>(it) }.getOrNull() }
+        if (targets != null) publishToRelays(row.payload, targets) else publishTo(row.payload)
+        return confirmPublish(row.event_id, notify = false)
+    }
+
+    private var lastRetryAt = 0L
+
+    /**
+     * 未送信を送り直す（復帰時・再接続時）。同じ署名済みイベントを送るので二重投稿にならない。
+     * 間隔の制限と試行回数の上限つき（上限を超えたものは手動の [retryUnsentNow] でだけ送る）。
+     */
+    fun retryUnsent() {
+        val now = currentUnixTime()
+        if (now - lastRetryAt < PublishAck.RETRY_MIN_INTERVAL_SEC) return
+        lastRetryAt = now
+        scope.launch(Dispatchers.Default) {
+            q.pendingPublishes().executeAsList()
+                .filter { PublishAck.shouldAutoRetry(it.attempts) }
+                .forEach { row -> launch { resend(row) } }
+        }
+    }
+
+    /** 画面の「再送」。[localId] は画面上の行の id（投稿は event id、DM は rumor id）。上限に関係なく送る。 */
+    fun retryUnsentNow(localId: String) {
+        scope.launch(Dispatchers.Default) {
+            q.publishesByLocalId(localId).executeAsList().forEach { row -> launch { resend(row) } }
+        }
+    }
+
+    /**
+     * 画面の「下書きに戻す」。未送信の投稿の本文を投稿画面の下書きへ移し、手元の投稿と未送信を消す。
+     * 既に下書きがあれば後ろに足す（上書きしない）。本文は publish_queue の署名済み JSON から取る
+     * （起動時のタイムライン消去は未送信を残すが、念のため event 表には頼らない）。
+     */
+    suspend fun unsentToDraft(localId: String): Boolean = withContext(Dispatchers.Default) {
+        val row = q.publishesByLocalId(localId).executeAsList().firstOrNull() ?: return@withContext false
+        val content = runCatching {
+            json.parseToJsonElement(row.payload).jsonObject["content"]?.jsonPrimitive?.contentOrNull
+        }.getOrNull() ?: return@withContext false
+        val existing = loadDraft()
+        saveDraft(if (existing.isBlank()) content else "$existing\n\n$content")
+        q.transaction {
+            q.dequeuePublish(row.event_id)
+            q.deleteTagsForEvent(localId); q.deleteEventById(localId)
+        }
+        true
     }
 
     /**
@@ -2419,9 +2584,17 @@ class EventRepository(
     /** 未接続の write 専用リレーへ一時接続で1イベントを配信する（購読なし・送信後に閉じる）。 */
     private suspend fun publishTransient(url: String, payload: String) {
         val c = RelayClient(url, scope)
+        // [#423] 一時接続でも OK を拾う。以前は受信を誰も読んでおらず、書き込み専用リレーや
+        // 相手の DM リレー（ほぼ常に一時接続）の受理が見えなかった。DM は毎回「未送信」になっていた。
+        val okJob = scope.launch {
+            c.messages.collect { m ->
+                if (m is RelayMessage.Ok && PublishAck.isAccepted(m.accepted, m.message)) recordAck(m.eventId, c.url)
+            }
+        }
         c.start()
         c.publish(payload)  // outgoing は BUFFERED。接続確立後にフラッシュされる。
-        delay(8_000)         // 送信フレームを流す猶予を取ってから閉じる。
+        delay(PublishAck.TIMEOUT_MS)   // 受理を待つ間は開けておく（送信フレームを流す猶予も兼ねる）
+        okJob.cancel()
         c.stop()
     }
 
@@ -2441,6 +2614,15 @@ class EventRepository(
     /** 投稿で使ったハッシュタグ（最近順・タグのみ）。ComposeSheet のサジェスト/チップに使う。[#395] 同じクエリから導出。 */
     fun usedHashtagsFlow(): Flow<List<String>> =
         usedHashtagsWithTimeFlow().map { rows -> rows.map { it.tag } }
+
+    /**
+     * [#399] 使ったタグの履歴を1件消す（整理画面のゴミ箱）。ピン留め（kind:30015）は別管理なので影響しない。
+     * 再度そのタグで投稿すれば履歴には戻る。
+     */
+    fun deleteUsedHashtag(tag: String) {
+        val t = tag.trim().removePrefix("#").lowercase()
+        if (t.isNotBlank()) q.deleteUsedHashtag(t)
+    }
 
     // ---- [#393] ピン留めハッシュタグ（NIP-51 kind:30015 / d=pinned）----
     // 購読・受信ゲート・State+KV は [pinnedRep]（OwnReplaceable）。ここは発行方式（楽観+デバウンス）だけ。
@@ -2604,6 +2786,49 @@ class EventRepository(
      */
     private val hintRelays = mutableSetOf<String>()
 
+    // ---- [#411] 発行イベントに載せるリレーヒント ----
+
+    /** 受信元の記録: event id → 受け取ったリレー（正規化 URL・重複なし）。relayDispatcher 上でのみ触る。 */
+    private val seenOnByEvent = LruCache<String, MutableList<String>>(SEEN_ON_CAP)
+    /** 著者 pubkey → 最後にその人のイベントを受け取ったリレー。`p` タグのヒントの最後の手がかり。 */
+    private val lastSeenByAuthor = LruCache<String, String>(SEEN_ON_CAP)
+    /** AUTH を要求してきたリレー。制限付きで他人が読めない可能性があるのでヒントには出さない。 */
+    private val authRequestedRelays = mutableSetOf<String>()
+
+    private suspend fun recordSeenOn(origins: List<Pair<NostrEvent, String>>) = withContext(relayDispatcher) {
+        for ((e, url) in origins) {
+            val list = seenOnByEvent[e.id] ?: mutableListOf<String>().also { seenOnByEvent.put(e.id, it) }
+            if (url !in list) list.add(url)
+            lastSeenByAuthor.put(e.pubkey, url)
+        }
+    }
+
+    /**
+     * タグ列の空いているヒント枠を埋める（[RelayHints.fill]）。ヒント元は
+     * 受信元∩著者write → 著者write → 受信元 の順（[RelayHints.pick]）。
+     * 自分のイベント/自分の p は、自分のリレー表で write 有効なものを著者 write として使う
+     * （自分の投稿は ingest を通らないので受信元の記録が無い）。
+     * 3要素目がヒントでないタグを持つイベント（kind:1984 通報の `["e", id, <type>]` 等）には使わない。
+     */
+    private suspend fun withRelayHints(tags: List<List<String>>): List<List<String>> {
+        val me = myPubkey
+        val myWrite = q.allRelays().executeAsList().filter { it.write != 0L }.map { normalizeRelayUrl(it.url) }
+        return withContext(relayDispatcher) {
+            val excluded = authRequestedRelays + SEARCH_RELAYS.map { normalizeRelayUrl(it) }
+            fun writeOf(pk: String) = if (pk == me) myWrite else nip65WriteByAuthor[pk].orEmpty()
+            fun eventHint(id: String): String {
+                val author = q.eventById(id).executeAsOneOrNull()?.pubkey
+                return RelayHints.pick(seenOnByEvent[id].orEmpty(), author?.let(::writeOf).orEmpty(), excluded)
+            }
+            fun pubkeyHint(pk: String) = RelayHints.pick(listOfNotNull(lastSeenByAuthor[pk]), writeOf(pk), excluded)
+            RelayHints.fill(tags, ::eventHint, ::pubkeyHint)
+        }
+    }
+
+    /** [#411] 共有用 nevent に入れるリレーヒント（最大1本）。取れなければ空。 */
+    suspend fun relayHintsFor(eventId: String): List<String> =
+        listOfNotNull(withRelayHints(listOf(listOf("e", eventId))).first().getOrNull(2)?.takeIf { it.isNotEmpty() })
+
     /**
      * [#124] naddr（kind+著者+dタグ）を event id へ解決する。
      * DB に既存ならそれを返し、無ければ接続中リレー + リレーヒントへ #d 付き REQ を投げて
@@ -2737,7 +2962,8 @@ class EventRepository(
 
     // 受信イベントの取り込みキュー。ソケット読取スレッドを塞がないよう trySend で流し込み、
     // [ingestLoop] がまとめて署名検証＋1トランザクション書き込みする。
-    private val ingestChannel = Channel<NostrEvent>(Channel.UNLIMITED)
+    // [#411] 受信元リレー URL を添える（発行イベントに載せるリレーヒントの元）。
+    private val ingestChannel = Channel<Pair<NostrEvent, String>>(Channel.UNLIMITED)
 
     // ---- [NIP-42] AUTH ----
     /** AUTH 応答ポリシー（既定=自分/DMリレーのみ）。KV 永続。 */
@@ -2791,11 +3017,16 @@ class EventRepository(
 
     private fun onMessage(msg: RelayMessage, client: RelayClient) {
         when (msg) {
-            is RelayMessage.Event -> ingestChannel.trySend(msg.event)
+            is RelayMessage.Event -> ingestChannel.trySend(msg.event to client.url)
             // [NIP-42] AUTH 応答は relayDispatcher(直列)で処理し、チャレンジ重複応答を dedup する。
-            is RelayMessage.Auth -> scope.launch(relayDispatcher) { handleAuthChallenge(client, msg.challenge) }
+            is RelayMessage.Auth -> scope.launch(relayDispatcher) {
+                authRequestedRelays.add(normalizeRelayUrl(client.url))   // [#411] ヒントには出さない
+                handleAuthChallenge(client, msg.challenge)
+            }
             // [#17] EOSE = 蓄積イベント送信完了。どこか1リレーから来たらそのカラムを「読込済み」に。
             is RelayMessage.Eose -> columnLoadedState.value = columnLoadedState.value + msg.subscriptionId
+            // [#423] 送信の受理確認。待っている id だけ記録する。
+            is RelayMessage.Ok -> if (PublishAck.isAccepted(msg.accepted, msg.message)) recordAck(msg.eventId, client.url)
             else -> {}
         }
     }
@@ -2813,20 +3044,31 @@ class EventRepository(
     private suspend fun ingestLoop() {
         val batch = ArrayList<NostrEvent>(INGEST_BATCH)
         val seen = HashSet<String>()
+        // [#411] このバッチの受信元。同じイベントが複数リレーから届いたら全部覚える（dedup 前に積む）。
+        val origins = ArrayList<Pair<NostrEvent, String>>(INGEST_BATCH)
         while (true) {
-            batch.clear(); seen.clear()
+            batch.clear(); seen.clear(); origins.clear()
             val first = ingestChannel.receive()
-            if (seen.add(first.id)) batch.add(first)
+            origins.add(first)
+            if (seen.add(first.first.id)) batch.add(first.first)
             // 連続到着分を短い窓でまとめる。
             withTimeoutOrNull(80) {
                 while (batch.size < INGEST_BATCH) {
                     val e = ingestChannel.receive()
-                    if (seen.add(e.id)) batch.add(e)
+                    origins.add(e)
+                    if (seen.add(e.first.id)) batch.add(e.first)
                 }
             }
-            withContext(Dispatchers.Default) {
+            val valid = withContext(Dispatchers.Default) {
                 val valid = batch.filter { EventCrypto.verify(it) }   // 重い署名検証は Default で
                 if (valid.isNotEmpty()) q.transaction { valid.forEach { runCatching { ingest(it) } } }
+                valid
+            }
+            // 署名の通ったものだけ受信元を記録（ヒントに使うのは表示できるイベントだけ）。
+            if (valid.isNotEmpty()) {
+                val ok = valid.mapTo(HashSet()) { it.id }
+                recordSeenOn(origins.filter { it.first.id in ok })
+                confirmByEcho(origins.filter { it.first.id in ok })
             }
         }
     }
@@ -3906,6 +4148,8 @@ class EventRepository(
         val myReacted: Set<String>,
         val myReposted: Set<String>,
         val myReaction: Map<String, ReactionUi> = emptyMap(),
+        /** [#423] 受理を確認できていない自分のイベント id（画面に「未送信」を出す）。 */
+        val unsent: Set<String> = emptySet(),
     )
 
     /** tags_json（[[..],[..]]）を List<List<String>> に復元。壊れていれば空。 */
@@ -4643,35 +4887,98 @@ class EventRepository(
         indexTags(NostrEvent(id, sender, 14, createdAt, content, tags, ""))
     }
 
+    /** [#417] DM 送信の結果。UI はこれを見てトーストを出す。 */
+    enum class DmSendResult {
+        /** 相手の DM リレーへ送れた。 */
+        SENT,
+
+        /** 送れたが、相手が kind:10050 を公開しておらず read リレーへのフォールバックになった。
+         *  相手がそのリレーを見ていなければ届かない。 */
+        SENT_NO_PEER_RELAYS,
+
+        /** [#423] 送ったが、相手の DM リレーが受理したことを確認できなかった。未送信として残し、
+         *  復帰時・再接続時に送り直す（バブルに「未送信」が出る）。 */
+        PENDING,
+
+        /** 署名/暗号化/配信に失敗した。 */
+        FAILED,
+    }
+
     /**
      * DM を送る（NIP-17）。受信者宛＋自分宛の2通を gift wrap する。
      * NIP-17 仕様に従い、gift wrap は**受信者の kind:10050 リレー**へ（自分宛は自分の 10050 へ）配信。
      * 相手/自分の 10050 が未取得なら接続中の read リレーへフォールバックする。
+     *
+     * [#417] 結果を返す。以前は例外が呼び出し側で握り潰され、失敗しても送れたように見えていた。
+     *
+     * 送信本体はアプリのスコープで走らせる。画面のスコープで走らせると、相手の DM リレーを
+     * 引いている最中（最大 2.5 秒）に画面を離れただけで送信が中断され、楽観挿入したバブルだけが
+     * 残っていた。呼び出し元が先にいなくなっても送信は最後まで進む（結果の通知だけが届かない）。
      */
-    suspend fun sendDm(peerPubkey: String, text: String) {
-        if (text.isBlank()) return
-        val me = myPubkey ?: SignerProvider.current().publicKeyHex().also { myPubkey = it; myPubkeyFlow.value = it }
-        val signer = SignerProvider.current()
-        val now = currentUnixTime()
-        val rumorTags = listOf(listOf("p", peerPubkey))
-        val rumorId = Nip01.eventId(me, now, 14, rumorTags, text)
-        val rumorJson = buildJsonObject {
-            put("id", rumorId); put("pubkey", me); put("created_at", now); put("kind", 14)
-            putJsonArray("tags") { rumorTags.forEach { t -> add(buildJsonArray { t.forEach { add(it) } }) } }
-            put("content", text)
-        }.toString()
-        // メタデータ曖昧化のため seal/wrap の created_at を直近2日内でランダム化（NIP-17）。
-        fun rnd() = now - Random.nextLong(0, 2 * 24 * 3600)
-        val toPeer = Nip17.wrap(signer, rumorJson, peerPubkey, rnd(), rnd())
-        val toSelf = Nip17.wrap(signer, rumorJson, me, rnd(), rnd())
-        storeDm(rumorId, me, peerPubkey, text, now)   // 楽観反映
-        processedWraps.add(toPeer.id); processedWraps.add(toSelf.id)
-        // 配信先を DM リレーへ限定（NIP-17）。無ければ接続 read リレーへ。
-        val fallback = connectedReadRelays()
-        val peerRelays = fetchDmRelaysFor(peerPubkey).ifEmpty { fallback }
-        val myRelays = myDmRelaysOrSeed().ifEmpty { fallback }
-        publishToRelays(RelayProtocol.event(toPeer), peerRelays)
-        publishToRelays(RelayProtocol.event(toSelf), myRelays)
+    suspend fun sendDm(peerPubkey: String, text: String): DmSendResult =
+        scope.async { sendDmNow(peerPubkey, text) }.await()
+
+    private suspend fun sendDmNow(peerPubkey: String, text: String): DmSendResult {
+        if (text.isBlank()) return DmSendResult.FAILED
+        // 楽観挿入した行。送れなかったときに戻す（送れていないのに履歴に残り続けないように）。
+        var storedId: String? = null
+        try {
+            val me = myPubkey ?: SignerProvider.current().publicKeyHex().also { myPubkey = it; myPubkeyFlow.value = it }
+            val signer = SignerProvider.current()
+            val now = currentUnixTime()
+            val rumorTags = listOf(listOf("p", peerPubkey))
+            val rumorId = Nip01.eventId(me, now, 14, rumorTags, text)
+            val rumorJson = buildJsonObject {
+                put("id", rumorId); put("pubkey", me); put("created_at", now); put("kind", 14)
+                putJsonArray("tags") { rumorTags.forEach { t -> add(buildJsonArray { t.forEach { add(it) } }) } }
+                put("content", text)
+            }.toString()
+            // メタデータ曖昧化のため seal/wrap の created_at を直近2日内でランダム化（NIP-17）。
+            fun rnd() = now - Random.nextLong(0, 2 * 24 * 3600)
+            val toPeer = Nip17.wrap(signer, rumorJson, peerPubkey, rnd(), rnd())
+            val toSelf = Nip17.wrap(signer, rumorJson, me, rnd(), rnd())
+            storeDm(rumorId, me, peerPubkey, text, now)   // 楽観反映
+            storedId = rumorId
+            processedWraps.add(toPeer.id); processedWraps.add(toSelf.id)
+            // 配信先を DM リレーへ限定（NIP-17）。無ければ接続 read リレーへ。
+            val fallback = connectedReadRelays()
+            val peerDmRelays = fetchDmRelaysFor(peerPubkey)
+            val peerRelays = peerDmRelays.ifEmpty { fallback }
+            val myRelays = myDmRelaysOrSeed().ifEmpty { fallback }
+            if (peerRelays.isEmpty()) {   // 配信先が1つも無い
+                dropLocalDm(rumorId)
+                return DmSendResult.FAILED
+            }
+            // [#423] 未送信として積んでから送り、相手宛の受理を確認する。配信先は wrap ごとに決まって
+            // いるので一緒に持つ。相手宛は画面の行（rumor id）と対応させ、確認できなければバブルに
+            // 「未送信」が出る。自分宛（他端末への控え）は画面に出さず裏で確認・再送する。
+            val peerPayload = RelayProtocol.event(toPeer)
+            val selfPayload = RelayProtocol.event(toSelf)
+            q.transaction {
+                q.enqueuePublishTo(toPeer.id, peerPayload, now, 0, json.encodeToString(peerRelays), rumorId)
+                q.enqueuePublishTo(toSelf.id, selfPayload, now, 0, json.encodeToString(myRelays), null)
+            }
+            // 積んだあとは未送信として追跡・再送されるので、以降で例外が出てもバブルは消さない
+            // （消すと、裏で再送が成功しても手元に残らない）。
+            storedId = null
+            registerAck(toPeer.id); registerAck(toSelf.id)
+            publishToRelays(peerPayload, peerRelays)
+            publishToRelays(selfPayload, myRelays)
+            scope.launch { confirmPublish(toSelf.id, notify = false) }
+            if (!confirmPublish(toPeer.id, notify = false)) return DmSendResult.PENDING
+            return if (peerDmRelays.isEmpty()) DmSendResult.SENT_NO_PEER_RELAYS else DmSendResult.SENT
+        } catch (e: CancellationException) {
+            throw e   // キャンセルは失敗として握らない（協調キャンセルを壊さない）
+        } catch (e: Throwable) {
+            println("Nostrism sendDm failed: $e")
+            storedId?.let { dropLocalDm(it) }
+            return DmSendResult.FAILED
+        }
+    }
+
+    /** 楽観挿入した DM を取り消す（送れなかったもの）。削除リクエストではないので deleted_event には残さない。 */
+    private fun dropLocalDm(id: String) {
+        q.transaction { q.deleteTagsForEvent(id); q.deleteEventById(id) }
     }
 
     // ---- NIP-17 DM リレーリスト（kind:10050） ----
@@ -4744,12 +5051,32 @@ class EventRepository(
         requestProfileFromIndexers(pubkeys)
     }
 
-    /** DM 会話一覧（相手ごとに最新1件）。 */
+    /**
+     * DM 会話一覧（相手ごとに最新1件）。null = まだ読み込んでいない（空と区別する）。
+     *
+     * DM 画面・Deck の DM カラム・レールのバッジが同時に購読するので、通知フィードと同じく
+     * 共有の StateFlow にする（[feedSharing]）。以前は呼び出しごとに Flow を作っており、
+     * DB クエリと相手ごとの集計が購読者の数だけ、プロフィール更新のたびに走っていた。
+     */
+    private val dmConversationsCache: StateFlow<List<DmConversation>?> by lazy {
+        buildDmConversations().stateIn(scope, feedSharing, null)
+    }
+    fun dmConversationsFlow(): StateFlow<List<DmConversation>?> = dmConversationsCache
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun dmConversationsFlow(): Flow<List<DmConversation>> = myPubkeyFlow.flatMapLatest { me ->
+    private fun buildDmConversations(): Flow<List<DmConversation>> = myPubkeyFlow.flatMapLatest { me ->
         if (me == null) flowOf(emptyList())
-        else combine(q.dmAllForMe(me).asFlow().mapToList(Dispatchers.Default), profilesFlow) { rows, profiles ->
+        else combine(
+            q.dmAllForMe(me).asFlow().mapToList(Dispatchers.Default), profilesFlow, dmSeenByPeer, dmLastSeen,
+        ) { rows, profiles, seenByPeer, firstSeen ->
             val byPk = profiles.associateBy { it.pubkey }
+            // [#416] 相手ごとの未読数（相手の発言のうち、その会話の既読基準より新しいもの）。
+            val unreadByPeer = rows
+                .filter { r -> r.pubkey != me && r.created_at > dmSeenOf(r.pubkey, seenByPeer, firstSeen) }
+                .groupingBy { it.pubkey }.eachCount()
+            // [#419] 相手の最新発言の時刻（rows は新しい順なので最初に出てきたもの）。
+            val lastIncomingByPeer = HashMap<String, Long>()
+            rows.forEach { r -> if (r.pubkey != me) lastIncomingByPeer.getOrPut(r.pubkey) { r.created_at } }
             val seen = LinkedHashSet<String>()
             rows.mapNotNull { row ->
                 val other = if (row.pubkey == me)
@@ -4763,6 +5090,8 @@ class EventRepository(
                     handle = p?.handle.orEmpty(),
                     lastMessage = row.content,
                     pictureUrl = p?.picture_url,
+                    unread = unreadByPeer[other] ?: 0,
+                    lastIncomingAt = lastIncomingByPeer[other] ?: 0L,
                 )
             }
         }.flowOn(Dispatchers.Default)
@@ -4772,7 +5101,9 @@ class EventRepository(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun dmMessagesFlow(peer: String): Flow<List<ChannelMessage>> = myPubkeyFlow.flatMapLatest { me ->
         if (me == null) flowOf(emptyList())
-        else combine(q.dmMessagesWith(me, peer).asFlow().mapToList(Dispatchers.Default), profilesFlow) { rows, profiles ->
+        else combine(
+            q.dmMessagesWith(me, peer).asFlow().mapToList(Dispatchers.Default), profilesFlow, unsentIdsFlow,
+        ) { rows, profiles, unsent ->
             val byPk = profiles.associateBy { it.pubkey }
             rows.mapIndexed { i, row ->
                 val prev = rows.getOrNull(i - 1)
@@ -4785,6 +5116,7 @@ class EventRepository(
                     ),
                     isMine = row.pubkey == me,
                     continuation = prev != null && prev.pubkey == row.pubkey && row.created_at - prev.created_at < 300,
+                    unsent = row.id in unsent,   // [#423] 相手宛の wrap の受理を確認できていない
                 )
             }
         }.flowOn(Dispatchers.Default)
@@ -4896,6 +5228,9 @@ class EventRepository(
 
         /** 引用/返信ヒント + インデクサで一時接続するリレーの上限（接続数の暴発防止）。 */
         const val HINT_RELAY_CAP = 16
+
+        /** [#411] 受信元リレーの記録（event id / 著者）を保持する上限。画面に出ている分が入れば足りる。 */
+        const val SEEN_ON_CAP = 4096
 
         /** [#386] メモリに保持する他人の NIP-65 リレーリストの著者数上限。 */
         const val NIP65_PREFS_AUTHOR_CAP = 128
@@ -5011,7 +5346,9 @@ class EventRepository(
         const val AUTH_POLICY = "nip42_auth_policy"
 
         /** [#9] 通知/DM の最終閲覧時刻（未読件数算出用）の KV キー。 */
-        const val NOTIF_LAST_SEEN = "notif_last_seen"
         const val DM_LAST_SEEN = "dm_last_seen"
+
+        /** [#416] 会話ごとの既読基準時刻（`dm_seen:<pubkey>` = unix 秒）。 */
+        const val DM_SEEN_PREFIX = "dm_seen:"
     }
 }

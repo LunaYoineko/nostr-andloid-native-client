@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -317,17 +319,23 @@ fun ProfileScreen(state: DeckState, isCompact: Boolean, pubkey: String) {
             )
         })
     }
+    // [#401] 戻ってきたときのスクロール位置の再適用に使う、本文の item 数。
+    val bodyItemCount = when (tab) {
+        ProfileTab.POSTS, ProfileTab.MEDIA -> profileBodyItemCount(visibleNoPins.size, pinnedForTab.size)
+        ProfileTab.ARTICLES -> articles.size
+        ProfileTab.LISTS -> listSets.size
+    }
     if (isCompact) {
         ProfileCompact(
             pubkey, profile, following, tab, tabs, isMe,
             onTab = { tabName = it.name }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
-            social = social, onRefresh = onRefresh, body = tabBody,
+            social = social, onRefresh = onRefresh, bodyItemCount = bodyItemCount, body = tabBody,
         )
     } else {
         ProfileExpanded(
             pubkey, profile, following, tab, tabs, isMe,
             onTab = { tabName = it.name }, onFollowToggle = onFollowToggle, onEdit = onEdit, onBack = onBack,
-            social = social, onRefresh = onRefresh, body = tabBody,
+            social = social, onRefresh = onRefresh, bodyItemCount = bodyItemCount, body = tabBody,
         )
     }
 }
@@ -359,9 +367,12 @@ private fun ProfileCompact(
     social: ProfileSocial? = null,
     listState: LazyListState = rememberLazyListState(),
     onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新
+    bodyItemCount: Int,                // [#401] スクロール位置の再適用判定に使う本文の件数
     // [#384] 選択中タブの中身（投稿 / 記事 …）。タブごとに要素の型が違うので呼び出し側で組む。
     body: LazyListScope.() -> Unit,
 ) {
+    // [#401] ヘッダ + スティッキータブのぶんを足した実 item 数で判定する（本文が空なら再適用しない）。
+    RestoreScrollOnFirstData(listState, if (bodyItemCount == 0) 0 else bodyItemCount + PROFILE_COMPACT_HEADER_ITEMS)
     Column(Modifier.fillMaxSize().background(DeckColors.Surface)) {
         ProfileTopBar(profile?.name?.takeIf { it.isNotBlank() } ?: pubkey.take(10), onBack)
         HorizontalDivider(color = DeckColors.Border)
@@ -398,8 +409,11 @@ private fun ProfileExpanded(
     social: ProfileSocial? = null,
     listState: LazyListState = rememberLazyListState(),
     onRefresh: (() -> Unit)? = null,   // [#254] 引っ張って更新
+    bodyItemCount: Int,                // [#401] スクロール位置の再適用判定に使う本文の件数
     body: LazyListScope.() -> Unit,    // [#384] 選択中タブの中身
 ) {
+    // [#401] 右ペインのリストは本文だけ（ヘッダ item は無い）。
+    RestoreScrollOnFirstData(listState, bodyItemCount)
     Row(Modifier.fillMaxSize().background(DeckColors.Surface)) {
         // 左ペイン: プロフィール詳細（縦スクロール）
         Column(
@@ -424,6 +438,17 @@ private fun ProfileExpanded(
 }
 
 /* ---------- 共通パーツ ---------- */
+
+/** [#401] Compact レイアウトが本文の前に置く item 数（プロフィールヘッダ + スティッキータブ）。 */
+private const val PROFILE_COMPACT_HEADER_ITEMS = 2
+
+/**
+ * [#401] 投稿/メディアタブの本文 item 数。固定投稿があるときは「📌 固定された投稿」ラベルが
+ * 1件挟まる。0件のときに出る「投稿がありません」プレースホルダは**数えない**
+ * （データ未着とみなして、スクロール位置の再適用を待たせるため）。
+ */
+internal fun profileBodyItemCount(visibleCount: Int, pinnedCount: Int): Int =
+    visibleCount + if (pinnedCount > 0) pinnedCount + 1 else 0
 
 private fun LazyListScope.notesItems(
     visible: List<NoteUi>,
@@ -651,17 +676,33 @@ private fun ProfileHeaderCard(
     var showReport by remember { mutableStateOf(false) }
     var showZap by remember { mutableStateOf(false) }
     val muted = social?.muted == true
+    // [#413] タップで拡大表示する画像（null=閉）。アイコン/バナーのどちらも原寸 URL を渡す。
+    var zoomUrl by remember { mutableStateOf<String?>(null) }
+    val picture = profile?.pictureUrl?.takeIf { it.isNotBlank() }
+    val banner = profile?.banner?.takeIf { it.isNotBlank() }
+    val viewImageLabel = stringResource(Res.string.img_view)
     Column(Modifier.fillMaxWidth().background(DeckColors.Surface)) {
         // --- バナー（kind:0 banner）の上にアバターを重ねる ---
         Box(Modifier.fillMaxWidth()) {
             Column {
-                ProfileBanner(profile?.banner)
+                ProfileBanner(profile?.banner, onClick = banner?.let { url -> { zoomUrl = url } })
                 Spacer(Modifier.height(DeckSpace.Xl))  // アバター下半分 + フォローボタンの帯
             }
-            // アバター: バナー下端に重ねる（リング付き）
+            // アバター: バナー下端に重ねる（リング付き）。
+            // clickable は clip の後に置く（リップルが円に収まる）。未設定（イニシャル表示）は押せない。
+            // 押せないときもタップは**ここで受け止める**。リングの上 7 割ほどがバナーに重なっており、
+            // 何も付けないとタップが下のバナーへ抜けてバナーが拡大表示されてしまう。
             Box(
                 Modifier.align(Alignment.BottomStart).padding(start = DeckSpace.Lg)
-                    .clip(CircleShape).background(DeckColors.Surface).padding(DeckSpace.Xs),
+                    .clip(CircleShape)
+                    .then(
+                        if (picture != null) {
+                            Modifier.clickable(onClickLabel = viewImageLabel) { zoomUrl = picture }
+                        } else {
+                            Modifier.pointerInput(Unit) { detectTapGestures { } }
+                        },
+                    )
+                    .background(DeckColors.Surface).padding(DeckSpace.Xs),
             ) {
                 Avatar(profile?.name ?: pubkey, profile?.pictureUrl, size = 72.dp, pubkey = pubkey)
             }
@@ -720,6 +761,7 @@ private fun ProfileHeaderCard(
                 if (isMe) DeckGhostButton(stringResource(Res.string.edit), onClick = onEdit) else FollowButton(following, onFollowToggle)
             }
         }
+        zoomUrl?.let { url -> Lightbox(listOf(url), 0) { zoomUrl = null } }
         // --- テキスト情報 ---
         Column(Modifier.fillMaxWidth().padding(start = DeckSpace.Lg, end = DeckSpace.Lg, top = DeckSpace.Sm, bottom = DeckSpace.Md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -941,16 +983,26 @@ private fun ProfileBadge(label: String) {
     )
 }
 
-/** kind:0 banner。あれば画像、無ければモノクロのプレースホルダ帯。 */
+/**
+ * kind:0 banner。あれば画像、無ければモノクロのプレースホルダ帯。
+ * [#413] [onClick] があればタップで拡大表示（未設定のプレースホルダ帯は押せない）。
+ */
 @Composable
-private fun ProfileBanner(url: String?) {
+private fun ProfileBanner(url: String?, onClick: (() -> Unit)? = null) {
     if (!url.isNullOrBlank()) {
         AsyncImage(
             model = ImageRequest.Builder(LocalPlatformContext.current)
                 .data(ImageProxy.proxied(url, width = 900, quality = 80, animated = true))
                 .crossfade(true).build(),
             contentDescription = "banner",
-            modifier = Modifier.fillMaxWidth().height(120.dp).background(DeckColors.Surface3),
+            modifier = Modifier.fillMaxWidth().height(120.dp).background(DeckColors.Surface3)
+                .then(
+                    if (onClick != null) {
+                        Modifier.clickable(onClickLabel = stringResource(Res.string.img_view), onClick = onClick)
+                    } else {
+                        Modifier
+                    },
+                ),
             contentScale = ContentScale.Crop,
         )
     } else {

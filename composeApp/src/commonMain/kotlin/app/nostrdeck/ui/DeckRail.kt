@@ -25,7 +25,6 @@ import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,8 +43,8 @@ import app.nostrdeck.state.NavDest
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.nav_add_column
 import nostr_deck_client.composeapp.generated.resources.nav_home
+import nostr_deck_client.composeapp.generated.resources.nav_messages
 import nostr_deck_client.composeapp.generated.resources.nav_notifications
-import nostr_deck_client.composeapp.generated.resources.nav_public_chat
 import nostr_deck_client.composeapp.generated.resources.nav_search
 import org.jetbrains.compose.resources.stringResource
 import app.nostrdeck.theme.DeckColors
@@ -66,23 +65,21 @@ import app.nostrdeck.theme.DeckType
 @Composable
 fun DeckRail(state: DeckState) {
     val repo = LocalRepository.current
-    // [#9] 通知/DM の未読バッジ（最終閲覧時刻方式）。表示中は既読化してバッジを消す。
-    val notifUnread by (repo?.notifUnreadFlow()?.collectAsState(0) ?: remember { mutableStateOf(0) })
+    // [#9] DM の未読バッジ（最終閲覧時刻方式）。[#416] 既読化は会話を開いたときに行う
+    // （ここで DM 画面に居るだけで既読にすると、読んでいない会話まで消えていた）。
+    // [#422] 件数は「メッセージ」に出す。
+    // [#405] 通知の未読バッジは廃止（通知はカラムに一本化、ナビの「通知」はカラムへのジャンプ）。
     val dmUnread by (repo?.dmUnreadFlow()?.collectAsState(0) ?: remember { mutableStateOf(0) })
     // [#hub] 自分のアバター: タップで自分のプロフィール、実データ（名前/画像）で表示。
     val myPubkey by (repo?.loggedInPubkey()?.collectAsState(null) ?: remember { mutableStateOf<String?>(null) })
     val myProfile by (repo?.myProfileFlow()?.collectAsState(null) ?: remember { mutableStateOf(null) })
-    LaunchedEffect(state.navDest, notifUnread) {
-        if (state.navDest == NavDest.NOTIFICATIONS && notifUnread > 0) repo?.markNotificationsSeen()
-    }
-    LaunchedEffect(state.navDest, dmUnread) {
-        if (state.navDest == NavDest.DM && dmUnread > 0) repo?.markDmSeen()
-    }
     Column(
         Modifier.width(DeckDimens.RailWidth).fillMaxHeight().background(DeckColors.Bg),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // ── 上部固定: ブランド + ナビ ──
+        // ── 上部固定: ブランド + ホーム ──
+        // [#409] 遷移は基本ホーム(メインのフィード)から始まるので、ホームとその中身（ピン留め
+        // カラム）を上に、検索/チャット/通知はその下に置く（項目と順序は下部ナビと同一）。
         Column(
             Modifier.fillMaxWidth().padding(top = DeckSpace.Sm),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -92,33 +89,55 @@ fun DeckRail(state: DeckState) {
             RailSlot {
                 AppMark(Modifier.size(DeckDimens.RailMark))
             }
-
-            // [#nav] 並びは ホーム・検索・パブリックチャット・通知・ユーザー（下部ナビと同順）。
-            // DM はナビから外し、ユーザー（設定ハブ）の「よく使う」から開く。
-            NavIcon(Icons.Outlined.Home, stringResource(Res.string.nav_home), state.navDest == NavDest.HOME) { state.clearDetail(); state.navDest = NavDest.HOME }
-            NavIcon(Icons.Outlined.Search, stringResource(Res.string.nav_search), state.navDest == NavDest.SEARCH) { state.clearDetail(); state.navDest = NavDest.SEARCH }
-            NavIcon(Icons.AutoMirrored.Outlined.Chat, stringResource(Res.string.nav_public_chat), state.navDest == NavDest.CHANNELS) {
-                state.clearDetail(); state.navDest = NavDest.CHANNELS
-            }
-            NavIcon(Icons.Outlined.Notifications, stringResource(Res.string.nav_notifications), state.navDest == NavDest.NOTIFICATIONS, badge = notifUnread) {
-                state.clearDetail(); state.navDest = NavDest.NOTIFICATIONS
-            }
+            // [#409] 現在のカラムは下の目次側で点灯させる（選択箇所は常に1つ）。
+            // [#422] ホームは必ずフォロー中へ（最後に見ていたカラムではなく）。
+            NavIcon(Icons.Outlined.Home, stringResource(Res.string.nav_home), state.railHomeActive) { state.openHome() }
         }
 
         RailDivider()
 
         // ── 中央: ピン留めカラムの目次（ここだけスクロール） ──
+        // [#409] タブと同じ順序で並べ、いま見えているカラムを点灯する。タブを左から順に押すと
+        // 目次の点灯が上から順に下りていく（通知カラムも目次に含めて順序を崩さない）。
         Column(
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(DeckSpace.Xs),
         ) {
-            state.pinnedColumns.forEach { col -> PinnedShortcut(col) { state.clearDetail(); state.jumpTo(col.id) } }
+            state.pinnedColumns.forEach { col ->
+                // [#422] 未読 DM の件数は「メッセージ」にだけ出す（DM カラムのアイコンには出さない。
+                // 同じ数字を2か所に出さない＝#405 の「同じベルを2つ並べない」と同じ考え方）。
+                PinnedShortcut(col, active = state.navDest == NavDest.HOME && col.id == state.visibleColumnId) {
+                    state.clearDetail(); state.jumpTo(col.id)
+                }
+            }
         }
 
         // カラム追加（常設アクション・固定）。持続 AccentWeak 下地で CTA を示すがサイズは他と同一。
         RailSlot(active = true, onClick = { state.showAddColumn = true }) {
             Icon(Icons.Outlined.Add, stringResource(Res.string.nav_add_column), tint = DeckColors.Accent, modifier = Modifier.size(DeckDimens.RailIcon))
+        }
+
+        RailDivider()
+
+        // ── 中段固定: 検索・メッセージ・通知（下部ナビと同順） ──
+        // [#422] DM とパブリックチャットは「メッセージ」にまとめる（未読 DM の件数もここに出す）。
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(DeckSpace.Xs),
+        ) {
+            NavIcon(Icons.Outlined.Search, stringResource(Res.string.nav_search), state.navDest == NavDest.SEARCH) { state.clearDetail(); state.navDest = NavDest.SEARCH }
+            NavIcon(Icons.AutoMirrored.Outlined.Chat, stringResource(Res.string.nav_messages), state.messagesActive, badge = dmUnread) {
+                state.openMessages(dmUnread)
+            }
+            // [#405][#409] 通知カラムがあるときは目次のベルがその役を担う（同じベルを2つ並べない）。
+            // 通知カラムを表示していないユーザーだけ、ここから従来の通知画面を開く。
+            if (state.notificationsColumnId == null) {
+                NavIcon(Icons.Outlined.Notifications, stringResource(Res.string.nav_notifications), state.navDest == NavDest.NOTIFICATIONS) {
+                    state.openNotifications()
+                }
+            }
         }
 
         RailDivider()
@@ -170,8 +189,8 @@ private fun NavIcon(icon: ImageVector, cd: String, active: Boolean, badge: Int =
 }
 
 @Composable
-private fun PinnedShortcut(col: ColumnSpec, onClick: () -> Unit) {
-    RailSlot(onClick = onClick) {
+private fun PinnedShortcut(col: ColumnSpec, active: Boolean = false, onClick: () -> Unit) {
+    RailSlot(active = active, onClick = onClick) {
         val content: @Composable () -> Unit = {
             Icon(columnIcon(col.kind), col.title, tint = DeckColors.Text2, modifier = Modifier.size(DeckDimens.RailIcon))
         }

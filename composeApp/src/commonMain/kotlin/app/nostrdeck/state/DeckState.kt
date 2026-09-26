@@ -62,6 +62,73 @@ class DeckState(
     var jumpTarget by mutableStateOf<String?>(null)
         private set
 
+    /**
+     * [#405] コンパクト表示（Pager）で現在表示中のカラム id。Deck（横並び）では null。
+     * 「通知」ナビの選択状態判定に使う（通知カラムを開いている間は通知ボタンを選択表示）。
+     */
+    var visibleColumnId by mutableStateOf<String?>(null)
+
+    /**
+     * [#422] 「ホーム」ナビのタップ。フォロー中カラムへジャンプし、無ければ先頭カラムへ。
+     * 以前は「最後に見ていたカラム」に戻るだけで、フォロー中へ一発で戻る手段が無かった。
+     */
+    fun openHome() {
+        clearDetail()
+        val target = columns.firstOrNull { it.kind == ColumnKind.FOLLOWING }?.id ?: columns.firstOrNull()?.id
+        if (target != null) jumpTo(target) else navDest = NavDest.HOME
+    }
+
+    /**
+     * [#422] メッセージ画面（DM とパブリックチャットを統合）で最後に選んだ側。
+     * 未読の DM が無いときに「メッセージ」を開いた際の初期表示に使う。
+     */
+    var messagesSegment by mutableStateOf(NavDest.DM)
+
+    /** [#422] 「メッセージ」ナビの選択状態（DM・チャットのどちらを開いていても点灯）。 */
+    val messagesActive: Boolean get() = navDest == NavDest.DM || navDest == NavDest.CHANNELS
+
+    /** [#422] 「メッセージ」ナビのタップ。未読の DM があれば DM、無ければ最後に使った側を開く。 */
+    fun openMessages(dmUnread: Int) {
+        clearDetail()
+        navDest = if (dmUnread > 0) NavDest.DM else messagesSegment
+    }
+
+    /** [#422] メッセージ画面の「DM | チャット」切り替え。 */
+    fun switchMessages(dest: NavDest) {
+        messagesSegment = dest
+        navDest = dest
+    }
+
+    /** [#405] 通知カラム（あれば）。「通知」ナビのジャンプ先。 */
+    val notificationsColumnId: String? get() = columns.firstOrNull { it.kind == ColumnKind.NOTIFICATIONS }?.id
+
+    /**
+     * [#405] 「通知」ナビの選択状態。従来の通知画面を開いているか、コンパクト表示で
+     * 通知カラムがいま見えているとき。Deck ではカラムが全部見えるので後者は成立しない。
+     */
+    val notificationsActive: Boolean
+        get() = navDest == NavDest.NOTIFICATIONS ||
+            (navDest == NavDest.HOME && visibleColumnId != null && visibleColumnId == notificationsColumnId)
+
+    /**
+     * [#409] レールの「ホーム」の選択状態。現在のカラムがピン留め目次で示せるときは目次側だけを
+     * 点灯させ（選択箇所は常に1つ。タブを左から押すと目次が上から順に動く）、示せないとき
+     * （横スクロールしない Deck、一時カラムを表示中）はホームを点灯する。
+     */
+    val railHomeActive: Boolean
+        get() = navDest == NavDest.HOME &&
+            (visibleColumnId == null || pinnedColumns.none { it.id == visibleColumnId })
+
+    /**
+     * [#405] 「通知」ナビのタップ。通知カラムがあればそこへジャンプし、無いユーザーだけ
+     * 従来の通知画面（同じフィード）を開く。カラム一覧と通知タブの二重表示をやめる。
+     */
+    fun openNotifications() {
+        clearDetail()
+        val id = notificationsColumnId
+        if (id != null) jumpTo(id) else navDest = NavDest.NOTIFICATIONS
+    }
+
     val pinnedColumns: List<ColumnSpec> get() = columns.filter { it.pinned }
 
     /** カラム追加シート（テンプレ選択）の表示状態。 */

@@ -28,6 +28,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -35,6 +36,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.saveable.SaveableStateHolder
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,7 +47,11 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import app.nostrdeck.state.DeckState
+import app.nostrdeck.state.DetailRoute
 import app.nostrdeck.state.NavDest
+import app.nostrdeck.state.detailRouteKey
+import app.nostrdeck.state.detailStackKeys
+import app.nostrdeck.state.obsoleteDetailKeys
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
 import nostr_deck_client.composeapp.generated.resources.nav_home
@@ -67,6 +75,19 @@ fun AppScaffold(state: DeckState) {
     // キーボードが残って操作できなくなるため）。Android では従来挙動に影響しない。
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     androidx.compose.runtime.LaunchedEffect(state.navDest) { focusManager.clearFocus() }
+    // [#401] 詳細スタックの各エントリの rememberSaveable 状態（スクロール位置・選択中タブ）を、
+    // 別の詳細を重ねている間も保持するホルダ。DetailOverlay は末尾しか描かないので、
+    // **スタックの切り替えでコンポジションから外れない階層**＝幅で分岐する前のここで作る。
+    val detailStateHolder = rememberSaveableStateHolder()
+    val detailKeys = detailStackKeys(state.detailStack)
+    // 直前のキー一覧。pop/clear で消えたエントリの保存状態は破棄する（溜め込むと、
+    // 詳細を閉じて同じプロフィールを開き直したときに前回位置が復元されてしまう）。
+    val lastDetailKeys = remember { mutableListOf<String>() }
+    SideEffect {
+        obsoleteDetailKeys(lastDetailKeys, detailKeys).forEach { detailStateHolder.removeState(it) }
+        lastDetailKeys.clear()
+        lastDetailKeys.addAll(detailKeys)
+    }
     // 上端＋左右のみシステムバー分を確保する。下端インセット（ホームインジケータ帯）は
     // ここで消費せず、Compact では BottomBar(NavigationBar) 自身に処理させて**バーを最下端まで
     // 伸ばす**（アイコンはインジケータの上）。Expanded では下の Row で改めて下端を確保する。
@@ -106,7 +127,7 @@ fun AppScaffold(state: DeckState) {
             Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom))) {
                 DeckRail(state)
                 CompositionLocalProvider(LocalHasNavRail provides true) {
-                    ContentWithCompose(state, isCompact = true, Modifier.weight(1f))
+                    ContentWithCompose(state, isCompact = true, Modifier.weight(1f), detailStateHolder)
                 }
             }
         } else if (isCompact) {
@@ -121,6 +142,7 @@ fun AppScaffold(state: DeckState) {
                 ContentWithCompose(
                     state, isCompact = true,
                     Modifier.weight(1f).consumeWindowInsets(PaddingValues(bottom = bottomBarHeight)),
+                    detailStateHolder,
                 )
                 Box(Modifier.onSizeChanged { bottomBarHeight = with(density) { it.height.toDp() } }) {
                     BottomBar(state)
@@ -131,7 +153,7 @@ fun AppScaffold(state: DeckState) {
             // ここで下端インセットを padding して内容がインジケータ帯に潜らないようにする（従来挙動を維持）。
             Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Bottom))) {
                 DeckRail(state)
-                ContentWithCompose(state, isCompact = false, Modifier.weight(1f))
+                ContentWithCompose(state, isCompact = false, Modifier.weight(1f), detailStateHolder)
             }
         }
 
@@ -179,11 +201,16 @@ val LocalHasNavRail = staticCompositionLocalOf { false }
  * （Home Deck）の操作なので HOME でのみ表示する。
  */
 @Composable
-private fun ContentWithCompose(state: DeckState, isCompact: Boolean, modifier: Modifier) {
+private fun ContentWithCompose(
+    state: DeckState,
+    isCompact: Boolean,
+    modifier: Modifier,
+    detailStateHolder: SaveableStateHolder,
+) {
     Box(modifier.fillMaxSize()) {
         Destination(state, isCompact = isCompact)
         // 全幅の詳細ルート（プロフィール/スレッド）。非空なら宛先の上に重ねる。
-        if (state.hasDetail) DetailOverlay(state, isCompact = isCompact)
+        if (state.hasDetail) DetailOverlay(state, isCompact = isCompact, stateHolder = detailStateHolder)
         // 投稿 FAB はホームのタイムライン操作。詳細ルート表示中は隠す。
         if (state.navDest == NavDest.HOME && !state.hasDetail) {
             FloatingActionButton(
@@ -240,14 +267,19 @@ private fun SingleColumnPane(
  *    背景はスクリムで暗転し、外側タップで閉じる。Compact では従来通り全画面。
  */
 @Composable
-private fun DetailOverlay(state: DeckState, isCompact: Boolean) {
-    when (val top = state.detailStack.last()) {
-        is app.nostrdeck.state.DetailRoute.ProfileView ->
-            ProfileScreen(state, isCompact, top.pubkey)
-        is app.nostrdeck.state.DetailRoute.ThreadView ->
-            ConstrainedOverlay(isCompact, onScrimClick = { state.popDetail() }) {
-                ThreadDetail(state, top.eventId)
-            }
+private fun DetailOverlay(state: DeckState, isCompact: Boolean, stateHolder: SaveableStateHolder) {
+    val index = state.detailStack.lastIndex
+    val top = state.detailStack[index]
+    // [#401] スタックの位置込みのキーで包み、隠れている間もスクロール位置/選択タブを保つ。
+    stateHolder.SaveableStateProvider(detailRouteKey(index, top)) {
+        when (top) {
+            is DetailRoute.ProfileView ->
+                ProfileScreen(state, isCompact, top.pubkey)
+            is DetailRoute.ThreadView ->
+                ConstrainedOverlay(isCompact, onScrimClick = { state.popDetail() }) {
+                    ThreadDetail(state, top.eventId)
+                }
+        }
     }
 }
 
@@ -286,6 +318,8 @@ private fun BottomBar(state: DeckState) {
     val repo = LocalRepository.current
     val myPubkey by (repo?.loggedInPubkey()?.collectAsState(null) ?: remember { mutableStateOf<String?>(null) })
     val myProfile by (repo?.myProfileFlow()?.collectAsState(null) ?: remember { mutableStateOf(null) })
+    // [#422] 「メッセージ」の件数（未読管理は DM のみ）。
+    val dmUnread by (repo?.dmUnreadFlow()?.collectAsState() ?: remember { mutableStateOf(0) })
     // 元の M3 NavigationBar（既定高さ80dp・選択インジケータ）を維持する。変更点は2つだけ:
     //  1) 色: containerColor=Bg + tonalElevation=0 → 左レール/セーフエリア裏と同色のモノクロに揃える
     //     （M3 既定の surfaceContainer は紫みのグレーで段差＆色味が出ていた）。
@@ -298,17 +332,30 @@ private fun BottomBar(state: DeckState) {
         tonalElevation = 0.dp,
         windowInsets = bottomBarInsets(),
     ) {
-        // [#nav] 並びは ホーム・検索・パブリックチャット・通知・ユーザー（レールと同順）。
-        // DM はナビから外し、ユーザー（設定ハブ）の「よく使う」から開く。
-        NavItem(state, NavDest.HOME, Icons.Outlined.Home, stringResource(Res.string.nav_home))
+        // [#422] 並びは ホーム・検索・メッセージ・通知・ユーザーの固定5枠（レールと同順）。
+        // ピン留め次第で項目が増減しない。DM とパブリックチャットは「メッセージ」にまとめる。
+        // [#405] 通知カラムを開いている間は「通知」側を選択表示にする（ホームは非選択）。
+        NavItem(
+            state, NavDest.HOME, Icons.Outlined.Home, stringResource(Res.string.nav_home),
+            selected = state.navDest == NavDest.HOME && !state.notificationsActive,
+            onClick = { state.openHome() },   // [#422] 必ずフォロー中へ
+        )
         NavItem(state, NavDest.SEARCH, Icons.Outlined.Search, stringResource(Res.string.nav_search))
-        NavItem(state, NavDest.CHANNELS, Icons.AutoMirrored.Outlined.Chat, stringResource(Res.string.nav_public_chat))
-        NavItem(state, NavDest.NOTIFICATIONS, Icons.Outlined.Notifications, stringResource(Res.string.nav_notifications))
+        NavItem(
+            state, NavDest.DM, Icons.AutoMirrored.Outlined.Chat, stringResource(Res.string.nav_messages),
+            selected = state.messagesActive, onClick = { state.openMessages(dmUnread) }, badge = dmUnread,
+        )
+        // [#405] 通知カラムがあればそこへジャンプ、無ければ従来の通知画面。
+        NavItem(
+            state, NavDest.NOTIFICATIONS, Icons.Outlined.Notifications, stringResource(Res.string.nav_notifications),
+            selected = state.notificationsActive, onClick = { state.openNotifications() },
+        )
         val pk = myPubkey
         NavigationBarItem(
             selected = state.navDest == NavDest.SETTINGS,
             onClick = { state.clearDetail(); state.navDest = NavDest.SETTINGS },
             icon = { Avatar(myProfile?.name ?: pk ?: "me", myProfile?.pictureUrl, size = 24.dp, pubkey = pk) },
+            colors = bottomNavItemColors(),
         )
     }
 }
@@ -316,10 +363,33 @@ private fun BottomBar(state: DeckState) {
 @Composable
 private fun androidx.compose.foundation.layout.RowScope.NavItem(
     state: DeckState, dest: NavDest, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String,
+    selected: Boolean = state.navDest == dest,
+    onClick: () -> Unit = { state.clearDetail(); state.navDest = dest },
+    /** [#422] 件数バッジ（0 なら出さない）。「メッセージ」の未読 DM に使う。 */
+    badge: Int = 0,
 ) {
     NavigationBarItem(
-        selected = state.navDest == dest,
-        onClick = { state.clearDetail(); state.navDest = dest },
-        icon = { Icon(icon, label) },
+        selected = selected,
+        onClick = onClick,
+        icon = {
+            if (badge > 0) {
+                androidx.compose.material3.BadgedBox(badge = { androidx.compose.material3.Badge { androidx.compose.material3.Text("$badge") } }) {
+                    Icon(icon, label)
+                }
+            } else Icon(icon, label)
+        },
+        colors = bottomNavItemColors(),
     )
 }
+
+/**
+ * [#404] 下部ナビの選択色。M3 既定（secondaryContainer=Surface2 のピル + Text 色）だと
+ * 未選択(Text2)との差がわずかで現在タブが分からない。左レールの NavIcon と同じ
+ * 「Accent のアイコン + AccentWeak の下地」に揃える。
+ */
+@Composable
+private fun bottomNavItemColors() = NavigationBarItemDefaults.colors(
+    selectedIconColor = DeckColors.Accent,
+    unselectedIconColor = DeckColors.Text2,
+    indicatorColor = DeckColors.AccentWeak,
+)

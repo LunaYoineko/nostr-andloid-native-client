@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -301,6 +302,12 @@ fun NoteItem(
             // [#217] 本文が参照する naddr(kind:30023 長文記事)を OGP 風カードで展開。
             NoteNaddrEmbeds(note.event.content)
             }
+            // [#423] 自分の投稿で受理を確認できていないもの。アクション行は幅が埋まっている(#348)ので
+            // 別の行に出す。押すと [再送] [下書きに戻す]。
+            if (note.unsent && note.event.pubkey == me && repo != null) {
+                Spacer(Modifier.size(DeckSpace.Sm))
+                UnsentChip(note.event.id, repo)
+            }
             // [施策4] 本文/メディア↔アクション群は Md で明確に分離（別ブロック化）。
             Spacer(Modifier.size(DeckSpace.Md))
             // アクションはアイコンのみ・左揃え。返信/リポスト/♡/絵文字を左に密に、Zap だけ右端へ。
@@ -354,9 +361,20 @@ fun NoteItem(
                 Box {
                     ActionButton(Icons.Outlined.MoreHoriz, DeckColors.Text3, onClick = { moreMenu = true })
                     val note1 = remember(note.event.id) { runCatching { Nip19.hexToNote(note.event.id) }.getOrNull() }
-                    val nevent = remember(note.event.id) {
-                        runCatching { Nip19.hexToNevent(note.event.id, author = note.event.pubkey, kind = note.event.kind) }.getOrNull()
+                    // [#411] 共有用 nevent にはリレーヒントを1本入れる。ヒントの解決は Repository 側
+                    // （suspend）なので、まずヒント無しで出しておき、取れ次第差し替える。
+                    val neventState = produceState(
+                        runCatching { Nip19.hexToNevent(note.event.id, author = note.event.pubkey, kind = note.event.kind) }.getOrNull(),
+                        note.event.id,
+                    ) {
+                        val relays = runCatching { repo?.relayHintsFor(note.event.id) }.getOrNull().orEmpty()
+                        if (relays.isNotEmpty()) {
+                            runCatching {
+                                Nip19.hexToNevent(note.event.id, author = note.event.pubkey, relays = relays, kind = note.event.kind)
+                            }.getOrNull()?.let { value = it }
+                        }
                     }
+                    val nevent = neventState.value
                     val isBookmarked = note.event.id in bookmarks
                     val isPinned = note.event.id in pinned
                     val isMine = note.event.pubkey == me
@@ -752,3 +770,40 @@ private fun relativeTime(createdAt: Long): String {
  */
 internal fun externalRefLabel(value: String): String =
     Regex("^https?://([^/]+)").find(value)?.groupValues?.get(1) ?: value
+
+/**
+ * [#423] 「未送信」の表示と操作。どのリレーにも受理を確認できなかった自分の投稿に出す。
+ *  - 再送: 同じ署名済みイベントを送り直す（同じ id なので二重投稿にならない）
+ *  - 下書きに戻す: 本文を投稿画面の下書きへ移し、手元の未送信投稿は消す
+ *    （時間が経ってからの再送は created_at が古いままタイムラインの過去に埋もれるため、
+ *    書き直したい人向け。返信先などの文脈は戻らない）
+ */
+@Composable
+private fun UnsentChip(eventId: String, repo: app.nostrdeck.data.EventRepository) {
+    var menu by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val toast = rememberToaster()
+    val movedMsg = stringResource(Res.string.unsent_moved_to_draft)
+    Box {
+        Text(
+            stringResource(Res.string.unsent_label), color = DeckColors.Warn,
+            fontSize = DeckType.Label, fontWeight = DeckWeight.Name,
+            modifier = Modifier.clip(RoundedCornerShape(DeckRadius.Sm))
+                .background(DeckColors.Surface2).clickable { menu = true }
+                .padding(horizontal = DeckSpace.Sm, vertical = DeckSpace.Xs),
+        )
+        DeckDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(Res.string.unsent_retry)) },
+                onClick = { menu = false; repo.retryUnsentNow(eventId) },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(Res.string.unsent_to_draft)) },
+                onClick = {
+                    menu = false
+                    scope.launch { if (repo.unsentToDraft(eventId)) toast(movedMsg) }
+                },
+            )
+        }
+    }
+}
