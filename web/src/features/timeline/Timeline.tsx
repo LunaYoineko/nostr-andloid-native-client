@@ -23,11 +23,33 @@ type Anchor = {
   seenTopId: string | undefined;
 };
 
+type FooterContext = { loadingOlder: boolean };
+
+/** 末尾の「過去を読み込み中…」 */
+function OlderFooter({ context }: { context?: FooterContext }) {
+  return context?.loadingOlder ? <p className={styles.empty}>過去を読み込み中…</p> : null;
+}
+
+const COMPONENTS = { Footer: OlderFooter };
+
 /**
  * 新しい順のタイムライン（仮想リスト）。
  * 先頭付近にいれば新着はそのまま上から流れ、読み進めている間は位置を保って「↑ N 件の新着」を出す。
+ * 末尾まで来たら onEndReached（過去読み）を呼ぶ。
  */
-export function Timeline({ events, loading }: { events: NostrEvent[]; loading: boolean }) {
+export function Timeline({
+  events,
+  loading,
+  onEndReached,
+  loadingOlder = false,
+  emptyText = "まだ投稿がありません",
+}: {
+  events: NostrEvent[];
+  loading: boolean;
+  onEndReached?: () => void;
+  loadingOlder?: boolean;
+  emptyText?: string;
+}) {
   const list = useRef<VirtuosoHandle>(null);
   const [atTop, setAtTop] = useState(true);
   const topId = events[0]?.id;
@@ -56,7 +78,7 @@ export function Timeline({ events, loading }: { events: NostrEvent[]; loading: b
   const newCount = atTop ? 0 : positionOf(events, anchor.seenTopId);
 
   if (events.length === 0) {
-    return <p className={styles.empty}>{loading ? "読み込み中…" : "まだ投稿がありません"}</p>;
+    return <p className={styles.empty}>{loading ? "読み込み中…" : emptyText}</p>;
   }
 
   return (
@@ -78,6 +100,9 @@ export function Timeline({ events, loading }: { events: NostrEvent[]; loading: b
         computeItemKey={(_, event) => event.id}
         atTopThreshold={AT_TOP_THRESHOLD}
         atTopStateChange={onAtTopChange}
+        endReached={onEndReached}
+        components={COMPONENTS}
+        context={{ loadingOlder }}
         itemContent={(_, event) => <NoteItem event={event} />}
       />
     </div>

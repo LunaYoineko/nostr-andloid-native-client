@@ -2,6 +2,7 @@ import type { Filter } from "applesauce-core/helpers/filter";
 import { normalizeURL } from "applesauce-core/helpers/url";
 import { use$ } from "applesauce-react/hooks/use-$";
 import { RelayPool } from "applesauce-relay/pool";
+import type { NostrEvent } from "nostr-tools/pure";
 import { filter, map, type Observable, tap, timer } from "rxjs";
 import { eventStore } from "./store";
 
@@ -84,6 +85,29 @@ export function subscribe(filters: Filter | Filter[]): Observable<"EOSE"> {
     filter((message) => message.type === "EOSE"),
     map(() => "EOSE" as const),
   );
+}
+
+/**
+ * 指定リレーへ REQ を張ったままにする（カラムごとの購読）。受けたイベントは EventStore へ入れる。
+ * 戻り値はリレーごとの EOSE を流す（購読をやめると CLOSE を送る）。
+ */
+export function subscribeTo(relays: readonly string[], filters: Filter[]): Observable<"EOSE"> {
+  return pool.req([...relays], filters, { reconnect: RECONNECT }).pipe(
+    tap((message) => {
+      if (message.type === "EVENT") eventStore.add(message.event, message.from);
+    }),
+    filter((message) => message.type === "EOSE"),
+    map(() => "EOSE" as const),
+  );
+}
+
+/** 1 回だけ取りに行く（EOSE か timeoutMs で終わる）。受けたイベントは EventStore へ入れる */
+export function requestOnce(
+  relays: readonly string[],
+  filters: Filter[],
+  timeoutMs: number,
+): Observable<NostrEvent> {
+  return pool.request([...relays], filters, { timeout: timeoutMs }).pipe(tap((e) => eventStore.add(e)));
 }
 
 export type RelayConnections = { connected: number; total: number };
