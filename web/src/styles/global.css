@@ -1,6 +1,12 @@
 /* デザイントークンの正本は designs/tokens.css（Compose の Theme.kt と 1 対 1）。ここへ写さず @import する。 */
 @import "../../../designs/tokens.css";
 
+/* 引っ張って再読み込み・横スワイプでの「戻る」誤発火を止める（スクロールは各カラムの中で完結する） */
+html,
+body {
+  overscroll-behavior: none;
+}
+
 body {
   /* ホームは画面の高さぴったりに組む（既定の 8px があると文書全体がスクロールする） */
   margin: 0;

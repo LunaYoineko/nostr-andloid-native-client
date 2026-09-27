@@ -1,0 +1,44 @@
+/* 内容領域の全面（Compact のスレッド、両モードのプロフィール） */
+.full {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  overscroll-behavior: contain;
+}
+
+/* Expanded のスレッド: 中央寄せのパネル + スクリム（ネイティブ ConstrainedOverlay） */
+.centered {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+}
+
+/* ネイティブ Color.Black.copy(alpha = 0.55f) */
+.scrim {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.55);
+  cursor: default;
+}
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 520px;
+  height: 100%;
+  background: var(--bg);
+}
+
+.full:focus,
+.panel:focus {
+  outline: none;
+}

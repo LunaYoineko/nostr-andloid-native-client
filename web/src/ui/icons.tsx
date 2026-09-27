@@ -90,3 +90,71 @@ export function columnIcon(kind: ColumnKind): IconName {
       return "chat";
   }
 }
+
+/*
+ * 大きさを className（CSS）で決める名前付きアイコン（レール・下部ナビ・ヘッダ用。レールのグリフは 24px で、
+ * 上の Icon の sm / md / lg に無い）。title が無ければ装飾扱い（aria-hidden）、あれば role="img" + <title>。
+ * 同じグリフが上の PATHS にあればそれを使う。
+ */
+type NamedIconProps = { className?: string; title?: string };
+
+function PathIcon({ className, title, d }: NamedIconProps & { d: string }) {
+  if (title) {
+    return (
+      <svg className={className} viewBox="0 -960 960 960" fill="currentColor" role="img">
+        <title>{title}</title>
+        <path d={d} />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      className={className}
+      viewBox="0 -960 960 960"
+      fill="currentColor"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d={d} />
+    </svg>
+  );
+}
+
+export function HomeIcon(props: NamedIconProps) {
+  return (
+    <PathIcon
+      {...props}
+      d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"
+    />
+  );
+}
+
+export function SearchIcon(props: NamedIconProps) {
+  return (
+    <PathIcon
+      {...props}
+      d="M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z"
+    />
+  );
+}
+
+export function ArrowBackIcon(props: NamedIconProps) {
+  return <PathIcon {...props} d="m313-440 224 224-57 56-320-320 320-320 57 56-224 224h487v80H313Z" />;
+}
+
+export function ChatIcon(props: NamedIconProps) {
+  return <PathIcon {...props} d={PATHS.chat} />;
+}
+
+export function NotificationsIcon(props: NamedIconProps) {
+  return <PathIcon {...props} d={PATHS.notifications} />;
+}
+
+export function AddIcon(props: NamedIconProps) {
+  return <PathIcon {...props} d={PATHS.add} />;
+}
+
+/** カラム種別のアイコン（columnIcon と同じ対応）を className の大きさで描く */
+export function ColumnKindIcon({ kind, ...props }: NamedIconProps & { kind: ColumnKind }) {
+  return <PathIcon {...props} d={PATHS[columnIcon(kind)]} />;
+}

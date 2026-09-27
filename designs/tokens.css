@@ -57,6 +57,8 @@
 
   /* --- Deck geometry --- */
   --column-w: 340px;        /* 固定カラム幅。はみ出しは横スクロール */
+  --column-w-s: 280px;  /* カラム幅 S（Compose DeckScreen.kt columnWidthDp と 1 対 1） */
+  --column-w-l: 460px;  /* 同 L */
   --column-gap: 8px;        /* カラム間ガター（線ではなく Bg の隙間で分離） */
   --hinge-gutter: 22px;     /* フォルダブルのヒンジ回避ガター */
 

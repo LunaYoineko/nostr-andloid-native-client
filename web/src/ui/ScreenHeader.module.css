@@ -1,0 +1,63 @@
+/* 値はネイティブ ColumnHeader / HeaderBackButton と同じ */
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface);
+}
+
+.lead {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.leadIcon {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+.icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  color: var(--accent);
+}
+
+.texts {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+  line-height: var(--line-title);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.subtitle {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  line-height: var(--line-desc);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
