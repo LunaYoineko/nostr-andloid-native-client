@@ -20,6 +20,46 @@ export type PostContext = {
   lookup(id: string): NostrEvent | undefined;
 };
 
+/** アップロード済みの添付（本文へ足す URL と imeta の値） */
+export type PostMedia = {
+  kind: "image" | "video";
+  url: string;
+  /** MIME */
+  m?: string;
+  /** "WxH" */
+  dim?: string;
+  blurhash?: string;
+  /** SHA-256（サーバーが返したもの） */
+  x?: string;
+};
+
+/** 画像 → 動画の順（ネイティブ ComposeSheet は画像の URL の後に動画の URL を並べる） */
+function mediaOrder(media: readonly PostMedia[]): PostMedia[] {
+  return [...media.filter((m) => m.kind === "image"), ...media.filter((m) => m.kind === "video")];
+}
+
+/**
+ * 本文の後ろに添付の URL を 1 行ずつ足す（ネイティブ ComposeSheet: 本文（空白なら無し）→ 画像 → 動画を "\n" でつなぐ）。
+ * タグ・引用の nevent はこの後の本文から作る（ネイティブも URL を足した本文を publishNote 等へ渡す）。
+ */
+export function withMediaUrls(content: string, media: readonly PostMedia[]): string {
+  const urls = mediaOrder(media).map((m) => m.url);
+  if (urls.length === 0) return content;
+  return [...(content.trim() === "" ? [] : [content]), ...urls].join("\n");
+}
+
+/** NIP-92 の imeta（本文の URL と同じ順。url → m → dim → blurhash → x、無い項目は省く） */
+export function imetaTags(media: readonly PostMedia[]): string[][] {
+  return mediaOrder(media).map((m) => {
+    const tag = ["imeta", `url ${m.url}`];
+    if (m.m) tag.push(`m ${m.m}`);
+    if (m.dim) tag.push(`dim ${m.dim}`);
+    if (m.blurhash) tag.push(`blurhash ${m.blurhash}`);
+    if (m.x) tag.push(`x ${m.x}`);
+    return tag;
+  });
+}
+
 /** 本文から取るタグ（t → emoji） */
 function bodyTags(content: string, ctx: PostContext): string[][] {
   return [...hashtagsIn(content).map((t) => ["t", t]), ...emojiTagsIn(content, ctx.emojis)];
@@ -37,25 +77,36 @@ function withHints(tags: string[][], ctx: PostContext): string[][] {
   );
 }
 
-/** 新規投稿（ネイティブ publishNote）: t → emoji → メンションの p → content-warning */
-export function buildNote(content: string, cw: string | null, ctx: PostContext): EventDraft {
+/**
+ * 新規投稿（ネイティブ publishNote）: t → emoji → メンションの p → content-warning → imeta。
+ * 添付があれば本文の後ろに URL を足し、タグはその本文から取る。
+ */
+export function buildNote(
+  content: string,
+  cw: string | null,
+  ctx: PostContext,
+  media: readonly PostMedia[] = [],
+): EventDraft {
+  const body = withMediaUrls(content, media);
   return {
     kind: 1,
-    content,
-    tags: withHints([...bodyTags(content, ctx), ...mentionPTags(content), ...cwTags(cw)], ctx),
+    content: body,
+    tags: withHints([...bodyTags(body, ctx), ...mentionPTags(body), ...cwTags(cw), ...imetaTags(media)], ctx),
   };
 }
 
 /**
  * 返信（ネイティブ publishReply）。kind:1111 へは kind:1111（NIP-22）、それ以外は kind:1（NIP-10）。
- * 返信タグ → t → emoji → 継承済みを除くメンションの p → content-warning。
+ * 返信タグ → t → emoji → 継承済みを除くメンションの p → content-warning → imeta。
  */
 export function buildReply(
   target: NostrEvent,
   content: string,
   cw: string | null,
   ctx: PostContext,
+  media: readonly PostMedia[] = [],
 ): EventDraft {
+  const body = withMediaUrls(content, media);
   let kind: number;
   let head: string[][];
   let existing: string[];
@@ -79,31 +130,34 @@ export function buildReply(
   }
   return {
     kind,
-    content,
+    content: body,
     tags: withHints(
-      [...head, ...bodyTags(content, ctx), ...mentionPTags(content, existing), ...cwTags(cw)],
+      [...head, ...bodyTags(body, ctx), ...mentionPTags(body, existing), ...cwTags(cw), ...imetaTags(media)],
       ctx,
     ),
   };
 }
 
 /**
- * 引用（ネイティブ publishQuote）: q → 作者の p → t → emoji → 作者を除くメンションの p → content-warning。
- * 本文の末尾に q のヒント入りの nevent を足す（タグ・使用履歴は足す前の本文から取る）。
+ * 引用（ネイティブ publishQuote）: q → 作者の p → t → emoji → 作者を除くメンションの p → content-warning → imeta。
+ * 本文（添付の URL を足した後）の末尾に q のヒント入りの nevent を足す（タグ・使用履歴は nevent を足す前の本文から取る）。
  */
 export function buildQuote(
   target: NostrEvent,
   content: string,
   cw: string | null,
   ctx: PostContext,
+  media: readonly PostMedia[] = [],
 ): EventDraft {
+  const body = withMediaUrls(content, media);
   const tags = withHints(
     [
       ["q", target.id, "", target.pubkey],
       ["p", target.pubkey],
-      ...bodyTags(content, ctx),
-      ...mentionPTags(content, [target.pubkey]),
+      ...bodyTags(body, ctx),
+      ...mentionPTags(body, [target.pubkey]),
       ...cwTags(cw),
+      ...imetaTags(media),
     ],
     ctx,
   );
@@ -116,7 +170,7 @@ export function buildQuote(
   });
   return {
     kind: 1,
-    content: content.trim() === "" ? `nostr:${ref}` : `${content}\nnostr:${ref}`,
+    content: body.trim() === "" ? `nostr:${ref}` : `${body}\nnostr:${ref}`,
     tags,
   };
 }

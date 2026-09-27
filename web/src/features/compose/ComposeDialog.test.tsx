@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { npubEncode } from "nostr-tools/nip19";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
@@ -6,17 +6,25 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { unixNow } from "../../lib/time";
 import { type EventDraft, PublishError, publishEvent } from "../../nostr/publish";
 import { eventStore } from "../../nostr/store";
-import { useSession } from "../../signer/session";
+import { currentSigner, useSession } from "../../signer/session";
 import { installDialogPolyfill } from "../../test/dialog";
+import { createTestSigner } from "../../test/fakeSigner";
 import { renderWithRouter } from "../../test/renderWithRouter";
 import { ComposeDialog } from "./ComposeDialog";
 import { type ComposeRequest, openCompose, useCompose } from "./composeStore";
+import { setMediaServer } from "./mediaServer";
 import { DRAFT_KEY, USED_HASHTAGS_KEY } from "./storage";
 
 // 署名・送信はしない（publishEvent だけ差し替える）
 vi.mock("../../nostr/publish", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../nostr/publish")>();
   return { ...actual, publishEvent: vi.fn() };
+});
+
+// NIP-98 の署名者（拡張機能を使わない）
+vi.mock("../../signer/session", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../signer/session")>();
+  return { ...actual, currentSigner: vi.fn() };
 });
 
 let meKey: Uint8Array;
@@ -378,5 +386,206 @@ describe("絵文字を挿入（#459）", () => {
     expect(screen.queryByRole("dialog", { name: "入力内容を破棄しますか？" })).toBeNull();
     expect(useCompose.getState().request).toEqual({ mode: "new" });
     expect(body()).toHaveValue("x");
+  });
+});
+
+describe("添付（画像・動画）", () => {
+  const fetchMock = vi.fn<typeof fetch>();
+  const UPLOADED_URL = "https://media.example/abc.webp";
+  const originalCreate = URL.createObjectURL;
+  const originalRevoke = URL.revokeObjectURL;
+  let revoked: string[];
+
+  beforeEach(() => {
+    revoked = [];
+    let n = 0;
+    // jsdom には blob: URL が無い
+    URL.createObjectURL = () => {
+      n += 1;
+      return `blob:test/${n}`;
+    };
+    URL.revokeObjectURL = (url: string) => {
+      revoked.push(url);
+    };
+    vi.mocked(currentSigner).mockReturnValue(createTestSigner().signer);
+    fetchMock.mockReset();
+    // 実サーバーへは送らない（ディスカバリ → アップロードの 2 回）
+    fetchMock.mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith("/.well-known/nostr/nip96.json")) {
+        return new Response(JSON.stringify({ api_url: "https://api.example/upload" }));
+      }
+      return new Response(
+        JSON.stringify({
+          status: "success",
+          nip94_event: {
+            tags: [
+              ["url", UPLOADED_URL],
+              ["m", "image/webp"],
+              ["x", "ab"],
+              ["dim", "800x600"],
+            ],
+          },
+        }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+    vi.unstubAllGlobals();
+    setMediaServer(null);
+  });
+
+  function fileInput(): HTMLInputElement {
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error("file input not found");
+    return input;
+  }
+
+  function png(name = "a.png"): File {
+    return new File(["x".repeat(2048)], name, { type: "image/png" });
+  }
+
+  it("「画像・動画を添付」の input は image/* と video/* の複数選択。選ぶとプレビュー、✗ で外せる", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    expect(fileInput()).toHaveAttribute("accept", "image/*,video/*");
+    expect(fileInput()).toHaveAttribute("multiple");
+    expect(screen.getByRole("button", { name: "画像・動画を添付" })).toBeInTheDocument();
+
+    await user.upload(fileInput(), [png(), new File(["v"], "v.mp4", { type: "video/mp4" })]);
+
+    const list = screen.getByRole("list", { name: "添付" });
+    expect(within(list).getByRole("img", { name: "添付画像" })).toHaveAttribute("src", "blob:test/1");
+    expect(within(list).getByLabelText("添付動画")).toHaveAttribute("src", "blob:test/2");
+    // 本文が空でも添付があれば送れる
+    expect(screen.getByRole("button", { name: "送信" })).toBeEnabled();
+    // 圧縮できない環境（jsdom）では元の容量
+    expect(await within(list).findByText("2KB")).toBeInTheDocument();
+
+    await user.click(within(list).getAllByRole("button", { name: "削除" })[0]);
+    expect(within(list).queryByRole("img", { name: "添付画像" })).toBeNull();
+    expect(revoked).toEqual(["blob:test/1"]);
+    await user.click(within(list).getByRole("button", { name: "削除" }));
+    expect(screen.queryByRole("list", { name: "添付" })).toBeNull();
+    expect(screen.getByRole("button", { name: "送信" })).toBeDisabled();
+  });
+
+  it("送信で NIP-96 へアップロードし、本文の後ろに URL・tags の末尾に imeta を入れて発行する", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "写真");
+    await user.upload(fileInput(), png());
+    await user.click(screen.getByRole("button", { name: "送信" }));
+
+    await waitFor(() => expect(publishEvent).toHaveBeenCalledTimes(1));
+    expect(lastDraft().content).toBe(`写真\n${UPLOADED_URL}`);
+    expect(lastDraft().tags.at(-1)).toEqual([
+      "imeta",
+      `url ${UPLOADED_URL}`,
+      "m image/webp",
+      "dim 800x600",
+      "x ab",
+    ]);
+    // 既定の一覧の先頭（nostr.build）から試す。Authorization は NIP-98
+    const calls = fetchMock.mock.calls;
+    expect(calls[0][0]).toBe("https://nostr.build/.well-known/nostr/nip96.json");
+    expect(new Headers(calls[1][1]?.headers).get("Authorization")).toMatch(/^Nostr /);
+    expect(useCompose.getState().request).toBeNull();
+  });
+
+  it("設定で選んだサーバーへ送る", async () => {
+    const user = userEvent.setup();
+    setMediaServer("https://nostr.build");
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.upload(fileInput(), png());
+    await user.click(screen.getByRole("button", { name: "送信" }));
+
+    await waitFor(() => expect(publishEvent).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][0]).toBe("https://nostr.build/.well-known/nostr/nip96.json");
+    expect(lastDraft().content).toBe(UPLOADED_URL);
+  });
+
+  it("アップロード中は「画像 n/m アップロード中…」。失敗したら投稿せず文言を出し、添付を残す", async () => {
+    const user = userEvent.setup();
+    let fail: (e: Error) => void = () => {};
+    fetchMock.mockImplementation(
+      () =>
+        new Promise<Response>((_resolve, reject) => {
+          fail = reject;
+        }),
+    );
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.upload(fileInput(), png());
+    await user.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(await screen.findByText("画像 0/1 アップロード中…")).toBeInTheDocument();
+    // どのサーバーも失敗
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    act(() => fail(new TypeError("Failed to fetch")));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "投稿に失敗しました。添付はそのままなので、もう一度お試しください。",
+    );
+    expect(publishEvent).not.toHaveBeenCalled();
+    expect(screen.getByRole("img", { name: "添付画像" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "送信" })).toBeEnabled();
+  });
+
+  it("アップロード中の「キャンセル」で編集に戻る（添付は残る）", async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation(
+      (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    );
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.upload(fileInput(), png());
+    await user.click(screen.getByRole("button", { name: "送信" }));
+    expect(await screen.findByText("画像 0/1 アップロード中…")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+    expect(screen.queryByText(/アップロード中/)).toBeNull();
+    expect(screen.getByRole("img", { name: "添付画像" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(publishEvent).not.toHaveBeenCalled();
+  });
+
+  it("貼り付け・ドロップでも添付する（画像・動画以外は無視）", () => {
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+
+    fireEvent.paste(body(), { clipboardData: { files: [png()], types: ["Files"] } });
+    expect(screen.getByRole("img", { name: "添付画像" })).toBeInTheDocument();
+
+    fireEvent.drop(screen.getByRole("dialog", { name: "投稿" }), {
+      dataTransfer: {
+        files: [new File(["v"], "v.mp4", { type: "video/mp4" }), new File(["%PDF"], "a.pdf")],
+        types: ["Files"],
+      },
+    });
+    expect(screen.getByLabelText("添付動画")).toBeInTheDocument();
+    expect(within(screen.getByRole("list", { name: "添付" })).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("添付だけでも ✗ は破棄の確認。破棄で blob: URL を解放する", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.upload(fileInput(), png());
+
+    await user.click(screen.getByRole("button", { name: "閉じる" }));
+    await user.click(screen.getByRole("button", { name: "破棄する" }));
+    expect(useCompose.getState().request).toBeNull();
+    expect(revoked).toEqual(["blob:test/1"]);
   });
 });

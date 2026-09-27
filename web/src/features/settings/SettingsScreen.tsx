@@ -5,6 +5,7 @@ import { useLayoutMode } from "../../ui/useLayoutMode";
 import { AccountSection, AccountSummary } from "./AccountSection";
 import { DeveloperSection } from "./DeveloperSection";
 import { DisplaySection } from "./DisplaySection";
+import { MediaSection } from "./MediaSection";
 import { MuteSection } from "./MuteSection";
 import { RelaySection } from "./RelaySection";
 import styles from "./SettingsScreen.module.css";
@@ -129,6 +130,8 @@ function SectionBody({ id }: { id: string }) {
       return <AccountSection />;
     case "relays":
       return <RelaySection />;
+    case "media":
+      return <MediaSection />;
     case "display":
       return <DisplaySection />;
     case "developer":
