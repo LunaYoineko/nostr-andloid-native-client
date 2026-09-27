@@ -2,7 +2,7 @@ import Dexie, { type Table } from "dexie";
 import type { NostrEvent } from "nostr-tools/pure";
 
 export const DB_NAME = "nostrism";
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 /**
  * 保存するイベント（NIP-01 の 7 列）。t/e/p/q/E/A/d はタグ値の配列列で、ネイティブの `event_tag` の代わりに
@@ -49,7 +49,28 @@ export type OgpCacheRow = {
 };
 
 /**
- * IndexedDB（Dexie）。件数が増えるもの（イベント・未送信・OGP・鍵）だけを置く。
+ * 復号した DM（版 2）。id = rumor id（NIP-17）/ kind:4 の event id（NIP-04）。owner = ログイン中の自分。
+ * kind:14（rumor）は署名が無く EventStore に入れられないので、events とは別に持つ。ログアウトで全部消す
+ */
+export type DmMessageRow = {
+  owner: string;
+  id: string;
+  peer: string;
+  sender: string;
+  content: string;
+  tags: string[][];
+  createdAt: number;
+  proto: "nip17" | "nip04";
+};
+
+/**
+ * 復号を試した受信イベント（版 2）。eventId = gift wrap の id / kind:4 の id。
+ * ok: false = 中身が壊れていて二度と読めない。署名者の拒否・タイムアウトは記録しない（次の起動でやり直す）
+ */
+export type DmProcessedRow = { owner: string; eventId: string; ok: boolean };
+
+/**
+ * IndexedDB（Dexie）。件数が増えるもの（イベント・未送信・OGP・鍵・DM）だけを置く。
  * 起動時に同期で読みたい小さな設定（セッション・リレー一覧・カラム構成）は localStorage（`nostrism.` 接頭辞）。
  */
 export class NostrismDb extends Dexie {
@@ -57,6 +78,8 @@ export class NostrismDb extends Dexie {
   publishQueue!: Table<PublishQueueRow, string>;
   vault!: Table<VaultRow, string>;
   ogpCache!: Table<OgpCacheRow, string>;
+  dmMessages!: Table<DmMessageRow, [string, string]>;
+  dmProcessed!: Table<DmProcessedRow, [string, string]>;
 
   constructor(name: string, options: { indexedDB?: IDBFactory; IDBKeyRange?: typeof IDBKeyRange }) {
     super(name, options);
@@ -65,6 +88,8 @@ export class NostrismDb extends Dexie {
       publishQueue: "eventId, createdAt, attempts, refId",
       vault: "id",
       ogpCache: "url, fetchedAt",
+      dmMessages: "[owner+id], owner, [owner+peer]",
+      dmProcessed: "[owner+eventId], owner",
     });
   }
 }
