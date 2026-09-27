@@ -1,16 +1,24 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { npubEncode } from "nostr-tools/nip19";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { type ColumnSpec, columnSubtitleFor, DEFAULT_COLUMNS } from "../../lib/columns";
+import { type ColumnSpec, columnSubtitleFor, DEFAULT_COLUMNS, decodeDeckColumns } from "../../lib/columns";
 import { unixNow } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
+import { OTHER_PUBKEY, PUBKEY } from "../../test/fakeNostr";
 import { renderWithRouter } from "../../test/renderWithRouter";
+import { startDecrypting } from "../dm/dmService";
+import { useDm } from "../dm/dmStore";
 import { DeckColumn } from "./DeckColumn";
 import { useColumnFeed } from "./useColumnFeed";
+
+// DM の購読・復号はしない（状態はストアへ直接入れる）
+vi.mock("../dm/dmService", () => ({ startDecrypting: vi.fn(), resumeDecrypting: vi.fn() }));
 
 // 購読はしない（本体は空のタイムライン）
 vi.mock("./useColumnFeed", () => ({
@@ -35,12 +43,16 @@ const DM: ColumnSpec = {
   order: 3,
 };
 
+/** Web 版でまだ描けない種別 */
+const THREAD: ColumnSpec = { ...DM, id: "c_thread", title: "スレッド", kind: "THREAD", renderer: "THREAD" };
+
 beforeEach(() => {
   useDeck.setState({ columns: [...DEFAULT_COLUMNS, DM], widths: {} });
 });
 
 afterEach(() => {
   localStorage.clear();
+  useDm.getState().reset(null);
 });
 
 it("ヘッダにタイトルとサブタイトルを出す", () => {
@@ -66,11 +78,62 @@ it("左端のカラムのメニューでは「左へ移動」が押せない", a
   expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 });
 
-it("DM カラムは「まだ使えません」を出し、購読しない", () => {
+/** DM カラムを / に描き、/messages/:peer へ移れるルータ */
+function renderDmColumn(spec: ColumnSpec) {
+  const router = createMemoryRouter([
+    { path: "/", element: <DeckColumn spec={spec} showHeader /> },
+    { path: "/messages/:peer", element: <p>messages</p> },
+  ]);
+  render(<RouterProvider router={router} />);
+  return router;
+}
+
+function seedDm() {
+  useDm.getState().reset(PUBKEY);
+  useDm.setState({ loaded: true });
+  useDm.getState().upsertMessages([
+    {
+      owner: PUBKEY,
+      id: "a1",
+      peer: OTHER_PUBKEY,
+      sender: OTHER_PUBKEY,
+      content: "こんにちは",
+      tags: [],
+      createdAt: 1_700_000_000,
+      proto: "nip17",
+    },
+  ]);
+}
+
+it("DM カラムは会話の一覧を出し、購読しない。表示したら復号を始め、行を押すと /messages/npub1…（#506）", async () => {
+  const user = userEvent.setup();
   vi.mocked(useColumnFeed).mockClear();
-  render(<DeckColumn spec={DM} showHeader />);
-  expect(screen.getByText(/まだ使えません/)).toBeInTheDocument();
+  vi.mocked(startDecrypting).mockClear();
+  seedDm();
+  const router = renderDmColumn(DM);
+
+  expect(screen.getByRole("heading", { name: "DM" })).toBeInTheDocument();
+  expect(screen.getByText("NIP-17")).toBeInTheDocument();
+  expect(screen.queryByText(/まだ使えません/)).not.toBeInTheDocument();
   expect(vi.mocked(useColumnFeed)).not.toHaveBeenCalled();
+  expect(vi.mocked(startDecrypting)).toHaveBeenCalledTimes(1);
+  // 復号の案内（showBanners）はカラムに出さない
+  act(() => useDm.setState({ pending: 3 }));
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: /こんにちは/ }));
+  expect(router.state.location.pathname).toBe(`/messages/${npubEncode(OTHER_PUBKEY)}`);
+});
+
+it("同期で入ってきた DM カラム（ネイティブの JSON）も会話の一覧になる", () => {
+  const [synced] =
+    decodeDeckColumns(
+      '[{"id":"col_dm_1700000000","title":"DM","subtitle":"NIP-17","kind":"DM","renderer":"FEED","filter":{"kinds":[14]}}]',
+    ) ?? [];
+  seedDm();
+  renderDmColumn(synced);
+  expect(screen.getByRole("heading", { name: "DM" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /こんにちは/ })).toBeInTheDocument();
 });
 
 it("⋯ の「ミュートを表示 / 隠す」でカラムの設定を切り替える。描けない種別には出さない（#465）", async () => {
@@ -89,14 +152,14 @@ it("⋯ の「ミュートを表示 / 隠す」でカラムの設定を切り替
   expect(useDeck.getState().revealMuted).toEqual([]);
   unmount();
 
-  render(<DeckColumn spec={DM} showHeader />);
+  render(<DeckColumn spec={THREAD} showHeader />);
   await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
   expect(screen.queryByRole("menuitem", { name: "ミュートを表示" })).not.toBeInTheDocument();
 });
 
 it("「カラムを削除」でカラムが消える", async () => {
   const user = userEvent.setup();
-  render(<DeckColumn spec={DM} showHeader />);
+  renderWithRouter(<DeckColumn spec={DM} showHeader />);
   await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
   await user.click(screen.getByRole("menuitem", { name: /カラムを削除/ }));
 

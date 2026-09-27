@@ -63,6 +63,11 @@
   min-height: 0;
 }
 
+/* 本体が自分でスクロールしない一覧（DM カラム） */
+.scroll {
+  overflow-y: auto;
+}
+
 /* 読み込み中の 2px の進行バー（ヘッダ直下に重ねる） */
 .progress {
   position: absolute;

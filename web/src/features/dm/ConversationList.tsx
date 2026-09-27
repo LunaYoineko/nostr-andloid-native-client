@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { hrefForProfile } from "../../lib/content/labels";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
+import { badgeText } from "../../ui/badge";
 import { Avatar } from "../timeline/NoteItem";
 import styles from "./ConversationList.module.css";
 import { resumeDecrypting } from "./dmService";
@@ -8,7 +9,7 @@ import { type DmConversation, useConversations, useDm } from "./dmStore";
 
 /**
  * 会話の一覧（ネイティブ DmConversationRows。メッセージ画面と DM カラムで使う）。新しい順。
- * 行 = アバター（プロフィールへ）・表示名・最後のメッセージ 1 行。行を押すと onSelect。
+ * 行 = アバター（プロフィールへ）・表示名・最後のメッセージ 1 行・未読数（ネイティブ #416）。行を押すと onSelect。
  * showBanners なら上に復号の状態（NIP-44 が無い・一時停止・復号中）を出す。
  */
 export function ConversationList({
@@ -86,7 +87,7 @@ function ConversationRow({
   selected: boolean;
   onSelect(peer: string): void;
 }) {
-  const { peer, last } = conversation;
+  const { peer, last, unread } = conversation;
   const profile = useProfile(peer);
   const picture = pictureOf(profile);
   const name = displayName(profile, peer);
@@ -99,10 +100,18 @@ function ConversationRow({
         type="button"
         className={styles.row}
         aria-current={selected ? "true" : undefined}
+        aria-label={unread > 0 ? `${name}（未読 ${unread} 件） ${last.content}` : undefined}
         onClick={() => onSelect(peer)}
       >
-        <span className={styles.name}>{name}</span>
-        <span className={styles.last}>{last.content}</span>
+        <span className={styles.texts}>
+          <span className={styles.name}>{name}</span>
+          <span className={styles.last}>{last.content}</span>
+        </span>
+        {unread > 0 && (
+          <span className={styles.unread} aria-hidden="true">
+            {badgeText(unread)}
+          </span>
+        )}
       </button>
     </li>
   );

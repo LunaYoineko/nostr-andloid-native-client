@@ -1,8 +1,10 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { noteEncode, npubEncode } from "nostr-tools/nip19";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useDmSeen } from "../features/dm/dmSeen";
+import { useDm } from "../features/dm/dmStore";
 import type { ColumnSpec } from "../lib/columns";
 import { DEFAULT_COLUMNS } from "../lib/columns";
 import { useSession } from "../signer/session";
@@ -250,6 +252,33 @@ describe("ナビ", () => {
     expect(router.state.location.pathname).toBe("/");
     expect(targets).toEqual(["c_hashtag"]);
     expect(useDeck.getState().jumpTarget).toBeNull();
+  });
+
+  it("DM の未読があれば下部ナビ・レールの「メッセージ」に数を出す（#506）", () => {
+    useDm.getState().reset(PUBKEY);
+    useDmSeen.setState({ me: PUBKEY, first: 0, peers: {} });
+    useDm.getState().upsertMessages(
+      ["a1", "a2"].map((id, i) => ({
+        owner: PUBKEY,
+        id,
+        peer: OTHER_PUBKEY,
+        sender: OTHER_PUBKEY,
+        content: id,
+        tags: [],
+        createdAt: 1 + i,
+        proto: "nip17" as const,
+      })),
+    );
+    try {
+      renderAt(["/"]);
+      expect(within(mainNav()).getByRole("button", { name: "メッセージ（未読 2 件）" })).toBeInTheDocument();
+      cleanup();
+      renderAt(["/"], 1200);
+      expect(within(mainNav()).getByRole("button", { name: "メッセージ（未読 2 件）" })).toBeInTheDocument();
+    } finally {
+      useDm.getState().reset(null);
+      useDmSeen.setState({ me: null, first: 0, peers: {} });
+    }
   });
 
   it("宛先の外で jump したらデッキへ出る", async () => {

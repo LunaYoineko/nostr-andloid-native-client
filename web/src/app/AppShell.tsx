@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 import { ComposeHost } from "../features/compose/ComposeHost";
 import { AddColumnDialog } from "../features/deck/AddColumnDialog";
 import { EditColumnDialog } from "../features/deck/EditColumnDialog";
+import { useDmUnreadTotal } from "../features/dm/dmStore";
 import { MessagesScreen } from "../features/dm/MessagesScreen";
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen";
 import { SearchScreen } from "../features/search/SearchScreen";
@@ -76,6 +77,7 @@ export function AppShell() {
   const editingColumnId = useDeck((s) => s.editingColumnId);
   const notifColumnId = useDeck(notificationsColumnId);
   const pinned = useDeck(useShallow(pinnedColumns));
+  const dmUnread = useDmUnreadTotal();
 
   // 宛先の外で jump したら必ずデッキへ出す（ネイティブ #49。検索画面からカラム追加した場合など）
   useEffect(() => {
@@ -84,6 +86,7 @@ export function AppShell() {
   }, [jumpTarget, dest, overlayKind, navigate]);
 
   const selected = bottomSelection(dest, visibleColumnId, notifColumnId);
+  const badges = { messages: dmUnread };
   const railPinned = useMemo(
     () =>
       pinned.map((c) => ({
@@ -101,6 +104,7 @@ export function AppShell() {
       {mode === "expanded" && (
         <NavRail
           selected={selected}
+          badges={badges}
           homeActive={isRailHomeActive(dest, visibleColumnId, pinnedIds)}
           pinned={railPinned}
           showNotifications={notifColumnId === null}
@@ -129,7 +133,7 @@ export function AppShell() {
         <ComposeHost showFab={dest === "home" && overlay === null} />
         <ConnectionPill />
       </main>
-      {mode === "compact" && <BottomNav selected={selected} onSelect={open} />}
+      {mode === "compact" && <BottomNav selected={selected} badges={badges} onSelect={open} />}
       <Outlet />
       {showAddColumn && <AddColumnDialog />}
       {editingColumnId !== null && <EditColumnDialog />}

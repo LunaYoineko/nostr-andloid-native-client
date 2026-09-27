@@ -10,6 +10,7 @@ import { eventStore } from "../../nostr/store";
 import { currentSigner, useSession } from "../../signer/session";
 import { createDecryptQueue, type DecryptQueue, type DecryptResult } from "./decryptQueue";
 import { dmRelaysFromEvent } from "./dmRelays";
+import { clearSeen, loadSeen } from "./dmSeen";
 import { useDm } from "./dmStore";
 import { decryptLegacy } from "./nip04";
 import { DmDecryptError, dmFromRumor, unwrapGiftWrap } from "./nip17";
@@ -60,8 +61,8 @@ function sameList(a: readonly string[], b: readonly string[]): boolean {
 
 /**
  * ログイン中のアカウントに合わせて DM の購読・復号・保存を張り替える（起動時に DB を開いた後で 1 度）。
- * ログアウト・アカウントの切り替えでは購読と復号を止め、DB の DM（dmMessages / dmProcessed）を全部消す
- * （共用の端末で他人に DM を残さない）。戻り値は止める関数（DB は消さない）。
+ * ログアウト・アカウントの切り替えでは購読と復号を止め、DB の DM（dmMessages / dmProcessed）と前のアカウントの既読を
+ * 全部消す（共用の端末で他人に DM を残さない）。戻り値は止める関数（DB は消さない）。
  */
 export function startDm(opts: { database?: NostrismDb | null } = {}): () => void {
   const target = opts.database !== undefined ? opts.database : db;
@@ -78,6 +79,7 @@ export function startDm(opts: { database?: NostrismDb | null } = {}): () => void
     if ((active?.me ?? null) === me) return;
     if (active) {
       active.stop();
+      clearSeen(active.me);
       active = null;
       wantDecrypt = false;
       useDm.getState().reset(null);
@@ -104,6 +106,7 @@ function begin(
   serial: (label: string, op: (database: NostrismDb) => Promise<void>) => Promise<void>,
 ): Running {
   useDm.getState().reset(me);
+  loadSeen(me);
   const signer = currentSigner();
   // nsec の復号失敗は何度やっても同じ（= 壊れている）。NIP-07 / NIP-46 の失敗は拒否・無応答かもしれない
   const decryptErrorIsInvalid = useSession.getState().method === "local";

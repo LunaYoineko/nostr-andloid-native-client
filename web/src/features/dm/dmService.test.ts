@@ -13,8 +13,9 @@ import { currentSigner, type SessionMethod, useSession } from "../../signer/sess
 import { VaultError } from "../../signer/webKeyVault";
 import { createCipherSigner } from "../../test/cipherSigner";
 import { giftWrap, makeRumor, makeWrap } from "../../test/giftWrap";
+import { useDmSeen } from "./dmSeen";
 import { resumeDecrypting, startDecrypting, startDm } from "./dmService";
-import { useDm } from "./dmStore";
+import { conversationsOf, useDm } from "./dmStore";
 
 // リレーには繋がない（購読はテストから流す）
 vi.mock("../../nostr/pool", async (importOriginal) => ({
@@ -68,6 +69,8 @@ afterEach(() => {
   for (const stop of stops.splice(0)) stop();
   useSession.setState({ status: "loading", method: null, pubkey: null });
   useDm.getState().reset(null);
+  useDmSeen.setState({ me: null, first: 0, peers: {} });
+  localStorage.clear();
   for (const database of databases.splice(0)) database.close();
 });
 
@@ -362,6 +365,35 @@ describe("ログアウト・アカウントの切り替え", () => {
     expect(contents()).toEqual([]);
     expect(await database.dmMessages.count()).toBe(0);
     expect(await database.dmProcessed.count()).toBe(0);
+  });
+
+  it("ログインで既読を読み込み（初回は今が基準 = 過去の DM は未読にしない）、ログアウトで既読の保存値を消す", async () => {
+    const key = `nostrism.dm.seen.${me}`;
+    login("local");
+    start(await openDb());
+    expect(useDmSeen.getState().me).toBe(me);
+    expect(localStorage.getItem(key)).not.toBeNull();
+    await subscribed();
+    feed.next(wrapFromAlice("old"));
+    await vi.waitFor(() => expect(contents()).toEqual(["old"]));
+    const seen = useDmSeen.getState();
+    expect(conversationsOf(Object.values(useDm.getState().messages), me, seen)[0].unread).toBe(0);
+
+    useSession.setState({ status: "out", method: null, pubkey: null });
+    expect(localStorage.getItem(key)).toBeNull();
+    expect(useDmSeen.getState().me).toBeNull();
+  });
+
+  it("アカウントを切り替えると前のアカウントの既読を消し、新しいアカウントの既読を読み込む", async () => {
+    login("local");
+    start(await openDb());
+    await subscribed();
+    expect(localStorage.getItem(`nostrism.dm.seen.${me}`)).not.toBeNull();
+
+    login("local", ALICE);
+    expect(localStorage.getItem(`nostrism.dm.seen.${me}`)).toBeNull();
+    expect(localStorage.getItem(`nostrism.dm.seen.${ALICE}`)).not.toBeNull();
+    expect(useDmSeen.getState().me).toBe(ALICE);
   });
 
   it("起動時の未ログイン（復元中）では DB を消さない", async () => {

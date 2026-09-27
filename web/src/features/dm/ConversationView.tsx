@@ -1,5 +1,5 @@
 import type { NostrEvent } from "nostr-tools/pure";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import type { DmMessageRow } from "../../db/schema";
 import { hrefForProfile } from "../../lib/content/labels";
@@ -12,7 +12,8 @@ import { NoteMedia } from "../media/NoteMedia";
 import { NoteContent } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
 import styles from "./ConversationView.module.css";
-import { useDm, useMessagesWith } from "./dmStore";
+import { markSeen } from "./dmSeen";
+import { useConversations, useDm, useMessagesWith } from "./dmStore";
 
 /** 1 度に出す件数（新しい方から。古いものは「さらに表示」で足す） */
 const PAGE_SIZE = 200;
@@ -27,6 +28,13 @@ const CONTINUATION_SEC = 300;
 export function ConversationView({ peer, onBack }: { peer: string; onBack?: () => void }) {
   const me = useDm((s) => s.owner);
   const messages = useMessagesWith(peer);
+  const conversation = useConversations().find((c) => c.peer === peer);
+  const unread = conversation?.unread ?? 0;
+  const lastIncomingAt = conversation?.lastIncomingAt ?? 0;
+  // 開いている会話は既読にする（開いたとき・開いている間の新着。未読が 0 なら何もしない。ネイティブ #416）
+  useEffect(() => {
+    if (me !== null && unread > 0) markSeen(me, peer, lastIncomingAt);
+  }, [me, peer, unread, lastIncomingAt]);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const profile = useProfile(peer);
   const picture = pictureOf(profile);
