@@ -1,10 +1,13 @@
-import { cloudflareTest } from "@cloudflare/vitest-plugin";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-// テストは Workers ランタイム（workerd）内で走る。設定は wrangler.toml から読む。
+// アプリ（src/）のテストは jsdom で走らせる。
+// worker/test（workerd で走る）は Pages Functions へ移すときに別設定（vitest.functions.config.ts）で戻す。
 export default defineConfig({
-  plugins: [cloudflareTest({ wrangler: { configPath: "./wrangler.toml" } })],
+  plugins: [react()],
   test: {
-    include: ["worker/test/**/*.test.ts"],
+    environment: "jsdom",
+    include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["./src/test/setup.ts"],
   },
 });
