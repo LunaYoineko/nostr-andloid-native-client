@@ -9,6 +9,7 @@ import { shortNpub } from "../../lib/npub";
 import { unixNow } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { renderWithRouter } from "../../test/renderWithRouter";
+import linkCardStyles from "../linkcard/LinkCard.module.css";
 import gridStyles from "../media/ImageGrid.module.css";
 import { NoteItem } from "./NoteItem";
 
@@ -386,4 +387,50 @@ it("kind:1 には操作の行に「返信」ボタンがある", () => {
   expect(
     within(screen.getByRole("group", { name: "操作" })).getByRole("button", { name: "返信" }),
   ).toBeInTheDocument();
+});
+
+it("リンクは OGP が取れたらメディアの下にカードを出し、本文からは消す（取得中は枠 + 本文のリンクのまま）", async () => {
+  const url = "https://ogp-ok.test/article";
+  const fetchMock = vi.fn<typeof fetch>(
+    async () => new Response('<head><meta property="og:title" content="記事のタイトル"></head>'),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  try {
+    const { container } = renderWithRouter(<NoteItem event={post(`読んだ ${url}`)} />);
+    expect(screen.getByRole("link", { name: url })).toBeInTheDocument();
+    expect(container.getElementsByClassName(linkCardStyles.placeholder)).toHaveLength(1);
+
+    const card = await screen.findByRole("link", { name: /記事のタイトル/ });
+    expect(card).toHaveAttribute("href", url);
+    expect(screen.queryByRole("link", { name: url })).toBeNull();
+    expect(container.querySelectorAll(`a[href="${url}"]`)).toHaveLength(1);
+    expect(container.getElementsByClassName(linkCardStyles.placeholder)).toHaveLength(0);
+    expect(screen.getByText("読んだ")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(`/api/og?url=${encodeURIComponent(url)}`, expect.anything());
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it("OGP が取れなければカードを出さず、本文のリンクを残す。CW を開くまでは取りに行かない", async () => {
+  const url = "https://ogp-ng.test/article";
+  const fetchMock = vi.fn<typeof fetch>(async () => new Response("{}", { status: 502 }));
+  vi.stubGlobal("fetch", fetchMock);
+  try {
+    const { container } = renderWithRouter(
+      <NoteItem event={post(`見て ${url}`, { tags: [["content-warning", "nsfw"]] })} />,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: /センシティブな内容/ }));
+    await vi.waitFor(() =>
+      expect(container.getElementsByClassName(linkCardStyles.placeholder)).toHaveLength(0),
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(container.getElementsByClassName(linkCardStyles.card)).toHaveLength(0);
+    expect(screen.getByRole("link", { name: url })).toBeInTheDocument();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });
