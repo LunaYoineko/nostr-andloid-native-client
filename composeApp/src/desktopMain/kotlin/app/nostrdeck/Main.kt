@@ -49,10 +49,10 @@ private fun isSecretToolAvailable(): Boolean = isCommandAvailable("secret-tool")
 }.getOrDefault(false)
 
 /**
- * [#221] 鍵保管の選択。macOS は Keychain（security CLI）、Windows は Credential Manager、
+ * [#221] 鍵保管の選択。macOS は Keychain（security CLI）、Windows は Credential Manager（ネイティブ API）、
  * Linux は libsecret（secret-tool）。それ以外の OS は従来のファイル保管。
  * 旧・平文ファイル(key.bin)が残っていれば各ストアへ移行し、移行を確認してから平文を消す。
- * secret-tool / security / powershell が無い環境では自動でファイル保管へフォールバック。
+ * secret-tool / security が無い環境では自動でファイル保管へフォールバック。
  */
 private fun buildKeyVault(): KeyVault {
     val osName = System.getProperty("os.name").orEmpty().lowercase()
@@ -65,11 +65,9 @@ private fun buildKeyVault(): KeyVault {
         isMac -> if (isCommandAvailable("security")) MacKeychainKeyVault() else {
             println("Nostrism [#221] security CLI not found, using file vault"); DesktopKeyVault(legacy)
         }
-        isWindows -> if (isCommandAvailable("powershell") || isCommandAvailable("pwsh")) {
-            println("Nostrism [#221] using Windows Credential Manager")
+        isWindows -> {
+            println("Nostrism [#221] using Windows Credential Manager (native API)")
             WindowsCredentialKeyVault()
-        } else {
-            println("Nostrism [#221] powershell not found, using file vault"); DesktopKeyVault(legacy)
         }
         isLinux -> if (isSecretToolAvailable()) {
             val candidate = LinuxSecretKeyVault()
