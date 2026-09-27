@@ -10,8 +10,12 @@ import { eventStore } from "../../nostr/store";
 /** 発行の直前に自分の kind:10002 を取り直す待ち時間（フォローの kind:3 と同じ） */
 export const OWN_RELAYLIST_REFETCH_MS = 5_000;
 
-/** no-relay-list = 直前の取り直しでどのリレーからも応答が無かった（古い版で上書きしうるので止めた） */
-export type RelayListFailure = "no-relay-list" | PublishFailure;
+/**
+ * no-relay-list = 直前の取り直しでどのリレーからも応答が無かった（古い版で上書きしうるので止めた）。
+ * stale = 編集を始めた時点の版と、取り直した最新版が違う（別の端末・クライアントでの変更や、読み込み前の
+ * 既定リレーを編集していた場合。そのまま発行すると最新の内容を消すので止めた）。
+ */
+export type RelayListFailure = "no-relay-list" | "stale" | PublishFailure;
 
 export class RelayListError extends Error {
   readonly reason: RelayListFailure;
@@ -86,7 +90,12 @@ export function buildRelayListTemplate(
  * RelayListError("no-relay-list")（#478 / toggleFollow と同じ規則）。送り先は今の write・新しい write・インデクサ。
  * 署名の失敗は同じ reason の RelayListError。
  */
-export async function publishRelayList(me: string, prefs: readonly RelayPref[]): Promise<void> {
+export async function publishRelayList(
+  me: string,
+  prefs: readonly RelayPref[],
+  /** 編集を始めた時点で画面に出ていた自分の kind:10002 の id（無かったら null） */
+  basedOnId: string | null,
+): Promise<void> {
   // complete = 少なくとも 1 つのリレーが応答した、error = どこからも応答が無かった
   const reached = await new Promise<boolean>((resolve) => {
     requestOnce(
@@ -97,6 +106,7 @@ export async function publishRelayList(me: string, prefs: readonly RelayPref[]):
   });
   if (!reached) throw new RelayListError("no-relay-list");
   const base = eventStore.getReplaceable(10002, me) ?? null;
+  if ((base?.id ?? null) !== basedOnId) throw new RelayListError("stale");
 
   const template = buildRelayListTemplate(base, prefs, unixNow());
   const targets = [

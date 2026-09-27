@@ -1,11 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { finalizeEvent, generateSecretKey } from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { type ColumnSpec, columnSubtitleFor, DEFAULT_COLUMNS } from "../../lib/columns";
 import { unixNow } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
+import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
 import { renderWithRouter } from "../../test/renderWithRouter";
 import { DeckColumn } from "./DeckColumn";
@@ -138,5 +139,68 @@ it("ふぁぼ欄の行は「あなたがリアクション」の 1 行で、投�
     expect(screen.queryByRole("button", { name: "返信" })).toBeNull();
   } finally {
     if (original) vi.mocked(useColumnFeed).mockImplementation(original);
+  }
+});
+
+it("通知カラムは種別（filter.kinds）に関わらずリアクション・Zap・リポストの行も出す（#460）", async () => {
+  if (typeof globalThis.ResizeObserver !== "function") {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  }
+  const meKey = generateSecretKey();
+  const me = getPublicKey(meKey);
+  useSession.setState({ status: "in", method: "nip07", pubkey: me });
+  const target = finalizeEvent(
+    { kind: 1, created_at: unixNow() - 600, tags: [], content: "自分の投稿" },
+    meKey,
+  );
+  eventStore.add(target);
+  const tags = [
+    ["e", target.id],
+    ["p", me],
+  ];
+  const reaction = finalizeEvent(
+    { kind: 7, created_at: unixNow() - 100, tags, content: "+" },
+    generateSecretKey(),
+  );
+  const zap = finalizeEvent(
+    {
+      kind: 9735,
+      created_at: unixNow() - 200,
+      tags: [...tags, ["description", JSON.stringify({ kind: 9734, tags: [["amount", "21000"]] })]],
+      content: "",
+    },
+    generateSecretKey(),
+  );
+  const repost = finalizeEvent(
+    { kind: 6, created_at: unixNow() - 300, tags, content: "" },
+    generateSecretKey(),
+  );
+  const [, , notif] = DEFAULT_COLUMNS;
+  const original = vi.mocked(useColumnFeed).getMockImplementation();
+  vi.mocked(useColumnFeed).mockImplementation(() => ({
+    mode: "column",
+    loading: false,
+    events: [reaction, zap, repost],
+    loadingOlder: false,
+    loadOlder: () => {},
+    refresh: () => {},
+  }));
+  try {
+    renderWithRouter(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 2000, itemHeight: 100 }}>
+        <DeckColumn spec={{ ...notif, filter: { ...notif.filter, kinds: [1, 7, 9735] } }} showHeader />
+      </VirtuosoMockContext.Provider>,
+    );
+    expect(await screen.findByRole("img", { name: "リアクション ❤️" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Zap" })).toBeInTheDocument();
+    expect(screen.getByText("⚡ 21")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "リポスト" })).toBeInTheDocument();
+  } finally {
+    if (original) vi.mocked(useColumnFeed).mockImplementation(original);
+    useSession.setState({ status: "loading", method: null, pubkey: null });
   }
 });

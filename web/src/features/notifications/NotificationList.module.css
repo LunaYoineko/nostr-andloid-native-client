@@ -1,0 +1,12 @@
+.list {
+  height: 100%;
+}
+
+/* Timeline.module.css の .empty と同じ */
+.empty {
+  margin: 0;
+  padding: var(--sp-5) var(--sp-4);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--type-sub);
+}

@@ -2,10 +2,15 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import { startPersistence } from "./db";
+import { initTheme } from "./features/theme/themePrefs";
 import { startOwnRelayList } from "./nostr/outbox";
 import { startPublishQueue } from "./nostr/publish";
 import { useSession } from "./signer/session";
 import "./styles/global.css";
+
+// 保存済みのテーマ・文字サイズ・太字を React の描画前に同期的に当てる（初回描画のちらつきを避ける。
+// CSP で inline script は置けないので、ここが一番早い）
+initTheme();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root が見つからない");

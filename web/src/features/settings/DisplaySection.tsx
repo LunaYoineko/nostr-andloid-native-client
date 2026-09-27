@@ -3,12 +3,16 @@ import { isDataSaver, proxied, setDataSaver } from "../../lib/imageProxy";
 import { FavoriteIcon, MoodIcon, StarIcon } from "../../ui/icons";
 import { ReactionPickerDialog } from "../actions/ReactionPickerDialog";
 import { setDefaultReaction, useDefaultReaction } from "../actions/reactionPrefs";
+import { ThemeSettings } from "../theme/ThemeSettings";
 import styles from "./SettingsSections.module.css";
 
-/** 表示（既定リアクションとデータセーバー） */
+/** 表示（テーマ・文字サイズ・太字（#464）、既定リアクション、データセーバー） */
 export function DisplaySection() {
   return (
     <>
+      <div className={styles.block}>
+        <ThemeSettings />
+      </div>
       <DefaultReactionBlock />
       <DataSaverBlock />
     </>

@@ -4,6 +4,8 @@ import { useShallow } from "zustand/react/shallow";
 import { ComposeHost } from "../features/compose/ComposeHost";
 import { AddColumnDialog } from "../features/deck/AddColumnDialog";
 import { EditColumnDialog } from "../features/deck/EditColumnDialog";
+import { NotificationsScreen } from "../features/notifications/NotificationsScreen";
+import { SearchScreen } from "../features/search/SearchScreen";
 import { SettingsScreen } from "../features/settings/SettingsScreen";
 import { notificationsColumnId, pinnedColumns, useDeck } from "../store/deck";
 import { BottomNav } from "../ui/BottomNav";
@@ -26,8 +28,6 @@ import { ProfileOverlay } from "./overlays/ProfileOverlay";
 import { ThreadOverlay } from "./overlays/ThreadOverlay";
 import { MessagesPlaceholder } from "./screens/MessagesPlaceholder";
 import { NotFoundScreen } from "./screens/NotFoundScreen";
-import { NotificationsPlaceholder } from "./screens/NotificationsPlaceholder";
-import { SearchPlaceholder } from "./screens/SearchPlaceholder";
 import { useNavActions } from "./useNavActions";
 
 function DestScreen({ dest }: { dest: Dest }) {
@@ -35,11 +35,11 @@ function DestScreen({ dest }: { dest: Dest }) {
     case "home":
       return <DeckScreen />;
     case "search":
-      return <SearchPlaceholder />;
+      return <SearchScreen />;
     case "messages":
       return <MessagesPlaceholder />;
     case "notifications":
-      return <NotificationsPlaceholder />;
+      return <NotificationsScreen />;
     case "settings":
       return <SettingsScreen />;
     case "notFound":

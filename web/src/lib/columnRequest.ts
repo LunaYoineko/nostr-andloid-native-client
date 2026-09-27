@@ -29,9 +29,6 @@ export const OLDER_TIMEOUT_MS = 6_000;
 
 // kind:5 は EventStore が削除として処理するので表示の対象から外す
 const FOLLOWING_VIEW_KINDS = [1, 6, 16, 1111];
-// 通知カラムの種別 → 表示する kind。7 / 9735 の行はまだ描けない（#460）ので出さない
-const NOTIF_VIEW_EXPAND: Record<number, number[]> = { 1: [1, 1111], 6: [6, 16], 7: [7], 9735: [9735] };
-const NOTIF_VIEW_KINDS = [1, 1111, 6, 16];
 
 export type RequestPlan = { relays: readonly string[]; filters: Filter[] } | null;
 export type ViewPlan = { filters: Filter[]; predicate?: (e: NostrEvent) => boolean };
@@ -75,7 +72,7 @@ export function requestFor(spec: ColumnSpec, ctx: Ctx): RequestPlan {
         ],
       };
     case "NOTIFICATIONS":
-      // カラムの filter.kinds は表示側（viewFor）で使う
+      // カラムの filter.kinds は REQ にも表示（viewFor）にも使わない（ネイティブと同じ）
       if (!ctx.me) return null;
       return {
         relays: ctx.relays,
@@ -108,17 +105,18 @@ export function viewFor(spec: ColumnSpec, ctx: Ctx): ViewPlan {
       if (!ctx.follows || ctx.follows.length === 0) return { filters: [{ kinds: [1] }] };
       return { filters: [{ kinds: FOLLOWING_VIEW_KINDS, authors: followAuthors(ctx.follows, ctx.me) }] };
     case "NOTIFICATIONS": {
+      // カラムの filter.kinds（表示する種別）は見ない。全種別を出す（ネイティブの NotificationsColumn と同じ）
       const me = ctx.me;
       if (!me) return { filters: [] };
-      const expanded = new Set(f.kinds.flatMap((k) => NOTIF_VIEW_EXPAND[k] ?? []));
-      return {
-        filters: [{ kinds: NOTIF_VIEW_KINDS.filter((k) => expanded.has(k)), "#p": [me] }],
-        predicate: (e) => e.pubkey !== me,
-      };
+      return { filters: [{ kinds: NOTIF_REQ_KINDS, "#p": [me] }], predicate: (e) => e.pubkey !== me };
     }
     case "FAVS":
       if (!ctx.me) return { filters: [] };
       return { filters: [{ kinds: [7], authors: [ctx.me] }] };
+    case "HASHTAG":
+      // 表示は先頭のタグを小文字にして t タグで読む（ネイティブ feedByHashtag。REQ はタグをそのまま送る）
+      if (f.hashtags.length > 0) return { filters: [{ kinds: [1], "#t": [f.hashtags[0].toLowerCase()] }] };
+      break;
   }
   if (spec.kind === "GLOBAL" && f.words.length > 0) {
     const words = f.words.map((w) => w.toLowerCase());

@@ -20,6 +20,17 @@ vi.mock("../features/deck/DeckColumn", () => ({
   ),
   ColumnMenu: () => <button type="button">カラムメニュー</button>,
 }));
+// 通知画面の購読もしない（空の一覧）
+vi.mock("../features/deck/useColumnFeed", () => ({
+  useColumnFeed: () => ({
+    mode: "column",
+    loading: false,
+    events: [],
+    loadingOlder: false,
+    loadOlder: () => {},
+    refresh: () => {},
+  }),
+}));
 vi.mock("../features/deck/AddColumnDialog", () => ({ AddColumnDialog: () => <div role="dialog" /> }));
 vi.mock("../features/deck/EditColumnDialog", () => ({ EditColumnDialog: () => <div role="dialog" /> }));
 
@@ -120,6 +131,14 @@ describe("宛先", () => {
     renderAt([path]);
     expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
     expect(currentNavLabels()).toEqual([nav]);
+  });
+
+  it("/notifications は通知画面（通知の一覧。準備中の文言は無い）", async () => {
+    renderAt(["/notifications"]);
+    expect(await screen.findByRole("heading", { name: "通知" })).toBeInTheDocument();
+    expect(screen.getByText("通知はまだありません")).toBeInTheDocument();
+    expect(screen.queryByText(/準備中/)).not.toBeInTheDocument();
+    expect(currentNavLabels()).toEqual(["通知"]);
   });
 
   it("設定（アカウント）のログアウトで未ログインになり /login?next=%2Fsettings%2Faccount へ", async () => {
@@ -240,6 +259,15 @@ describe("ナビ", () => {
       useDeck.getState().jumpTo("c_notif");
     });
     expect(router.state.location.pathname).toBe("/");
+  });
+
+  it("検索画面の「Deckに追加」でデッキへ出る", async () => {
+    const user = userEvent.setup();
+    const router = renderAt(["/search"]);
+    await user.type(await screen.findByRole("searchbox", { name: "検索語" }), "rally{Enter}");
+    await user.click(screen.getByRole("button", { name: "Deckに追加" }));
+    expect(router.state.location.pathname).toBe("/");
+    expect(useDeck.getState().columns.at(-1)).toMatchObject({ title: "rally", kind: "GLOBAL" });
   });
 });
 

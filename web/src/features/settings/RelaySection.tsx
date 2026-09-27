@@ -15,6 +15,9 @@ function failureMessage(e: unknown): string {
   if (e instanceof RelayListError && e.reason === "no-relay-list") {
     return "最新のリレーリストを取得できなかったため、公開しませんでした。接続を確認してもう一度お試しください";
   }
+  if (e instanceof RelayListError && e.reason === "stale") {
+    return "リレーリストが更新されていたため、公開しませんでした。最新の内容を表示したので、確認してもう一度編集してください";
+  }
   return "公開に失敗しました（鍵を確認してください）";
 }
 
@@ -38,7 +41,13 @@ export function RelaySection() {
     [latest, read, write],
   );
   const [draft, setDraft] = useState<RelayPref[] | null>(null);
+  // 編集を始めた時点の自分の kind:10002（無ければ null）。保存の直前に取り直した版と違えば公開しない
+  const [basedOnId, setBasedOnId] = useState<string | null>(null);
   const list = draft ?? current;
+  function edit(next: RelayPref[]) {
+    if (draft === null) setBasedOnId(latest?.id ?? null);
+    setDraft(next);
+  }
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -47,10 +56,12 @@ export function RelaySection() {
     if (!me) return;
     setSaving(true);
     try {
-      await publishRelayList(me, list);
+      await publishRelayList(me, list, draft === null ? (latest?.id ?? null) : basedOnId);
       setDraft(null);
       showToast("リレーリストを公開しました");
     } catch (e) {
+      // 最新版と食い違っていたら下書きを捨てて最新の内容を出し直す
+      if (e instanceof RelayListError && e.reason === "stale") setDraft(null);
       showToast(failureMessage(e));
     } finally {
       setSaving(false);
@@ -72,7 +83,7 @@ export function RelaySection() {
             この端末には接続先（nostrism.relays）が保存されているため、公開しても接続先はその保存値のままです。
           </p>
         )}
-        <AddRelayForm list={list} onAdd={(url) => setDraft([...list, { url, read: true, write: true }])} />
+        <AddRelayForm list={list} onAdd={(url) => edit([...list, { url, read: true, write: true }])} />
       </div>
       <div className={styles.block}>
         <ul className={styles.relays} aria-label="リレーの一覧">
@@ -80,8 +91,8 @@ export function RelaySection() {
             <RelayRow
               key={p.url}
               pref={p}
-              onChange={(next) => setDraft(list.map((q) => (q.url === p.url ? next : q)))}
-              onRemove={() => setDraft(list.filter((q) => q.url !== p.url))}
+              onChange={(next) => edit(list.map((q) => (q.url === p.url ? next : q)))}
+              onRemove={() => edit(list.filter((q) => q.url !== p.url))}
             />
           ))}
         </ul>
