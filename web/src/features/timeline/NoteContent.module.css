@@ -1,0 +1,31 @@
+.content {
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: var(--w-body);
+  line-height: 1.5;
+  /* 改行をそのまま出し、長い URL や連続した英数字ははみ出させず折り返す */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.link {
+  color: var(--accent);
+  font-weight: var(--w-link);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.gallery {
+  display: flex;
+  flex-direction: column;
+}
+
+.hashtag,
+.mention {
+  color: var(--accent);
+  font-weight: var(--w-link);
+}
