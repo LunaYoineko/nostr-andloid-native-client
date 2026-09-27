@@ -4,7 +4,7 @@ import { use$ } from "applesauce-react/hooks/use-$";
 import { RelayPool } from "applesauce-relay/pool";
 import type { NostrEvent } from "nostr-tools/pure";
 import { filter, map, type Observable, tap, timer } from "rxjs";
-import { eventStore } from "./store";
+import { addVerified } from "./store";
 
 /** 接続するリレー一覧（JSON の文字列配列）。無ければ端末の言語で既定を選ぶ */
 export const RELAYS_KEY = "nostrism.relays";
@@ -80,7 +80,7 @@ const RECONNECT = {
 export function subscribe(filters: Filter | Filter[]): Observable<"EOSE"> {
   return pool.req([...relays], filters, { reconnect: RECONNECT }).pipe(
     tap((message) => {
-      if (message.type === "EVENT") eventStore.add(message.event, message.from);
+      if (message.type === "EVENT") addVerified(message.event, message.from);
     }),
     filter((message) => message.type === "EOSE"),
     map(() => "EOSE" as const),
@@ -94,7 +94,7 @@ export function subscribe(filters: Filter | Filter[]): Observable<"EOSE"> {
 export function subscribeTo(relays: readonly string[], filters: Filter[]): Observable<"EOSE"> {
   return pool.req([...relays], filters, { reconnect: RECONNECT }).pipe(
     tap((message) => {
-      if (message.type === "EVENT") eventStore.add(message.event, message.from);
+      if (message.type === "EVENT") addVerified(message.event, message.from);
     }),
     filter((message) => message.type === "EOSE"),
     map(() => "EOSE" as const),
@@ -107,7 +107,19 @@ export function requestOnce(
   filters: Filter[],
   timeoutMs: number,
 ): Observable<NostrEvent> {
-  return pool.request([...relays], filters, { timeout: timeoutMs }).pipe(tap((e) => eventStore.add(e)));
+  return pool.request([...relays], filters, { timeout: timeoutMs }).pipe(tap((e) => addVerified(e)));
+}
+
+/**
+ * 1 回だけ取りに行く（EOSE か timeoutMs で終わる）。requestOnce と違い EventStore に入れない
+ * （他人の kind:3 など、保存したくない大きいイベント用。署名の検証は呼び出し側で行う）。
+ */
+export function requestOnceUnstored(
+  relays: readonly string[],
+  filters: Filter[],
+  timeoutMs: number,
+): Observable<NostrEvent> {
+  return pool.request([...relays], filters, { timeout: timeoutMs });
 }
 
 export type RelayConnections = { connected: number; total: number };

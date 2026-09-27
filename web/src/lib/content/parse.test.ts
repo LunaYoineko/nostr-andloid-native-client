@@ -1,7 +1,8 @@
 import type { Content } from "applesauce-content/nast";
+import { neventEncode, noteEncode, npubEncode } from "nostr-tools/nip19";
 import { finalizeEvent, generateSecretKey, type NostrEvent } from "nostr-tools/pure";
 import { expect, it } from "vitest";
-import { parseNoteContent, splitTrailingPunct } from "./parse";
+import { parseNoteContent, splitTrailingPunct, withoutMention } from "./parse";
 
 // applesauce の Tokens.link はホストにドットを要求するため、テストの URL は *.test にする
 
@@ -19,6 +20,10 @@ function shape(children: Content[]) {
         return { link: node.href };
       case "hashtag":
         return { hashtag: node.hashtag, name: node.name };
+      case "mention":
+        return { mention: node.encoded, type: node.decoded.type };
+      case "emoji":
+        return { emoji: node.code, url: node.url };
       default:
         return { [node.type]: true };
     }
@@ -74,6 +79,77 @@ it("t タグが無くても #タグ にし（hashtag は小文字）、URL 中�
   ]);
   expect(shape(root.children.filter((node) => node.type === "link"))).toEqual([
     { link: "https://x.co/#frag" },
+  ]);
+});
+
+const NPUB = npubEncode("a".repeat(64));
+const NOTE = noteEncode("b".repeat(64));
+const NEVENT = neventEncode({ id: "c".repeat(64) });
+
+it("日本語の直後・「」の中・( の直後の nostr: 参照と素の bech32 を mention にする（#479）", () => {
+  const root = parseNoteContent(note(`これnostr:${NPUB}です「${NOTE}」文(${NEVENT})`));
+  expect(shape(root.children)).toEqual([
+    { text: "これ" },
+    { mention: NPUB, type: "npub" },
+    { text: "です「" },
+    { mention: NOTE, type: "note" },
+    { text: "」文(" },
+    { mention: NEVENT, type: "nevent" },
+    { text: ")" },
+  ]);
+});
+
+it("引用に出した日本語直後の nevent は本文から消せる（#479）", () => {
+  const root = parseNoteContent(note(`見てnostr:${NEVENT}\nいいね`));
+  expect(shape(withoutMention(root, NEVENT).children)).toEqual([{ text: "見て" }, { text: "いいね" }]);
+});
+
+it("デコードできない参照・大文字の参照は書かれた文字のまま", () => {
+  const broken = `${NPUB.slice(0, -1)}${NPUB.endsWith("q") ? "p" : "q"}`;
+  const root = parseNoteContent(note(`a nostr:${broken} b ${NPUB.toUpperCase()}`));
+  expect(shape(root.children)).toEqual([{ text: `a nostr:${broken} b ${NPUB.toUpperCase()}` }]);
+});
+
+it("カスタム絵文字は日本語の shortcode も拾い、大文字小文字を区別して emoji タグと照合する（#479）", () => {
+  const root = parseNoteContent(
+    note(":おはよう: :Smile: :smile: :none:", [
+      ["emoji", "おはよう", "https://e.test/o.png"],
+      ["emoji", "smile", "https://e.test/s.png"],
+    ]),
+  );
+  expect(shape(root.children)).toEqual([
+    { emoji: "おはよう", url: "https://e.test/o.png" },
+    { text: " :Smile: " },
+    { emoji: "smile", url: "https://e.test/s.png" },
+    { text: " :none:" },
+  ]);
+});
+
+it("同じ shortcode の emoji タグが複数あれば後のものを使う", () => {
+  const root = parseNoteContent(
+    note(":a:", [
+      ["emoji", "a", "https://e.test/1.png"],
+      ["emoji", "a", "https://e.test/2.png"],
+    ]),
+  );
+  expect(shape(root.children)).toEqual([{ emoji: "a", url: "https://e.test/2.png" }]);
+});
+
+it("直前が英数字・日本語の # もタグにする（#479）", () => {
+  const root = parseNoteContent(note("abc#tag C#言語"));
+  expect(shape(root.children)).toEqual([
+    { text: "abc" },
+    { hashtag: "tag", name: "tag" },
+    { text: " C" },
+    { hashtag: "言語", name: "言語" },
+  ]);
+});
+
+it("link にならなかった http(s):// から空白までは文字のまま（中の # や参照を拾わない）", () => {
+  const root = parseNoteContent(note(`https://example#tag/${NPUB} #ok`));
+  expect(shape(root.children)).toEqual([
+    { text: `https://example#tag/${NPUB} ` },
+    { hashtag: "ok", name: "ok" },
   ]);
 });
 

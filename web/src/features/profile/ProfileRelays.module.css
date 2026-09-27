@@ -1,0 +1,40 @@
+.wrap {
+  margin-top: var(--sp-3);
+  max-width: 100%;
+}
+
+.toggle {
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-caption);
+  font-weight: var(--w-strong);
+  cursor: pointer;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-1) 0;
+}
+
+.url {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-caption);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.marker {
+  color: var(--text-3);
+  font-size: var(--type-label);
+}

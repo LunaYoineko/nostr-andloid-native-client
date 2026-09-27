@@ -2,7 +2,8 @@ import { act, renderHook } from "@testing-library/react";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import type { Subject } from "rxjs";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { type ColumnSpec, DEFAULT_COLUMNS } from "../../lib/columns";
+import { buildColumn, type ColumnSpec, DEFAULT_COLUMNS } from "../../lib/columns";
+import { authorOutbox$ } from "../../nostr/outbox";
 import { requestOnce, subscribe, subscribeTo } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
@@ -19,6 +20,12 @@ vi.mock("../../nostr/pool", async () => {
   };
 });
 
+// アウトボックス購読も Subject にして、張った / やめたを observed で見る
+vi.mock("../../nostr/outbox", async () => {
+  const { Subject } = await import("rxjs");
+  return { authorOutbox$: vi.fn(() => new Subject<"EOSE">()) };
+});
+
 const RELAYS = ["wss://relay.example"];
 const [FOLLOWING, HASHTAG] = DEFAULT_COLUMNS;
 
@@ -33,6 +40,7 @@ beforeEach(() => {
   vi.mocked(subscribe).mockClear();
   vi.mocked(subscribeTo).mockClear();
   vi.mocked(requestOnce).mockClear();
+  vi.mocked(authorOutbox$).mockClear();
 });
 
 afterEach(() => {
@@ -146,4 +154,34 @@ it("DM カラムは購読せず、読み込み中にもしない", () => {
   const { result } = renderHook(() => useColumnFeed(dm));
   expect(vi.mocked(subscribeTo)).not.toHaveBeenCalled();
   expect(result.current.loading).toBe(false);
+});
+
+it("著者指定のカラム: 著者の書き込みリレーへも張り、refresh で張り直し、アンマウントでやめる", () => {
+  const author = getPublicKey(generateSecretKey());
+  const profile = buildColumn("PROFILE", { text: author }, new Set(), 1);
+  if (!profile) throw new Error("buildColumn returned null");
+  const outbox = () => vi.mocked(authorOutbox$).mock.results.at(-1)?.value as Subject<"EOSE">;
+
+  const { result, unmount } = renderHook(() => useColumnFeed(profile));
+  expect(vi.mocked(authorOutbox$)).toHaveBeenCalledWith(
+    [author],
+    [{ kinds: [1], authors: [author], limit: 100 }],
+  );
+  const first = outbox();
+  expect(first.observed).toBe(true);
+
+  act(() => result.current.refresh());
+  expect(first.observed).toBe(false);
+  expect(vi.mocked(authorOutbox$)).toHaveBeenCalledTimes(2);
+  expect(outbox()).not.toBe(first);
+  expect(outbox().observed).toBe(true);
+
+  const second = outbox();
+  unmount();
+  expect(second.observed).toBe(false);
+});
+
+it("ハッシュタグのカラムはアウトボックス購読をしない", () => {
+  renderHook(() => useColumnFeed(HASHTAG));
+  expect(vi.mocked(authorOutbox$)).not.toHaveBeenCalled();
 });

@@ -8,6 +8,11 @@
   overflow-wrap: anywhere;
 }
 
+/* 一段小さい文章（プロフィールの自己紹介） */
+.content.sub {
+  font-size: var(--type-sub);
+}
+
 /* 引用カード内は文字の大きさ・色・行高をカード側に合わせる */
 .quote {
   color: inherit;

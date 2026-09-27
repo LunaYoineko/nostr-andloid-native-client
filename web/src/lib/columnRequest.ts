@@ -163,3 +163,38 @@ export function matchesSearch(event: NostrEvent, search: string): boolean {
     return event.tags.some((t) => t[0] === "t" && typeof t[1] === "string" && t[1].toLowerCase() === tag);
   });
 }
+
+/** kind:0 / 3 / 10002 を広く持つリレー（ネイティブの EventRepository.INDEXER_RELAYS と同じ順） */
+export const INDEXER_RELAYS: readonly string[] = [
+  "wss://purplepag.es",
+  "wss://relay.nostr.band",
+  "wss://relay.damus.io",
+  "wss://nos.lol",
+  "wss://relay.primal.net",
+];
+
+/** アウトボックス購読（著者の書き込みリレーへの追加購読）を付ける著者数の上限 */
+export const OUTBOX_MAX_AUTHORS = 3;
+
+/**
+ * アウトボックス購読の対象の著者（ネイティブ subscribeColumn の分岐順）。
+ * 著者指定が 1〜3 人で、単語検索・search・relays 指定の無いカラムだけ。対象外は null。
+ */
+export function outboxAuthorsFor(spec: ColumnSpec): string[] | null {
+  switch (spec.kind) {
+    case "FOLLOWING":
+    case "NOTIFICATIONS":
+    case "FAVS":
+    case "DM":
+    case "THREAD":
+    case "CHANNEL_LIST":
+    case "CHANNEL_ROOM":
+      return null;
+  }
+  const f = spec.filter;
+  if (f.words.length > 0) return null;
+  if (f.search !== null && f.search.trim() !== "") return null;
+  if (f.relays.length > 0) return null;
+  const authors = [...new Set(f.authors)];
+  return authors.length >= 1 && authors.length <= OUTBOX_MAX_AUTHORS ? authors : null;
+}

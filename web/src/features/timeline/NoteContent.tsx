@@ -5,6 +5,7 @@ import type {
   Hashtag,
   Link as LinkNast,
   Mention,
+  Root,
   Text,
 } from "applesauce-content/nast";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
@@ -210,6 +211,19 @@ export function NoteContent({
       <div className={variant === "quote" ? `${styles.content} ${styles.quote}` : styles.content}>
         {content}
       </div>
+    </NoteContentContext.Provider>
+  );
+}
+
+/**
+ * 構文木をそのまま本文と同じ部品で描く（プロフィールの自己紹介など、ノート以外の文章用）。
+ * size = "sub" で文字を一段小さくする。
+ */
+export function RichText({ root, size = "body" }: { root: Root; size?: "body" | "sub" }) {
+  const content = useRenderNast(root, components);
+  return (
+    <NoteContentContext.Provider value="full">
+      <div className={size === "sub" ? `${styles.content} ${styles.sub}` : styles.content}>{content}</div>
     </NoteContentContext.Provider>
   );
 }
