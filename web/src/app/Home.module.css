@@ -29,12 +29,36 @@
 
 .npub {
   margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--text-3);
   font-size: var(--type-label);
   font-weight: var(--w-body);
 }
 
+.add {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.add:hover {
+  background: var(--surface-3);
+}
+
 .logout {
+  flex: none;
   min-height: var(--touch-sm);
   padding: 0 var(--sp-3);
   border: 1px solid var(--border-strong);
@@ -50,36 +74,18 @@
   background: var(--surface-3);
 }
 
-.title {
-  margin: 0;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-size: var(--type-sub);
-  font-weight: var(--w-strong);
-}
-
-.status {
-  flex: none;
-  color: var(--text-3);
-  font-size: var(--type-label);
-}
-
 .connections {
   flex: none;
-  margin-left: auto;
   color: var(--text-3);
   font-size: var(--type-label);
   font-weight: var(--w-body);
 }
 
-/* 1 カラム（デッキのカラム幅）を中央に置く */
+/* 残りの高さいっぱいにデッキを置く */
 .body {
   flex: 1;
   min-height: 0;
   width: 100%;
-  max-width: var(--column-w);
   margin: 0 auto;
   background: var(--surface);
 }

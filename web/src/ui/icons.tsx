@@ -1,11 +1,103 @@
-/**
- * アイコン。ネイティブが使う Material Icons（Outlined, Apache-2.0）の SVG パスを必要な分だけ写す。
- * 色は currentColor、大きさは className（CSS）で決める。
- * title が無ければ装飾扱い（aria-hidden）、あれば role="img" + <title> で読み上げる。
- */
-type IconProps = { className?: string; title?: string };
+import type { ColumnKind } from "../lib/columns";
 
-function Icon({ className, title, path }: IconProps & { path: string }) {
+/**
+ * アイコン（Material Symbols Outlined, weight 400 / 24px。Apache License 2.0, © Google）。
+ * 使う分だけ SVG のパスを写す。viewBox は Material Symbols の "0 -960 960 960"。
+ */
+const PATHS = {
+  people:
+    "M40-160v-112q0-34 17.5-62.5T104-378q62-31 126-46.5T360-440q66 0 130 15.5T616-378q29 15 46.5 43.5T680-272v112H40Zm720 0v-120q0-44-24.5-84.5T666-434q51 6 96 20.5t84 35.5q36 20 55 44.5t19 53.5v120H760ZM247-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47Zm466 0q-47 47-113 47-11 0-28-2.5t-28-5.5q27-32 41.5-71t14.5-81q0-42-14.5-81T544-792q14-5 28-6.5t28-1.5q66 0 113 47t47 113q0 66-47 113ZM120-240h480v-32q0-11-5.5-20T580-306q-54-27-109-40.5T360-360q-56 0-111 13.5T140-306q-9 5-14.5 14t-5.5 20v32Zm296.5-343.5Q440-607 440-640t-23.5-56.5Q393-720 360-720t-56.5 23.5Q280-673 280-640t23.5 56.5Q327-560 360-560t56.5-23.5ZM360-240Zm0-400Z",
+  tag: "m240-160 40-160H120l20-80h160l40-160H180l20-80h160l40-160h80l-40 160h160l40-160h80l-40 160h160l-20 80H660l-40 160h160l-20 80H600l-40 160h-80l40-160H360l-40 160h-80Zm140-240h160l40-160H420l-40 160Z",
+  notifications:
+    "M160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v28q80 20 130 84.5T720-560v280h80v80H160Zm320-300Zm0 420q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-280h320v-280q0-66-47-113t-113-47q-66 0-113 47t-47 113v280Z",
+  mailOutline:
+    "M160-160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720v480q0 33-23.5 56.5T800-160H160Zm320-280L160-640v400h640v-400L480-440Zm0-80 320-200H160l320 200ZM160-640v-80 480-400Z",
+  public:
+    "M324-111.5Q251-143 197-197t-85.5-127Q80-397 80-480t31.5-156Q143-709 197-763t127-85.5Q397-880 480-880t156 31.5Q709-817 763-763t85.5 127Q880-563 880-480t-31.5 156Q817-251 763-197t-127 85.5Q563-80 480-80t-156-31.5ZM440-162v-78q-33 0-56.5-23.5T360-320v-40L168-552q-3 18-5.5 36t-2.5 36q0 121 79.5 212T440-162Zm276-102q41-45 62.5-100.5T800-480q0-98-54.5-179T600-776v16q0 33-23.5 56.5T520-680h-80v80q0 17-11.5 28.5T400-560h-80v80h240q17 0 28.5 11.5T600-440v120h40q26 0 47 15.5t29 40.5Z",
+  person:
+    "M367-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Zm80-80h480v-32q0-11-5.5-20T700-306q-54-27-109-40.5T480-360q-56 0-111 13.5T260-306q-9 5-14.5 14t-5.5 20v32Zm296.5-343.5Q560-607 560-640t-23.5-56.5Q513-720 480-720t-56.5 23.5Q400-673 400-640t23.5 56.5Q447-560 480-560t56.5-23.5ZM480-640Zm0 400Z",
+  starBorder:
+    "m354-287 126-76 126 77-33-144 111-96-146-13-58-136-58 135-146 13 111 97-33 143ZM233-120l65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Zm247-350Z",
+  list: "M280-600v-80h560v80H280Zm0 160v-80h560v80H280Zm0 160v-80h560v80H280ZM160-600q-17 0-28.5-11.5T120-640q0-17 11.5-28.5T160-680q17 0 28.5 11.5T200-640q0 17-11.5 28.5T160-600Zm0 160q-17 0-28.5-11.5T120-480q0-17 11.5-28.5T160-520q17 0 28.5 11.5T200-480q0 17-11.5 28.5T160-440Zm0 160q-17 0-28.5-11.5T120-320q0-17 11.5-28.5T160-360q17 0 28.5 11.5T200-320q0 17-11.5 28.5T160-280Z",
+  reply:
+    "M760-200v-160q0-50-35-85t-85-35H273l144 144-57 56-240-240 240-240 57 56-144 144h367q83 0 141.5 58.5T840-360v160h-80Z",
+  chat: "M240-400h320v-80H240v80Zm0-120h480v-80H240v80Zm0-120h480v-80H240v80ZM80-80v-720q0-33 23.5-56.5T160-880h640q33 0 56.5 23.5T880-800v480q0 33-23.5 56.5T800-240H240L80-80Zm126-240h594v-480H160v525l46-45Zm-46 0v-480 480Z",
+  moreHoriz:
+    "M240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400Z",
+  chevronLeft: "M560-240 320-480l240-240 56 56-184 184 184 184-56 56Z",
+  chevronRight: "M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z",
+  close: "m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z",
+  add: "M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z",
+  tune: "M440-120v-240h80v80h320v80H520v80h-80Zm-320-80v-80h240v80H120Zm160-160v-80H120v-80h160v-80h80v240h-80Zm160-80v-80h400v80H440Zm160-160v-240h80v80h160v80H680v80h-80Zm-480-80v-80h400v80H120Z",
+  pushPin:
+    "m640-480 80 80v80H520v240l-40 40-40-40v-240H240v-80l80-80v-280h-40v-80h400v80h-40v280Zm-286 80h252l-46-46v-314H400v314l-46 46Zm126 0Z",
+  refresh:
+    "M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z",
+} as const;
+
+export type IconName = keyof typeof PATHS;
+
+const SIZES = { sm: "var(--icon-sm)", md: "var(--icon-md)", lg: "var(--icon-lg)" } as const;
+
+/** 装飾用のアイコン（読み上げない。ボタンの名前は aria-label 側で付ける）。色は currentColor */
+export function Icon({
+  name,
+  size = "md",
+  className,
+}: {
+  name: IconName;
+  size?: keyof typeof SIZES;
+  className?: string;
+}) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 -960 960 960"
+      style={{ width: SIZES[size], height: SIZES[size], flex: "none" }}
+      fill="currentColor"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d={PATHS[name]} />
+    </svg>
+  );
+}
+
+/** カラム種別 → ヘッダ/一覧のアイコン（ネイティブの ColumnIcons.kt と同じ対応） */
+export function columnIcon(kind: ColumnKind): IconName {
+  switch (kind) {
+    case "FOLLOWING":
+      return "people";
+    case "HASHTAG":
+      return "tag";
+    case "NOTIFICATIONS":
+      return "notifications";
+    case "DM":
+      return "mailOutline";
+    case "GLOBAL":
+      return "public";
+    case "PROFILE":
+      return "person";
+    case "FAVS":
+      return "starBorder";
+    case "LIST":
+      return "list";
+    case "THREAD":
+      return "reply";
+    case "CHANNEL_LIST":
+      return "tag";
+    case "CHANNEL_ROOM":
+      return "chat";
+  }
+}
+
+/*
+ * ---- 以下: 投稿表示・メディア用（#454 / #455）。Material Icons Outlined（Apache-2.0）のパス。
+ * 色は currentColor、大きさは className（CSS）で決める。title が無ければ装飾扱い（aria-hidden）。
+ */
+type MaterialIconProps = { className?: string; title?: string };
+
+function MaterialIcon({ className, title, path }: MaterialIconProps & { path: string }) {
   if (title) {
     return (
       <svg className={className} viewBox="0 0 24 24" role="img">
@@ -21,75 +113,75 @@ function Icon({ className, title, path }: IconProps & { path: string }) {
   );
 }
 
-export function RepeatIcon(props: IconProps) {
-  return <Icon {...props} path="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />;
+export function RepeatIcon(props: MaterialIconProps) {
+  return <MaterialIcon {...props} path="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />;
 }
 
-export function ReplyIcon(props: IconProps) {
-  return <Icon {...props} path="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" />;
+export function ReplyIcon(props: MaterialIconProps) {
+  return <MaterialIcon {...props} path="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" />;
 }
 
-export function VisibilityOffIcon(props: IconProps) {
+export function VisibilityOffIcon(props: MaterialIconProps) {
   return (
-    <Icon
+    <MaterialIcon
       {...props}
       path="M12 6a9.77 9.77 0 0 1 8.82 5.5 9.647 9.647 0 0 1-2.41 3.12l1.41 1.41c1.39-1.23 2.49-2.77 3.18-4.53C21.27 7.11 17 4 12 4c-1.27 0-2.49.2-3.64.57l1.65 1.65C10.66 6.09 11.32 6 12 6zm-1.07 1.14L13 9.21c.57.25 1.03.71 1.28 1.28l2.07 2.07c.08-.34.14-.7.14-1.07C16.5 9.01 14.48 7 12 7c-.37 0-.72.05-1.07.14zM2.01 3.87l2.68 2.68A11.738 11.738 0 0 0 1 11.5C2.73 15.89 7 19 12 19c1.52 0 2.98-.29 4.32-.82l3.42 3.42 1.41-1.41L3.42 2.45 2.01 3.87zm7.5 7.5 2.61 2.61c-.04.01-.08.02-.12.02a2.5 2.5 0 0 1-2.5-2.5c0-.05.01-.08.01-.13zm-3.4-3.4 1.75 1.75a4.6 4.6 0 0 0-.36 1.78 4.507 4.507 0 0 0 6.27 4.14l.98.98c-.88.24-1.8.38-2.75.38a9.77 9.77 0 0 1-8.82-5.5c.7-1.43 1.72-2.61 2.93-3.53z"
     />
   );
 }
 
-export function ExpandMoreIcon(props: IconProps) {
-  return <Icon {...props} path="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6-1.41-1.41z" />;
+export function ExpandMoreIcon(props: MaterialIconProps) {
+  return <MaterialIcon {...props} path="M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6-1.41-1.41z" />;
 }
 
-export function ExpandLessIcon(props: IconProps) {
-  return <Icon {...props} path="m12 8-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14l-6-6z" />;
+export function ExpandLessIcon(props: MaterialIconProps) {
+  return <MaterialIcon {...props} path="m12 8-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14l-6-6z" />;
 }
 
-export function PlayCircleIcon(props: IconProps) {
+export function PlayCircleIcon(props: MaterialIconProps) {
   return (
-    <Icon
+    <MaterialIcon
       {...props}
       path="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-2.5-3.5 7-4.5-7-4.5v9z"
     />
   );
 }
 
-export function PlayArrowIcon(props: IconProps) {
-  return <Icon {...props} path="M8 5v14l11-7z" />;
+export function PlayArrowIcon(props: MaterialIconProps) {
+  return <MaterialIcon {...props} path="M8 5v14l11-7z" />;
 }
 
-export function ContentCopyIcon(props: IconProps) {
+export function ContentCopyIcon(props: MaterialIconProps) {
   return (
-    <Icon
+    <MaterialIcon
       {...props}
       path="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
     />
   );
 }
 
-export function OpenInNewIcon(props: IconProps) {
+export function OpenInNewIcon(props: MaterialIconProps) {
   return (
-    <Icon
+    <MaterialIcon
       {...props}
       path="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"
     />
   );
 }
 
-export function CloseIcon(props: IconProps) {
+export function CloseIcon(props: MaterialIconProps) {
   return (
-    <Icon
+    <MaterialIcon
       {...props}
       path="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"
     />
   );
 }
 
-export function ChevronLeftIcon(props: IconProps) {
-  return <Icon {...props} path="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />;
+export function ChevronLeftIcon(props: MaterialIconProps) {
+  return <MaterialIcon {...props} path="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />;
 }
 
-export function ChevronRightIcon(props: IconProps) {
-  return <Icon {...props} path="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />;
+export function ChevronRightIcon(props: MaterialIconProps) {
+  return <MaterialIcon {...props} path="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />;
 }

@@ -1,0 +1,17 @@
+/* カラムの間は線ではなく背景色の隙間で分ける */
+.deck {
+  display: flex;
+  gap: var(--column-gap);
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--bg);
+}
+
+.slot {
+  flex: none;
+  width: var(--column-w);
+  /* 画面より広いカラムは画面幅に収める */
+  max-width: 100%;
+  height: 100%;
+}

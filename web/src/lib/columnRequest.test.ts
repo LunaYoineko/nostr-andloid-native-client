@@ -1,0 +1,132 @@
+import type { NostrEvent } from "nostr-tools/pure";
+import { describe, expect, it } from "vitest";
+import { type Ctx, matchesSearch, requestFor, SEARCH_RELAYS, viewFor } from "./columnRequest";
+import { buildColumn, type ColumnSpec, DEFAULT_COLUMNS } from "./columns";
+
+const ME = "3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d";
+const FOLLOW = "82341f882b6eabcd2ba7f1ef90aad961cf074af15b9ef44a09f9d2a8fbfbe6a2";
+const RELAYS = ["wss://relay.example"];
+const NONE: ReadonlySet<string> = new Set();
+
+function ctx(overrides: Partial<Ctx> = {}): Ctx {
+  return { me: ME, follows: null, relays: RELAYS, ...overrides };
+}
+
+function build(...args: Parameters<typeof buildColumn>): ColumnSpec {
+  const spec = buildColumn(...args);
+  if (!spec) throw new Error("buildColumn returned null");
+  return spec;
+}
+
+function note(overrides: Partial<NostrEvent>): NostrEvent {
+  return { id: "x", pubkey: FOLLOW, created_at: 0, kind: 1, tags: [], content: "", sig: "", ...overrides };
+}
+
+const [following, hashtag, notif] = DEFAULT_COLUMNS;
+
+describe("requestFor", () => {
+  it("フォロー中: kind:3 が未取得・空ならリレー新着、取得後はフォロー + 自分", () => {
+    expect(requestFor(following, ctx())).toEqual({ relays: RELAYS, filters: [{ kinds: [1], limit: 100 }] });
+    expect(requestFor(following, ctx({ follows: [] }))).toEqual({
+      relays: RELAYS,
+      filters: [{ kinds: [1], limit: 100 }],
+    });
+    expect(requestFor(following, ctx({ follows: [FOLLOW, ME] }))).toEqual({
+      relays: RELAYS,
+      filters: [{ kinds: [1, 6, 16, 5, 1111], authors: [FOLLOW, ME], limit: 100 }],
+    });
+  });
+
+  it("通知: 自分宛て（#p）の 6 種を 200 件。未ログインなら張らない", () => {
+    expect(requestFor(notif, ctx())).toEqual({
+      relays: RELAYS,
+      filters: [{ kinds: [1, 6, 16, 7, 9735, 1111], "#p": [ME], limit: 200 }],
+    });
+    expect(requestFor(notif, ctx({ me: null }))).toBeNull();
+  });
+
+  it("ハッシュタグ・ふぁぼ欄", () => {
+    expect(requestFor(hashtag, ctx())).toEqual({
+      relays: RELAYS,
+      filters: [{ kinds: [1], "#t": ["nostr"], limit: 100 }],
+    });
+    expect(requestFor(build("FAVS", {}, NONE, 1), ctx())).toEqual({
+      relays: RELAYS,
+      filters: [{ kinds: [7], authors: [ME], limit: 100 }],
+    });
+  });
+
+  it("キーワード・タグ: 検索リレーへ 1 語 1 フィルタ + #t を 300 件", () => {
+    const search = build("SEARCH", { text: "rally Nostr #wrc" }, NONE, 1);
+    expect(requestFor(search, ctx())).toEqual({
+      relays: SEARCH_RELAYS,
+      filters: [
+        { kinds: [1], search: "rally", limit: 300 },
+        { kinds: [1], search: "Nostr", limit: 300 },
+        { kinds: [1], "#t": ["wrc"], limit: 300 },
+      ],
+    });
+  });
+
+  it("配信先リレーを指定したグローバルはそのリレーだけ、DM は張らない", () => {
+    const global = build("GLOBAL", { relays: ["wss://yabu.me"] }, NONE, 1);
+    expect(requestFor(global, ctx())).toEqual({
+      relays: ["wss://yabu.me"],
+      filters: [{ kinds: [1], limit: 100 }],
+    });
+    expect(requestFor({ ...following, kind: "DM" }, ctx())).toBeNull();
+  });
+});
+
+describe("viewFor", () => {
+  it("通知: 表示する kind は [1, 1111, 6, 16] の範囲に絞り、自分の投稿を落とす", () => {
+    expect(viewFor(notif, ctx()).filters).toEqual([{ kinds: [1, 1111], "#p": [ME] }]);
+    const all = build("NOTIFICATIONS", {}, NONE, 1);
+    const view = viewFor(all, ctx());
+    expect(view.filters).toEqual([{ kinds: [1, 1111, 6, 16], "#p": [ME] }]);
+    expect(view.predicate?.(note({ pubkey: ME }))).toBe(false);
+    expect(view.predicate?.(note({ pubkey: FOLLOW }))).toBe(true);
+  });
+
+  it("キーワード・タグ: 本文を大文字小文字を無視して照合し、t タグでも拾う", () => {
+    const view = viewFor(build("SEARCH", { text: "Rally #wrc" }, NONE, 1), ctx());
+    expect(view.filters).toEqual([{ kinds: [1] }]);
+    expect(view.predicate?.(note({ content: "WRC RALLY Japan" }))).toBe(true);
+    expect(view.predicate?.(note({ content: "no match", tags: [["t", "wrc"]] }))).toBe(true);
+    expect(view.predicate?.(note({ content: "no match", tags: [["t", "other"]] }))).toBe(false);
+  });
+
+  it("フォロー中は kind:5 を含めず、ハッシュタグは #t で読む", () => {
+    expect(viewFor(following, ctx({ follows: [FOLLOW] })).filters).toEqual([
+      { kinds: [1, 6, 16, 1111], authors: [FOLLOW, ME] },
+    ]);
+    expect(viewFor(hashtag, ctx()).filters).toEqual([{ kinds: [1], "#t": ["nostr"] }]);
+  });
+});
+
+describe("matchesSearch", () => {
+  it("空白で区切った語をすべて本文が含めば表示する（大文字小文字は無視、#tag は t タグでも可）", () => {
+    expect(matchesSearch(note({ content: "Nostr Relay の話" }), "nostr RELAY")).toBe(true);
+    expect(matchesSearch(note({ content: "nostr の話", tags: [["t", "WRC"]] }), "nostr #wrc")).toBe(true);
+    // 旧形式（search だけの GLOBAL）のカラムは、この一致でストアから絞る
+    const legacy: ColumnSpec = {
+      ...following,
+      kind: "GLOBAL",
+      filter: { ...following.filter, search: "Nostr relay" },
+    };
+    const view = viewFor(legacy, ctx());
+    expect(view.filters).toEqual([{ kinds: [1] }]);
+    expect(view.predicate?.(note({ content: "nostr relay" }))).toBe(true);
+    expect(view.predicate?.(note({ content: "nostr only" }))).toBe(false);
+  });
+
+  it("1 語でも含まなければ表示しない", () => {
+    expect(matchesSearch(note({ content: "nostr の話" }), "nostr relay")).toBe(false);
+    expect(matchesSearch(note({ content: "nostr の話", tags: [["t", "other"]] }), "nostr #wrc")).toBe(false);
+  });
+
+  it("key:value の語（NIP-50 の拡張オプション）は無視する", () => {
+    expect(matchesSearch(note({ content: "nostr の話" }), "nostr include:spam language:ja")).toBe(true);
+    expect(matchesSearch(note({ content: "何か" }), "include:spam")).toBe(true);
+  });
+});
