@@ -1,0 +1,91 @@
+.gate {
+  max-width: var(--column-w);
+  margin: 0 auto;
+  padding: var(--sp-5) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--type-display);
+  font-weight: var(--w-strong);
+}
+
+.lead {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-sub);
+}
+
+.primary {
+  min-height: var(--touch);
+  padding: 0 var(--sp-4);
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  /* on-accent の文字色（designs/index.html のボタンと同じ） */
+  color: #fff;
+  font: inherit;
+  font-size: var(--type-body);
+  font-weight: var(--w-strong);
+  cursor: pointer;
+}
+
+.primary:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.error {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: var(--sp-1) solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  /* tokens.css に警告色（ネイティブの DeckColors.Warn）がまだ無いので本文色で出す */
+  color: var(--text);
+  font-size: var(--type-caption);
+}
+
+.help {
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: var(--type-caption);
+  color: var(--text-2);
+}
+
+.help p {
+  margin: 0 0 var(--sp-2);
+}
+
+.help a {
+  color: var(--accent);
+}
+
+.helpTitle {
+  color: var(--text);
+  font-weight: var(--w-strong);
+}
+
+.helpList {
+  margin: 0;
+  padding-left: var(--sp-4);
+}
+
+.more {
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}
+
+.more summary {
+  padding: var(--sp-3) 0;
+  cursor: pointer;
+}
+
+.more p {
+  margin: 0;
+}
