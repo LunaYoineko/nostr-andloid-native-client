@@ -13,6 +13,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
+  /* 太さの指定が無い文字は本文の太さ（太字モードで上がる。ネイティブ DeckTheme の LocalTextStyle 既定と同じ） */
+  font-weight: var(--w-body);
 }
 
 /* 見た目には出さず、読み上げにだけ残す文字 */
@@ -23,4 +25,16 @@ body {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/*
+ * タッチ端末では入力欄を 16px 以上にする。iOS Safari は 16px 未満の入力欄にフォーカスすると画面を拡大し、
+ * 閉じても元に戻らないため（文字サイズ設定で大きくした場合はそちらに従う）。
+ */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, var(--type-body));
+  }
 }
