@@ -8,7 +8,7 @@
 import type { PublishResponse } from "applesauce-relay/types";
 import type { EventTemplate, NostrEvent } from "nostr-tools/pure";
 import { pool, relays } from "../../nostr/pool";
-import { eventStore } from "../../nostr/store";
+import { addVerified } from "../../nostr/store";
 import { currentSigner, useSession } from "../../signer/session";
 
 /** リレーの OK を待つ時間 */
@@ -55,8 +55,7 @@ export async function signAndPublish(template: EventTemplate): Promise<NostrEven
   }
   if (!results.some((r) => r.ok)) throw new PublishError("not-accepted");
 
-  // OK を受けてからストアへ入れる。#477 の addVerified（kind:5 を検証してから入れる口）は無い前提で直接入れる。
-  // ここを通るのは自分が署名したイベント（#457 では kind:3 だけ）で、kind:5 は扱わない
-  eventStore.add(signed);
+  // OK を受けてからストアへ入れる（#477 の addVerified 経由。kind:5 は署名検証してから入る）
+  addVerified(signed);
   return signed;
 }
