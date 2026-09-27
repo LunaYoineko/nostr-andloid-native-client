@@ -184,6 +184,9 @@ function muteFailureMessage(e: unknown): string {
   if (e instanceof MuteListError && e.reason === "no-mute-list") {
     return "最新のミュートリストを取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
   }
+  if (e instanceof MuteListError && e.reason === "no-cipher") {
+    return "この署名方式は暗号化に対応していないため、非公開でミュートできません（公開では追加しません）";
+  }
   // ネイティブ note_mute_locked
   return "ミュートリストが変更できません（ロック中の可能性）";
 }

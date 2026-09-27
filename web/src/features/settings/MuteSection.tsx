@@ -28,6 +28,8 @@ function failureMessage(e: unknown): string {
         return "ミュートリストが更新されていたため、変更しませんでした。最新の内容を表示したので、確認してもう一度操作してください";
       case "locked":
         return LOCKED_MESSAGE;
+      case "no-cipher":
+        return "この署名方式は暗号化に対応していないため、非公開でミュートできません（公開では追加しません）";
     }
   }
   // ネイティブ mute_save_failed

@@ -23,8 +23,16 @@ export const OWN_MUTELIST_REFETCH_MS = 5_000;
  * stale = 編集を始めた時点の版と、取り直した最新版が違う（別の端末・クライアントでの変更を消すので止めた）。
  * locked = 非公開部分を復号できない（上書きすると非公開の項目を失うので止めた）。
  * encrypt-failed = 非公開部分の暗号化を拒否された・失敗した。
+ * no-cipher = 署名者が暗号（NIP-44 / NIP-04）を使えず、非公開でミュートできない（公開で出すと相手や他人に
+ * 見えてしまうので、黙って公開にはしない）。
  */
-export type MuteListFailure = "no-mute-list" | "stale" | "locked" | "encrypt-failed" | PublishFailure;
+export type MuteListFailure =
+  | "no-mute-list"
+  | "stale"
+  | "locked"
+  | "encrypt-failed"
+  | "no-cipher"
+  | PublishFailure;
 
 export class MuteListError extends Error {
   readonly reason: MuteListFailure;
@@ -165,16 +173,16 @@ export async function editMuteList(
 }
 
 /**
- * ユーザーをミュートする（⋯ メニュー。ネイティブ muteUserPrivate）。非公開で足す（署名者が暗号を使えなければ公開）。
+ * ユーザーをミュートする（⋯ メニュー。ネイティブ muteUserPrivate）。非公開で足す（署名者が暗号を使えなければ
+ * 公開にはせず MuteListError("no-cipher")）。
  * 公開だけでミュート済みなら非公開も立てる。取り直した最新版に足すので版の照合はしない。
  */
 export function muteUser(me: string, pubkey: string): Promise<"done" | "noop"> {
   return editMuteList(me, (entries, canPrivate) => {
     const existing = entries.find((e) => e.category === "p" && e.value === pubkey);
-    if (!existing) {
-      return [...entries, { category: "p", value: pubkey, isPublic: !canPrivate, isPrivate: canPrivate }];
-    }
-    if (existing.isPrivate || !canPrivate) return null;
+    if (existing?.isPrivate) return null;
+    if (!canPrivate) throw new MuteListError("no-cipher");
+    if (!existing) return [...entries, { category: "p", value: pubkey, isPublic: false, isPrivate: true }];
     return entries.map((e) => (e === existing ? { ...e, isPrivate: true } : e));
   });
 }
@@ -201,7 +209,10 @@ export function removeMuteEntry(
   );
 }
 
-/** ミュートするワードを足す（非公開。ネイティブ addMuteWord）。空・大文字小文字を無視して重複なら "noop" */
+/**
+ * ミュートするワードを足す（非公開。ネイティブ addMuteWord）。空・大文字小文字を無視して重複なら "noop"。
+ * 署名者が暗号を使えなければ MuteListError("no-cipher")（ワードを公開で出さない）。
+ */
 export function addMuteWord(me: string, word: string, basedOnId: string | null): Promise<"done" | "noop"> {
   const w = word.trim();
   return editMuteList(
@@ -210,7 +221,8 @@ export function addMuteWord(me: string, word: string, basedOnId: string | null):
       if (w === "") return null;
       const lower = w.toLowerCase();
       if (entries.some((e) => e.category === "word" && e.value.toLowerCase() === lower)) return null;
-      return [...entries, { category: "word", value: w, isPublic: !canPrivate, isPrivate: canPrivate }];
+      if (!canPrivate) throw new MuteListError("no-cipher");
+      return [...entries, { category: "word", value: w, isPublic: false, isPrivate: true }];
     },
     basedOnId,
   );

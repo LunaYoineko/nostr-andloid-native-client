@@ -157,6 +157,20 @@ describe("発行しない（データ保護）", () => {
   });
 });
 
+describe("暗号を使えない署名者", () => {
+  it("ユーザーもワードも公開では足さず no-cipher（発行しない）", async () => {
+    refetchReturns(null);
+    const plain = createCipherSigner().signer;
+    plain.nip44 = undefined;
+    plain.nip04 = undefined;
+    vi.mocked(currentSigner).mockReturnValue(plain);
+
+    await expect(muteUser(me, BOB)).rejects.toMatchObject({ reason: "no-cipher" });
+    await expect(addMuteWord(me, "spoiler", null)).rejects.toMatchObject({ reason: "no-cipher" });
+    expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
+  });
+});
+
 describe("取り直した最新版を保って発行する", () => {
   it("⋯ メニューのミュート: 最新版に非公開で足し、未知タグ・非公開部分を保って NIP-44 で暗号化し直す", async () => {
     addVerified(muteList([["p", ALICE]], 1_000));
@@ -229,7 +243,7 @@ describe("取り直した最新版を保って発行する", () => {
     ]);
   });
 
-  it("署名者が NIP-44 を使えなければ NIP-04、どちらも無ければ公開タグだけ変える", async () => {
+  it("署名者が NIP-44 を使えなければ NIP-04、どちらも無ければ公開では足さず no-cipher", async () => {
     refetchReturns(null);
     vi.mocked(currentSigner).mockReturnValue(createCipherSigner({ nip44: false }).signer);
     // 別の鍵の署名者でも暗号化は me 宛てで行う（ここでは中身の方式だけ見る）
@@ -238,10 +252,8 @@ describe("取り直した最新版を保って発行する", () => {
 
     vi.mocked(publishEvent).mockClear();
     vi.mocked(currentSigner).mockReturnValue(createCipherSigner({ nip44: false, nip04: false }).signer);
-    await muteUser(me, BOB);
-    const draft = published();
-    expect(draft.tags).toEqual([["p", BOB]]);
-    expect(draft.content).toBe("");
+    await expect(muteUser(me, BOB)).rejects.toMatchObject({ reason: "no-cipher" });
+    expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
   });
 
   it("変える必要が無ければ発行せず noop（ミュート済み・未ミュートの解除・重複ワード）", async () => {
