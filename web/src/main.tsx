@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import { startPersistence } from "./db";
+import { startDm } from "./features/dm/dmService";
 import { startMuteList } from "./features/mute/muteSync";
 import { initTheme } from "./features/theme/themePrefs";
 import { startOwnRelayList } from "./nostr/outbox";
@@ -18,7 +19,11 @@ if (!root) throw new Error("#root が見つからない");
 
 // 保存済みセッションの復元は起動時に 1 度だけ（StrictMode の二重実行で拡張を 2 回呼ばない）
 void useSession.getState().restore();
-void startPersistence().then(() => startPublishQueue());
+// DM は保存済みの分を読むため DB を開いた後に始める
+void startPersistence().then(() => {
+  void startPublishQueue();
+  startDm();
+});
 // ログイン中は自分の kind:10002 で読み書きリレーを決める
 startOwnRelayList();
 // ログイン中は自分の kind:10000（ミュート）を購読して表示から除く

@@ -190,6 +190,21 @@ export function subscribeTo(relays: readonly string[], filters: Filter[]): Obser
   );
 }
 
+/**
+ * 指定リレー（変わったら張り替える）へ REQ を張ったままにし、受けたイベントと EOSE（リレーごと）を流す。
+ * subscribe / subscribeTo と違い EventStore に入れず、署名も検証しない（DM の gift wrap / kind:4 用。
+ * 検証は呼び出し側で verifyEvent）。購読をやめると CLOSE を送る。
+ */
+export function subscribeUnstored(
+  relays: Observable<string[]>,
+  filters: Filter[],
+): Observable<NostrEvent | "EOSE"> {
+  return pool.req(relays, filters, { reconnect: RECONNECT }).pipe(
+    filter((message) => message.type === "EVENT" || message.type === "EOSE"),
+    map((message) => (message.type === "EVENT" ? message.event : ("EOSE" as const))),
+  );
+}
+
 /** 1 回だけ取りに行く（EOSE か timeoutMs で終わる）。受けたイベントは EventStore へ入れる */
 export function requestOnce(
   relays: readonly string[],
