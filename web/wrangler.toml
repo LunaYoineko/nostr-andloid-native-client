@@ -1,15 +1,4 @@
-# Nostrism Web（LP + /app/ + /api/*）を 1 つの Worker で配信する。設計: #426 7.1 節。
-# ルート（nostrism.shino3.net/*）の設定は後続 issue（W-17）で追加する。
-name = "nostrism-web"
-main = "worker/src/index.ts"
+# Cloudflare Pages（GitHub 連携の既存プロジェクト）の設定。dist/ は npm run build が組み立てる。
+name = "nostr-andloid-native-client"
+pages_build_output_dir = "./dist"
 compatibility_date = "2026-09-25"
-workers_dev = false            # 本番の workers.dev は閉じる（重複オリジン回避）
-preview_urls = true            # PR プレビュー
-
-[assets]
-# scripts/assemble-dist.sh が docs/ + app/ + static/ から組み立てる
-directory = "./dist"
-binding = "ASSETS"
-html_handling = "auto-trailing-slash"
-not_found_handling = "404-page"
-run_worker_first = ["/api/*"]
