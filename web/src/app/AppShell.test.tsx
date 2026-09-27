@@ -147,7 +147,7 @@ describe("詳細", () => {
     expect(screen.getByTestId("col-c_following")).toBeInTheDocument();
     const thread = screen.getByRole("region", { name: "スレッド" });
     expect(within(thread).getByRole("button", { name: "戻る" })).toBeInTheDocument();
-    expect(within(thread).getByText("スレッドの表示は準備中です")).toBeInTheDocument();
+    expect(within(thread).getByText("読み込み中…")).toBeInTheDocument();
     expect(screen.getByRole("main").firstElementChild).toHaveAttribute("inert");
   });
 

@@ -2,6 +2,11 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* 全体のクリックでスレッドを開く */
+.openable {
+  cursor: pointer;
+}
+
 .row {
   display: flex;
   gap: var(--sp-2);
@@ -53,6 +58,16 @@
   flex: none;
   width: 72px;
   height: 72px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
+/* リアクションした人の列（ネイティブ ReactorRow の 20dp） */
+.avatarXs {
+  flex: none;
+  width: 20px;
+  height: 20px;
   border-radius: var(--r-full);
   background: var(--surface-3);
   object-fit: cover;
@@ -115,6 +130,16 @@
   color: var(--text-3);
   font-size: var(--type-label);
   font-weight: var(--w-body);
+}
+
+/* 時刻 = スレッドを開くリンク（キーボードの入口） */
+.timeLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.timeLink:hover {
+  text-decoration: underline;
 }
 
 .missing {
