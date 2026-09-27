@@ -66,15 +66,15 @@ it("どのリレーからも応答が無く手元にも無ければ発行しな�
   expect(vi.mocked(signAndPublish)).not.toHaveBeenCalled();
 });
 
-it("応答が無くても手元に kind:3 があればそれを元に発行する", async () => {
+it("応答が無ければ手元に kind:3 があっても発行しない（古い版での上書きを防ぐ）", async () => {
   vi.mocked(requestOnce).mockReturnValue(throwError(() => new Error("timeout")));
   addOwnContacts([["p", A]]);
 
-  await expect(toggleFollow(me, B, "follow")).resolves.toBe("done");
-  expect(vi.mocked(signAndPublish).mock.calls[0][0].tags).toEqual([
-    ["p", A],
-    ["p", B],
-  ]);
+  const error = await toggleFollow(me, B, "follow").catch((e: unknown) => e);
+
+  expect(error).toBeInstanceOf(FollowError);
+  expect(error).toMatchObject({ reason: "no-contacts" });
+  expect(vi.mocked(signAndPublish)).not.toHaveBeenCalled();
 });
 
 it("リレーが応答して kind:3 が無ければ新規アカウントとしてその 1 人のリストを発行する", async () => {
