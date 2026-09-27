@@ -25,6 +25,7 @@
 
 /* M3 のインジケータ寸法 */
 .indicator {
+  position: relative;
   display: grid;
   place-items: center;
   width: 64px;
@@ -48,4 +49,22 @@
 .icon {
   width: var(--rail-icon);
   height: var(--rail-icon);
+}
+
+/* 未読数（M3 BadgedBox: アイコンの右上に重ねる） */
+.badge {
+  position: absolute;
+  top: 0;
+  left: calc(50% + var(--rail-icon) / 2 - 6px);
+  min-width: 16px;
+  padding: 0 var(--sp-1);
+  box-sizing: border-box;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--bg);
+  font-size: var(--type-micro);
+  font-weight: var(--w-name);
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
 }

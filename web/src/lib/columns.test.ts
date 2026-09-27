@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildColumn,
   type ColumnSpec,
+  columnSubtitleFor,
   DEFAULT_COLUMNS,
   decodeDeckColumns,
   defaultFilter,
@@ -12,6 +13,7 @@ import {
   encodeDeckColumns,
   encodeReqFilter,
   newColumnId,
+  TEMPLATES,
 } from "./columns";
 
 const HEX = "3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d";
@@ -118,6 +120,27 @@ describe("buildColumn", () => {
     expect(build("PROFILE", { text: HEX }, NONE, 100).filter.authors).toEqual([HEX]);
     expect(buildColumn("PROFILE", { text: "abc" }, NONE, 100)).toBeNull();
     expect(buildColumn("PROFILE", { text: "npub1invalid" }, NONE, 100)).toBeNull();
+  });
+
+  it('DM は通知の次に並び、{"kinds":[14]} で保存・同期する（ネイティブ ColumnTemplate.DM と同じ）', () => {
+    const templates = TEMPLATES.map((t) => t.template);
+    expect(templates.indexOf("DM")).toBe(templates.indexOf("NOTIFICATIONS") + 1);
+
+    const spec = build("DM", {}, NONE, 100);
+    expect(spec).toMatchObject({
+      id: "col_dm_100",
+      title: "DM",
+      subtitle: "NIP-17",
+      kind: "DM",
+      renderer: "FEED",
+      pinned: true,
+    });
+    expect(encodeReqFilter(spec.filter)).toBe('{"kinds":[14]}');
+    expect(columnSubtitleFor(spec)).toBe("NIP-17");
+    expect(editTemplate(spec)).toBeNull();
+    expect(encodeDeckColumns([spec])).toBe(
+      '[{"id":"col_dm_100","title":"DM","subtitle":"NIP-17","kind":"DM","renderer":"FEED","filter":{"kinds":[14]}}]',
+    );
   });
 });
 

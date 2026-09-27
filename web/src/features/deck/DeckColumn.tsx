@@ -1,5 +1,7 @@
+import { npubEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import { Virtuoso } from "react-virtuoso";
 import {
   type ColumnKind,
@@ -12,13 +14,15 @@ import {
 import { isMutedRevealed, useDeck, widthOf } from "../../store/deck";
 import { columnIcon, Icon } from "../../ui/icons";
 import { MyReactionRow } from "../actions/MyReactionRow";
+import { ConversationList } from "../dm/ConversationList";
+import { startDecrypting } from "../dm/dmService";
 import { NotificationList } from "../notifications/NotificationList";
 import { Timeline } from "../timeline/Timeline";
 import styles from "./DeckColumn.module.css";
 import { useColumnFeed } from "./useColumnFeed";
 
 /** Web 版でまだ描けない種別（REQ も張らない） */
-const UNSUPPORTED_KINDS: ReadonlySet<ColumnKind> = new Set(["DM", "THREAD", "CHANNEL_LIST", "CHANNEL_ROOM"]);
+const UNSUPPORTED_KINDS: ReadonlySet<ColumnKind> = new Set(["THREAD", "CHANNEL_LIST", "CHANNEL_ROOM"]);
 
 const WIDTHS: readonly { width: ColumnWidth; label: string }[] = [
   { width: "S", label: "狭" },
@@ -29,6 +33,7 @@ const WIDTHS: readonly { width: ColumnWidth; label: string }[] = [
 /** デッキの 1 カラム。showHeader = カラムヘッダ（アイコン・タイトル・⋯）を出す */
 export function DeckColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
   if (UNSUPPORTED_KINDS.has(spec.kind)) return <UnsupportedColumn spec={spec} showHeader={showHeader} />;
+  if (spec.kind === "DM") return <DmColumn spec={spec} showHeader={showHeader} />;
   return <FeedColumn spec={spec} showHeader={showHeader} />;
 }
 
@@ -38,6 +43,30 @@ function UnsupportedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader:
     <section className={styles.column} aria-label={spec.title}>
       {showHeader && <ColumnHeader spec={spec} />}
       <p className={styles.empty}>この種類のカラムは Web 版ではまだ使えません</p>
+    </section>
+  );
+}
+
+/**
+ * DM カラム（ネイティブ DmColumn #415）。会話の一覧を出し、行を押すとメッセージ画面をその相手で開く。
+ * REQ は張らない（DM の購読は dmService）。表示したら復号を始める（NIP-07 / NIP-46 はここまで署名者を呼ばない）
+ */
+function DmColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
+  const navigate = useNavigate();
+  useEffect(() => {
+    startDecrypting();
+  }, []);
+  return (
+    <section className={styles.column} aria-label={spec.title}>
+      {showHeader && <ColumnHeader spec={spec} />}
+      <div className={`${styles.body} ${styles.scroll}`}>
+        <ConversationList
+          selectedPeer={null}
+          // カラムから会話を開くのは詳細を開くのと同じ扱い（履歴に積む）。戻るでデッキに戻れるように
+          onSelect={(peer) => void navigate(`/messages/${npubEncode(peer)}`)}
+          showBanners={false}
+        />
+      </div>
     </section>
   );
 }

@@ -221,8 +221,16 @@ export function decodeDeckColumns(text: string): ColumnSpec[] | null {
   return value.map(decodeDeckColumn).filter((spec): spec is ColumnSpec => spec !== null);
 }
 
-/** 追加できるテンプレ（DM は M1 では出さない） */
-export type TemplateId = "FOLLOWING" | "GLOBAL" | "NOTIFICATIONS" | "PROFILE" | "SEARCH" | "HASHTAG" | "FAVS";
+/** 追加できるテンプレ */
+export type TemplateId =
+  | "FOLLOWING"
+  | "GLOBAL"
+  | "NOTIFICATIONS"
+  | "DM"
+  | "PROFILE"
+  | "SEARCH"
+  | "HASHTAG"
+  | "FAVS";
 
 /** テンプレの設定種別 */
 export type ColumnConfig = "NONE" | "TEXT" | "NOTIF_FILTER" | "RELAY_SET";
@@ -236,7 +244,7 @@ export type ColumnTemplate = {
   iconKind: ColumnKind;
 };
 
-/** カラム追加の一覧（ネイティブの ColumnTemplate.entries から DM を除いた順。文言は ja リソース） */
+/** カラム追加の一覧（ネイティブの ColumnTemplate.entries の順。文言は ja リソース） */
 export const TEMPLATES: readonly ColumnTemplate[] = [
   { template: "FOLLOWING", label: "フォロー中", config: "NONE", iconKind: "FOLLOWING" },
   {
@@ -247,6 +255,7 @@ export const TEMPLATES: readonly ColumnTemplate[] = [
     iconKind: "GLOBAL",
   },
   { template: "NOTIFICATIONS", label: "通知", config: "NOTIF_FILTER", iconKind: "NOTIFICATIONS" },
+  { template: "DM", label: "DM", config: "NONE", iconKind: "DM" },
   {
     template: "PROFILE",
     label: "指定 npub の投稿",
@@ -377,6 +386,8 @@ export function buildColumn(
         kinds: kinds.length > 0 ? kinds : [1, 7, 9735, 6],
       });
     }
+    case "DM":
+      return feedColumn(id, "DM", "NIP-17", "DM", { kinds: [14] });
     case "PROFILE": {
       const hex = profileHex(text);
       if (hex === null) return null;

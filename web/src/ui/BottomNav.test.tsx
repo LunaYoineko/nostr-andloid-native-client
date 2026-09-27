@@ -35,3 +35,14 @@ it("選択中の宛先だけ aria-current=page、押すと onSelect", async () =
   await userEvent.click(screen.getByRole("button", { name: "検索" }));
   expect(onSelect).toHaveBeenCalledWith("search");
 });
+
+it("メッセージの未読数をアイコンに重ねる（99+ まで）。0 なら出さない", () => {
+  const { rerender } = render(<BottomNav selected={NONE} badges={{ messages: 3 }} onSelect={() => {}} />);
+  expect(screen.getByRole("button", { name: "メッセージ（未読 3 件）" })).toHaveTextContent("3");
+
+  rerender(<BottomNav selected={NONE} badges={{ messages: 150 }} onSelect={() => {}} />);
+  expect(screen.getByRole("button", { name: "メッセージ（未読 150 件）" })).toHaveTextContent("99+");
+
+  rerender(<BottomNav selected={NONE} badges={{ messages: 0 }} onSelect={() => {}} />);
+  expect(screen.getByRole("button", { name: "メッセージ" }).textContent).toBe("");
+});

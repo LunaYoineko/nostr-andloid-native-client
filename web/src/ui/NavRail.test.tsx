@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import type { NavKey } from "../app/navState";
@@ -82,4 +82,21 @@ it("目次で onOpenColumn、カラム追加で onAddColumn、宛先で onSelect
 
   await user.click(screen.getByRole("button", { name: "検索" }));
   expect(onSelect).toHaveBeenCalledWith("search");
+});
+
+it("メッセージの未読数をアイコンに重ねる（99+ まで）。0 なら出さない", async () => {
+  const user = userEvent.setup();
+  const { onSelect } = renderRail({ badges: { messages: 3 } });
+  const messages = screen.getByRole("button", { name: "メッセージ（未読 3 件）" });
+  expect(messages).toHaveTextContent("3");
+  await user.click(messages);
+  expect(onSelect).toHaveBeenCalledWith("messages");
+  cleanup();
+
+  renderRail({ badges: { messages: 150 } });
+  expect(screen.getByRole("button", { name: "メッセージ（未読 150 件）" })).toHaveTextContent("99+");
+  cleanup();
+
+  renderRail({ badges: { messages: 0 } });
+  expect(screen.getByRole("button", { name: "メッセージ" }).textContent).toBe("");
 });

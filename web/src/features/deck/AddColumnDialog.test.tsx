@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, beforeEach, expect, it } from "vitest";
-import { DEFAULT_COLUMNS, decodeDeckColumns } from "../../lib/columns";
+import { DEFAULT_COLUMNS, decodeDeckColumns, encodeReqFilter } from "../../lib/columns";
 import { COLUMNS_KEY, useDeck } from "../../store/deck";
 import { AddColumnDialog } from "./AddColumnDialog";
 
@@ -44,6 +44,22 @@ it("ハッシュタグ Nostr を足すと #Nostr のカラムが末尾に増え�
   expect(jumpTarget).toBe(added?.id);
   expect(decodeDeckColumns(localStorage.getItem(COLUMNS_KEY) ?? "")?.at(-1)?.title).toBe("#Nostr");
   expect(showAddColumn).toBe(false);
+});
+
+it('「DM」は通知の次に並び、押すと {"kinds":[14]} の DM カラムが増える（#506）', async () => {
+  const user = userEvent.setup();
+  render(<AddColumnDialog />);
+  const labels = screen
+    .getAllByRole("button")
+    .map((b) => b.textContent ?? "")
+    .filter((t) => t !== "");
+  expect(labels[labels.findIndex((t) => t.startsWith("通知")) + 1]).toBe("DM");
+
+  await user.click(screen.getByRole("button", { name: "DM" }));
+  const added = useDeck.getState().columns.at(-1);
+  expect(added).toMatchObject({ kind: "DM", title: "DM", subtitle: "NIP-17", renderer: "FEED" });
+  expect(added && encodeReqFilter(added.filter)).toBe('{"kinds":[14]}');
+  expect(useDeck.getState().showAddColumn).toBe(false);
 });
 
 it("指定 npub の投稿に読めない文字列を入れるとエラーを出し、追加しない", async () => {
