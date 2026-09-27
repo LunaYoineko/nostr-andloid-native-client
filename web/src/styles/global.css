@@ -1,0 +1,10 @@
+/* デザイントークンの正本は designs/tokens.css（Compose の Theme.kt と 1 対 1）。ここへ写さず @import する。 */
+@import "../../../designs/tokens.css";
+
+body {
+  /* ホームは画面の高さぴったりに組む（既定の 8px があると文書全体がスクロールする） */
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}

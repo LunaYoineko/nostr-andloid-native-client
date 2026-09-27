@@ -199,6 +199,10 @@ fun resizePng(inputPath: String, width: Int, height: Int): ByteArray {
 compose.desktop {
     application {
         mainClass = "app.nostrdeck.MainKt"
+        // [#438] dmg の jpackage / jlink に使う JDK。既定は Gradle デーモンの JDK だが、デーモンは
+        // gradle-daemon-jvm.properties の「Java 21・ベンダー問わず」で使い回されるため、jpackage の無い
+        // JBR のデーモンに当たると packageDmg が落ちる。scripts/release-github.sh が明示的に渡す。
+        (findProperty("packagingJavaHome") as String?)?.let { javaHome = it }
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.Dmg)
             packageName = "Nostrism"

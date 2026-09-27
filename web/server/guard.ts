@@ -141,7 +141,8 @@ export async function fetchLimited(url: string, options: LimitedFetchOptions): P
   const signal = AbortSignal.timeout(options.timeoutMs);
   const failed = (e: unknown): LimitedFetch => ({
     ok: false,
-    error: signal.aborted || (e as { name?: unknown } | null)?.name === "TimeoutError" ? "timeout" : "unreachable",
+    error:
+      signal.aborted || (e as { name?: unknown } | null)?.name === "TimeoutError" ? "timeout" : "unreachable",
   });
 
   let response: Response;

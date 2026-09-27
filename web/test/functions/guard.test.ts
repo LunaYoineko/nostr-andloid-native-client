@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSameOrigin, readLimited, validateTargetUrl } from "../src/guard";
+import { isSameOrigin, readLimited, validateTargetUrl } from "../../server/guard";
 
 const SELF = "nostrism.shino3.net";
 
@@ -103,9 +103,12 @@ describe("validateTargetUrl", () => {
     expect(reasonOf(base + "a".repeat(2049 - base.length))).toBe("too_long");
   });
 
-  it.each(["", "not a url", "https://", "//example.com/"])("URL として解釈できない入力を拒否: %j", (input) => {
-    expect(reasonOf(input)).toBe("invalid_url");
-  });
+  it.each(["", "not a url", "https://", "//example.com/"])(
+    "URL として解釈できない入力を拒否: %j",
+    (input) => {
+      expect(reasonOf(input)).toBe("invalid_url");
+    },
+  );
 });
 
 describe("isSameOrigin", () => {

@@ -55,7 +55,9 @@ ASSETS=()
 # ---- macOS（Compose Desktop dmg）----
 if [ "$SKIP_MAC" != "1" ]; then
   echo "==> Building dmg (version=$NAME)"
-  ./gradlew :composeApp:packageDmg -q
+  # JAVA_HOME を切り替えても、Gradle は起動済みの JBR(21) デーモンを使い回しうる（#438）。
+  # jpackage 入りの JDK を dmg 用に明示する。
+  ./gradlew :composeApp:packageDmg -q -PpackagingJavaHome="$JAVA_HOME"
   # jpackage の制約で packageVersion は 1.0.0 固定（MAJOR>0 必須）。実バージョンはファイル名で示す。
   SRC=$(ls composeApp/build/compose/binaries/main/dmg/*.dmg | head -1)
   DMG="composeApp/build/compose/binaries/main/dmg/Nostrism-$NAME-macos.dmg"
