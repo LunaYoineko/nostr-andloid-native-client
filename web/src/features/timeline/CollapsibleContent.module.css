@@ -1,0 +1,30 @@
+/* 折りたたみ 8 行（ネイティブの CollapsibleText.kt と同じ） */
+.clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  overflow: hidden;
+}
+
+/* 「もっと見る」/「閉じる」のピル */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: var(--sp-1);
+  padding: var(--sp-1) var(--sp-3);
+  border: none;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--type-caption);
+  font-weight: var(--w-link);
+  cursor: pointer;
+}
+
+.chevron {
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}

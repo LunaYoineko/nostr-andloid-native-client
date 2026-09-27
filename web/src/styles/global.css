@@ -8,3 +8,13 @@ body {
   color: var(--text);
   font-family: var(--font);
 }
+
+/* 見た目には出さず、読み上げにだけ残す文字 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

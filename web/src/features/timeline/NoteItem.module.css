@@ -20,6 +20,13 @@
   object-fit: cover;
 }
 
+/* アバターのリンクは中の画像の大きさだけを占める（flex で中身を .row の直下と同じ扱いにする） */
+.avatarLink {
+  flex: none;
+  display: flex;
+  align-self: flex-start;
+}
+
 .avatarSm {
   flex: none;
   width: 16px;
@@ -35,6 +42,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
+  /* アクション行（#458）が来るまでの仮の余白 */
+  padding-bottom: var(--sp-1);
 }
 
 .meta {
@@ -43,8 +52,17 @@
   gap: var(--sp-2);
 }
 
-.name {
+/* 名前 + NIP-05。残りの幅を占め、時刻を右端に寄せる */
+.author {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+}
+
+.name {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -52,6 +70,22 @@
   color: var(--text);
   font-size: var(--type-sub);
   font-weight: var(--w-name);
+  text-decoration: none;
+}
+
+.name:hover {
+  text-decoration: underline;
+}
+
+.handle {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--w-body);
 }
 
 .time {
@@ -59,33 +93,6 @@
   color: var(--text-3);
   font-size: var(--type-label);
   font-weight: var(--w-body);
-}
-
-.repostHeader {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
-  margin: 0;
-  padding: var(--sp-2) var(--sp-3) 0;
-  color: var(--text-3);
-  font-size: var(--type-label);
-}
-
-.repostIcon {
-  flex: none;
-  width: 13px;
-  height: 13px;
-}
-
-.repostName {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.repostLabel {
-  flex: none;
 }
 
 .missing {
