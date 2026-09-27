@@ -1,0 +1,42 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.brand {
+  font-size: var(--type-title);
+  font-weight: var(--w-strong);
+}
+
+.npub {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--w-body);
+}
+
+.logout {
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
+
+.logout:hover {
+  background: var(--surface-3);
+}
+
+.body {
+  padding: var(--sp-5) var(--sp-4);
+  color: var(--text-3);
+  font-size: var(--type-sub);
+}
