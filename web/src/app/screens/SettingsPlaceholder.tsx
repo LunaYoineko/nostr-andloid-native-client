@@ -4,6 +4,7 @@ import { useSession } from "../../signer/session";
 import { AccountAvatar } from "../../ui/AccountAvatar";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { SingleColumnPane } from "../../ui/SingleColumnPane";
+import { LogoutButton } from "../LogoutButton";
 import { ComingSoon } from "./ComingSoon";
 import styles from "./SettingsPlaceholder.module.css";
 
@@ -32,9 +33,7 @@ function Account({ me }: { me: string }) {
         <p className={styles.name}>{displayName(profile, me)}</p>
         <p className={styles.npub}>{shortNpub(me)}</p>
       </div>
-      <button type="button" className={styles.logout} onClick={() => useSession.getState().logout()}>
-        ログアウト
-      </button>
+      <LogoutButton className={styles.logout} />
     </section>
   );
 }
