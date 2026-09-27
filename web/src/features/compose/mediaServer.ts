@@ -5,8 +5,12 @@ import { create } from "zustand";
 /** 値はサーバーの URL（https://…、末尾の / なし）。無ければ既定の一覧を順に試す */
 export const MEDIA_SERVER_KEY = "nostrism.media.server";
 
-/** 既定のメディアサーバー（ネイティブ EventRepository.DEFAULT_MEDIA_SERVERS）。この順に試し、最初に成功したものを使う */
-export const DEFAULT_MEDIA_SERVERS: readonly string[] = ["https://nostrcheck.me", "https://nostr.build"];
+/**
+ * 既定のメディアサーバー（ネイティブ EventRepository.DEFAULT_MEDIA_SERVERS と同じ 2 つ）。この順に試し、最初に成功したものを使う。
+ * Web は nostr.build を先頭にする（ブラウザからの直接アップロードの CORS を確認済み。2026-09-27 時点で nostrcheck.me は
+ * 522 で応答まで約 20 秒かかり、先頭だと毎回待たされるため）。
+ */
+export const DEFAULT_MEDIA_SERVERS: readonly string[] = ["https://nostr.build", "https://nostrcheck.me"];
 
 /** 候補（ネイティブ Presets.kt の MEDIA_PRESETS と同じ順） */
 export const MEDIA_PRESETS: readonly string[] = [

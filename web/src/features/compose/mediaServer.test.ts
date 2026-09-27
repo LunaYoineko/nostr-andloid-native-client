@@ -24,9 +24,9 @@ describe("parseServerInput", () => {
 });
 
 describe("アップロード先", () => {
-  it("未選択なら既定の一覧（nostrcheck.me → nostr.build）、選べばそれだけ。localStorage に残る", () => {
+  it("未選択なら既定の一覧（nostr.build → nostrcheck.me）、選べばそれだけ。localStorage に残る", () => {
     expect(useMediaServer.getState().server).toBeNull();
-    expect(uploadServers(null)).toEqual(["https://nostrcheck.me", "https://nostr.build"]);
+    expect(uploadServers(null)).toEqual(["https://nostr.build", "https://nostrcheck.me"]);
     expect(uploadServers(null)).toEqual([...DEFAULT_MEDIA_SERVERS]);
 
     setMediaServer("https://nostpic.com");

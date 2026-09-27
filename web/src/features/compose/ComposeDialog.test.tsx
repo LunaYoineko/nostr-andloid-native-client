@@ -492,9 +492,9 @@ describe("添付（画像・動画）", () => {
       "dim 800x600",
       "x ab",
     ]);
-    // 既定の一覧の先頭（nostrcheck.me）から試す。Authorization は NIP-98
+    // 既定の一覧の先頭（nostr.build）から試す。Authorization は NIP-98
     const calls = fetchMock.mock.calls;
-    expect(calls[0][0]).toBe("https://nostrcheck.me/.well-known/nostr/nip96.json");
+    expect(calls[0][0]).toBe("https://nostr.build/.well-known/nostr/nip96.json");
     expect(new Headers(calls[1][1]?.headers).get("Authorization")).toMatch(/^Nostr /);
     expect(useCompose.getState().request).toBeNull();
   });

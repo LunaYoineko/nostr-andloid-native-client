@@ -9,19 +9,19 @@ afterEach(() => {
   localStorage.clear();
 });
 
-it("未選択は既定の先頭（nostrcheck.me）が選択中。候補を押すとそのサーバーだけにする", async () => {
+it("未選択は既定の先頭（nostr.build）が選択中。候補を押すとそのサーバーだけにする", async () => {
   const user = userEvent.setup();
   render(<MediaSection />);
 
-  expect(screen.getByText(/nostrcheck\.me → nostr\.build の順に試します/)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "nostrcheck.me" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByText(/nostr\.build → nostrcheck\.me の順に試します/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "nostr.build" })).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByRole("button", { name: "files.sovbit.host" })).toHaveAttribute("aria-pressed", "false");
 
   await user.click(screen.getByRole("button", { name: "nostpic.com" }));
   expect(useMediaServer.getState().server).toBe("https://nostpic.com");
   expect(localStorage.getItem(MEDIA_SERVER_KEY)).toBe("https://nostpic.com");
   expect(screen.getByRole("button", { name: "nostpic.com" })).toHaveAttribute("aria-pressed", "true");
-  expect(screen.getByRole("button", { name: "nostrcheck.me" })).toHaveAttribute("aria-pressed", "false");
+  expect(screen.getByRole("button", { name: "nostr.build" })).toHaveAttribute("aria-pressed", "false");
 
   await user.click(screen.getByRole("button", { name: "既定に戻す" }));
   expect(useMediaServer.getState().server).toBeNull();
