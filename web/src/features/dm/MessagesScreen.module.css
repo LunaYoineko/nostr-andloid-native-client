@@ -1,0 +1,55 @@
+/* Compact: 一覧か会話のどちらか 1 つ */
+.single {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* Expanded: 左 320px の一覧 + 右の会話 */
+.twoPane {
+  display: flex;
+  height: 100%;
+  background: var(--bg);
+}
+
+.listPane {
+  flex: none;
+  width: 320px;
+  height: 100%;
+  border-right: 1px solid var(--border);
+}
+
+.detailPane {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface);
+}
+
+.listBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+}
+
+.invalid {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.placeholder {
+  margin: 0;
+  padding: var(--sp-5) var(--sp-4);
+  color: var(--text-3);
+  font-size: var(--type-sub);
+  text-align: center;
+}

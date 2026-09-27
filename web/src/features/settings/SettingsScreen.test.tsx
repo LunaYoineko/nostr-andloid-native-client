@@ -113,6 +113,7 @@ describe("Expanded", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "キャッシュを消去" }));
     const dialog = screen.getByRole("dialog", { name: "キャッシュを消去しますか？" });
+    expect(dialog).toHaveTextContent("DM（復号済みのメッセージ）も消えます");
     await userEvent.click(within(dialog).getByRole("button", { name: "キャンセル" }));
     expect(vi.mocked(clearCacheAndReload)).not.toHaveBeenCalled();
 

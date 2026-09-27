@@ -23,7 +23,7 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, handle: { dest: "home" } satisfies RouteHandle },
           { path: "search", handle: { dest: "search" } satisfies RouteHandle },
-          { path: "messages", handle: { dest: "messages" } satisfies RouteHandle },
+          { path: "messages/:peer?", handle: { dest: "messages" } satisfies RouteHandle },
           { path: "notifications", handle: { dest: "notifications" } satisfies RouteHandle },
           { path: "settings/:section?", handle: { dest: "settings" } satisfies RouteHandle },
           { path: "e/:ref", handle: { overlay: "thread" } satisfies RouteHandle },
