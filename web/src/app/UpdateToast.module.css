@@ -1,0 +1,52 @@
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--sp-4) + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  /* tokens.css に重なり順の定義がまだ無いので、画面上の他要素より手前に出す値を直に置く */
+  z-index: 1000;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100vw - var(--sp-4) * 2);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--type-sub);
+}
+
+.message {
+  flex: 1;
+}
+
+.reload,
+.close {
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-full);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
+
+.reload {
+  border: none;
+  background: var(--accent);
+  /* on-accent の文字色（designs/index.html のボタンと同じ） */
+  color: #fff;
+  font-weight: var(--w-strong);
+}
+
+.close {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-2);
+}
+
+.close:hover {
+  background: var(--surface-3);
+}
