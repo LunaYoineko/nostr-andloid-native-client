@@ -1,0 +1,51 @@
+.fold {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-3);
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.icon {
+  flex: none;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  color: var(--text-3);
+}
+
+.texts {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  color: var(--text-2);
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+}
+
+/* 理由は 2 行で省略 */
+.reason {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  overflow-wrap: anywhere;
+}
+
+.reveal {
+  flex: none;
+  color: var(--accent);
+  font-size: var(--type-label);
+  font-weight: var(--w-name);
+}

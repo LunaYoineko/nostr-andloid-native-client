@@ -1,0 +1,26 @@
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3) 0;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+
+.icon {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+/* 1 行に収まらなければ末尾を … にする */
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

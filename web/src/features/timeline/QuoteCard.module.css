@@ -1,0 +1,95 @@
+.quote {
+  display: block;
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.loading {
+  /* <p> の既定の余白を消す（本文との間は .main の gap だけ） */
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-2);
+  font-size: var(--type-caption);
+  font-weight: var(--w-name);
+}
+
+.warning {
+  display: block;
+  margin-top: var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}
+
+/* 本文は 4 行で省略 */
+.body {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  margin-top: var(--sp-1);
+  color: var(--text-2);
+  font-size: var(--type-caption);
+  line-height: var(--line-desc);
+}
+
+.media {
+  display: flex;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+  overflow-x: auto;
+}
+
+.item {
+  height: 140px;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
+.single {
+  width: 100%;
+}
+
+.multi {
+  flex: none;
+  width: 200px;
+}
+
+.video {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+.play {
+  width: 36px;
+  height: 36px;
+  color: var(--text-2);
+}
+
+.videoLabel {
+  position: absolute;
+  right: var(--sp-1);
+  bottom: var(--sp-1);
+  color: var(--text-2);
+  font-size: var(--type-label);
+}
