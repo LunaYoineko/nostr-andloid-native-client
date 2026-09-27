@@ -1,0 +1,18 @@
+/* 56px = 投稿ボタン（FAB, #453）の高さ。その上に出す */
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--sp-4) * 2 + 56px);
+  transform: translateX(-50%);
+  z-index: 2;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100% - var(--sp-4) * 2);
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--type-sub);
+  pointer-events: none;
+}

@@ -380,3 +380,10 @@ it("kind:6 は元投稿がストアにあるときだけ、押すと元投稿の
   await userEvent.click(screen.getByText("元の投稿を読み込み中…"));
   expect(pending.where()).toBe("/");
 });
+
+it("kind:1 には操作の行に「返信」ボタンがある", () => {
+  renderWithRouter(<NoteItem event={post("返信できる投稿")} />);
+  expect(
+    within(screen.getByRole("group", { name: "操作" })).getByRole("button", { name: "返信" }),
+  ).toBeInTheDocument();
+});

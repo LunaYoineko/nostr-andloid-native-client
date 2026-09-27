@@ -3,9 +3,9 @@ import { EMPTY, throwError } from "rxjs";
 import { beforeEach, expect, it, vi } from "vitest";
 import { INDEXER_RELAYS } from "../../lib/columnRequest";
 import { requestOnce } from "../../nostr/pool";
+import { PublishError, publishEvent } from "../../nostr/publish";
 import { eventStore } from "../../nostr/store";
 import { FollowError, OWN_CONTACTS_TIMEOUT_MS, toggleFollow } from "./follow";
-import { PublishError, signAndPublish } from "./publishMinimal";
 
 // リレーには繋がない（自分の kind:3 の取り直しはテストごとに完了 / 失敗を返す）
 vi.mock("../../nostr/pool", () => ({
@@ -13,9 +13,10 @@ vi.mock("../../nostr/pool", () => ({
   requestOnce: vi.fn(),
 }));
 
-vi.mock("./publishMinimal", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./publishMinimal")>()),
-  signAndPublish: vi.fn(async () => ({})),
+// 署名・送信はしない（送信キューの入口だけ差し替える）
+vi.mock("../../nostr/publish", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../nostr/publish")>()),
+  publishEvent: vi.fn(async () => ({})),
 }));
 
 const A = "a".repeat(64);
@@ -28,7 +29,7 @@ beforeEach(() => {
   meKey = generateSecretKey();
   me = getPublicKey(meKey);
   vi.mocked(requestOnce).mockReset();
-  vi.mocked(signAndPublish).mockClear();
+  vi.mocked(publishEvent).mockClear();
 });
 
 function addOwnContacts(tags: string[][]) {
@@ -46,8 +47,8 @@ it("直前に自分の kind:3 を取り直し、手元のリストに足して�
     [{ kinds: [3], authors: [me], limit: 1 }],
     OWN_CONTACTS_TIMEOUT_MS,
   );
-  expect(vi.mocked(signAndPublish)).toHaveBeenCalledTimes(1);
-  expect(vi.mocked(signAndPublish).mock.calls[0][0]).toMatchObject({
+  expect(vi.mocked(publishEvent)).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(publishEvent).mock.calls[0][0]).toMatchObject({
     kind: 3,
     tags: [
       ["p", A],
@@ -63,7 +64,7 @@ it("どのリレーからも応答が無く手元にも無ければ発行しな�
 
   expect(error).toBeInstanceOf(FollowError);
   expect(error).toMatchObject({ reason: "no-contacts" });
-  expect(vi.mocked(signAndPublish)).not.toHaveBeenCalled();
+  expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
 });
 
 it("応答が無ければ手元に kind:3 があっても発行しない（古い版での上書きを防ぐ）", async () => {
@@ -74,14 +75,14 @@ it("応答が無ければ手元に kind:3 があっても発行しない（古�
 
   expect(error).toBeInstanceOf(FollowError);
   expect(error).toMatchObject({ reason: "no-contacts" });
-  expect(vi.mocked(signAndPublish)).not.toHaveBeenCalled();
+  expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
 });
 
 it("リレーが応答して kind:3 が無ければ新規アカウントとしてその 1 人のリストを発行する", async () => {
   vi.mocked(requestOnce).mockReturnValue(EMPTY);
 
   await expect(toggleFollow(me, B, "follow")).resolves.toBe("done");
-  expect(vi.mocked(signAndPublish).mock.calls[0][0].tags).toEqual([["p", B]]);
+  expect(vi.mocked(publishEvent).mock.calls[0][0].tags).toEqual([["p", B]]);
 });
 
 it("既にフォロー中の相手に follow しても発行しない（noop）", async () => {
@@ -89,7 +90,7 @@ it("既にフォロー中の相手に follow しても発行しない（noop）"
   addOwnContacts([["p", A]]);
 
   await expect(toggleFollow(me, A, "follow")).resolves.toBe("noop");
-  expect(vi.mocked(signAndPublish)).not.toHaveBeenCalled();
+  expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
 });
 
 it("unfollow は既存のタグと content を保ったままその人だけを外す", async () => {
@@ -111,7 +112,7 @@ it("unfollow は既存のタグと content を保ったままその人だけを�
   );
 
   await expect(toggleFollow(me, A, "unfollow")).resolves.toBe("done");
-  expect(vi.mocked(signAndPublish).mock.calls[0][0]).toMatchObject({
+  expect(vi.mocked(publishEvent).mock.calls[0][0]).toMatchObject({
     kind: 3,
     content: "{}",
     tags: [
@@ -121,12 +122,12 @@ it("unfollow は既存のタグと content を保ったままその人だけを�
   });
 });
 
-it("送信の失敗は同じ reason の FollowError にする", async () => {
+it("発行（署名）の失敗は同じ reason の FollowError にする", async () => {
   vi.mocked(requestOnce).mockReturnValue(EMPTY);
-  vi.mocked(signAndPublish).mockRejectedValueOnce(new PublishError("not-accepted"));
+  vi.mocked(publishEvent).mockRejectedValueOnce(new PublishError("sign-failed"));
 
   const error = await toggleFollow(me, B, "follow").catch((e: unknown) => e);
 
   expect(error).toBeInstanceOf(FollowError);
-  expect(error).toMatchObject({ reason: "not-accepted" });
+  expect(error).toMatchObject({ reason: "sign-failed" });
 });

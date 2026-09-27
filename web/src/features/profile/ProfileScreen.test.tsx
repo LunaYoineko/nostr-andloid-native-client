@@ -331,7 +331,7 @@ describe("フォロー", () => {
       "フォローリストを取得できませんでした。通信状態を確認してもう一度お試しください",
     );
 
-    vi.mocked(toggleFollow).mockRejectedValueOnce(new FollowError("not-accepted"));
+    vi.mocked(toggleFollow).mockRejectedValueOnce(new FollowError("sign-failed"));
     await user.click(screen.getByRole("button", { name: "フォロー" }));
     expect(screen.getByRole("alert")).toHaveTextContent("フォローを更新できませんでした");
   });

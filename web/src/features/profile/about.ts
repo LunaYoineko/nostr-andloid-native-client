@@ -11,10 +11,5 @@ export const ABOUT_CONTENT_KEY = Symbol.for("nostrism.profile-about");
  * ネイティブ互換のトークナイザ（#479）で拾う（絵文字は kind:0 の emoji タグ）。画像の URL も取り除かずリンクのまま（ネイティブの about と同じ）。
  */
 export function parseAbout(profileEvent: NostrEvent, about: string): Root {
-  return getParsedContent(
-    profileEvent,
-    about,
-    [links, nativeTokens, eolMetadata],
-    ABOUT_CONTENT_KEY,
-  );
+  return getParsedContent(profileEvent, about, [links, nativeTokens, eolMetadata], ABOUT_CONTENT_KEY);
 }

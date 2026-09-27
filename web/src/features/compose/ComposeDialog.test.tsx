@@ -1,0 +1,328 @@
+import { act, fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { npubEncode } from "nostr-tools/nip19";
+import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { unixNow } from "../../lib/time";
+import { type EventDraft, PublishError, publishEvent } from "../../nostr/publish";
+import { eventStore } from "../../nostr/store";
+import { useSession } from "../../signer/session";
+import { installDialogPolyfill } from "../../test/dialog";
+import { renderWithRouter } from "../../test/renderWithRouter";
+import { ComposeDialog } from "./ComposeDialog";
+import { type ComposeRequest, openCompose, useCompose } from "./composeStore";
+import { DRAFT_KEY, USED_HASHTAGS_KEY } from "./storage";
+
+// 署名・送信はしない（publishEvent だけ差し替える）
+vi.mock("../../nostr/publish", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../nostr/publish")>();
+  return { ...actual, publishEvent: vi.fn() };
+});
+
+let meKey: Uint8Array;
+let me: string;
+
+beforeAll(() => {
+  installDialogPolyfill();
+});
+
+beforeEach(() => {
+  meKey = generateSecretKey();
+  me = getPublicKey(meKey);
+  useSession.setState({ status: "in", method: "nip07", pubkey: me });
+  vi.mocked(publishEvent).mockReset();
+  vi.mocked(publishEvent).mockImplementation(async (draft: EventDraft) =>
+    finalizeEvent(
+      { kind: draft.kind, content: draft.content, tags: draft.tags, created_at: unixNow() },
+      meKey,
+    ),
+  );
+});
+
+afterEach(() => {
+  localStorage.clear();
+  useCompose.setState({ request: null });
+  useSession.setState({ status: "loading", method: null, pubkey: null });
+});
+
+/** 開いている要求の投稿シート（閉じたら消える = ComposeHost と同じ） */
+function Harness() {
+  const request = useCompose((s) => s.request);
+  if (!request) return null;
+  return (
+    <ComposeDialog key={request.mode + (request.mode === "new" ? "" : request.target.id)} request={request} />
+  );
+}
+
+function open(request: ComposeRequest) {
+  act(() => openCompose(request));
+}
+
+function body(): HTMLTextAreaElement {
+  return screen.getByRole("textbox", { name: "本文" }) as HTMLTextAreaElement;
+}
+
+function lastDraft(): EventDraft {
+  const calls = vi.mocked(publishEvent).mock.calls;
+  return calls[calls.length - 1][0];
+}
+
+function stored(
+  content: string,
+  { kind = 1, key = generateSecretKey(), tags = [] as string[][] } = {},
+): NostrEvent {
+  const event = finalizeEvent({ kind, created_at: unixNow(), tags, content }, key);
+  eventStore.add(event);
+  return event;
+}
+
+function withName(name: string): Uint8Array {
+  const key = generateSecretKey();
+  stored(JSON.stringify({ name }), { kind: 0, key });
+  return key;
+}
+
+describe("新規", () => {
+  it("「投稿」を開いて本文に focus。入力で「送信」が有効になり、下書きに入る。開き直すと戻る", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+
+    expect(screen.getByRole("dialog", { name: "投稿" })).toHaveAttribute("open");
+    expect(body()).toHaveFocus();
+    expect(screen.getByRole("button", { name: "送信" })).toBeDisabled();
+
+    await user.type(body(), "hello");
+    expect(screen.getByRole("button", { name: "送信" })).toBeEnabled();
+    expect(localStorage.getItem(DRAFT_KEY)).toBe("hello");
+
+    act(() => useCompose.setState({ request: null }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    open({ mode: "new" });
+    expect(body()).toHaveValue("hello");
+  });
+
+  it("「送信」で kind 1 を発行して閉じ、下書きを消す", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "hello");
+    await user.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(publishEvent).toHaveBeenCalledTimes(1);
+    expect(lastDraft()).toMatchObject({ kind: 1, content: "hello" });
+    expect(useCompose.getState().request).toBeNull();
+    expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+  });
+
+  it("Ctrl+Enter でも送る。IME 変換中は送らない", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "x");
+
+    fireEvent.keyDown(body(), { key: "Enter", ctrlKey: true, isComposing: true });
+    expect(publishEvent).not.toHaveBeenCalled();
+
+    await user.keyboard("{Control>}{Enter}{/Control}");
+    expect(publishEvent).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("返信・引用", () => {
+  it("返信: 「返信」ボタンと返信先の 1 行。tags の先頭が root の e。送ると新規の下書きも消える", async () => {
+    const user = userEvent.setup();
+    const target = stored("元の\n投稿", { key: withName("carol") });
+    localStorage.setItem(DRAFT_KEY, "x");
+    renderWithRouter(<Harness />);
+    open({ mode: "reply", target });
+
+    expect(screen.getByRole("dialog", { name: "返信" })).toBeInTheDocument();
+    expect(await screen.findByText("carol: 元の 投稿")).toBeInTheDocument();
+    expect(body()).toHaveValue("");
+
+    await user.type(body(), "返信です");
+    await user.click(screen.getByRole("button", { name: "返信" }));
+
+    expect(lastDraft().tags[0]).toEqual(["e", target.id, "", "root", target.pubkey]);
+    expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+  });
+
+  it("引用: 本文が空でも「引用」を押せる。「引用元」カード、content は nostr:nevent1…", async () => {
+    const user = userEvent.setup();
+    const target = stored("引用される投稿");
+    renderWithRouter(<Harness />);
+    open({ mode: "quote", target });
+
+    expect(screen.getByText("引用元")).toBeInTheDocument();
+    expect(screen.getByText("引用される投稿")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "引用" }));
+
+    expect(lastDraft().content).toMatch(/^nostr:nevent1/);
+    expect(lastDraft().tags[0]).toEqual(["q", target.id, "", target.pubkey]);
+  });
+});
+
+it("センシティブ指定: ON で理由欄が出て、送ると content-warning に理由が入る", async () => {
+  const user = userEvent.setup();
+  renderWithRouter(<Harness />);
+  open({ mode: "new" });
+
+  await user.click(screen.getByRole("button", { name: "センシティブ指定" }));
+  const toggle = screen.getByRole("button", { name: "センシティブ: ON" });
+  expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await user.type(screen.getByRole("textbox", { name: "センシティブの理由" }), "spoiler");
+  await user.type(body(), "a");
+  await user.click(screen.getByRole("button", { name: "送信" }));
+
+  expect(lastDraft().tags).toContainEqual(["content-warning", "spoiler"]);
+});
+
+describe("閉じる", () => {
+  it("書きかけの ✗ は確認。「キャンセル」で開いたまま、「破棄する」で閉じて下書きも消す", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "abc");
+
+    await user.click(screen.getByRole("button", { name: "閉じる" }));
+    const confirm = screen.getByRole("dialog", { name: "入力内容を破棄しますか？" });
+    await user.click(within(confirm).getByRole("button", { name: "キャンセル" }));
+    expect(screen.queryByRole("dialog", { name: "入力内容を破棄しますか？" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "投稿" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "閉じる" }));
+    await user.click(screen.getByRole("button", { name: "破棄する" }));
+    expect(useCompose.getState().request).toBeNull();
+    expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+  });
+
+  it("返信の破棄では新規投稿の下書きを残す", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(DRAFT_KEY, "keep");
+    renderWithRouter(<Harness />);
+    open({ mode: "reply", target: stored("元") });
+    await user.type(body(), "abc");
+    await user.click(screen.getByRole("button", { name: "閉じる" }));
+    await user.click(screen.getByRole("button", { name: "破棄する" }));
+
+    expect(useCompose.getState().request).toBeNull();
+    expect(localStorage.getItem(DRAFT_KEY)).toBe("keep");
+  });
+
+  it("本文が空の ✗ はすぐ閉じる。cancel（Esc / 戻る）は ✗ と同じ", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.click(screen.getByRole("button", { name: "閉じる" }));
+    expect(useCompose.getState().request).toBeNull();
+
+    open({ mode: "new" });
+    await user.type(body(), "abc");
+    const cancel = new Event("cancel", { cancelable: true });
+    fireEvent(screen.getByRole("dialog", { name: "投稿" }), cancel);
+    expect(cancel.defaultPrevented).toBe(true);
+    expect(screen.getByRole("dialog", { name: "入力内容を破棄しますか？" })).toBeInTheDocument();
+  });
+});
+
+describe("送信の失敗・キャンセル", () => {
+  it("署名に失敗したら文言を出し、本文を残して送信ボタンを戻す", async () => {
+    const user = userEvent.setup();
+    vi.mocked(publishEvent).mockRejectedValueOnce(new PublishError("sign-failed"));
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "abc");
+    await user.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "投稿に失敗しました。添付はそのままなので、もう一度お試しください。",
+    );
+    expect(screen.getByRole("dialog", { name: "投稿" })).toBeInTheDocument();
+    expect(body()).toHaveValue("abc");
+    expect(screen.getByRole("button", { name: "送信" })).toBeEnabled();
+  });
+
+  it("署名待ちの間は「投稿中…」と「キャンセル」。キャンセルで編集に戻り、signal が中止される", async () => {
+    const user = userEvent.setup();
+    let signal: AbortSignal | undefined;
+    vi.mocked(publishEvent).mockImplementationOnce((_draft, opts) => {
+      signal = opts?.signal;
+      return new Promise(() => {});
+    });
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "abc");
+    await user.click(screen.getByRole("button", { name: "送信" }));
+
+    expect(screen.getByText("投稿中…")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "閉じる" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+
+    expect(signal?.aborted).toBe(true);
+    expect(screen.queryByText("投稿中…")).toBeNull();
+    expect(screen.getByRole("button", { name: "送信" })).toBeEnabled();
+    expect(body()).toHaveValue("abc");
+  });
+});
+
+describe("入力補完", () => {
+  it("@al で 120ms 後にメンション候補、選ぶと nostr:npub1… に置き換える", async () => {
+    const user = userEvent.setup();
+    const alice = getPublicKey(withName("alice"));
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "hi @al");
+
+    expect(await screen.findByText("メンション候補")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /alice/ }));
+    expect(body()).toHaveValue(`hi nostr:${npubEncode(alice)} `);
+  });
+
+  it("最近のタグ・📌 ピン留め・入力中の候補", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(
+      USED_HASHTAGS_KEY,
+      JSON.stringify([
+        { tag: "nostr", lastUsed: 2 },
+        { tag: "bitcoin", lastUsed: 1 },
+      ]),
+    );
+    stored("", {
+      kind: 30015,
+      key: meKey,
+      tags: [
+        ["d", "pinned"],
+        ["t", "zap"],
+      ],
+    });
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+
+    const recent = screen.getByText("最近のタグ").nextElementSibling as HTMLElement;
+    expect(
+      within(recent)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["#nostr", "#bitcoin"]);
+    const pinned = screen.getByText("📌 ピン留め").nextElementSibling as HTMLElement;
+    expect(within(pinned).getByRole("button", { name: "#zap" })).toBeInTheDocument();
+
+    await user.type(body(), "#bi");
+    const suggest = screen.getByText("候補").nextElementSibling as HTMLElement;
+    await user.click(within(suggest).getByRole("button", { name: "#bitcoin" }));
+    expect(body()).toHaveValue("#bitcoin ");
+  });
+
+  it(":ca で自分のカスタム絵文字の候補、選ぶと :cat: に置き換える", async () => {
+    const user = userEvent.setup();
+    stored("", { kind: 10030, key: meKey, tags: [["emoji", "cat", "https://e/cat.png"]] });
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), ":ca");
+
+    expect(screen.getByText("絵文字候補")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: ":cat:" }));
+    expect(body()).toHaveValue(":cat: ");
+  });
+});

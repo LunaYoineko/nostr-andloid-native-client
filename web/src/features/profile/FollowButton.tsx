@@ -4,7 +4,7 @@ import styles from "./ProfileHeaderCard.module.css";
 
 /**
  * フォロー / 解除のボタン（ネイティブ FollowButton）。フォロー中 = ゴースト「フォロー中」、未フォロー = 主ボタン「フォロー」。
- * 押すと確認なしで切り替える。反映はリレーが受け付けた後（自分の kind:3 がストアに入って following が変わる）。
+ * 押すと確認なしで切り替える。反映は署名できた時点（送信キューが自分の kind:3 をストアに入れて following が変わる）。
  */
 export function FollowButton({
   me,

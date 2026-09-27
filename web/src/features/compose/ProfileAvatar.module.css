@@ -1,0 +1,24 @@
+.avatar {
+  display: block;
+  flex: none;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
+/* 22 = ネイティブ ComposeSheet の AccountHeader */
+.avatar[data-size="22"] {
+  width: 22px;
+  height: 22px;
+}
+
+/* 28 = ネイティブ MentionRow / ContextCard */
+.avatar[data-size="28"] {
+  width: 28px;
+  height: 28px;
+}
+
+.avatar[data-size="32"] {
+  width: 32px;
+  height: 32px;
+}
