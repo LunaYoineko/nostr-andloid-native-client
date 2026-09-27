@@ -1,0 +1,27 @@
+import type { NostrEvent } from "nostr-tools/pure";
+import { useMemo } from "react";
+import { Virtuoso } from "react-virtuoso";
+import { useSession } from "../../signer/session";
+import styles from "./NotificationList.module.css";
+import { NotificationRow } from "./NotificationRow";
+import { notificationsFrom } from "./notificationModel";
+
+/**
+ * 通知の一覧（通知カラムと通知画面で共用。ネイティブの NotificationsBody）。新しい順に 1 件 1 行。
+ * 新着ピル・過去読みは無い（ネイティブと同じ）。
+ */
+export function NotificationList({ events, loading }: { events: NostrEvent[]; loading: boolean }) {
+  const me = useSession((s) => s.pubkey);
+  const items = useMemo(() => notificationsFrom(events, me), [events, me]);
+  if (items.length === 0) {
+    return <p className={styles.empty}>{loading ? "読み込み中…" : "通知はまだありません"}</p>;
+  }
+  return (
+    <Virtuoso
+      className={styles.list}
+      data={items}
+      computeItemKey={(_, item) => item.id}
+      itemContent={(_, item) => <NotificationRow item={item} />}
+    />
+  );
+}

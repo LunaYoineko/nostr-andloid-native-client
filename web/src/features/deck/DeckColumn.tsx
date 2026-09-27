@@ -12,6 +12,7 @@ import {
 import { useDeck, widthOf } from "../../store/deck";
 import { columnIcon, Icon } from "../../ui/icons";
 import { MyReactionRow } from "../actions/MyReactionRow";
+import { NotificationList } from "../notifications/NotificationList";
 import { Timeline } from "../timeline/Timeline";
 import styles from "./DeckColumn.module.css";
 import { useColumnFeed } from "./useColumnFeed";
@@ -55,6 +56,8 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             onEndReached={loadOlder}
             loadingOlder={loadingOlder}
           />
+        ) : spec.kind === "NOTIFICATIONS" ? (
+          <NotificationList events={events} loading={loading} />
         ) : (
           <Timeline
             // フィルターを変えたら中身が入れ替わるので、位置も先頭から
@@ -63,7 +66,6 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             loading={loading}
             onEndReached={loadOlder}
             loadingOlder={loadingOlder}
-            emptyText={spec.kind === "NOTIFICATIONS" ? "通知はまだありません" : undefined}
           />
         )}
       </div>

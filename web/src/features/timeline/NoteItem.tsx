@@ -31,25 +31,37 @@ const AVATAR_PROXY_WIDTH = 96;
  * タイムラインの 1 件（ネイティブの NoteItem.kt）。返信先の 1 行・アバター・表示名・NIP-05・相対時刻・本文・引用カード。
  * kind:6/16 は「🔁 (アバター) 名前」の行を付けて元投稿を出す。
  * openable（既定 true）なら全体のクリックと時刻のリンクでスレッドを開く（スレッドの行では false）。
+ * embedded（既定 false）は通知の行の本体用: 下線と返信先の 1 行を出さない（kind 1 / 1111 のみ）。
  */
 export const NoteItem = memo(function NoteItem({
   event,
   openable = true,
+  embedded = false,
 }: {
   event: NostrEvent;
   openable?: boolean;
+  embedded?: boolean;
 }) {
   if (event.kind === 6 || event.kind === 16) return <RepostItem repost={event} openable={openable} />;
-  return <PostItem event={event} openable={openable} />;
+  return <PostItem event={event} openable={openable} embedded={embedded} />;
 });
 
-function PostItem({ event, openable }: { event: NostrEvent; openable: boolean }) {
+function PostItem({
+  event,
+  openable,
+  embedded,
+}: {
+  event: NostrEvent;
+  openable: boolean;
+  embedded: boolean;
+}) {
   const ref = useRef<HTMLElement>(null);
   const href = openable ? threadHrefOf(event) : null;
   useOpenOnClick(ref, href);
+  const base = embedded ? styles.embedded : styles.note;
   return (
-    <article ref={ref} className={href ? `${styles.note} ${styles.openable}` : styles.note}>
-      <NoteBody event={event} threadHref={href} />
+    <article ref={ref} className={href ? `${base} ${styles.openable}` : base}>
+      <NoteBody event={event} threadHref={href} embedded={embedded} />
     </article>
   );
 }
@@ -82,7 +94,15 @@ function threadHrefOf(target: NostrEvent): string {
   );
 }
 
-function NoteBody({ event, threadHref }: { event: NostrEvent; threadHref: string | null }) {
+function NoteBody({
+  event,
+  threadHref,
+  embedded = false,
+}: {
+  event: NostrEvent;
+  threadHref: string | null;
+  embedded?: boolean;
+}) {
   const profile = useProfile(event.pubkey);
   const picture = pictureOf(profile);
   const nip05 =
@@ -109,7 +129,7 @@ function NoteBody({ event, threadHref }: { event: NostrEvent; threadHref: string
 
   return (
     <>
-      <ReplyContext event={event} />
+      {!embedded && <ReplyContext event={event} />}
       <div className={styles.row}>
         {/* 名前と同じリンク先なので、読み上げ・タブ移動は名前の方だけにする */}
         <Link className={styles.avatarLink} to={profileHref} tabIndex={-1} aria-hidden="true">

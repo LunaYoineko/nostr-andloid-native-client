@@ -154,6 +154,16 @@ export function AddIcon(props: NamedIconProps) {
   return <PathIcon {...props} d={PATHS.add} />;
 }
 
+/** 検索履歴の行（#461） */
+export function HistoryIcon(props: NamedIconProps) {
+  return (
+    <PathIcon
+      {...props}
+      d="M480-120q-138 0-240.5-91.5T122-440h82q14 104 92.5 172T480-200q117 0 198.5-81.5T760-480q0-117-81.5-198.5T480-760q-69 0-129 32t-101 88h110v80H120v-240h80v94q51-64 124.5-99T480-840q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-480q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-120Zm112-192L440-464v-216h80v184l128 128-56 56Z"
+    />
+  );
+}
+
 /** カラム種別のアイコン（columnIcon と同じ対応）を className の大きさで描く */
 export function ColumnKindIcon({ kind, ...props }: NamedIconProps & { kind: ColumnKind }) {
   return <PathIcon {...props} d={PATHS[columnIcon(kind)]} />;
@@ -355,6 +365,31 @@ export function MoodIcon(props: MaterialIconProps) {
     <MaterialIcon
       {...props}
       path="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"
+    />
+  );
+}
+
+/*
+ * ---- 以下: 通知の種別マーク（#460）。ネイティブ NotificationsScreen.kt の Icons.Outlined.* と同じグリフ。
+ * 返信・リポストは上の ReplyIcon / RepeatIcon を使う。
+ */
+
+/** メンション（Outlined.AlternateEmail） */
+export function AlternateEmailIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M12 1.95c-5.52 0-10 4.48-10 10s4.48 10 10 10h5v-2h-5c-4.34 0-8-3.66-8-8s3.66-8 8-8 8 3.66 8 8v1.43c0 .79-.71 1.57-1.5 1.57s-1.5-.78-1.5-1.57v-1.43c0-2.76-2.24-5-5-5s-5 2.24-5 5 2.24 5 5 5c1.38 0 2.64-.56 3.54-1.47.65.89 1.77 1.47 2.96 1.47 1.97 0 3.5-1.6 3.5-3.57v-1.43c0-5.52-4.48-10-10-10zm0 13c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"
+    />
+  );
+}
+
+/** Zap（Outlined.Bolt） */
+export function BoltIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M11 21h-1l1-7H7.5c-.58 0-.57-.32-.38-.66.19-.34.05-.08.07-.12C8.48 10.94 10.42 7.54 13 3h1l-1 7h3.5c.49 0 .56.33.47.51l-.07.15C12.96 17.55 11 21 11 21z"
     />
   );
 }

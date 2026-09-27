@@ -1,3 +1,4 @@
+import { ThemeSettings } from "../../features/theme/ThemeSettings";
 import { shortNpub } from "../../lib/npub";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { useSession } from "../../signer/session";
@@ -20,6 +21,7 @@ export function SettingsPlaceholder() {
       {/* RequireSession の内側なので pubkey は必ずある */}
       {me && <Account me={me} />}
       <ComingSoon>その他の設定は準備中です</ComingSoon>
+      <ThemeSettings />
     </SingleColumnPane>
   );
 }
