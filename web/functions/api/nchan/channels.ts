@@ -1,6 +1,6 @@
 /**
  * GET /api/nchan/channels（Pages Functions）。設計: #426。
- * 静的アセットでは Functions を起動しない（static/_routes.json で /api/* だけを通す）。
+ * 静的アセットでは Functions を起動しない（static/_routes.json で /api/* と /app/* の一部だけを通す）。
  */
 import { fetchLimited, isJsonMediaType, isSameOrigin } from "../../../server/guard";
 import { errorResponse, JSON_CONTENT_TYPE, jsonResponse } from "../../../server/http";

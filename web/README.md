@@ -5,17 +5,18 @@ Nostrism の Web 版（Vite + React + TypeScript の SPA）と、Cloudflare Page
 
 - `/` など LP・プライバシーポリシー等は `docs/` の静的 HTML をそのまま配信する（`docs/` は変更しない）
 - アプリは `/app/` 配下（Vite の `base: '/app/'`）
-- `/api/*` は Pages Functions（`functions/`）。`static/_routes.json` で `/api/*` のときだけ Functions を起動する
+- `/api/*` は Pages Functions（`functions/`）。`static/_routes.json` で `/api/*` と `/app/*`（静的ファイルを除く）のときだけ Functions を起動する
 
 ## 構成
 
 | パス | 中身 |
 |---|---|
 | `index.html` / `src/` | アプリ本体（Vite のエントリ）。`src/styles/global.css` がリポジトリ直下の `designs/tokens.css` を `@import` する（ビルド時にバンドルへ取り込まれる） |
-| `static/` | `dist/` 直下へコピーする Pages 用ファイル（`_headers` `_redirects` `_routes.json` `404.html` `robots.txt`） |
+| `static/` | `dist/` 直下へコピーする Pages 用ファイル（`_headers` `_routes.json` `404.html` `robots.txt`） |
 | `scripts/assemble-dist.mjs` | `vite build` の後に `docs/` と `static/` を `dist/` へコピーする |
 | `wrangler.toml` | Pages の設定（`pages_build_output_dir = "./dist"`） |
 | `functions/` | Pages Functions（ファイルベースルーティング）。`functions/api/nchan/channels.ts` → `GET /api/nchan/channels` |
+| `functions/app/[[path]].ts` | `/app/*` の SPA フォールバック。静的アセットに無いページ遷移（GET/HEAD で `Accept: text/html` か `Sec-Fetch-Dest: document`）に `/app/` の index.html を返す。`_redirects` の rewrite は実在ファイルより先に効き JS/CSS まで index.html になるため使わない |
 | `server/` | Functions の共有コード（`guard.ts`: 同一オリジン確認・制限つき取得、`http.ts`: JSON 応答）。`functions/` の外に置き相対 import する |
 | `test/functions/` | Functions のテスト（`vitest.functions.config.ts`、workerd で走る）。型検査は `tsconfig.functions.json` |
 

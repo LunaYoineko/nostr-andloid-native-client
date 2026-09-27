@@ -1,1 +1,14 @@
-{ "version": 1, "include": ["/api/*"], "exclude": [] }
+{
+  "version": 1,
+  "include": ["/api/*", "/app/*"],
+  "exclude": [
+    "/app/",
+    "/app/index.html",
+    "/app/assets/*",
+    "/app/icons/*",
+    "/app/sw.js",
+    "/app/manifest.webmanifest",
+    "/app/workbox-*",
+    "/app/registerSW.js"
+  ]
+}

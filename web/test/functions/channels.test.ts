@@ -2,6 +2,7 @@ import { createPagesEventContext, waitOnExecutionContext } from "cloudflare:test
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { onRequest as apiNotFound } from "../../functions/api/[[path]]";
 import { onRequest as nchanChannels } from "../../functions/api/nchan/channels";
+import type { Env } from "../../server/env";
 
 const NCHAN_CHANNELS_UPSTREAM = "https://thread.nchan.vip/channels";
 const ORIGIN = "https://nostrism.shino3.net";
@@ -13,7 +14,7 @@ const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
 async function call(
   url: string,
   init: RequestInit<IncomingRequestCfProperties> = {},
-  handler: PagesFunction = nchanChannels,
+  handler: PagesFunction<Env> = nchanChannels,
 ): Promise<Response> {
   const request = new IncomingRequest(url, init);
   const ctx = createPagesEventContext<typeof handler>({ request, params: {}, data: {} });
