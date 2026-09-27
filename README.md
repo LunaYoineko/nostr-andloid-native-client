@@ -54,8 +54,14 @@ Kotlin + **Compose Multiplatform**（Android / iOS / iPadOS / macOS）。
 
 ## ビルド手順
 
+**JDK 21 が必要**（#438）。Android Studio 同梱の JBR は 21 なのでそれで足りる。
+`gradle/gradle-daemon-jvm.properties` で Gradle 本体を JDK 21 で動かすよう指定してあり、
+JDK 17 から起動しても手元に 21 があればそちらを使う（無ければ「Java 21 が見つからない」で止まる）。
+Desktop の依存（secp256k1-kmp-jni-jvm 0.17 以降）が JVM 21 を要求するため、17 では解決に失敗する。
+生成するバイトコード（`jvmTarget`）は 17 のまま。
+
 ```bash
-# JDK が PATH に無い場合は Android Studio 同梱の JBR を使う:
+# JDK が PATH に無い場合は Android Studio 同梱の JBR(21) を使う:
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 
 # Android（wrapper はコミット済み）
