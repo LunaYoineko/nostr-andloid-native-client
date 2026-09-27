@@ -6,7 +6,7 @@ import { db } from "../db";
 import type { NostrismDb, PublishQueueRow } from "../db/schema";
 import { unixNow } from "../lib/time";
 import { currentSigner, useSession } from "../signer/session";
-import { connections$, pool, relays } from "./pool";
+import { connections$, pool, writeRelays } from "./pool";
 import type { Signer } from "./signer";
 import { addVerified, eventStore } from "./store";
 
@@ -27,7 +27,7 @@ export const UNCONFIRMED_MESSAGE = "送信を確認できませんでした。�
 export type EventDraft = { kind: number; content: string; tags: string[][]; created_at?: number };
 
 export type PublishOptions = {
-  /** 送り先（省けば設定リレー） */
+  /** 送り先（省けば write リレー） */
   relays?: readonly string[];
   /** 署名を待っている間に中止する（署名後に中止されていれば積まずに PublishError("aborted")） */
   signal?: AbortSignal;
@@ -174,7 +174,7 @@ function send(row: PublishQueueRow, notify: boolean): void {
   cancels.add(cancel);
   waiters.set(id, onAccepted);
 
-  subscription = pool.event(row.relays ?? [...relays], row.payload).subscribe({
+  subscription = pool.event(row.relays ?? [...writeRelays()], row.payload).subscribe({
     next: (response) => {
       if (isAccepted(response.ok, response.message)) accept(id);
     },

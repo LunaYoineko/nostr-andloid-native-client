@@ -1,6 +1,6 @@
 import { INDEXER_RELAYS } from "../../lib/columnRequest";
 import { unixNow } from "../../lib/time";
-import { relays, requestOnce } from "../../nostr/pool";
+import { readRelays, requestOnce, writeRelays } from "../../nostr/pool";
 import { PublishError, type PublishFailure, publishEvent } from "../../nostr/publish";
 import { eventStore } from "../../nostr/store";
 import { buildContactsTemplate } from "./contacts";
@@ -37,7 +37,7 @@ export async function toggleFollow(
   // complete = 少なくとも 1 つのリレーが応答した、error = どこからも応答が無かった
   const reached = await new Promise<boolean>((resolve) => {
     requestOnce(
-      [...new Set([...relays, ...INDEXER_RELAYS])],
+      [...new Set([...readRelays(), ...writeRelays(), ...INDEXER_RELAYS])],
       [{ kinds: [3], authors: [me], limit: 1 }],
       OWN_CONTACTS_TIMEOUT_MS,
     ).subscribe({ complete: () => resolve(true), error: () => resolve(false) });

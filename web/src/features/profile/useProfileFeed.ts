@@ -5,7 +5,7 @@ import { map } from "rxjs";
 import { INDEXER_RELAYS, LOADING_TIMEOUT_MS } from "../../lib/columnRequest";
 import { extractMedia } from "../../lib/media";
 import { authorOutbox$ } from "../../nostr/outbox";
-import { relays, requestOnce, subscribeTo } from "../../nostr/pool";
+import { requestOnce, subscribeTo, useReadRelays } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
 
 /** 開いている間に張る REQ の kind（プロフィール・投稿・リポスト・リレーリスト） */
@@ -45,6 +45,7 @@ export function useProfileFeed(
     .filter((url) => url.startsWith("wss://"))
     .slice(0, 3)
     .join(",");
+  const relays = useReadRelays();
 
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -66,7 +67,7 @@ export function useProfileFeed(
       outbox.unsubscribe();
       reload.unsubscribe();
     };
-  }, [pubkey, hintsKey]);
+  }, [pubkey, hintsKey, relays]);
 
   const posts =
     use$(

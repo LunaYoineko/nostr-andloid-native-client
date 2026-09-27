@@ -11,7 +11,7 @@ import { CONTACTS_OF_CACHE_MAX, CONTACTS_TIMEOUT_MS, useContactsOf } from "./use
 vi.mock("../../nostr/pool", async () => {
   const { Subject } = await import("rxjs");
   return {
-    relays: ["wss://relay.example"],
+    readRelays: () => ["wss://relay.example"],
     requestOnceUnstored: vi.fn(() => new Subject<NostrEvent>()),
   };
 });

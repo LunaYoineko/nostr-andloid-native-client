@@ -12,8 +12,9 @@ import { useColumnFeed } from "./useColumnFeed";
 // リレーには繋がず、REQ ごとに Subject を返す（EOSE・過去読みの完了はテストから流す）
 vi.mock("../../nostr/pool", async () => {
   const { Subject } = await import("rxjs");
+  const relays = ["wss://relay.example"];
   return {
-    relays: ["wss://relay.example"],
+    useReadRelays: () => relays,
     subscribe: vi.fn(() => new Subject<"EOSE">()),
     subscribeTo: vi.fn(() => new Subject<"EOSE">()),
     requestOnce: vi.fn(() => new Subject<NostrEvent>()),

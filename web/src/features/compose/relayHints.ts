@@ -2,7 +2,7 @@ import { getOutboxes } from "applesauce-core/helpers/mailboxes";
 import { getSeenRelays } from "applesauce-core/helpers/relays";
 import type { NostrEvent } from "nostr-tools/pure";
 import { SEARCH_RELAYS } from "../../lib/columnRequest";
-import { relays } from "../../nostr/pool";
+import { writeRelays } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { normalizeRelayUrl, pickRelayHint } from "./tags";
@@ -11,13 +11,13 @@ export type RelayHintLookup = { eventHint(id: string): string; pubkeyHint(pk: st
 
 /**
  * ストアから引くリレーヒント（ネイティブ EventRepository.withRelayHints の Web 版）。
- * 受信元はストアの記録、著者の write はストアの kind:10002（自分は設定リレー）。検索専用リレーは除く。
+ * 受信元はストアの記録、著者の write はストアの kind:10002（自分は write リレー）。検索専用リレーは除く。
  */
 export function storeRelayHints(me: string | null): RelayHintLookup {
   // AUTH を求めたリレーの除外は #463 で足す
   const excluded = new Set(SEARCH_RELAYS.map(normalizeRelayUrl));
   const writeOf = (pk: string): string[] => {
-    if (pk === me) return relays.map(normalizeRelayUrl);
+    if (pk === me) return writeRelays().map(normalizeRelayUrl);
     const list = eventStore.getReplaceable(10002, pk);
     return list ? getOutboxes(list).map(normalizeRelayUrl) : [];
   };

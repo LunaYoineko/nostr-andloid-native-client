@@ -38,7 +38,7 @@ vi.mock("./pool", async () => {
   const { Subject } = await import("rxjs");
   return {
     pool: { event: vi.fn() },
-    relays: ["wss://r1", "wss://r2"],
+    writeRelays: () => ["wss://r1", "wss://r2"],
     connections$: new Subject(),
   };
 });

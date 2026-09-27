@@ -12,7 +12,7 @@ import {
 } from "../../lib/columnRequest";
 import { type ColumnSpec, encodeReqFilter } from "../../lib/columns";
 import { authorOutbox$ } from "../../nostr/outbox";
-import { relays, requestOnce, subscribeTo } from "../../nostr/pool";
+import { requestOnce, subscribeTo, useReadRelays } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { useFollows } from "./useFollows";
@@ -43,15 +43,16 @@ export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
   const me = useSession((s) => s.pubkey);
   // フック呼び出しの順を変えないよう常に呼ぶ（フォロー中以外は me を渡さず購読しない）
   const follows = useFollows(spec.kind === "FOLLOWING" ? me : null);
+  const relays = useReadRelays();
 
-  // フィルター・フォローの中身が変わったときだけ張り直す（同じ中身で配列が作り直されても据え置く）
+  // フィルター・フォロー・read リレーの中身が変わったときだけ張り直す（同じ中身で配列が作り直されても据え置く）
   const filterKey = encodeReqFilter(spec.filter);
   const followKey = follows?.join(",");
   // biome-ignore lint/correctness/useExhaustiveDependencies: spec と follows は中身のキー（id・filterKey・followKey）で比べる
   const { plan, view } = useMemo(() => {
     const ctx: Ctx = { me, follows, relays };
     return { plan: requestFor(spec, ctx), view: viewFor(spec, ctx) };
-  }, [spec.id, filterKey, me, followKey]);
+  }, [spec.id, filterKey, me, followKey, relays]);
 
   // 著者 1〜3 人のカラムは、その人たちの書き込みリレーへも張る（アウトボックス購読）
   const outboxKey = outboxAuthorsFor(spec)?.join(",") ?? "";

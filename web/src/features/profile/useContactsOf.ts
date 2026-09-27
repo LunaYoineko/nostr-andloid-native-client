@@ -1,7 +1,7 @@
 import { verifyEvent } from "nostr-tools/pure";
 import { useEffect, useState } from "react";
 import { INDEXER_RELAYS } from "../../lib/columnRequest";
-import { relays, requestOnceUnstored } from "../../nostr/pool";
+import { readRelays, requestOnceUnstored } from "../../nostr/pool";
 import { followsFromContacts } from "./contacts";
 
 /** 他人のフォロー一覧を覚えておく人数（ネイティブも他人の kind:3 はメモリの LRU 8 件） */
@@ -48,7 +48,7 @@ export function useContactsOf(pubkey: string | null): string[] | null {
     if (!pubkey) return;
     touch(pubkey);
     const sub = requestOnceUnstored(
-      [...new Set([...relays, ...INDEXER_RELAYS])],
+      [...new Set([...readRelays(), ...INDEXER_RELAYS])],
       [{ kinds: [3], authors: [pubkey], limit: 1 }],
       CONTACTS_TIMEOUT_MS,
     ).subscribe({

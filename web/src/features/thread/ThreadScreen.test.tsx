@@ -18,9 +18,10 @@ import { ThreadScreen } from "./ThreadScreen";
 vi.mock("../../nostr/pool", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../nostr/pool")>();
   const { Subject } = await import("rxjs");
+  const relays = ["wss://relay.example"];
   return {
     ...actual,
-    relays: ["wss://relay.example"],
+    useReadRelays: () => relays,
     subscribeTo: vi.fn(() => new Subject<"EOSE">()),
     requestOnce: vi.fn(() => new Subject<NostrEvent>()),
   };
