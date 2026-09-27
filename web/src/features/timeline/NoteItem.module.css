@@ -36,6 +36,28 @@
   object-fit: cover;
 }
 
+/* ユーザー一覧の行（ネイティブ UserListRow の 40dp） */
+.avatarLg {
+  display: block;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
+/* プロフィールのヘッダ（ネイティブ ProfileHeaderCard の 72dp） */
+.avatarXxl {
+  display: block;
+  flex: none;
+  width: 72px;
+  height: 72px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
 .main {
   flex: 1;
   min-width: 0;

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { installFakeNostr, OTHER_PUBKEY, PUBKEY, resetSession } from "../test/fakeNostr";
-import { LoginError, SESSION_FLAG_KEY, SESSION_KEY, useSession } from "./session";
+import { currentSigner, LoginError, SESSION_FLAG_KEY, SESSION_KEY, useSession } from "./session";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -94,5 +94,19 @@ describe("logout", () => {
 
     expect(useSession.getState()).toMatchObject({ status: "out", method: null, pubkey: null });
     expect(localStorage.length).toBe(0);
+  });
+});
+
+describe("currentSigner", () => {
+  it("未ログインなら null、NIP-07 でログイン中なら署名できる Signer", async () => {
+    expect(currentSigner()).toBeNull();
+
+    installFakeNostr();
+    useSession.setState({ status: "in", method: "nip07", pubkey: PUBKEY });
+    const signer = currentSigner();
+
+    expect(signer).not.toBeNull();
+    expect(signer?.caps.has("sign")).toBe(true);
+    await expect(signer?.publicKey()).resolves.toBe(PUBKEY);
   });
 });

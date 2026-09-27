@@ -159,7 +159,9 @@ describe("詳細", () => {
   it("/p/<npub1…> はプロフィールを重ね、見出しは名前（未取得なら npub の短縮）", () => {
     renderAt([`/p/${npubEncode(OTHER_PUBKEY)}`]);
     const profile = screen.getByRole("region", { name: "プロフィール" });
-    expect(within(profile).getByRole("heading", { name: shortNpub(OTHER_PUBKEY) })).toBeInTheDocument();
+    expect(
+      within(profile).getByRole("heading", { level: 1, name: shortNpub(OTHER_PUBKEY) }),
+    ).toBeInTheDocument();
   });
 
   it("背後の宛先を保ち、「戻る」はアプリ内の履歴があれば戻り、無ければデッキへ置き換える", async () => {

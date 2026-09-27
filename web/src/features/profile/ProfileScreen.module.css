@@ -1,0 +1,40 @@
+.screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--surface);
+}
+
+.screen[data-layout="compact"] {
+  flex-direction: column;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--border);
+}
+
+/* 左ペイン 340dp = --column-w、区切り 1dp は Bg */
+.side {
+  flex: none;
+  width: var(--column-w);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-right: 1px solid var(--bg);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.divider {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
