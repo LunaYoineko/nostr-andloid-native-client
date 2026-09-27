@@ -1,0 +1,302 @@
+/* 項目の中の 1 まとまり（見出し + 説明 + 操作）。間を線で区切る */
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-4);
+}
+
+.block + .block {
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--border);
+}
+
+/* ネイティブ SectionCaption */
+.caption {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-sub);
+  font-weight: var(--w-strong);
+}
+
+.desc {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  line-height: var(--line-desc);
+}
+
+.note {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--type-caption);
+  line-height: var(--line-desc);
+}
+
+.error {
+  margin: 0;
+  color: var(--like);
+  font-size: var(--type-caption);
+}
+
+/* ---- アカウント ---- */
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+/* 一覧の先頭の行（押すとアカウントを開く） */
+.accountButton {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.accountButton:hover {
+  background: var(--surface-3);
+}
+
+.names {
+  flex: 1;
+  min-width: 0;
+}
+
+.name,
+.shortNpub {
+  display: block;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.name {
+  color: var(--text);
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+}
+
+.shortNpub {
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.mono {
+  margin: 0;
+  color: var(--text-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--type-caption);
+  word-break: break-all;
+}
+
+.value {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-sub);
+}
+
+/* ---- ボタン・入力（ColumnDialog と同じ見た目） ---- */
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ghost,
+.primary,
+.danger {
+  flex: none;
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-full);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
+
+.ghost {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-2);
+}
+
+.ghost:hover {
+  background: var(--surface-3);
+}
+
+.danger {
+  border: 1px solid var(--warn);
+  background: transparent;
+  color: var(--warn);
+}
+
+.primary {
+  border: none;
+  background: var(--accent);
+  /* on-accent の文字色（designs/index.html のボタンと同じ） */
+  color: #fff;
+  font-weight: var(--w-strong);
+}
+
+.primary:disabled {
+  background: var(--surface-3);
+  color: var(--text-3);
+  cursor: default;
+}
+
+.alignStart {
+  align-self: flex-start;
+}
+
+.input {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-sm);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  /* 16px 未満だと iOS Safari がフォーカス時に拡大する */
+  font-size: 16px;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--touch-xs);
+  color: var(--text-2);
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
+
+.check input {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* ---- リレー ---- */
+
+.relays {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.relay {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.relayUrl {
+  flex: 1 1 12em;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-sub);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.relayMeta {
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.textButton {
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--warn);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
+
+.textButton:hover {
+  background: var(--surface-3);
+}
+
+/* 接続状態の点（RelayIndicator と同じ色） */
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--text-3);
+}
+
+/* 信号色はトークン外の例外（RelayIndicator の全接続と同じ緑） */
+.dot[data-connected="true"] {
+  background: #3fb950;
+}
+
+/* ---- 表示 ---- */
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* ネイティブ ReactionChoice / CustomReactionChoice */
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--type-sub);
+  cursor: pointer;
+}
+
+.choice[aria-pressed="true"] {
+  background: var(--accent-weak);
+  color: var(--text);
+}
+
+.choiceIcon {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.choiceEmoji {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}

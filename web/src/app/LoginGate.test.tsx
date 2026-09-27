@@ -65,7 +65,7 @@ it("拡張が無ければ nos2x / Alby / Nostash の案内を出す", async () =
 it("ログアウトで localStorage が空になりゲートへ戻る", async () => {
   installFakeNostr();
   await useSession.getState().login();
-  renderAt("/app/settings");
+  renderAt("/app/settings/account");
 
   await userEvent.click(await screen.findByRole("button", { name: "ログアウト" }));
   const dialog = screen.getByRole("dialog", { name: "ログアウトしますか？" });
