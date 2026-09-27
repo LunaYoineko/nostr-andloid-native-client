@@ -17,3 +17,17 @@
   width: var(--rail-mark);
   height: var(--rail-mark);
 }
+
+/* 画像が無いときの頭文字（ネイティブの Avatar.kt Initial。地の色は seed から決めて style で渡す） */
+.initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  /* 地は明度 56〜111 の濃いグレー固定なので、テーマに関係なく白文字（ライトテーマで --text だと読めない） */
+  color: #fff;
+  font-size: var(--type-body);
+  font-weight: var(--w-strong);
+  line-height: 1;
+  user-select: none;
+}

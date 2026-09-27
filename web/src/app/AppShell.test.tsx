@@ -5,7 +5,6 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ColumnSpec } from "../lib/columns";
 import { DEFAULT_COLUMNS } from "../lib/columns";
-import { shortNpub } from "../lib/npub";
 import { useSession } from "../signer/session";
 import { useDeck } from "../store/deck";
 import { installDialogPolyfill } from "../test/dialog";
@@ -179,11 +178,11 @@ describe("詳細", () => {
     expect(screen.getByText("URL が正しくありません")).toBeInTheDocument();
   });
 
-  it("/p/<npub1…> はプロフィールを重ね、見出しは名前（未取得なら npub の短縮）", () => {
+  it("/p/<npub1…> はプロフィールを重ね、見出しは名前（未取得なら hex の先頭 10 字）", () => {
     renderAt([`/p/${npubEncode(OTHER_PUBKEY)}`]);
     const profile = screen.getByRole("region", { name: "プロフィール" });
     expect(
-      within(profile).getByRole("heading", { level: 1, name: shortNpub(OTHER_PUBKEY) }),
+      within(profile).getByRole("heading", { level: 1, name: OTHER_PUBKEY.slice(0, 10) }),
     ).toBeInTheDocument();
   });
 
