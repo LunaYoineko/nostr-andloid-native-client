@@ -1,7 +1,8 @@
+import { getSeenRelays } from "applesauce-core/helpers/relays";
 import type { NostrEvent } from "nostr-tools/pure";
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import { hrefForProfile } from "../../lib/content/labels";
+import { hrefForEvent, hrefForProfile } from "../../lib/content/labels";
 import { isBlankContent, parseNoteContent, withoutMention } from "../../lib/content/parse";
 import { clientNameOf, contentWarningOf, quotePointerOf } from "../../lib/content/tags";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
@@ -17,6 +18,7 @@ import { QuoteCard } from "./QuoteCard";
 import { ReplyContext } from "./ReplyContext";
 import { RepostHeader } from "./RepostHeader";
 import { useNow } from "./useNow";
+import { useOpenOnClick } from "./useOpenOnClick";
 
 /** アバターのプロキシ幅（表示 38px の約 2.5 倍。リポストヘッダの 16px でも同じ URL を使いキャッシュを共有する） */
 const AVATAR_PROXY_WIDTH = 96;
@@ -24,27 +26,59 @@ const AVATAR_PROXY_WIDTH = 96;
 /**
  * タイムラインの 1 件（ネイティブの NoteItem.kt）。返信先の 1 行・アバター・表示名・NIP-05・相対時刻・本文・引用カード。
  * kind:6/16 は「🔁 (アバター) 名前」の行を付けて元投稿を出す。
+ * openable（既定 true）なら全体のクリックと時刻のリンクでスレッドを開く（スレッドの行では false）。
  */
-export const NoteItem = memo(function NoteItem({ event }: { event: NostrEvent }) {
-  if (event.kind === 6 || event.kind === 16) return <RepostItem repost={event} />;
-  return (
-    <article className={styles.note}>
-      <NoteBody event={event} />
-    </article>
-  );
+export const NoteItem = memo(function NoteItem({
+  event,
+  openable = true,
+}: {
+  event: NostrEvent;
+  openable?: boolean;
+}) {
+  if (event.kind === 6 || event.kind === 16) return <RepostItem repost={event} openable={openable} />;
+  return <PostItem event={event} openable={openable} />;
 });
 
-function RepostItem({ repost }: { repost: NostrEvent }) {
-  const original = useRepostedEvent(repost);
+function PostItem({ event, openable }: { event: NostrEvent; openable: boolean }) {
+  const ref = useRef<HTMLElement>(null);
+  const href = openable ? threadHrefOf(event) : null;
+  useOpenOnClick(ref, href);
   return (
-    <article className={styles.note}>
-      <RepostHeader reposter={repost.pubkey} />
-      {original ? <NoteBody event={original} /> : <p className={styles.missing}>元の投稿を読み込み中…</p>}
+    <article ref={ref} className={href ? `${styles.note} ${styles.openable}` : styles.note}>
+      <NoteBody event={event} threadHref={href} />
     </article>
   );
 }
 
-function NoteBody({ event }: { event: NostrEvent }) {
+function RepostItem({ repost, openable }: { repost: NostrEvent; openable: boolean }) {
+  const original = useRepostedEvent(repost);
+  const ref = useRef<HTMLElement>(null);
+  // 開く先は元投稿（未解決の間は開かない）
+  const href = openable && original ? threadHrefOf(original) : null;
+  useOpenOnClick(ref, href);
+  return (
+    <article ref={ref} className={href ? `${styles.note} ${styles.openable}` : styles.note}>
+      <RepostHeader reposter={repost.pubkey} />
+      {original ? (
+        <NoteBody event={original} threadHref={href} />
+      ) : (
+        <p className={styles.missing}>元の投稿を読み込み中…</p>
+      )}
+    </article>
+  );
+}
+
+/** スレッドを開くリンク先。受け取ったリレーを 2 件までヒントに付ける */
+function threadHrefOf(target: NostrEvent): string {
+  const seen = [...(getSeenRelays(target) ?? [])].slice(0, 2);
+  return hrefForEvent(
+    seen.length > 0
+      ? { id: target.id, author: target.pubkey, relays: seen }
+      : { id: target.id, author: target.pubkey },
+  );
+}
+
+function NoteBody({ event, threadHref }: { event: NostrEvent; threadHref: string | null }) {
   const profile = useProfile(event.pubkey);
   const picture = pictureOf(profile);
   const nip05 =
@@ -82,7 +116,13 @@ function NoteBody({ event }: { event: NostrEvent }) {
               </Link>
               {nip05 && <span className={styles.handle}>{nip05}</span>}
             </span>
-            <RelativeTime createdAt={event.created_at} client={clientNameOf(event)} />
+            {threadHref ? (
+              <Link to={threadHref} className={styles.timeLink}>
+                <RelativeTime createdAt={event.created_at} client={clientNameOf(event)} />
+              </Link>
+            ) : (
+              <RelativeTime createdAt={event.created_at} client={clientNameOf(event)} />
+            )}
           </div>
           {warning !== null && !revealed ? (
             <ContentWarning reason={warning} onReveal={() => setRevealed(true)} />
@@ -126,13 +166,21 @@ function avatarSrc(url: string | undefined): string | null {
   return proxied(url, AVATAR_PROXY_WIDTH);
 }
 
+export type AvatarSize = "md" | "sm" | "xs";
+
+const AVATAR_CLASS: Record<AvatarSize, string> = {
+  md: styles.avatar,
+  sm: styles.avatarSm,
+  xs: styles.avatarXs,
+};
+
 /**
  * アバター。プロキシが読めなければ元 URL（https のみ）で 1 度だけ取り直し、そのホストを拒否として学習する。
  * url が変わったら呼び出し側の key で作り直す。
  */
-export function Avatar({ url, size }: { url: string | undefined; size: "md" | "sm" }) {
+export function Avatar({ url, size }: { url: string | undefined; size: AvatarSize }) {
   const [src, setSrc] = useState(() => avatarSrc(url));
-  const className = size === "md" ? styles.avatar : styles.avatarSm;
+  const className = AVATAR_CLASS[size];
   if (!src) return <span className={className} aria-hidden="true" />;
 
   function onError() {
