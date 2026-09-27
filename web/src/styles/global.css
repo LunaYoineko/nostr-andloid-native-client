@@ -26,3 +26,15 @@ body {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/*
+ * タッチ端末では入力欄を 16px 以上にする。iOS Safari は 16px 未満の入力欄にフォーカスすると画面を拡大し、
+ * 閉じても元に戻らないため（文字サイズ設定で大きくした場合はそちらに従う）。
+ */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, var(--type-body));
+  }
+}
