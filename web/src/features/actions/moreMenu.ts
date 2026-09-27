@@ -4,6 +4,8 @@ export type MoreMenuActions = {
   follow(): void;
   unfollow(): void;
   requestDelete(): void;
+  mute(): void;
+  unmute(): void;
   report(): void;
   copyText(): void;
   copyLink(): void;
@@ -13,13 +15,15 @@ export type MoreMenuActions = {
 };
 
 /**
- * 投稿の ⋯ メニュー（ネイティブ NoteItem.kt の並び。M1 に無い項目 = ブックマーク・プロフィールに固定・ミュート・
+ * 投稿の ⋯ メニュー（ネイティブ NoteItem.kt の並び。M1 に無い項目 = ブックマーク・プロフィールに固定・
  * 翻訳・イベント JSON は出さない）。isFollowing が null（自分の kind:3 が未取得）ならフォロー項目を出さない。
+ * 他人の投稿は「通報」の前に「このユーザーをミュート」（ミュート中なら「ミュートを解除」）。
  */
 export function moreMenuEntries(a: {
   clientName: string | null;
   isMine: boolean;
   isFollowing: boolean | null;
+  isMuted: boolean;
   note1: string;
   nevent: string;
   on: MoreMenuActions;
@@ -35,7 +39,13 @@ export function moreMenuEntries(a: {
         : { type: "item", label: "フォロー", onSelect: a.on.follow },
     );
   }
-  // #465 は「通報」の前に「このユーザーをミュート」を足す
+  if (!a.isMine) {
+    entries.push(
+      a.isMuted
+        ? { type: "item", label: "ミュートを解除", onSelect: a.on.unmute }
+        : { type: "item", label: "このユーザーをミュート", onSelect: a.on.mute },
+    );
+  }
   entries.push(
     a.isMine
       ? { type: "item", label: "削除をリクエスト", onSelect: a.on.requestDelete, tone: "danger" }

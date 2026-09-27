@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import { startPersistence } from "./db";
+import { startMuteList } from "./features/mute/muteSync";
 import { initTheme } from "./features/theme/themePrefs";
 import { startOwnRelayList } from "./nostr/outbox";
 import { startPublishQueue } from "./nostr/publish";
@@ -20,6 +21,8 @@ void useSession.getState().restore();
 void startPersistence().then(() => startPublishQueue());
 // ログイン中は自分の kind:10002 で読み書きリレーを決める
 startOwnRelayList();
+// ログイン中は自分の kind:10000（ミュート）を購読して表示から除く
+startMuteList();
 
 createRoot(root).render(
   <StrictMode>

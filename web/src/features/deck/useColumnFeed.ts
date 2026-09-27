@@ -15,6 +15,8 @@ import { authorOutbox$ } from "../../nostr/outbox";
 import { requestOnce, subscribeTo, useReadRelays } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
+import { isMutedRevealed, useDeck } from "../../store/deck";
+import { muteVisibleFilter, useMuteMatcher } from "../mute/muteList";
 import { useFollows } from "./useFollows";
 
 /** following = フォロー + 自分、global = フォローが空/未取得の間のリレー新着、column = フォロー中以外のカラム */
@@ -24,7 +26,7 @@ export type ColumnFeed = {
   mode: FeedMode;
   /** 最初の EOSE（または 8 秒経過）まで true */
   loading: boolean;
-  /** 新しい順 */
+  /** 新しい順（ミュート対象は除く。カラムで「ミュートを表示」中なら除かない） */
   events: NostrEvent[];
   /** 過去読みの最中 */
   loadingOlder: boolean;
@@ -35,6 +37,8 @@ export type ColumnFeed = {
 };
 
 const NO_EVENTS: NostrEvent[] = [];
+
+const resolveEvent = (id: string) => eventStore.getEvent(id);
 
 /**
  * 1 カラムの購読と表示。カラムの REQ を張ったままにし（アンマウントで CLOSE）、EventStore から条件に合う投稿を読む。
@@ -86,6 +90,14 @@ export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
       [view],
     ) ?? NO_EVENTS;
 
+  // ミュート（#465）。表示する一覧だけから除く（過去読みの起点は除く前の最古）
+  const matcher = useMuteMatcher();
+  const revealed = useDeck((s) => isMutedRevealed(s, spec.id));
+  const visible = useMemo(() => {
+    const keep = revealed ? null : muteVisibleFilter(spec.kind, matcher, me, resolveEvent);
+    return keep ? events.filter(keep) : events;
+  }, [events, matcher, revealed, spec.kind, me]);
+
   const [loadingOlder, setLoadingOlder] = useState(false);
   const older = useRef<{ oldest: number | null; sub: Subscription | null }>({ oldest: null, sub: null });
   useEffect(() => () => older.current.sub?.unsubscribe(), []);
@@ -113,5 +125,5 @@ export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
 
   const mode: FeedMode =
     spec.kind !== "FOLLOWING" ? "column" : follows && follows.length > 0 ? "following" : "global";
-  return { mode, loading, events, loadingOlder, loadOlder, refresh };
+  return { mode, loading, events: visible, loadingOlder, loadOlder, refresh };
 }

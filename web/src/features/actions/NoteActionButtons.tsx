@@ -19,6 +19,8 @@ import { MenuButton } from "../../ui/MenuButton";
 import { showToast } from "../../ui/toast";
 import { openCompose } from "../compose/composeStore";
 import { ACTION_BUTTON_CLASS, ActionButton } from "../compose/NoteFooter";
+import { useMuteMatcher } from "../mute/muteList";
+import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
 import { followsFromContacts } from "../profile/contacts";
 import { FollowError, toggleFollow } from "../profile/follow";
 import { moreMenuEntries } from "./moreMenu";
@@ -177,6 +179,15 @@ function EmojiReactionButton({ event }: { event: NostrEvent }) {
   );
 }
 
+/** ミュート・解除の失敗の文言 */
+function muteFailureMessage(e: unknown): string {
+  if (e instanceof MuteListError && e.reason === "no-mute-list") {
+    return "最新のミュートリストを取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
+  }
+  // ネイティブ note_mute_locked
+  return "ミュートリストが変更できません（ロック中の可能性）";
+}
+
 /** ⋯ メニュー（並びは moreMenuEntries）と、そこから開く確認・通報のダイアログ */
 function MoreMenu({ event }: { event: NostrEvent }) {
   const me = useSession((s) => s.pubkey);
@@ -186,7 +197,8 @@ function MoreMenu({ event }: { event: NostrEvent }) {
   // 自分の kind:3 が未取得の間は null（フォロー項目を出さない。空のリストで上書きしないため）
   const isFollowing = contacts ? followsFromContacts(contacts).includes(event.pubkey) : null;
   const links = useMemo(() => noteLinksOf(event), [event]);
-  const [dialog, setDialog] = useState<"unfollow" | "delete" | "report" | null>(null);
+  const isMuted = useMuteMatcher().users.has(event.pubkey);
+  const [dialog, setDialog] = useState<"unfollow" | "mute" | "delete" | "report" | null>(null);
 
   function follow(action: "follow" | "unfollow") {
     if (!me) return;
@@ -199,16 +211,28 @@ function MoreMenu({ event }: { event: NostrEvent }) {
     });
   }
 
+  function mute(action: "mute" | "unmute") {
+    if (!me) return;
+    const run = action === "mute" ? muteUser(me, event.pubkey) : unmuteUser(me, event.pubkey);
+    run.then(
+      () => showToast(action === "mute" ? "ミュートしました" : "ミュートを解除しました"),
+      (e) => showToast(muteFailureMessage(e)),
+    );
+  }
+
   const entries = moreMenuEntries({
     clientName: clientNameOf(event),
     isMine,
     isFollowing,
+    isMuted,
     note1: links.note1,
     nevent: links.nevent,
     on: {
       follow: () => follow("follow"),
       unfollow: () => setDialog("unfollow"),
       requestDelete: () => setDialog("delete"),
+      mute: () => setDialog("mute"),
+      unmute: () => mute("unmute"),
       report: () => setDialog("report"),
       copyText: () => void copyText(plainTextOf(event)),
       copyLink: () => void copyText(links.njump),
@@ -232,6 +256,19 @@ function MoreMenu({ event }: { event: NostrEvent }) {
           onConfirm={() => {
             setDialog(null);
             follow("unfollow");
+          }}
+          onDismiss={() => setDialog(null)}
+        />
+      )}
+      {dialog === "mute" && (
+        <ConfirmDialog
+          title="このユーザーをミュートしますか？"
+          text="この人の投稿と通知を表示しなくなります。設定 → ミュート でいつでも解除できます。"
+          confirmLabel="ミュート"
+          destructive
+          onConfirm={() => {
+            setDialog(null);
+            mute("mute");
           }}
           onDismiss={() => setDialog(null)}
         />

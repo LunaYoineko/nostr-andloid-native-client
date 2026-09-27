@@ -5,6 +5,7 @@ import { useLayoutMode } from "../../ui/useLayoutMode";
 import { AccountSection, AccountSummary } from "./AccountSection";
 import { DeveloperSection } from "./DeveloperSection";
 import { DisplaySection } from "./DisplaySection";
+import { MuteSection } from "./MuteSection";
 import { RelaySection } from "./RelaySection";
 import styles from "./SettingsScreen.module.css";
 import { DEFAULT_SECTION_ID, findSection, SETTINGS_GROUPS, type SettingsSection } from "./sections";
@@ -122,6 +123,8 @@ function SectionPane({ section, onBack }: { section: SettingsSection; onBack?: (
 
 function SectionBody({ id }: { id: string }) {
   switch (id) {
+    case "mute":
+      return <MuteSection />;
     case "account":
       return <AccountSection />;
     case "relays":

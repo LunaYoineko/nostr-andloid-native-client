@@ -73,6 +73,27 @@ it("DM カラムは「まだ使えません」を出し、購読しない", () =
   expect(vi.mocked(useColumnFeed)).not.toHaveBeenCalled();
 });
 
+it("⋯ の「ミュートを表示 / 隠す」でカラムの設定を切り替える。描けない種別には出さない（#465）", async () => {
+  const user = userEvent.setup();
+  const [, hashtag] = DEFAULT_COLUMNS;
+  useDeck.setState({ revealMuted: [] });
+  const { unmount } = render(<DeckColumn spec={hashtag} showHeader />);
+
+  await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
+  await user.click(screen.getByRole("menuitem", { name: "ミュートを表示" }));
+  expect(useDeck.getState().revealMuted).toEqual(["c_hashtag"]);
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
+  await user.click(screen.getByRole("menuitem", { name: "ミュートを隠す" }));
+  expect(useDeck.getState().revealMuted).toEqual([]);
+  unmount();
+
+  render(<DeckColumn spec={DM} showHeader />);
+  await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
+  expect(screen.queryByRole("menuitem", { name: "ミュートを表示" })).not.toBeInTheDocument();
+});
+
 it("「カラムを削除」でカラムが消える", async () => {
   const user = userEvent.setup();
   render(<DeckColumn spec={DM} showHeader />);

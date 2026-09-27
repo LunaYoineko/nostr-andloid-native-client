@@ -1,4 +1,4 @@
-/** 設定の 1 項目。ready = 中身があるもの（M1 はアカウント・リレー・表示・開発者だけ。他は準備中） */
+/** 設定の 1 項目。ready = 中身があるもの（M1 はミュート・アカウント・リレー・表示・開発者だけ。他は準備中） */
 export type SettingsSection = { id: string; label: string; ready: boolean };
 
 export type SettingsGroup = { title: string; sections: readonly SettingsSection[] };
@@ -15,7 +15,7 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
       { id: "dm", label: "DM", ready: false },
       { id: "favs", label: "ふぁぼ", ready: false },
       { id: "bookmarks", label: "ブックマーク", ready: false },
-      { id: "mute", label: "ミュート", ready: false },
+      { id: "mute", label: "ミュート", ready: true },
     ],
   },
   {

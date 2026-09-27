@@ -147,6 +147,29 @@ it("removeColumn: カラムを消すと幅の設定も消す", async () => {
   expect(savedIds(COLUMNS_KEY)).toEqual(["c_following", "c_notif"]);
 });
 
+it("setRevealMuted: カラムごとに保存し、カラムを消すと設定も消す。壊れた保存値は空", async () => {
+  const { useDeck, REVEAL_MUTED_KEY, isMutedRevealed, loadRevealMuted } = await freshDeck();
+  expect(isMutedRevealed(useDeck.getState(), "c_hashtag")).toBe(false);
+
+  useDeck.getState().setRevealMuted("c_hashtag", true);
+  useDeck.getState().setRevealMuted("c_notif", true);
+  useDeck.getState().setRevealMuted("c_notif", true);
+  expect(localStorage.getItem(REVEAL_MUTED_KEY)).toBe('["c_hashtag","c_notif"]');
+  expect(isMutedRevealed(useDeck.getState(), "c_hashtag")).toBe(true);
+
+  useDeck.getState().setRevealMuted("c_hashtag", false);
+  expect(localStorage.getItem(REVEAL_MUTED_KEY)).toBe('["c_notif"]');
+
+  useDeck.getState().removeColumn("c_notif");
+  expect(useDeck.getState().revealMuted).toEqual([]);
+  expect(localStorage.getItem(REVEAL_MUTED_KEY)).toBe("[]");
+
+  localStorage.setItem(REVEAL_MUTED_KEY, "{broken");
+  expect(loadRevealMuted()).toEqual([]);
+  localStorage.setItem(REVEAL_MUTED_KEY, '["c_a", 1, "c_a"]');
+  expect(loadRevealMuted()).toEqual(["c_a"]);
+});
+
 it("applyPinnedColumns: 固定カラムを置き換え、開いている一時カラムは残す", async () => {
   const { useDeck, COLUMNS_KEY } = await freshDeck();
   const transient = hashtagColumn("bitcoin", 100);

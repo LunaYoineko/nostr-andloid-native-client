@@ -7,6 +7,8 @@ import { LOADING_TIMEOUT_MS } from "../../lib/columnRequest";
 import { useEventByPointer } from "../../nostr/loaders";
 import { subscribeTo, useReadRelays } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
+import { useSession } from "../../signer/session";
+import { isNoteMuted, useMuteMatcher } from "../mute/muteList";
 import {
   anchorsKey,
   buildThread,
@@ -24,11 +26,13 @@ const MAX_HINT_RELAYS = 3;
 const NO_EVENTS: NostrEvent[] = [];
 const NO_ENTRIES: ThreadEntry[] = [];
 
+const resolveEvent = (id: string) => eventStore.getEvent(id);
+
 export type Thread = {
   /** 開いた投稿（未取得の間は undefined） */
   focus: NostrEvent | undefined;
   anchors: ThreadAnchors;
-  /** root から深さ優先の順の行 */
+  /** root から深さ優先の順の行（ミュート対象の行は除く。起点は残す） */
   entries: ThreadEntry[];
   /** 起点を e タグで指す投稿・リポスト・リアクション（集計は engagement.ts） */
   engagementEvents: NostrEvent[];
@@ -78,7 +82,7 @@ export function useThread(pointer: EventPointer): Thread {
     return () => sub.unsubscribe();
   }, [relays, pointer.id]);
 
-  const entries =
+  const allEntries =
     use$(
       () =>
         eventStore
@@ -86,6 +90,19 @@ export function useThread(pointer: EventPointer): Thread {
           .pipe(map((list) => buildThread(list, pointer.id, anchors.rootId))),
       [anchors, pointer.id],
     ) ?? NO_ENTRIES;
+
+  // ミュート（#465）。起点は残し、それ以外のミュート対象の行を隠す（ネイティブ ThreadColumn と同じ）
+  const me = useSession((s) => s.pubkey);
+  const matcher = useMuteMatcher();
+  const entries = useMemo(
+    () =>
+      matcher.isEmpty
+        ? allEntries
+        : allEntries.filter(
+            (entry) => entry.event.id === pointer.id || !isNoteMuted(matcher, entry.event, me, resolveEvent),
+          ),
+    [allEntries, matcher, me, pointer.id],
+  );
 
   const engagementEvents =
     use$(() => eventStore.timeline([{ kinds: [1, 1111, 6, 16, 7], "#e": [pointer.id] }]), [pointer.id]) ??
