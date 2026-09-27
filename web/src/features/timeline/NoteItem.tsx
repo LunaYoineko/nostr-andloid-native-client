@@ -9,6 +9,7 @@ import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { extractMedia } from "../../lib/media";
 import { relativeTime } from "../../lib/time";
 import { displayName, pictureOf, useEventByPointer, useProfile, useRepostedEvent } from "../../nostr/loaders";
+import { NoteActionButtons } from "../actions/NoteActionButtons";
 import { NoteFooter } from "../compose/NoteFooter";
 import { NoteMedia } from "../media/NoteMedia";
 import { CollapsibleContent } from "./CollapsibleContent";
@@ -138,7 +139,9 @@ function NoteBody({ event, threadHref }: { event: NostrEvent; threadHref: string
               {hasMedia && <NoteMedia media={media} />}
             </>
           )}
-          <NoteFooter event={event} />
+          <NoteFooter event={event}>
+            <NoteActionButtons event={event} />
+          </NoteFooter>
         </div>
       </div>
     </>

@@ -9,6 +9,7 @@ import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { CloseIcon, ReplyIcon, VisibilityOffIcon } from "../../ui/icons";
+import { EmojiInsertButton } from "../actions/EmojiInsertButton";
 import { NoteContent } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
 import { buildNote, buildQuote, buildReply, type PostContext } from "./buildPost";
@@ -20,6 +21,7 @@ import {
   appendHashtag,
   completeHashtag,
   completeMention,
+  insertAtCursor,
   insertEmojiShortcode,
   type TextState,
 } from "./completion";
@@ -385,7 +387,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
             ) : (
               <>
                 <div className={styles.tools}>
-                  {/* #459: 絵文字ボタン（EmojiInsertButton）をここに置く（選んだ文字は update(insertAtCursor(value, str), true) で入れる） */}
+                  <EmojiInsertButton onInsert={(str) => update(insertAtCursor(value, str), true)} />
                   <button
                     type="button"
                     className={styles.tool}

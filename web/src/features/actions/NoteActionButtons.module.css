@@ -1,0 +1,48 @@
+/* 自分がリポスト済み（ネイティブの Boost 色） */
+.reposted {
+  color: var(--repost);
+}
+
+/* ♡ / ☆ の包み。付与済み（押下中を含む）は鮮色、未付与はボタンの色（--text-3）のまま */
+.glyph {
+  display: grid;
+  place-items: center;
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.heart {
+  color: var(--react-heart);
+}
+
+.star {
+  color: var(--react-star);
+}
+
+/* 署名待ち（ネイティブの CircularProgressIndicator。色は押下の鮮色） */
+.spinner {
+  box-sizing: border-box;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+/* ⋯ を右端へ寄せる */
+.spacer {
+  flex: 1;
+}

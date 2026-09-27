@@ -1,0 +1,63 @@
+.row {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  color: inherit;
+  text-decoration: none;
+}
+
+.row:hover {
+  background: var(--surface-2);
+}
+
+/* 38px = ネイティブの AvatarSize（投稿のアバター列と揃える） */
+.mark {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  width: 38px;
+  padding-top: var(--sp-1);
+  font-size: var(--type-emoji-lg);
+  line-height: 1;
+}
+
+.emoji {
+  width: var(--type-emoji-lg);
+  height: var(--type-emoji-lg);
+  object-fit: contain;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  margin-bottom: var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.summary {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+/* 仮想リストは高さ 0 の行を扱えないので 1px（#452 と同じ） */
+.pending {
+  height: 1px;
+}

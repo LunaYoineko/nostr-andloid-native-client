@@ -293,3 +293,68 @@ export function EditIcon(props: NamedIconProps) {
     />
   );
 }
+
+/*
+ * ---- 以下: リアクション・⋯ メニュー・絵文字ピッカー用（#459）。ネイティブ NoteItem.kt / ComposeSheet.kt の Icons.* と同じグリフ。
+ * 上に同じグリフがあればそのパスを使う（StarBorder / MoreHoriz。検索は SearchIcon をそのまま使う）。
+ */
+
+/** ♡ 付与済み（Filled.Favorite） */
+export function FavoriteIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+    />
+  );
+}
+
+/** ♡ 未付与（Outlined.FavoriteBorder） */
+export function FavoriteBorderIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z"
+    />
+  );
+}
+
+/** ☆ 付与済み（塗り。StarBorderIcon の外形だけ） */
+export function StarIcon(props: NamedIconProps) {
+  return (
+    <PathIcon
+      {...props}
+      d="m233-120 65-281L80-590l288-25 112-265 112 265 288 25-218 189 65 281-247-149-247 149Z"
+    />
+  );
+}
+
+/** ☆ 未付与 */
+export function StarBorderIcon(props: NamedIconProps) {
+  return <PathIcon {...props} d={PATHS.starBorder} />;
+}
+
+/** 絵文字でリアクション（Outlined.AddReaction） */
+export function AddReactionIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M7 9.5C7 8.67 7.67 8 8.5 8S10 8.67 10 9.5 9.33 11 8.5 11 7 10.33 7 9.5zm5 8c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5zm3.5-6.5c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zM22 1h-2v2h-2v2h2v2h2V5h2V3h-2V1zm-2 11c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8c1.46 0 2.82.4 4 1.08V2.84C14.77 2.3 13.42 2 11.99 2 6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12c0-1.05-.17-2.05-.47-3h-2.13c.38.93.6 1.94.6 3z"
+    />
+  );
+}
+
+/** ⋯（投稿のその他の操作） */
+export function MoreHorizIcon(props: NamedIconProps) {
+  return <PathIcon {...props} d={PATHS.moreHoriz} />;
+}
+
+/** 投稿画面の絵文字ボタン（Outlined.Mood） */
+export function MoodIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"
+    />
+  );
+}

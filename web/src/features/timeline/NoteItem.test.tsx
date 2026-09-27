@@ -387,3 +387,12 @@ it("kind:1 には操作の行に「返信」ボタンがある", () => {
     within(screen.getByRole("group", { name: "操作" })).getByRole("button", { name: "返信" }),
   ).toBeInTheDocument();
 });
+
+it("kind:1 の操作の行は 返信・リポスト・リアクション・絵文字でリアクション・その他の操作（#459）", () => {
+  renderWithRouter(<NoteItem event={post("反応できる投稿")} />);
+  expect(
+    within(screen.getByRole("group", { name: "操作" }))
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label")),
+  ).toEqual(["返信", "リポスト", "リアクション", "絵文字でリアクション", "その他の操作"]);
+});
