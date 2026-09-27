@@ -56,7 +56,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21  # [#438] gradle/gradle-daemon-jvm.properties と揃える
 
       - uses: gradle/actions/setup-gradle@v4
 

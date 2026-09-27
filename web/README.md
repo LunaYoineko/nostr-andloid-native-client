@@ -17,9 +17,9 @@ Nostrism の Web 版（Vite + React + TypeScript の SPA）と、Cloudflare Page
 | `scripts/assemble-dist.mjs` | `vite build` の後に `docs/` と `static/` を `dist/` へコピーする |
 | `scripts/make-icons.mjs` | `docs/store/icon-512.png` から `public/icons/` を生成する（`npm run icons`。手動実行。Pages のビルドでは走らない） |
 | `wrangler.toml` | Pages の設定（`pages_build_output_dir = "./dist"`） |
-| `functions/` | Pages Functions（ファイルベースルーティング）。`functions/api/nchan/channels.ts` → `GET /api/nchan/channels` |
+| `functions/` | Pages Functions（ファイルベースルーティング）。`functions/api/nchan/channels.ts` → `GET /api/nchan/channels`、`functions/api/og.ts` → `GET /api/og?url=<https URL>`（リンクカード用。対象ページの HTML 先頭 200KB・Amazon は 512KB を解析せず `text/plain` で返す。最終 URL は `X-Og-Final-Url`）、`functions/api/oembed.ts` → `GET /api/oembed?v=<YouTube videoId>`（YouTube oEmbed の JSON を中継） |
 | `functions/app/[[path]].ts` | `/app/*` の SPA フォールバック。静的アセットに無いページ遷移（GET/HEAD で `Accept: text/html` か `Sec-Fetch-Dest: document`）に `/app/` の index.html を返す。`_redirects` の rewrite は実在ファイルより先に効き JS/CSS まで index.html になるため使わない |
-| `server/` | Functions の共有コード（`guard.ts`: 同一オリジン確認・制限つき取得、`http.ts`: JSON 応答）。`functions/` の外に置き相対 import する |
+| `server/` | Functions の共有コード（`guard.ts`: 同一オリジン確認・制限つき取得、`fetchGuarded.ts`: リダイレクトを各ホップで再検証して追い本文を上限で打ち切る取得（`/api/og` 用）、`http.ts`: JSON 応答）。`functions/` の外に置き相対 import する |
 | `test/functions/` | Functions のテスト（`vitest.functions.config.ts`、workerd で走る）。型検査は `tsconfig.functions.json` |
 
 ## ビルドの流れ（`npm run build`）
