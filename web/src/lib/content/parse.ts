@@ -1,16 +1,16 @@
 import { getHashtagTag } from "applesauce-common/helpers/hashtag";
-import { type Content, eolMetadata, findAndReplace, type Root } from "applesauce-content/nast";
+import { type Content, type Emoji, eolMetadata, type Root, type Text } from "applesauce-content/nast";
 import {
   blossomURIs,
-  emojis,
   galleries,
   getParsedContent,
   links,
-  nostrMentions,
   type textNoteTransformers,
 } from "applesauce-content/text";
+import { decodePointer } from "applesauce-core/helpers/pointers";
 import type { NostrEvent } from "nostr-tools/pure";
 import { mediaKindOf, trimUrlTail } from "../media";
+import { type ContentToken, tokenizeNostrContent } from "./tokenize";
 
 /** unified の Transformer<Root>（unified は直接の依存に無いので applesauce の型から取り出す） */
 type Transformer = ReturnType<(typeof textNoteTransformers)[number]>;
@@ -105,37 +105,80 @@ export function isBlankContent(root: Root): boolean {
 }
 
 /**
- * #タグ。applesauce 既定の hashtags() は t タグが無いとタグにしないが、ネイティブに合わせて t タグ無しでもタグにする。
- * findAndReplace は text ノードにしか当たらないので、URL 中の # は対象にならない。
+ * NIP-30 の emoji タグ。shortcode は大文字小文字を区別し、同じ shortcode が複数あれば後のもの
+ * （ネイティブの EventRepository.kt が tags を associate するのと同じ）。
  */
-export function hashtagsAny(): Transformer {
+function emojiTagOf(event: Root["event"], code: string): Emoji["tag"] | undefined {
+  let found: Emoji["tag"] | undefined;
+  for (const tag of event?.tags ?? []) {
+    if (tag.length >= 3 && tag[0] === "emoji" && tag[1] === code) found = tag as Emoji["tag"];
+  }
+  return found;
+}
+
+/** トークン 1 つをノードにする。文字のまま残すものは null */
+function tokenNode(token: ContentToken, event: Root["event"]): Content | null {
+  switch (token.type) {
+    case "nostr":
+      // デコードできないもの（チェックサム不一致等）は書かれた文字のまま（ネイティブの appendEntity と同じ）
+      try {
+        return { type: "mention", decoded: decodePointer(token.bech), encoded: token.bech };
+      } catch {
+        return null;
+      }
+    case "hashtag":
+      return {
+        type: "hashtag",
+        name: token.tag,
+        hashtag: token.tag.toLowerCase(),
+        tag: (event && getHashtagTag(event, token.tag)) ?? undefined,
+      };
+    case "emoji": {
+      const tag = emojiTagOf(event, token.code);
+      if (!tag) return null;
+      return { type: "emoji", tag, raw: `:${token.code}:`, code: token.code, url: tag[2] };
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * nostr 参照・#タグ・:shortcode: をネイティブのトークナイザ（tokenize.ts）で拾う。
+ * applesauce 既定の nostrMentions / emojis / hashtags とは境界が違う（日本語の直後の参照、日本語の shortcode、
+ * 直前が英数字の #タグ）ので使わない。t タグが無くても #タグ にする。
+ * URL と判定した範囲は文字のまま残す（link は applesauce の links が先に作っている。中の # や参照は拾わない）。
+ */
+export function nativeTokens(): Transformer {
   return (tree: Root) => {
     const event = tree.event;
-    findAndReplace(tree, [
-      [
-        /(?<=^|[^\p{L}\p{N}_#/])#([\p{L}\p{N}\p{M}_]+)/gu,
-        (_, name) => ({
-          type: "hashtag",
-          name,
-          hashtag: name.toLowerCase(),
-          tag: (event && getHashtagTag(event, name)) ?? undefined,
-        }),
-      ],
-    ]);
+    const children: Content[] = [];
+    for (const node of tree.children) {
+      if (node.type !== "text") {
+        children.push(node);
+        continue;
+      }
+      // 文字のまま残すトークンは、直前の text につなげる
+      let text: Text | null = null;
+      for (const token of tokenizeNostrContent(node.value)) {
+        const replaced = tokenNode(token, event);
+        if (replaced) {
+          children.push(replaced);
+          text = null;
+        } else if (text) {
+          text.value += node.value.slice(token.start, token.end);
+        } else {
+          text = { type: "text", value: node.value.slice(token.start, token.end) };
+          children.push(text);
+        }
+      }
+    }
+    tree.children = children;
   };
 }
 
 /** 本文の構文木を組み立てる手順（applesauce-content の text/imeta は使わない） */
-export const noteTransformers = [
-  blossomURIs,
-  links,
-  nostrMentions,
-  galleries,
-  stripMediaLinks,
-  emojis,
-  hashtagsAny,
-  eolMetadata,
-];
+export const noteTransformers = [blossomURIs, links, galleries, stripMediaLinks, nativeTokens, eolMetadata];
 
 /** 1 ノートの本文の構文木（イベントごとにキャッシュされる） */
 export function parseNoteContent(event: NostrEvent): Root {
