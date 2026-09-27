@@ -16,18 +16,27 @@ import styles from "./QuoteCard.module.css";
 /**
  * 引用元のカード（ネイティブの QuotedNoteCard.kt）。カード全体が引用元へのリンク。
  * カード内のリンク・メンション・タグは装飾だけにし、入れ子の引用カードは出さない（1 段）。
+ * compact（既定 false）はメディアを出さない（通知のリアクション・Zap の行。ネイティブの compact = true）。
  */
-export function QuoteCard({ pointer, encoded }: { pointer: EventPointer; encoded: string | null }) {
+export function QuoteCard({
+  pointer,
+  encoded,
+  compact = false,
+}: {
+  pointer: EventPointer;
+  encoded: string | null;
+  compact?: boolean;
+}) {
   const quoted = useEventByPointer(pointer);
   if (!quoted) return <p className={`${styles.quote} ${styles.loading}`}>引用元を読み込み中…</p>;
   return (
     <Link className={styles.quote} to={hrefForEvent(encoded ?? pointer)} aria-label="引用元の投稿を開く">
-      <QuotedNote quoted={quoted} />
+      <QuotedNote quoted={quoted} compact={compact} />
     </Link>
   );
 }
 
-function QuotedNote({ quoted }: { quoted: NostrEvent }) {
+function QuotedNote({ quoted, compact }: { quoted: NostrEvent; compact: boolean }) {
   const profile = useProfile(quoted.pubkey);
   const picture = pictureOf(profile);
   return (
@@ -46,7 +55,7 @@ function QuotedNote({ quoted }: { quoted: NostrEvent }) {
               <NoteContent event={quoted} variant="quote" />
             </div>
           )}
-          <QuoteMedia event={quoted} />
+          {!compact && <QuoteMedia event={quoted} />}
         </>
       )}
     </>
