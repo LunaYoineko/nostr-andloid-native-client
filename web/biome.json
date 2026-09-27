@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!worker"]
+    "includes": ["**"]
   },
   "formatter": {
     "enabled": true,

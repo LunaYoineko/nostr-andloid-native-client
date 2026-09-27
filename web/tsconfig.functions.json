@@ -1,15 +1,14 @@
 {
   "compilerOptions": {
     "target": "es2024",
-    "lib": ["es2024", "dom", "dom.iterable"],
+    "lib": ["es2024"],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "jsx": "react-jsx",
-    "types": ["vite/client"],
+    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"],
     "strict": true,
     "noEmit": true,
     "isolatedModules": true,
     "skipLibCheck": true
   },
-  "include": ["src", "vite.config.ts", "vitest.config.ts", "vitest.functions.config.ts"]
+  "include": ["functions", "server", "test/functions"]
 }

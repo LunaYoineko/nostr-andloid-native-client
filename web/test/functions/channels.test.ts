@@ -1,18 +1,23 @@
-import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
-import { env } from "cloudflare:workers";
+import { createPagesEventContext, waitOnExecutionContext } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import worker from "../src/index";
+import { onRequest as apiNotFound } from "../../functions/api/[[path]]";
+import { onRequest as nchanChannels } from "../../functions/api/nchan/channels";
 
 const NCHAN_CHANNELS_UPSTREAM = "https://thread.nchan.vip/channels";
 const ORIGIN = "https://nostrism.shino3.net";
 const CHANNELS = `${ORIGIN}/api/nchan/channels`;
 const SAME_ORIGIN = { "Sec-Fetch-Site": "same-origin" };
-// Worker の fetch ハンドラが受け取る型（cf プロパティ付き）
+// Pages Functions が受け取る型（cf プロパティ付き）
 const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
 
-async function call(url: string, init: RequestInit<IncomingRequestCfProperties> = {}): Promise<Response> {
-  const ctx = createExecutionContext();
-  const response = await worker.fetch(new IncomingRequest(url, init), env, ctx);
+async function call(
+  url: string,
+  init: RequestInit<IncomingRequestCfProperties> = {},
+  handler: PagesFunction = nchanChannels,
+): Promise<Response> {
+  const request = new IncomingRequest(url, init);
+  const ctx = createPagesEventContext<typeof handler>({ request, params: {}, data: {} });
+  const response = await handler(ctx);
   await waitOnExecutionContext(ctx);
   return response;
 }
@@ -92,7 +97,11 @@ describe("GET /api/nchan/channels", () => {
 
   it("別オリジンの Origin は 403", async () => {
     mockUpstream(upstreamJson({}));
-    await expectError(await call(CHANNELS, { headers: { Origin: "https://evil.example" } }), 403, "forbidden");
+    await expectError(
+      await call(CHANNELS, { headers: { Origin: "https://evil.example" } }),
+      403,
+      "forbidden",
+    );
   });
 
   it("(c) POST は 405（Allow: GET）", async () => {
@@ -145,11 +154,19 @@ describe("GET /api/nchan/channels", () => {
   });
 });
 
-describe("その他の /api/*", () => {
+describe("その他の /api/*（functions/api/[[path]].ts）", () => {
   it("未知の /api パスは 404", async () => {
     const fetchSpy = mockUpstream(upstreamJson({}));
-    await expectError(await call(`${ORIGIN}/api/unknown`, { headers: SAME_ORIGIN }), 404, "not_found");
-    await expectError(await call(`${ORIGIN}/api/nchan/channels/extra`, { headers: SAME_ORIGIN }), 404, "not_found");
+    await expectError(
+      await call(`${ORIGIN}/api/unknown`, { headers: SAME_ORIGIN }, apiNotFound),
+      404,
+      "not_found",
+    );
+    await expectError(
+      await call(`${ORIGIN}/api/nchan/channels/extra`, { headers: SAME_ORIGIN }, apiNotFound),
+      404,
+      "not_found",
+    );
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

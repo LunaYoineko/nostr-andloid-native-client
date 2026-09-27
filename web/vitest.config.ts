@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 // アプリ（src/）のテストは jsdom で走らせる。
-// worker/test（workerd で走る）は Pages Functions へ移すときに別設定（vitest.functions.config.ts）で戻す。
+// Pages Functions のテスト（test/functions/、workerd で走る）は vitest.functions.config.ts（npm run test:functions）。
 export default defineConfig({
   plugins: [react()],
   test: {
