@@ -37,9 +37,10 @@ plugins {
 }
 
 kotlin {
+
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
-        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_21) }
     }
 
     // expect/actual class は Beta 警告が出る。意図的な利用なので抑制。
@@ -56,7 +57,7 @@ kotlin {
     // [#218] Desktop(Mac/JVM) ターゲット。commonMain の Compose デッキ UI をそのまま動かす。
     jvm("desktop") {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
-        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_21) }
     }
 
     sourceSets {
