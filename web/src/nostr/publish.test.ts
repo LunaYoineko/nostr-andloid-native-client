@@ -1,10 +1,18 @@
 import type { PublishResponse } from "applesauce-relay/types";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
-import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
+import { nsecEncode } from "nostr-tools/nip19";
+import {
+  finalizeEvent,
+  generateSecretKey,
+  getPublicKey,
+  type NostrEvent,
+  verifyEvent,
+} from "nostr-tools/pure";
 import { Subject } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDatabase, type NostrismDb, type PublishQueueRow } from "../db/schema";
 import { useSession } from "../signer/session";
+import { installTestVault, resetSession } from "../test/fakeNostr";
 import { createTestSigner } from "../test/fakeSigner";
 import { connections$, pool, type RelayConnections } from "./pool";
 import {
@@ -279,6 +287,22 @@ describe("publishEvent", () => {
     await expect(noSigner).rejects.toBeInstanceOf(PublishError);
     await expect(noSigner).rejects.toMatchObject({ reason: "no-signer" });
     expect(pool.event).not.toHaveBeenCalled();
+  });
+
+  it("秘密鍵（nsec）でログイン中はセッションの署名者（保管庫の鍵）で署名して送る", async () => {
+    await installTestVault();
+    try {
+      await useSession.getState().loginWithNsec(nsecEncode(secretKey));
+      await startPublishQueue({ database: null });
+
+      const signed = await publishEvent(note("nsec"));
+
+      expect(signed.pubkey).toBe(me);
+      expect(verifyEvent(signed)).toBe(true);
+      expect(sends.map((s) => s.event.id)).toEqual([signed.id]);
+    } finally {
+      resetSession();
+    }
   });
 });
 

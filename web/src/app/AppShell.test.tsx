@@ -8,6 +8,7 @@ import { DEFAULT_COLUMNS } from "../lib/columns";
 import { shortNpub } from "../lib/npub";
 import { useSession } from "../signer/session";
 import { useDeck } from "../store/deck";
+import { installDialogPolyfill } from "../test/dialog";
 import { OTHER_PUBKEY, PUBKEY, resetSession } from "../test/fakeNostr";
 import { clearViewport, mockViewport } from "../test/viewport";
 import { routes } from "./routes";
@@ -122,8 +123,11 @@ describe("宛先", () => {
   });
 
   it("設定のログアウトで未ログインになり /login?next=%2Fsettings へ", async () => {
+    installDialogPolyfill();
     const router = renderAt(["/settings"]);
     await userEvent.click(await screen.findByRole("button", { name: "ログアウト" }));
+    const dialog = screen.getByRole("dialog", { name: "ログアウトしますか？" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "ログアウト" }));
     expect(useSession.getState().status).toBe("out");
     expect(router.state.location.pathname).toBe("/login");
     expect(router.state.location.search).toBe("?next=%2Fsettings");
