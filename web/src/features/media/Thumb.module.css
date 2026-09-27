@@ -1,0 +1,41 @@
+/* ネイティブの NoteImages.kt Thumb（Crop・角丸 Md・背景 Surface2・blurhash の下敷き） */
+.thumb {
+  position: relative;
+  /* 1 枚表示の枠いっぱいに広げる（inline-block だと行の下余白ではみ出す） */
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  cursor: zoom-in;
+}
+
+/* 20×20 を拡大してぼかす（BlurhashPainter.kt） */
+.blur {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: auto;
+  transition: opacity 150ms;
+}
+
+.faded {
+  opacity: 0;
+}
+
+.img {
+  /* 絶対配置の blurhash より手前に描く */
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 原 URL でも読めなかった（blurhash があればそれ、無ければ Surface2 の箱が残る） */
+.hidden {
+  display: none;
+}

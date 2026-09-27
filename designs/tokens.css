@@ -88,6 +88,7 @@
   --type-emoji:   18px;  /* リアクション絵文字グリフ */
   --line-title:   22px;  /* 2段テキスト(タイトル+説明)のタイトル行高 */
   --line-desc:    18px;  /* 同・説明行高（合計40px, スペーサーなし） */
+  --line-body: 20px;  /* 本文の行高（Compose CollapsibleText の lineHeight 20sp と 1 対 1） */
 
   /* --- Touch / icon (Compose DeckDimens と 1対1) --- */
   --touch:     48px;     /* 原則8の推奨 */
