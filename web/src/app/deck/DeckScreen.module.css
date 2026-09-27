@@ -1,0 +1,82 @@
+.deck {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* カラムの間は線ではなく背景色の隙間で分ける */
+.strip {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+
+.slot {
+  flex: none;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Compact: 1 回のスワイプで 1 ページ（HorizontalPager の既定） */
+.deck[data-layout="compact"] .strip {
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.deck[data-layout="compact"] .strip::-webkit-scrollbar {
+  display: none;
+}
+
+.deck[data-layout="compact"] .slot {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+/* Expanded: カラム幅 S/M/L = 280/340/460px（ネイティブ columnWidthDp） */
+.deck[data-layout="expanded"] .strip {
+  gap: var(--column-gap);
+}
+
+.deck[data-layout="expanded"] .slot {
+  width: var(--column-w);
+}
+
+.deck[data-layout="expanded"] .slot[data-width="S"] {
+  width: var(--column-w-s);
+}
+
+.deck[data-layout="expanded"] .slot[data-width="L"] {
+  width: var(--column-w-l);
+}
+
+.addSlot {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  width: 64px;
+  padding-top: var(--sp-3);
+}
+
+.addButton {
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--accent-weak);
+  color: var(--text-3);
+  font-size: var(--type-display);
+  cursor: pointer;
+}
+
+.empty {
+  margin: auto;
+  color: var(--text-3);
+  font-size: var(--type-sub);
+}

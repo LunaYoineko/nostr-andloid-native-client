@@ -17,15 +17,16 @@ function renderAt(path: string) {
   return router;
 }
 
-it("ログインに成功すると next へ戻り、ヘッダに npub の短縮が出る", async () => {
+it("ログインに成功すると next へ戻り、設定に npub の短縮が出る", async () => {
   installFakeNostr();
   useSession.setState({ status: "out" });
-  const router = renderAt("/app/login?next=%2F");
+  const router = renderAt("/app/login?next=%2Fsettings");
 
   await userEvent.click(screen.getByRole("button", { name: "拡張機能でログイン（NIP-07）" }));
 
-  expect(await screen.findByText(`${npubEncode(PUBKEY).slice(0, 12)}…`)).toBeInTheDocument();
-  expect(router.state.location.pathname).toBe("/app");
+  // プロフィール未取得なので名前も npub の短縮になる
+  expect(await screen.findAllByText(`${npubEncode(PUBKEY).slice(0, 12)}…`)).not.toHaveLength(0);
+  expect(router.state.location.pathname).toBe("/app/settings");
   expect(useSession.getState().status).toBe("in");
   expect(localStorage.getItem(SESSION_KEY)).not.toBeNull();
   expect(localStorage.getItem(SESSION_FLAG_KEY)).toBe("1");
@@ -57,7 +58,7 @@ it("拡張が無ければ nos2x / Alby / Nostash の案内を出す", async () =
 it("ログアウトで localStorage が空になりゲートへ戻る", async () => {
   installFakeNostr();
   await useSession.getState().login();
-  renderAt("/app/");
+  renderAt("/app/settings");
 
   await userEvent.click(await screen.findByRole("button", { name: "ログアウト" }));
 

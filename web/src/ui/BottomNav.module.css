@@ -1,0 +1,51 @@
+/*
+ * 80px = M3 NavigationBar の既定。下端はホームインジケータ 34px → 8px に詰める（iOS ネイティブの値。0 未満は 0）。
+ * バーの下 26px がインジケータ帯に重なるが、アイコンは 80px の中央なので重ならない。
+ */
+.nav {
+  flex: none;
+  display: flex;
+  box-sizing: content-box;
+  height: 80px;
+  padding-bottom: max(0px, env(safe-area-inset-bottom, 0px) - 26px);
+  background: var(--bg);
+}
+
+.item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+/* M3 のインジケータ寸法 */
+.indicator {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 32px;
+  border-radius: var(--r-full);
+}
+
+.item[aria-current="page"] .indicator {
+  background: var(--accent-weak);
+  color: var(--accent);
+}
+
+.item:focus-visible {
+  outline: none;
+}
+
+.item:focus-visible .indicator {
+  outline: 2px solid var(--accent);
+}
+
+.icon {
+  width: var(--rail-icon);
+  height: var(--rail-icon);
+}

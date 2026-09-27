@@ -1,0 +1,19 @@
+.avatar {
+  flex: none;
+  display: block;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
+/* 下部ナビ（ネイティブ size = 24.dp） */
+.small {
+  width: 24px;
+  height: 24px;
+}
+
+/* レール・設定 */
+.large {
+  width: var(--rail-mark);
+  height: var(--rail-mark);
+}
