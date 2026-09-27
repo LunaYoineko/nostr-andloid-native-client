@@ -24,7 +24,8 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  color: var(--text);
+  /* 地は明度 56〜111 の濃いグレー固定なので、テーマに関係なく白文字（ライトテーマで --text だと読めない） */
+  color: #fff;
   font-size: var(--type-body);
   font-weight: var(--w-strong);
   line-height: 1;
