@@ -78,6 +78,19 @@
   object-fit: cover;
 }
 
+/* 画像が無いときの頭文字（ネイティブの Avatar.kt Initial。地の色は seed から決めて style で渡す） */
+.initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: var(--w-strong);
+  line-height: 1;
+  user-select: none;
+}
+
 .main {
   flex: 1;
   min-width: 0;
@@ -152,4 +165,9 @@
   padding: var(--sp-3);
   color: var(--text-3);
   font-size: var(--type-caption);
+}
+
+/* リポスト元が取れずに隠した行（仮想リストは高さ 0 の行を扱えない） */
+.hiddenRow {
+  height: 1px;
 }
