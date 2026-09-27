@@ -5,25 +5,35 @@ import { requestPersistentStorage } from "../db";
 import { createNip07Signer, type Signer } from "../nostr/signer";
 import { createLocalSigner } from "./localSigner";
 import { waitForNostr } from "./nip07";
+import { connectBunker, disconnectNip46, Nip46Error, nip46Signer, restoreNip46 } from "./nip46";
 import { parseNsec } from "./nsec";
 import { getKeyVault } from "./webKeyVault";
 
-/** 保存するセッション（{"method":"nip07" | "local","pubkey":"<hex>"}）。秘密鍵は入れない */
+/** 保存するセッション（{"method":"nip07" | "local" | "nip46","pubkey":"<hex>"}）。秘密鍵は入れない */
 export const SESSION_KEY = "nostrism.session";
 /** LP がログイン済みかだけを判定するためのマーカー（値は "1"） */
 export const SESSION_FLAG_KEY = "nostrism.session.flag";
 
 export type SessionStatus = "loading" | "out" | "in";
-/** nip07 = 拡張機能、local = このブラウザに保管した秘密鍵（nsec） */
-export type SessionMethod = "nip07" | "local";
+/** nip07 = 拡張機能、local = このブラウザに保管した秘密鍵（nsec）、nip46 = リモート署名（署名アプリ） */
+export type SessionMethod = "nip07" | "local" | "nip46";
 
 type SavedSession = { method: SessionMethod; pubkey: string };
 
 /**
  * ログイン失敗の理由。missing = 拡張が見つからない（待ち時間切れ）、rejected = 拒否・失敗、
- * invalid-format = nsec1 で始まらない、invalid-key = 秘密鍵として読めない、unavailable = 秘密鍵を保管できない
+ * invalid-format = nsec1 で始まらない、invalid-key = 秘密鍵として読めない、unavailable = 秘密鍵・接続情報を保管できない、
+ * invalid-uri = bunker:// として読めない、timeout = 署名アプリが応答しない、cancelled = 利用者が止めた
  */
-export type LoginFailure = "missing" | "rejected" | "invalid-format" | "invalid-key" | "unavailable";
+export type LoginFailure =
+  | "missing"
+  | "rejected"
+  | "invalid-format"
+  | "invalid-key"
+  | "unavailable"
+  | "invalid-uri"
+  | "timeout"
+  | "cancelled";
 
 // 入力の中身は入れない
 const LOGIN_ERROR_MESSAGES: Record<LoginFailure, string> = {
@@ -32,6 +42,9 @@ const LOGIN_ERROR_MESSAGES: Record<LoginFailure, string> = {
   "invalid-format": "input is not an nsec",
   "invalid-key": "nsec is not a valid secret key",
   unavailable: "secret key storage is unavailable",
+  "invalid-uri": "input is not a bunker URI",
+  timeout: "remote signer did not respond",
+  cancelled: "cancelled",
 };
 
 export class LoginError extends Error {
@@ -59,7 +72,9 @@ type SessionState = {
   generateNewKey(): Promise<NewKey>;
   /** 控えを確認した後に、generateNewKey で保管した鍵でログインする。保管した鍵が違えば LoginError("unavailable") */
   loginWithNewKey(pubkey: string): Promise<void>;
-  /** ログアウトする。保管した秘密鍵も消す（方式に関係なく） */
+  /** bunker:// で署名アプリ（NIP-46）と接続してログインする。失敗時は LoginError を投げる */
+  loginWithBunker(input: string, signal?: AbortSignal): Promise<void>;
+  /** ログアウトする。保管した秘密鍵・リモート署名の接続情報も消す（方式に関係なく） */
   logout(): void;
   /** 起動時に保存済みセッションを復元する。拡張・保管庫の公開鍵と一致しなければ未ログインへ戻す */
   restore(): Promise<void>;
@@ -86,8 +101,9 @@ export const useSession = create<SessionState>()((set) => ({
     }
     writeSaved({ method: "nip07", pubkey });
     set({ status: "in", method: "nip07", pubkey });
-    // 前のローカル鍵の消し残しを掃除する
+    // 前のローカル鍵・リモート署名の接続の消し残しを掃除する
     void getKeyVault().clear();
+    void disconnectNip46();
   },
 
   async loginWithNsec(input) {
@@ -125,10 +141,25 @@ export const useSession = create<SessionState>()((set) => ({
     signInLocal(pubkey);
   },
 
+  async loginWithBunker(input, signal) {
+    let pubkey: string;
+    try {
+      ({ pubkey } = await connectBunker(input, signal));
+    } catch (e) {
+      throw new LoginError(e instanceof Nip46Error ? e.reason : "rejected", { cause: e });
+    }
+    writeSaved({ method: "nip46", pubkey });
+    set({ status: "in", method: "nip46", pubkey });
+    // 前のローカル鍵の消し残しを掃除する
+    void getKeyVault().clear();
+    void requestPersistentStorage();
+  },
+
   logout() {
     clearSaved();
     set(signedOut);
     void getKeyVault().clear();
+    void disconnectNip46();
   },
 
   async restore() {
@@ -144,6 +175,17 @@ export const useSession = create<SessionState>()((set) => ({
       clearSaved();
       // 別の鍵が残っていれば消す（null = 無い・壊れていて消した・保管先が使えない、のどれかなので触らない）
       if (stored !== null) void getKeyVault().clear();
+      set(signedOut);
+      return;
+    }
+    if (saved?.method === "nip46") {
+      // 保管した接続情報から張り直すだけ（署名アプリの応答は待たない）
+      if (await restoreNip46(saved.pubkey).catch(() => false)) {
+        set({ status: "in", method: "nip46", pubkey: saved.pubkey });
+        return;
+      }
+      clearSaved();
+      void disconnectNip46();
       set(signedOut);
       return;
     }
@@ -167,6 +209,8 @@ export const useSession = create<SessionState>()((set) => ({
 function signInLocal(pubkey: string) {
   writeSaved({ method: "local", pubkey });
   useSession.setState({ status: "in", method: "local", pubkey });
+  // リモート署名の接続の消し残しを掃除する
+  void disconnectNip46();
   // ログイン直後に保存領域を消さないよう頼む（鍵の DB も同じオリジンの保存領域）
   void requestPersistentStorage();
 }
@@ -177,6 +221,7 @@ export function currentSigner(): Signer | null {
   if (status !== "in" || !pubkey) return null;
   if (method === "nip07") return createNip07Signer();
   if (method === "local") return createLocalSigner(pubkey);
+  if (method === "nip46") return nip46Signer();
   return null;
 }
 
@@ -187,7 +232,7 @@ function readSaved(): SavedSession | null {
     const value: unknown = JSON.parse(raw);
     if (typeof value !== "object" || value === null) return null;
     const { method, pubkey } = value as Record<string, unknown>;
-    if (method !== "nip07" && method !== "local") return null;
+    if (method !== "nip07" && method !== "local" && method !== "nip46") return null;
     if (typeof pubkey !== "string" || !/^[0-9a-f]{64}$/.test(pubkey)) return null;
     return { method, pubkey };
   } catch {

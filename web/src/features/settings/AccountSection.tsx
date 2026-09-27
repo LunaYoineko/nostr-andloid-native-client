@@ -11,6 +11,7 @@ import styles from "./SettingsSections.module.css";
 const METHOD_LABEL: Record<SessionMethod, string> = {
   nip07: "拡張機能（NIP-07）",
   local: "このブラウザに保管した秘密鍵（nsec）",
+  nip46: "リモート署名（NIP-46）",
 };
 
 /** アカウント（npub のコピー・ログイン方式・ログアウト） */
