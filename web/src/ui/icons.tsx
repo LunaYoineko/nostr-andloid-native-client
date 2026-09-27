@@ -54,3 +54,42 @@ export function PlayCircleIcon(props: IconProps) {
     />
   );
 }
+
+export function PlayArrowIcon(props: IconProps) {
+  return <Icon {...props} path="M8 5v14l11-7z" />;
+}
+
+export function ContentCopyIcon(props: IconProps) {
+  return (
+    <Icon
+      {...props}
+      path="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+    />
+  );
+}
+
+export function OpenInNewIcon(props: IconProps) {
+  return (
+    <Icon
+      {...props}
+      path="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"
+    />
+  );
+}
+
+export function CloseIcon(props: IconProps) {
+  return (
+    <Icon
+      {...props}
+      path="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"
+    />
+  );
+}
+
+export function ChevronLeftIcon(props: IconProps) {
+  return <Icon {...props} path="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />;
+}
+
+export function ChevronRightIcon(props: IconProps) {
+  return <Icon {...props} path="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />;
+}

@@ -1,0 +1,131 @@
+/* ネイティブの NoteImages.kt Lightbox（黒背景の全画面・原 URL を Fit・上中央に n / N・右上に 40dp の丸ボタン） */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #000;
+  overscroll-behavior: contain;
+}
+
+.lightbox::backdrop {
+  background: #000;
+}
+
+/* 画像の舞台。拡大中はここのスクロールでパンする */
+.stage {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  display: grid;
+  /* マスを画面の大きさに固定する（auto だと縦長画像の高さでマスが伸び、max-height: 100% が効かない） */
+  grid-template: 100% / 100%;
+  place-items: center;
+  overscroll-behavior: contain;
+  /* 等倍では横スワイプとダブルタップをブラウザに取られないようにする */
+  touch-action: none;
+}
+
+.stageZoomed {
+  touch-action: pan-x pan-y;
+}
+
+.image {
+  /* 中央寄せは auto margin で行う（place-items: center だと拡大ではみ出した左上がスクロールで届かない） */
+  margin: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* ダブルクリック / ダブルタップで 2.5 倍（NoteImages.kt の scale = 2.5f） */
+.zoomed {
+  max-width: none;
+  max-height: none;
+  width: 250%;
+}
+
+.error {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: var(--type-body);
+}
+
+.counter {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  margin: 0;
+  padding-top: var(--sp-4);
+  color: #fff;
+  font-size: var(--type-sub);
+  text-align: center;
+  pointer-events: none;
+}
+
+.actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+}
+
+/* OverlayIconButton（黒 40% の丸・白アイコン） */
+.control {
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* 「コピーしました」の文字を出している間は、丸を横に伸ばす */
+.labeled {
+  width: auto;
+  padding: 0 var(--sp-3);
+  font-family: inherit;
+  font-size: var(--type-sub);
+  white-space: nowrap;
+}
+
+.icon {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+/* 左右端の中央 */
+.nav {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  margin: auto 0;
+}
+
+/* 端で押しても何も起きない側 */
+.nav[aria-disabled="true"] {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.prev {
+  left: var(--sp-3);
+}
+
+.next {
+  right: var(--sp-3);
+}

@@ -1,0 +1,49 @@
+/* ネイティブの LinkEmbeds.kt YouTubeEmbed（16:9・Crop・黒地・角丸 Md・赤い再生ボタン・右下のロゴ） */
+.card {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-md);
+  background: #000;
+}
+
+.thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hidden {
+  display: none;
+}
+
+/* 58×40dp・赤 95%。角丸はネイティブの 10dp をトークンの 8px にスナップ */
+.play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 40px;
+  margin: auto;
+  border-radius: var(--r-sm);
+  background: rgba(255, 0, 0, 0.95);
+  color: #fff;
+  font-size: var(--type-title);
+  line-height: 1;
+}
+
+.logo {
+  position: absolute;
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  padding: 1px var(--sp-1);
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--type-label);
+  font-weight: var(--w-strong);
+}
