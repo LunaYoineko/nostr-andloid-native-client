@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { createNip07Signer } from "../nostr/signer";
+import { createNip07Signer, type Signer } from "../nostr/signer";
 import { waitForNostr } from "./nip07";
 
 /** 保存するセッション（{"method":"nip07","pubkey":"<hex>"}）。秘密鍵は入れない */
@@ -81,6 +81,13 @@ export const useSession = create<SessionState>()((set) => ({
     set(signedOut);
   },
 }));
+
+/** いまのセッションの署名者。未ログインなら null（#462 で local（nsec）を足す） */
+export function currentSigner(): Signer | null {
+  const { status, method } = useSession.getState();
+  if (status === "in" && method === "nip07") return createNip07Signer();
+  return null;
+}
 
 function readSaved(): SavedSession | null {
   try {

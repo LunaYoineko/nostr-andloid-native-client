@@ -1,6 +1,14 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { describe, expect, it } from "vitest";
-import { type Ctx, matchesSearch, requestFor, SEARCH_RELAYS, viewFor } from "./columnRequest";
+import {
+  type Ctx,
+  INDEXER_RELAYS,
+  matchesSearch,
+  outboxAuthorsFor,
+  requestFor,
+  SEARCH_RELAYS,
+  viewFor,
+} from "./columnRequest";
 import { buildColumn, type ColumnSpec, DEFAULT_COLUMNS } from "./columns";
 
 const ME = "3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d";
@@ -128,5 +136,38 @@ describe("matchesSearch", () => {
   it("key:value の語（NIP-50 の拡張オプション）は無視する", () => {
     expect(matchesSearch(note({ content: "nostr の話" }), "nostr include:spam language:ja")).toBe(true);
     expect(matchesSearch(note({ content: "何か" }), "include:spam")).toBe(true);
+  });
+});
+
+describe("outboxAuthorsFor", () => {
+  it("著者 1〜3 人のカラムはその著者（重複は除く）、4 人以上は対象外", () => {
+    const profile = build("PROFILE", { text: FOLLOW }, NONE, 1);
+    expect(outboxAuthorsFor(profile)).toEqual([FOLLOW]);
+    expect(
+      outboxAuthorsFor({ ...profile, filter: { ...profile.filter, authors: [FOLLOW, FOLLOW] } }),
+    ).toEqual([FOLLOW]);
+    const four = ["1", "2", "3", "4"].map((c) => c.repeat(64));
+    expect(outboxAuthorsFor({ ...profile, filter: { ...profile.filter, authors: four } })).toBeNull();
+  });
+
+  it("フォロー中・通知・ふぁぼ欄、relays 指定・単語検索、著者の無いカラムは対象外", () => {
+    const favs = build("FAVS", {}, NONE, 1);
+    expect(outboxAuthorsFor(following)).toBeNull();
+    expect(outboxAuthorsFor(notif)).toBeNull();
+    expect(outboxAuthorsFor(favs)).toBeNull();
+    const withAuthor = (spec: ColumnSpec) => ({ ...spec, filter: { ...spec.filter, authors: [FOLLOW] } });
+    expect(outboxAuthorsFor(withAuthor(build("GLOBAL", { relays: ["wss://yabu.me"] }, NONE, 1)))).toBeNull();
+    expect(outboxAuthorsFor(withAuthor(build("SEARCH", { text: "rally" }, NONE, 1)))).toBeNull();
+    expect(outboxAuthorsFor(hashtag)).toBeNull();
+  });
+
+  it("INDEXER_RELAYS はネイティブと同じ 5 件・同じ順", () => {
+    expect(INDEXER_RELAYS).toEqual([
+      "wss://purplepag.es",
+      "wss://relay.nostr.band",
+      "wss://relay.damus.io",
+      "wss://nos.lol",
+      "wss://relay.primal.net",
+    ]);
   });
 });

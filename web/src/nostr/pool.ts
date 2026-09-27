@@ -110,6 +110,18 @@ export function requestOnce(
   return pool.request([...relays], filters, { timeout: timeoutMs }).pipe(tap((e) => addVerified(e)));
 }
 
+/**
+ * 1 回だけ取りに行く（EOSE か timeoutMs で終わる）。requestOnce と違い EventStore に入れない
+ * （他人の kind:3 など、保存したくない大きいイベント用。署名の検証は呼び出し側で行う）。
+ */
+export function requestOnceUnstored(
+  relays: readonly string[],
+  filters: Filter[],
+  timeoutMs: number,
+): Observable<NostrEvent> {
+  return pool.request([...relays], filters, { timeout: timeoutMs });
+}
+
 export type RelayConnections = { connected: number; total: number };
 
 const relayKeys = new Set(relays.map((url) => normalizeURL(url)));

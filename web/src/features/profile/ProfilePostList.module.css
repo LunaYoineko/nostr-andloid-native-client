@@ -1,0 +1,12 @@
+.own {
+  flex: 1;
+  min-height: 0;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sp-5);
+  color: var(--text-3);
+  font-size: var(--type-caption);
+  text-align: center;
+}
