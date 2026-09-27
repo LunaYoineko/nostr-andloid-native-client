@@ -126,7 +126,7 @@ describe("宛先", () => {
     ["/notifications", "通知", "通知"],
     ["/messages", "メッセージ", "メッセージ"],
     ["/settings", "設定", "設定"],
-    ["/settings/relays", "設定", "設定"],
+    ["/settings/relays", "リレー", "設定"],
   ])("%s は見出し「%s」とナビの「%s」を選択表示する", async (path, heading, nav) => {
     renderAt([path]);
     expect(await screen.findByRole("heading", { name: heading })).toBeInTheDocument();
@@ -141,15 +141,15 @@ describe("宛先", () => {
     expect(currentNavLabels()).toEqual(["通知"]);
   });
 
-  it("設定のログアウトで未ログインになり /login?next=%2Fsettings へ", async () => {
+  it("設定（アカウント）のログアウトで未ログインになり /login?next=%2Fsettings%2Faccount へ", async () => {
     installDialogPolyfill();
-    const router = renderAt(["/settings"]);
+    const router = renderAt(["/settings/account"]);
     await userEvent.click(await screen.findByRole("button", { name: "ログアウト" }));
     const dialog = screen.getByRole("dialog", { name: "ログアウトしますか？" });
     await userEvent.click(within(dialog).getByRole("button", { name: "ログアウト" }));
     expect(useSession.getState().status).toBe("out");
     expect(router.state.location.pathname).toBe("/login");
-    expect(router.state.location.search).toBe("?next=%2Fsettings");
+    expect(router.state.location.search).toBe("?next=%2Fsettings%2Faccount");
   });
 
   it("未定義のパスは「ページが見つかりません」とデッキへのリンク。どのナビも選択しない", async () => {

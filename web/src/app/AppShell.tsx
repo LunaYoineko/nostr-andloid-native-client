@@ -6,6 +6,7 @@ import { AddColumnDialog } from "../features/deck/AddColumnDialog";
 import { EditColumnDialog } from "../features/deck/EditColumnDialog";
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen";
 import { SearchScreen } from "../features/search/SearchScreen";
+import { SettingsScreen } from "../features/settings/SettingsScreen";
 import { notificationsColumnId, pinnedColumns, useDeck } from "../store/deck";
 import { BottomNav } from "../ui/BottomNav";
 import { ConnectionPill } from "../ui/ConnectionPill";
@@ -27,7 +28,6 @@ import { ProfileOverlay } from "./overlays/ProfileOverlay";
 import { ThreadOverlay } from "./overlays/ThreadOverlay";
 import { MessagesPlaceholder } from "./screens/MessagesPlaceholder";
 import { NotFoundScreen } from "./screens/NotFoundScreen";
-import { SettingsPlaceholder } from "./screens/SettingsPlaceholder";
 import { useNavActions } from "./useNavActions";
 
 function DestScreen({ dest }: { dest: Dest }) {
@@ -41,7 +41,7 @@ function DestScreen({ dest }: { dest: Dest }) {
     case "notifications":
       return <NotificationsScreen />;
     case "settings":
-      return <SettingsPlaceholder />;
+      return <SettingsScreen />;
     case "notFound":
       return <NotFoundScreen />;
   }
