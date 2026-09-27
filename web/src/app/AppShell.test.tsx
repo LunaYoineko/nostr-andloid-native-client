@@ -260,6 +260,15 @@ describe("ナビ", () => {
     });
     expect(router.state.location.pathname).toBe("/");
   });
+
+  it("検索画面の「Deckに追加」でデッキへ出る", async () => {
+    const user = userEvent.setup();
+    const router = renderAt(["/search"]);
+    await user.type(await screen.findByRole("searchbox", { name: "検索語" }), "rally{Enter}");
+    await user.click(screen.getByRole("button", { name: "Deckに追加" }));
+    expect(router.state.location.pathname).toBe("/");
+    expect(useDeck.getState().columns.at(-1)).toMatchObject({ title: "rally", kind: "GLOBAL" });
+  });
 });
 
 describe("一時カラム（/t/:tag）", () => {
