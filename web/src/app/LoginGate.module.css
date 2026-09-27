@@ -180,6 +180,38 @@
   margin-top: 0;
 }
 
+/* nostrconnect:// の承認待ち（QR・リンク・コピー・やめる） */
+.connect {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+/* 狭い画面では QR を幅に合わせて縮める（viewBox で拡縮する） */
+.connect svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.connect .actions {
+  margin-top: 0;
+}
+
+/* 「署名アプリで開く」（nostrconnect: のリンク）。見た目は .submit と同じ */
+.openLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-full);
+  background: var(--text);
+  color: var(--bg);
+  font-size: var(--type-body);
+  font-weight: var(--w-strong);
+  text-decoration: none;
+}
+
 .newKey {
   display: flex;
   flex-direction: column;

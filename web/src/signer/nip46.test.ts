@@ -1,3 +1,4 @@
+import { PrivateKeySigner } from "applesauce-signers/signers/private-key-signer";
 import { generateSecretKey, getPublicKey, verifyEvent } from "nostr-tools/pure";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeBunker } from "../test/fakeBunker";
@@ -11,13 +12,19 @@ import {
   nip46Signer,
   parseBunkerInput,
   restoreNip46,
+  StrictNostrConnectSigner,
   setNip46PoolForTest,
+  startNostrConnect,
   useNip46Auth,
 } from "./nip46";
 import { getNip46Store, NIP46_ROW_ID } from "./nip46Store";
 
 const RELAY = "wss://relay.example/";
 const SECRET = "s3cret-token";
+const NOS_LOL = "wss://nos.lol/";
+
+/** 届いた応答の処理（復号・JSON）を終わらせる */
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 let bunker: FakeBunker;
 
@@ -334,5 +341,194 @@ describe("disconnectNip46", () => {
 
     expect(await db.vault.get(NIP46_ROW_ID)).toBeUndefined();
     expect(bunker.requests).toHaveLength(0);
+  });
+});
+
+describe("StrictNostrConnectSigner", () => {
+  function strictSigner() {
+    const inner = new StrictNostrConnectSigner({
+      relays: [RELAY],
+      signer: new PrivateKeySigner(generateSecretKey()),
+      pool: bunker,
+      connectSecret: SECRET,
+    });
+    return { inner, uri: inner.getNostrConnectURI({ name: "test" }) };
+  }
+
+  async function waitConnected(inner: StrictNostrConnectSigner, uri: string) {
+    const waiting = inner.waitForSigner();
+    await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
+    bunker.acceptNostrConnect(uri);
+    await waiting;
+  }
+
+  it('"ack" と違う secret の応答では決まらず、secret が一致した応答で決まる（remote は送り手）', async () => {
+    const { inner, uri } = strictSigner();
+    let connected = false;
+    const waiting = inner.waitForSigner().then(() => {
+      connected = true;
+    });
+    await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
+
+    bunker.acceptNostrConnect(uri, { result: "ack" });
+    bunker.acceptNostrConnect(uri, { result: "wrong-secret" });
+    bunker.acceptNostrConnect(uri, { result: "ack", nip04: true });
+    await tick();
+
+    expect(connected).toBe(false);
+    expect(inner.remote).toBeUndefined();
+    expect(inner.isConnected).toBe(false);
+
+    bunker.acceptNostrConnect(uri);
+    await waiting;
+
+    expect(inner.remote).toBe(bunker.remote);
+    expect(inner.isConnected).toBe(true);
+    await inner.close();
+  });
+
+  it("NIP-04 の応答でも secret が一致すれば決まる", async () => {
+    const { inner, uri } = strictSigner();
+    const waiting = inner.waitForSigner();
+    await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
+
+    bunker.acceptNostrConnect(uri, { nip04: true });
+    await waiting;
+
+    expect(inner.remote).toBe(bunker.remote);
+    await inner.close();
+  });
+
+  it("接続後は remote 以外からの応答を無視する", async () => {
+    const { inner, uri } = strictSigner();
+    await waitConnected(inner, uri);
+    const other = generateSecretKey();
+    // 別の鍵が secret を送っても remote は変わらない
+    bunker.acceptNostrConnect(uri, { from: other });
+    bunker.replies.set("get_public_key", "silent");
+    let pubkey: string | null = null;
+    const pending = inner.getPublicKey().then((value) => {
+      pubkey = value;
+    });
+    await vi.waitFor(() => expect(bunker.methods()).toEqual(["get_public_key"]));
+    const req = bunker.requests[0];
+    if (!req) throw new Error("no request");
+
+    bunker.send(req.client, { id: req.id, result: getPublicKey(other) }, { from: other });
+    await tick();
+
+    expect(pubkey).toBeNull();
+    expect(inner.remote).toBe(bunker.remote);
+
+    bunker.send(req.client, { id: req.id, result: bunker.user });
+    await pending;
+    expect(pubkey).toBe(bunker.user);
+    await inner.close();
+  });
+});
+
+describe("startNostrConnect", () => {
+  it("URI は nostrconnect://<client>?secret=…&name=Nostrism&url=…&perms=…&relay=wss%3A%2F%2Fnos.lol", () => {
+    const { uri, done, cancel } = startNostrConnect();
+    void done.catch(() => {});
+
+    const [head, query] = uri.split("?");
+    expect(head).toMatch(/^nostrconnect:\/\/[0-9a-f]{64}$/);
+    expect([...new URLSearchParams(query)]).toEqual([
+      ["secret", expect.stringMatching(/^[0-9a-f]{32}$/)],
+      ["name", "Nostrism"],
+      ["url", `${location.origin}/app/`],
+      ["perms", NIP46_PERMISSIONS.join(",")],
+      ["relay", "wss://nos.lol"],
+    ]);
+    expect(query).toMatch(/&relay=wss%3A%2F%2Fnos\.lol$/);
+    cancel();
+  });
+
+  it("承認されたら get_public_key のユーザーを返し、保管庫に nip46 行を置く（secret は保存しない）", async () => {
+    const db = await installTestVault();
+    const { uri, done } = startNostrConnect();
+    const secret = new URLSearchParams(uri.split("?")[1]).get("secret") ?? "";
+    await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
+
+    bunker.acceptNostrConnect(uri);
+
+    expect(await done).toEqual({ pubkey: bunker.user });
+    // クライアントからは connect を送らない
+    expect(bunker.methods()).toEqual(["get_public_key"]);
+    const row = await db.vault.get(NIP46_ROW_ID);
+    expect(row).toMatchObject({
+      id: "nip46",
+      pubkey: bunker.user,
+      remote: bunker.remote,
+      relays: ["wss://nos.lol"],
+    });
+    expect(JSON.stringify(row)).not.toContain(secret);
+    const saved = await getNip46Store().load();
+    expect(`nostrconnect://${getPublicKey(saved?.clientKey ?? new Uint8Array(32))}`).toBe(uri.split("?")[0]);
+
+    const signed = await nip46Signer()?.signEvent({ kind: 1, content: "x", tags: [], created_at: 1 });
+    expect(signed?.pubkey).toBe(bunker.user);
+  });
+
+  it('"ack" だけでは決まらず、cancel で cancelled。購読と AUTH の監視を閉じる', async () => {
+    await installTestVault();
+    const { uri, done, cancel } = startNostrConnect();
+    const result = done.catch((e: unknown) => e);
+    await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
+    expect(bunker.relay(NOS_LOL).challenge$.observed).toBe(true);
+
+    bunker.acceptNostrConnect(uri, { result: "ack" });
+    await tick();
+    cancel();
+
+    const error = await result;
+    expect(error).toBeInstanceOf(Nip46Error);
+    expect(error).toMatchObject({ reason: "cancelled" });
+    expect(bunker.requests).toHaveLength(0);
+    expect(bunker.openSubscriptions).toBe(0);
+    expect(bunker.relay(NOS_LOL).challenge$.observed).toBe(false);
+    expect(nip46Signer()).toBeNull();
+  });
+
+  it("承認されなければ 180 秒で timeout。購読を閉じる", async () => {
+    vi.useFakeTimers();
+    const { done } = startNostrConnect();
+    const result = done.catch((e: unknown) => e);
+
+    await vi.advanceTimersByTimeAsync(179_999);
+    expect(bunker.openSubscriptions).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+
+    const error = await result;
+    expect(error).toMatchObject({ name: "Nip46Error", reason: "timeout" });
+    // secret はメッセージに入れない
+    expect((error as Error).message).toBe("timeout");
+    expect(bunker.openSubscriptions).toBe(0);
+  });
+
+  it("保管先が使えなければ unavailable。購読を閉じる", async () => {
+    const { uri, done } = startNostrConnect();
+    const result = done.catch((e: unknown) => e);
+    await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
+
+    bunker.acceptNostrConnect(uri);
+
+    expect(await result).toMatchObject({ reason: "unavailable" });
+    expect(bunker.openSubscriptions).toBe(0);
+    expect(nip46Signer()).toBeNull();
+  });
+
+  it("終わった後の cancel は接続を閉じない", async () => {
+    await installTestVault();
+    const { uri, done, cancel } = startNostrConnect();
+    await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
+    bunker.acceptNostrConnect(uri);
+    await done;
+
+    cancel();
+
+    expect(bunker.openSubscriptions).toBe(1);
+    expect(nip46Signer()).not.toBeNull();
   });
 });

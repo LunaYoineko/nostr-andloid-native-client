@@ -419,4 +419,39 @@ describe("NIP-46", () => {
     vi.useRealTimers();
     await vi.waitFor(async () => expect(await db.vault.get(NIP46_ROW_ID)).toBeUndefined());
   });
+
+  it("startNostrConnectLogin の承認で nip46 の in。localStorage には method と公開鍵だけで、クライアント鍵・secret は無い", async () => {
+    await installTestVault();
+    const storage = stubPersist();
+    const { uri, done } = useSession.getState().startNostrConnectLogin();
+    const secret = new URLSearchParams(uri.split("?")[1]).get("secret") ?? "";
+    await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
+    expect(useSession.getState().status).toBe("loading");
+
+    bunker.acceptNostrConnect(uri);
+    await done;
+
+    expect(useSession.getState()).toMatchObject({ status: "in", method: "nip46", pubkey: bunker.user });
+    expect(localStorage.getItem(SESSION_KEY)).toBe(JSON.stringify({ method: "nip46", pubkey: bunker.user }));
+    const clientKey = await clientKeyHex();
+    for (const value of localStorageValues()) {
+      expect(value).not.toContain(clientKey);
+      expect(value).not.toContain(secret);
+    }
+    await vi.waitFor(() => expect(storage.persist).toHaveBeenCalledTimes(1));
+    expect(currentSigner()).not.toBeNull();
+  });
+
+  it("startNostrConnectLogin の cancel は LoginError(cancelled)。ログインしない", async () => {
+    await installTestVault();
+    const { done, cancel } = useSession.getState().startNostrConnectLogin();
+    const result = done.catch((e: unknown) => e);
+
+    cancel();
+
+    expect(await result).toMatchObject({ name: "LoginError", reason: "cancelled" });
+    expect(localStorage.length).toBe(0);
+    expect(useSession.getState().status).toBe("loading");
+    expect(bunker.openSubscriptions).toBe(0);
+  });
 });
