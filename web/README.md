@@ -13,7 +13,9 @@ Nostrism の Web 版（Vite + React + TypeScript の SPA）と、Cloudflare Page
 |---|---|
 | `index.html` / `src/` | アプリ本体（Vite のエントリ）。`src/styles/global.css` がリポジトリ直下の `designs/tokens.css` を `@import` する（ビルド時にバンドルへ取り込まれる） |
 | `static/` | `dist/` 直下へコピーする Pages 用ファイル（`_headers` `_routes.json` `404.html` `robots.txt`） |
+| `public/icons/` | PWA のアイコン（`icon-192.png` `icon-512.png` `maskable-512.png`）。`scripts/make-icons.mjs` の生成物をコミットしたもの |
 | `scripts/assemble-dist.mjs` | `vite build` の後に `docs/` と `static/` を `dist/` へコピーする |
+| `scripts/make-icons.mjs` | `docs/store/icon-512.png` から `public/icons/` を生成する（`npm run icons`。手動実行。Pages のビルドでは走らない） |
 | `wrangler.toml` | Pages の設定（`pages_build_output_dir = "./dist"`） |
 | `functions/` | Pages Functions（ファイルベースルーティング）。`functions/api/nchan/channels.ts` → `GET /api/nchan/channels` |
 | `functions/app/[[path]].ts` | `/app/*` の SPA フォールバック。静的アセットに無いページ遷移（GET/HEAD で `Accept: text/html` か `Sec-Fetch-Dest: document`）に `/app/` の index.html を返す。`_redirects` の rewrite は実在ファイルより先に効き JS/CSS まで index.html になるため使わない |
@@ -23,6 +25,8 @@ Nostrism の Web 版（Vite + React + TypeScript の SPA）と、Cloudflare Page
 ## ビルドの流れ（`npm run build`）
 
 1. `vite build` → `dist/app/`（`emptyOutDir` は `dist/app` だけを消す）
+   - vite-plugin-pwa が `dist/app/sw.js` と `dist/app/manifest.webmanifest` を出し、manifest の `<link>` を `dist/app/index.html` にだけ注入する（scope は `/app/`。LP には効かない）
+   - SW の登録は `src/app/UpdateToast.tsx` の `useRegisterSW`（`injectRegister: null` = inline script を出さない。CSP の `script-src 'self'` のため）。新しい SW が待機中なら「再読み込み」トーストを出す
 2. `node scripts/assemble-dist.mjs`
    - `docs/` を `dist/` へ再帰コピー（`*.md` と `screenshots/` は除外。`.well-known/` と `store/` は含む）
    - `static/` を `dist/` へコピー（`docs/` に同名があれば `docs/` を優先して警告）
@@ -52,6 +56,7 @@ LP（`/`）は Vite dev では出ない（`base=/app/`）。**確認後は必ず
 
 その他: `npm run lint`（Biome）/ `npm run format` / `npm run typecheck`（アプリ + Functions）/ `npm test`（vitest + jsdom）/
 `npm run test:functions`（vitest + workerd。`functions/` `server/` のテスト）。
+アイコンの元画像（`docs/store/icon-512.png`）を差し替えたら `npm run icons` を実行し、`public/icons/` をコミットする。
 
 ## Cloudflare Pages ダッシュボード設定（ユーザー作業）
 
