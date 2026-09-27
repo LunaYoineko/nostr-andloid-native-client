@@ -1,3 +1,0 @@
-# /app/ 配下の未知パスは SPA の index.html を返す（200 rewrite）。
-# 宛先を /app/index.html と書くと Pages が「.html 除去で無限ループ」として無視するため /app/ と書く。
-/app/* /app/ 200

@@ -1,10 +1,25 @@
-.header {
+/* ヘッダを固定し、残りの高さをタイムライン（内部でスクロール）に渡す */
+.page {
   display: flex;
-  align-items: center;
-  gap: var(--sp-3);
+  flex-direction: column;
+  height: 100dvh;
+}
+
+.header {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
   padding: var(--sp-2) var(--sp-4);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
 }
 
 .brand {
@@ -35,8 +50,36 @@
   background: var(--surface-3);
 }
 
-.body {
-  padding: var(--sp-5) var(--sp-4);
-  color: var(--text-3);
+.title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: var(--type-sub);
+  font-weight: var(--w-strong);
+}
+
+.status {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.connections {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--w-body);
+}
+
+/* 1 カラム（デッキのカラム幅）を中央に置く */
+.body {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: var(--column-w);
+  margin: 0 auto;
+  background: var(--surface);
 }

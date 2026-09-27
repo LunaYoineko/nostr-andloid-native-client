@@ -5,19 +5,22 @@ Nostrism の Web 版（Vite + React + TypeScript の SPA）と、Cloudflare Page
 
 - `/` など LP・プライバシーポリシー等は `docs/` の静的 HTML をそのまま配信する（`docs/` は変更しない）
 - アプリは `/app/` 配下（Vite の `base: '/app/'`）
-- `/api/*` は Pages Functions（#440 で `worker/` から移設予定）
+- `/api/*` は Pages Functions（`functions/`）。`static/_routes.json` で `/api/*` と `/app/*`（静的ファイルを除く）のときだけ Functions を起動する
 
 ## 構成
 
 | パス | 中身 |
 |---|---|
 | `index.html` / `src/` | アプリ本体（Vite のエントリ）。`src/styles/global.css` がリポジトリ直下の `designs/tokens.css` を `@import` する（ビルド時にバンドルへ取り込まれる） |
-| `static/` | `dist/` 直下へコピーする Pages 用ファイル（`_headers` `_redirects` `_routes.json` `404.html` `robots.txt`） |
+| `static/` | `dist/` 直下へコピーする Pages 用ファイル（`_headers` `_routes.json` `404.html` `robots.txt`） |
 | `public/icons/` | PWA のアイコン（`icon-192.png` `icon-512.png` `maskable-512.png`）。`scripts/make-icons.mjs` の生成物をコミットしたもの |
 | `scripts/assemble-dist.mjs` | `vite build` の後に `docs/` と `static/` を `dist/` へコピーする |
 | `scripts/make-icons.mjs` | `docs/store/icon-512.png` から `public/icons/` を生成する（`npm run icons`。手動実行。Pages のビルドでは走らない） |
 | `wrangler.toml` | Pages の設定（`pages_build_output_dir = "./dist"`） |
-| `worker/` | 旧 Worker 版の `/api/*`。#440 で Pages Functions へ移すまで残す（テスト・型検査・lint の対象外） |
+| `functions/` | Pages Functions（ファイルベースルーティング）。`functions/api/nchan/channels.ts` → `GET /api/nchan/channels` |
+| `functions/app/[[path]].ts` | `/app/*` の SPA フォールバック。静的アセットに無いページ遷移（GET/HEAD で `Accept: text/html` か `Sec-Fetch-Dest: document`）に `/app/` の index.html を返す。`_redirects` の rewrite は実在ファイルより先に効き JS/CSS まで index.html になるため使わない |
+| `server/` | Functions の共有コード（`guard.ts`: 同一オリジン確認・制限つき取得、`http.ts`: JSON 応答）。`functions/` の外に置き相対 import する |
+| `test/functions/` | Functions のテスト（`vitest.functions.config.ts`、workerd で走る）。型検査は `tsconfig.functions.json` |
 
 ## ビルドの流れ（`npm run build`）
 
@@ -41,7 +44,8 @@ npm run build                                       # dist/ を組み立て
 ss -ltnp | grep -E ':(8788|5173)\b' || true          # 衝突確認
 npx wrangler pages dev dist --ip 127.0.0.1 --port 8788 &   # 静的 + Functions（compat date は wrangler.toml）
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8788/app/anything      # 200
-curl -s -H 'Sec-Fetch-Site: same-origin' http://127.0.0.1:8788/api/nchan/channels | head -c 200   # #440 以降
+curl -s -H 'Sec-Fetch-Site: same-origin' http://127.0.0.1:8788/api/nchan/channels | head -c 200   # JSON
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8788/api/nchan/channels                 # 403（同一オリジン以外）
 kill %1                                              # 必ず止める
 ```
 
@@ -50,7 +54,8 @@ kill %1                                              # 必ず止める
 ホットリロード開発は `npm run dev`（Vite、`http://127.0.0.1:5173/app/`、`/api` は 8788 へ proxy）。
 LP（`/`）は Vite dev では出ない（`base=/app/`）。**確認後は必ず止める。**
 
-その他: `npm run lint`（Biome）/ `npm run format` / `npm run typecheck` / `npm test`（vitest + jsdom）。
+その他: `npm run lint`（Biome）/ `npm run format` / `npm run typecheck`（アプリ + Functions）/ `npm test`（vitest + jsdom）/
+`npm run test:functions`（vitest + workerd。`functions/` `server/` のテスト）。
 アイコンの元画像（`docs/store/icon-512.png`）を差し替えたら `npm run icons` を実行し、`public/icons/` をコミットする。
 
 ## Cloudflare Pages ダッシュボード設定（ユーザー作業）

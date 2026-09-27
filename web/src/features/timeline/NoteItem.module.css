@@ -1,0 +1,96 @@
+.note {
+  border-bottom: 1px solid var(--border);
+}
+
+.row {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+}
+
+/* 表示 38px はネイティブの DeckDimens.AvatarSize */
+.avatar {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  /* 名前の文字位置に揃えて少し下げる（ネイティブと同じ） */
+  margin-top: var(--sp-1);
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
+.avatarSm {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text);
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+}
+
+.time {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--w-body);
+}
+
+.repostHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3) 0;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.repostIcon {
+  flex: none;
+  width: 13px;
+  height: 13px;
+}
+
+.repostName {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.repostLabel {
+  flex: none;
+}
+
+.missing {
+  margin: 0;
+  padding: var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}
