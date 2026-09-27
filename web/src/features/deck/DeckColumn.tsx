@@ -95,7 +95,7 @@ function FavsFooter({ context }: { context?: FooterContext }) {
 
 const FAVS_COMPONENTS = { Footer: FavsFooter };
 
-/** ふぁぼ欄。自分のリアクション（kind:7）の対象の投稿を並べる */
+/** ふぁぼ欄。自分のリアクション（kind:7）を 1 行ずつ要約して並べる（MyReactionRow） */
 function FavsList({
   reactions,
   loading,

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 
 /** 押したときに自分の動作を持つ要素（ここを押したときはノートを開かない） */
 const INTERACTIVE =
-  "a, button, input, textarea, select, label, summary, video, audio, iframe, dialog, [role='button'], [contenteditable]";
+  "a, button, input, textarea, select, label, summary, video, audio, iframe, dialog, [role='button'], [role='menu'], [contenteditable]";
 
 /**
  * 要素全体のクリックで href へ移動する（ネイティブの NoteItem.kt の clickable = スレッドを開く）。

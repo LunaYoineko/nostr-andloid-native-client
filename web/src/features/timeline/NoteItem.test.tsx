@@ -346,6 +346,20 @@ it("文字を選択しているとき・修飾キー付きのクリックでは�
   expect(where()).toMatch(/^\/e\/nevent1/);
 });
 
+it("メニュー（role=menu）の中を押してもスレッドを開かない", () => {
+  const { container, where } = renderNote(<NoteItem event={post("メニューのある投稿")} />);
+  const menu = document.createElement("div");
+  menu.setAttribute("role", "menu");
+  const heading = document.createElement("span");
+  heading.textContent = "Nostrism から投稿";
+  menu.append(heading);
+  container.querySelector("article")?.append(menu);
+
+  fireEvent.click(heading);
+
+  expect(where()).toBe("/");
+});
+
 it("openable={false} は押しても開かず、時刻もリンクにしない", async () => {
   const { container, where } = renderNote(<NoteItem event={post("開かない")} openable={false} />);
 
