@@ -110,6 +110,30 @@ describe("viewFor", () => {
     ]);
     expect(viewFor(hashtag, ctx()).filters).toEqual([{ kinds: [1], "#t": ["nostr"] }]);
   });
+
+  it("ハッシュタグ: 表示は先頭のタグを小文字にして読み、REQ はタグをそのまま送る", () => {
+    const upper = build("HASHTAG", { text: "#Nostr" }, NONE, 1);
+    expect(viewFor(upper, ctx()).filters).toEqual([{ kinds: [1], "#t": ["nostr"] }]);
+    expect(requestFor(upper, ctx())).toEqual({
+      relays: RELAYS,
+      filters: [{ kinds: [1], "#t": ["Nostr"], limit: 100 }],
+    });
+  });
+
+  it("タグだけのキーワード・タグ: 自分のリレーへ #t を 100 件、表示は全タグの OR", () => {
+    const tags = build("SEARCH", { text: "#a #B" }, NONE, 1);
+    expect(requestFor(tags, ctx())).toEqual({
+      relays: RELAYS,
+      filters: [{ kinds: [1], "#t": ["a", "b"], limit: 100 }],
+    });
+    expect(viewFor(tags, ctx()).filters).toEqual([{ kinds: [1], "#t": ["a", "b"] }]);
+  });
+
+  it("グローバル（リレー指定なし）は自分のリレーへ kind:1 を 100 件、表示は手元の kind:1 全部", () => {
+    const global = build("GLOBAL", {}, NONE, 1);
+    expect(requestFor(global, ctx())).toEqual({ relays: RELAYS, filters: [{ kinds: [1], limit: 100 }] });
+    expect(viewFor(global, ctx()).filters).toEqual([{ kinds: [1] }]);
+  });
 });
 
 describe("matchesSearch", () => {

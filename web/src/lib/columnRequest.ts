@@ -119,6 +119,10 @@ export function viewFor(spec: ColumnSpec, ctx: Ctx): ViewPlan {
     case "FAVS":
       if (!ctx.me) return { filters: [] };
       return { filters: [{ kinds: [7], authors: [ctx.me] }] };
+    case "HASHTAG":
+      // 表示は先頭のタグを小文字にして t タグで読む（ネイティブ feedByHashtag。REQ はタグをそのまま送る）
+      if (f.hashtags.length > 0) return { filters: [{ kinds: [1], "#t": [f.hashtags[0].toLowerCase()] }] };
+      break;
   }
   if (spec.kind === "GLOBAL" && f.words.length > 0) {
     const words = f.words.map((w) => w.toLowerCase());
