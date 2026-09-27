@@ -1,0 +1,4 @@
+# 公開しないファイル（.gitignore 形式）。設計: #426 5.4 節。
+# .assetsignore / _headers / _redirects（ルート直下）は wrangler が既定で除外する。
+*.md
+screenshots/
