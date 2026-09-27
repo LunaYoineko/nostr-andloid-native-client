@@ -2,8 +2,9 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router";
 import { waitForNostr } from "../signer/nip07";
 import { nsecHead } from "../signer/nsec";
-import { LoginError, type NewKey, useSession } from "../signer/session";
+import { LoginError, type NewKey, type NostrConnectLogin, useSession } from "../signer/session";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { QrCode } from "../ui/QrCode";
 import { Loading } from "./Loading";
 import styles from "./LoginGate.module.css";
 
@@ -168,20 +169,67 @@ export function LoginGate() {
 }
 
 /**
- * リモート署名（NIP-46）の bunker:// で接続する（ネイティブの Nip46Login）。
+ * リモート署名（NIP-46）で接続する（ネイティブの Nip46Login）。先に nostrconnect:// の QR・リンク、その下に bunker:// の貼り付け。
  * bunker:// は secret を含むので、NsecLoginForm と同じく value は React で持たない（DOM 属性に出さない）。
+ * nostrconnect:// の URI も secret を含むので、文字列は画面に出さない（QR・リンク・コピーだけ）。
  */
 function Nip46LoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean): void }) {
   const loginWithBunker = useSession((s) => s.loginWithBunker);
+  const startNostrConnectLogin = useSession((s) => s.startNostrConnectLogin);
   const input = useRef<HTMLInputElement>(null);
   const controller = useRef<AbortController | null>(null);
   const [ready, setReady] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // nostrconnect:// の承認待ち（QR を出している間だけ）
+  const pending = useRef<NostrConnectLogin | null>(null);
+  const [connectUri, setConnectUri] = useState<string | null>(null);
+  const [copied, setCopied] = useState<"ok" | "failed" | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const canPaste = typeof navigator.clipboard?.readText === "function";
 
   // 画面を離れたら接続の待ちもやめる
-  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(
+    () => () => {
+      controller.current?.abort();
+      pending.current?.cancel();
+    },
+    [],
+  );
+
+  async function onShowQr() {
+    setConnectError(null);
+    setCopied(null);
+    let login: NostrConnectLogin;
+    try {
+      login = startNostrConnectLogin();
+    } catch (err) {
+      setConnectError(nostrConnectErrorMessage(err));
+      return;
+    }
+    pending.current = login;
+    onBusy(true);
+    setConnectUri(login.uri);
+    try {
+      await login.done;
+    } catch (err) {
+      setConnectError(nostrConnectErrorMessage(err));
+    } finally {
+      if (pending.current === login) pending.current = null;
+      setConnectUri(null);
+      onBusy(false);
+    }
+  }
+
+  async function onCopy() {
+    if (!connectUri) return;
+    try {
+      await navigator.clipboard.writeText(connectUri);
+      setCopied("ok");
+    } catch {
+      setCopied("failed");
+    }
+  }
 
   function onInput(value: string) {
     setReady(value.trim().startsWith("bunker://"));
@@ -228,8 +276,47 @@ function Nip46LoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean)
         署名アプリ（Amber など）や nsec.app
         と接続します。秘密鍵は署名アプリ側に残り、このブラウザには置きません。
       </p>
+      {connectUri ? (
+        <div className={styles.connect}>
+          <QrCode value={connectUri} label="署名アプリで読み取る接続用の QR コード" />
+          <p>
+            署名アプリ（Amber など）で QR
+            を読み取るか、この端末に署名アプリがあれば下のリンクを開いて、接続を承認してください。
+          </p>
+          <div className={styles.actions}>
+            <a href={connectUri} className={styles.openLink}>
+              署名アプリで開く
+            </a>
+            <button type="button" className={styles.ghost} onClick={onCopy}>
+              コピー
+            </button>
+          </div>
+          {copied && (
+            <p role="status" className={styles.note}>
+              {copied === "ok" ? "コピーしました" : "コピーできませんでした"}
+            </p>
+          )}
+          <div className={styles.actions}>
+            <p role="status" className={styles.note}>
+              承認待ち…
+            </p>
+            <button type="button" className={styles.ghost} onClick={() => pending.current?.cancel()}>
+              やめる
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" className={styles.submit} onClick={onShowQr} disabled={busy}>
+          接続用の QR を表示（Amber など）
+        </button>
+      )}
+      {connectError && (
+        <p role="alert" className={styles.error}>
+          {connectError}
+        </p>
+      )}
       <form className={styles.moreBody} onSubmit={onSubmit}>
-        <label htmlFor="bunker-input">bunker:// を貼り付け</label>
+        <label htmlFor="bunker-input">または bunker:// を貼り付け</label>
         <div className={styles.field}>
           <input
             ref={input}
@@ -482,6 +569,14 @@ function nip46ErrorMessage(e: unknown): string | null {
     default:
       return "ログインできませんでした。";
   }
+}
+
+// nostrconnect:// の失敗。承認されないまま時間切れのときだけ文言が bunker:// と違う
+function nostrConnectErrorMessage(e: unknown): string | null {
+  if (e instanceof LoginError && e.reason === "timeout") {
+    return "3 分以内に承認されませんでした。もう一度 QR を表示してください";
+  }
+  return nip46ErrorMessage(e);
 }
 
 // 例外のメッセージは出さない（bech32 のエラーは入力を丸ごと含むことがある）

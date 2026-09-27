@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { decode, npubEncode, nsecEncode } from "nostr-tools/nip19";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setNip46PoolForTest } from "../signer/nip46";
 import { LoginError, SESSION_FLAG_KEY, SESSION_KEY, useSession } from "../signer/session";
 import { getKeyVault } from "../signer/webKeyVault";
@@ -234,7 +234,7 @@ describe("新規生成", () => {
 });
 
 describe("リモート署名（NIP-46）", () => {
-  const loginWithBunker = useSession.getState().loginWithBunker;
+  const { loginWithBunker, startNostrConnectLogin } = useSession.getState();
   let bunker: FakeBunker;
 
   beforeEach(() => {
@@ -243,7 +243,7 @@ describe("リモート署名（NIP-46）", () => {
   });
 
   afterEach(() => {
-    useSession.setState({ loginWithBunker });
+    useSession.setState({ loginWithBunker, startNostrConnectLogin });
   });
 
   function summary() {
@@ -252,7 +252,7 @@ describe("リモート署名（NIP-46）", () => {
 
   async function openBunkerForm() {
     await userEvent.click(summary());
-    return screen.getByLabelText("bunker:// を貼り付け");
+    return screen.getByLabelText("または bunker:// を貼り付け");
   }
 
   it("並びは NIP-07 → リモート署名（閉じている）→ 秘密鍵", () => {
@@ -361,5 +361,132 @@ describe("リモート署名（NIP-46）", () => {
     expect(screen.getByRole("button", { name: "拡張機能でログイン（NIP-07）" })).toBeEnabled();
     expect(useSession.getState().status).toBe("out");
     expect(bunker.openSubscriptions).toBe(0);
+  });
+
+  describe("nostrconnect://（QR）", () => {
+    async function showQr() {
+      await userEvent.click(summary());
+      await userEvent.click(screen.getByRole("button", { name: "接続用の QR を表示（Amber など）" }));
+      return screen.getByRole("link", { name: "署名アプリで開く" });
+    }
+
+    it("QR ボタンは bunker:// の入力より前にある", async () => {
+      useSession.setState({ status: "out" });
+      renderAt("/app/login");
+      await userEvent.click(summary());
+
+      const button = screen.getByRole("button", { name: "接続用の QR を表示（Amber など）" });
+      const input = screen.getByLabelText("または bunker:// を貼り付け");
+      expect(button.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("QR・リンク・コピー・「やめる」を出し、接続中は他のログイン方法を押せない。URI の文字列は画面に出さない", async () => {
+      await installTestVault();
+      useSession.setState({ status: "out" });
+      renderAt("/app/login");
+
+      const link = await showQr();
+
+      const uri = link.getAttribute("href") ?? "";
+      expect(uri.startsWith("nostrconnect:")).toBe(true);
+      expect(link).not.toHaveAttribute("target");
+      expect(screen.getByRole("img", { name: "署名アプリで読み取る接続用の QR コード" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "コピー" })).toBeInTheDocument();
+      expect(screen.getByText("承認待ち…")).toHaveAttribute("role", "status");
+      expect(screen.getByRole("button", { name: "やめる" })).toBeEnabled();
+      expect(
+        screen.queryByRole("button", { name: "接続用の QR を表示（Amber など）" }),
+      ).not.toBeInTheDocument();
+      // 文字列はリンクの href だけ
+      const secret = new URLSearchParams(uri.split("?")[1]).get("secret") ?? "";
+      expect(secret).toMatch(/^[0-9a-f]{32}$/);
+      expect(document.body.textContent).not.toContain(secret);
+      expect(document.body.textContent).not.toContain("nostrconnect:");
+      expect(screen.getByRole("button", { name: "拡張機能でログイン（NIP-07）" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "新規生成" })).toBeDisabled();
+      expect(screen.getByLabelText("または bunker:// を貼り付け")).toBeDisabled();
+
+      await userEvent.click(screen.getByRole("button", { name: "やめる" }));
+
+      expect(await screen.findByRole("button", { name: "接続用の QR を表示（Amber など）" })).toBeEnabled();
+      expect(
+        screen.queryByRole("img", { name: "署名アプリで読み取る接続用の QR コード" }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "拡張機能でログイン（NIP-07）" })).toBeEnabled();
+      expect(useSession.getState().status).toBe("out");
+      expect(bunker.openSubscriptions).toBe(0);
+    });
+
+    it("コピーで URI をクリップボードに入れる", async () => {
+      const user = userEvent.setup();
+      useSession.setState({ status: "out" });
+      renderAt("/app/login");
+      await user.click(summary());
+      await user.click(screen.getByRole("button", { name: "接続用の QR を表示（Amber など）" }));
+      const uri = screen.getByRole("link", { name: "署名アプリで開く" }).getAttribute("href");
+
+      await user.click(screen.getByRole("button", { name: "コピー" }));
+
+      expect(await navigator.clipboard.readText()).toBe(uri);
+      expect(screen.getByText("コピーしました")).toHaveAttribute("role", "status");
+    });
+
+    it("署名アプリが承認すると next へ戻り、nip46 でログインする", async () => {
+      await installTestVault();
+      useSession.setState({ status: "out" });
+      const router = renderAt("/app/login?next=%2Fsettings");
+      const link = await showQr();
+      await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
+
+      bunker.acceptNostrConnect(link.getAttribute("href") ?? "");
+
+      expect(await screen.findByRole("heading", { name: "設定" })).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe("/app/settings");
+      expect(useSession.getState()).toMatchObject({ status: "in", method: "nip46", pubkey: bunker.user });
+      // 画面を離れても確定した接続は閉じない
+      expect(bunker.openSubscriptions).toBe(1);
+    });
+
+    it("画面を離れると接続の待ちをやめる", async () => {
+      useSession.setState({ status: "out" });
+      const { unmount } = render(
+        <RouterProvider
+          router={createMemoryRouter(routes, { basename: "/app", initialEntries: ["/app/login"] })}
+        />,
+      );
+      await showQr();
+      await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
+
+      unmount();
+
+      await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(0));
+    });
+
+    it.each([
+      ["timeout", "3 分以内に承認されませんでした。もう一度 QR を表示してください"],
+      ["rejected", "署名アプリに拒否されました"],
+      ["unavailable", "このブラウザでは接続情報を保存できません。拡張機能（NIP-07）でログインしてください。"],
+    ] as const)("%s の文言を出し、QR を消して最初の表示に戻す", async (reason, message) => {
+      let fail: (e: unknown) => void = () => {};
+      useSession.setState({
+        status: "out",
+        startNostrConnectLogin: () => ({
+          uri: "nostrconnect://abc?secret=x&relay=wss%3A%2F%2Fnos.lol",
+          done: new Promise<void>((_, reject) => {
+            fail = reject;
+          }),
+          cancel: () => {},
+        }),
+      });
+      renderAt("/app/login");
+      await showQr();
+
+      fail(new LoginError(reason));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(message);
+      expect(screen.queryByRole("link", { name: "署名アプリで開く" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "接続用の QR を表示（Amber など）" })).toBeEnabled();
+    });
   });
 });

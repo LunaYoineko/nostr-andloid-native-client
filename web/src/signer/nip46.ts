@@ -3,7 +3,8 @@ import { RelayPool } from "applesauce-relay/pool";
 import type { NostrPool } from "applesauce-signers";
 import { NostrConnectSigner } from "applesauce-signers/signers/nostr-connect-signer";
 import { PrivateKeySigner } from "applesauce-signers/signers/private-key-signer";
-import { generateSecretKey } from "nostr-tools/pure";
+import { generateSecretKey, type NostrEvent } from "nostr-tools/pure";
+import { bytesToHex } from "nostr-tools/utils";
 import type { Observable } from "rxjs";
 import { create } from "zustand";
 import type { Signer, SignerCap } from "../nostr/signer";
@@ -30,6 +31,9 @@ export const NIP46_PERMISSIONS = [
   "nip04_encrypt",
   "nip04_decrypt",
 ];
+
+/** nostrconnect:// で署名アプリからの接続を待つリレー（ネイティブの DEFAULT_RELAY） */
+export const NOSTRCONNECT_RELAYS = ["wss://nos.lol"];
 
 /**
  * invalid-uri = bunker:// として読めない、timeout = 署名側が応答しない、rejected = 署名側が拒否・エラー、
@@ -267,6 +271,95 @@ export async function connectBunker(input: string, signal?: AbortSignal): Promis
   closeActive();
   active = { inner, signer: createRemoteSigner(inner, user), user, stopAuth };
   return { pubkey: user };
+}
+
+/**
+ * nostrconnect:// の接続を secret が一致した応答だけで確定する NostrConnectSigner。
+ * applesauce は "ack" でも確定するが、それだと #p=<client> を見られる者（リレーの運営者など）が先に "ack" を返して
+ * 自分の署名器につなげられる（NIP-46: client MUST validate the secret returned by connect response）
+ */
+export class StrictNostrConnectSigner extends NostrConnectSigner {
+  override async handleEvent(event: NostrEvent): Promise<void> {
+    if (this.remote) return super.handleEvent(event);
+    if (!this.verifyEvent(event)) return;
+    let result: unknown;
+    try {
+      const plaintext = event.content.includes("?iv=")
+        ? await this.signer.nip04.decrypt(event.pubkey, event.content)
+        : await this.signer.nip44.decrypt(event.pubkey, event.content);
+      result = (JSON.parse(plaintext) as { result?: unknown } | null)?.result;
+    } catch {
+      return;
+    }
+    // "ack" も捨てる
+    if (result !== this.connectSecret) return;
+    return super.handleEvent(event);
+  }
+}
+
+/**
+ * nostrconnect:// の URI を作り、署名アプリからの接続を待つ（ネイティブの Nip46Manager.connectNostrConnect）。
+ * 承認されたらユーザーの公開鍵を得て接続情報を保管する。クライアント鍵・secret は使い捨て。
+ * done の失敗は Nip46Error（timeout / cancelled / unavailable / rejected）。cancel で待ちをやめる（done は cancelled）
+ */
+export function startNostrConnect(): { uri: string; done: Promise<{ pubkey: string }>; cancel(): void } {
+  const clientKey = generateSecretKey();
+  const clientSigner = new PrivateKeySigner(clientKey);
+  // ネイティブと同じ 16 byte の乱数の hex
+  const connectSecret = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+  const relays = [...NOSTRCONNECT_RELAYS];
+  const inner = new StrictNostrConnectSigner({
+    relays,
+    signer: clientSigner,
+    pool: nip46Pool,
+    connectSecret,
+    onAuth,
+  });
+  const stopAuth = watchAuth(relays, clientSigner);
+  const uri = inner.getNostrConnectURI({
+    name: "Nostrism",
+    url: `${location.origin}/app/`,
+    permissions: NIP46_PERMISSIONS,
+  });
+  const abort = new AbortController();
+  // 終わった後の cancel で確定した接続を閉じない（waitForSigner は abort で close する）
+  let settled = false;
+
+  async function run(): Promise<{ pubkey: string }> {
+    let user: string;
+    try {
+      await withTimeout(inner.waitForSigner(abort.signal), NIP46_CONNECT_TIMEOUT_MS, abort.signal).catch(
+        asRejected,
+      );
+      const remote = inner.remote;
+      if (!remote) throw new Nip46Error("rejected");
+      user = (
+        await withTimeout(inner.getPublicKey(), NIP46_REQUEST_TIMEOUT_MS, abort.signal).catch(asRejected)
+      ).toLowerCase();
+      try {
+        await getNip46Store().save({ pubkey: user, remote, relays, clientKey });
+      } catch (cause) {
+        throw new Nip46Error("unavailable", { cause });
+      }
+    } catch (e) {
+      void inner.close();
+      stopAuth();
+      throw e;
+    } finally {
+      settled = true;
+    }
+    closeActive();
+    active = { inner, signer: createRemoteSigner(inner, user), user, stopAuth };
+    return { pubkey: user };
+  }
+
+  return {
+    uri,
+    done: run(),
+    cancel() {
+      if (!settled) abort.abort();
+    },
+  };
 }
 
 /**

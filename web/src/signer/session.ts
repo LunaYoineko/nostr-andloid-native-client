@@ -5,7 +5,14 @@ import { requestPersistentStorage } from "../db";
 import { createNip07Signer, type Signer } from "../nostr/signer";
 import { createLocalSigner } from "./localSigner";
 import { waitForNostr } from "./nip07";
-import { connectBunker, disconnectNip46, Nip46Error, nip46Signer, restoreNip46 } from "./nip46";
+import {
+  connectBunker,
+  disconnectNip46,
+  Nip46Error,
+  nip46Signer,
+  restoreNip46,
+  startNostrConnect,
+} from "./nip46";
 import { parseNsec } from "./nsec";
 import { getKeyVault } from "./webKeyVault";
 
@@ -60,6 +67,12 @@ export class LoginError extends Error {
 /** 新規生成した鍵（控えの表示用）。ログインは控えを確認した後に loginWithNewKey で確定する */
 export type NewKey = { pubkey: string; nsec: string };
 
+/**
+ * nostrconnect:// での接続待ち。uri は QR・リンクに出す（secret を含む）。done はログインの確定で終わり、
+ * 失敗時は LoginError。cancel で待ちをやめる（done は LoginError("cancelled")）
+ */
+export type NostrConnectLogin = { uri: string; done: Promise<void>; cancel(): void };
+
 type SessionState = {
   status: SessionStatus;
   method: SessionMethod | null;
@@ -74,6 +87,8 @@ type SessionState = {
   loginWithNewKey(pubkey: string): Promise<void>;
   /** bunker:// で署名アプリ（NIP-46）と接続してログインする。失敗時は LoginError を投げる */
   loginWithBunker(input: string, signal?: AbortSignal): Promise<void>;
+  /** nostrconnect:// で署名アプリ（NIP-46）からの接続を待ってログインする */
+  startNostrConnectLogin(): NostrConnectLogin;
   /** ログアウトする。保管した秘密鍵・リモート署名の接続情報も消す（方式に関係なく） */
   logout(): void;
   /** 起動時に保存済みセッションを復元する。拡張・保管庫の公開鍵と一致しなければ未ログインへ戻す */
@@ -146,13 +161,23 @@ export const useSession = create<SessionState>()((set) => ({
     try {
       ({ pubkey } = await connectBunker(input, signal));
     } catch (e) {
-      throw new LoginError(e instanceof Nip46Error ? e.reason : "rejected", { cause: e });
+      throw nip46LoginError(e);
     }
-    writeSaved({ method: "nip46", pubkey });
-    set({ status: "in", method: "nip46", pubkey });
-    // 前のローカル鍵の消し残しを掃除する
-    void getKeyVault().clear();
-    void requestPersistentStorage();
+    signInNip46(pubkey);
+  },
+
+  startNostrConnectLogin() {
+    const { uri, done, cancel } = startNostrConnect();
+    return {
+      uri,
+      cancel,
+      done: done.then(
+        ({ pubkey }) => signInNip46(pubkey),
+        (e: unknown) => {
+          throw nip46LoginError(e);
+        },
+      ),
+    };
   },
 
   logout() {
@@ -213,6 +238,20 @@ function signInLocal(pubkey: string) {
   void disconnectNip46();
   // ログイン直後に保存領域を消さないよう頼む（鍵の DB も同じオリジンの保存領域）
   void requestPersistentStorage();
+}
+
+/** リモート署名（NIP-46）でのログインを確定する（bunker:// と nostrconnect:// の共通） */
+function signInNip46(pubkey: string) {
+  writeSaved({ method: "nip46", pubkey });
+  useSession.setState({ status: "in", method: "nip46", pubkey });
+  // 前のローカル鍵の消し残しを掃除する
+  void getKeyVault().clear();
+  void requestPersistentStorage();
+}
+
+// Nip46Error の理由は同じ名前の LoginError にする（それ以外は rejected）
+function nip46LoginError(e: unknown): LoginError {
+  return new LoginError(e instanceof Nip46Error ? e.reason : "rejected", { cause: e });
 }
 
 /** いまのセッションの署名者。未ログインなら null。署名者の解決はここ 1 か所 */

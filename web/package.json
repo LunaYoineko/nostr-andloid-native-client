@@ -47,6 +47,7 @@
     "nostr-tools": "~2.19",
     "react-router": "^8.4.0",
     "react-virtuoso": "^4.18.15",
+    "uqr": "^0.1.3",
     "zustand": "^5.0.15"
   }
 }

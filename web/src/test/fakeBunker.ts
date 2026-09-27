@@ -1,6 +1,7 @@
 import type { Filter } from "applesauce-core/helpers/filter";
 import { normalizeURL } from "applesauce-core/helpers/url";
 import type { PrivateKeySigner } from "applesauce-signers/signers/private-key-signer";
+import * as nip04 from "nostr-tools/nip04";
 import { makeAuthEvent } from "nostr-tools/nip42";
 import { decrypt, encrypt, getConversationKey } from "nostr-tools/nip44";
 import {
@@ -26,6 +27,9 @@ export type BunkerReply =
   | { error: string }
   | { authUrl: string; after?: BunkerReply }
   | "silent";
+
+/** 応答の送り方。from = 送り手の鍵（既定は署名側）、nip04 = NIP-04 で暗号化（既定は NIP-44） */
+export type SendOptions = { from?: Uint8Array; nip04?: boolean };
 
 /** AUTH のチャレンジを流せる偽のリレー */
 export class FakeBunkerRelay implements Nip46Relay {
@@ -67,6 +71,17 @@ export class FakeBunker implements Nip46Pool {
     for (const relay of opts.relays ?? ["wss://relay.example"]) params.append("relay", relay);
     if (opts.secret) params.set("secret", opts.secret);
     return `bunker://${this.remote}?${params.toString()}`;
+  }
+
+  /**
+   * nostrconnect:// を読んで承認した署名側として、connect の応答（id は乱数、result は URI の secret）をクライアントへ送る。
+   * result で応答の中身（"ack"・違う secret）を、from で送り手の鍵を、nip04 で暗号化を変える
+   */
+  acceptNostrConnect(uri: string, opts: { result?: string } & SendOptions = {}): void {
+    const rest = uri.slice("nostrconnect://".length);
+    const client = rest.slice(0, rest.indexOf("?"));
+    const secret = new URLSearchParams(rest.slice(rest.indexOf("?") + 1)).get("secret") ?? "";
+    this.send(client, { id: crypto.randomUUID(), result: opts.result ?? secret }, opts);
   }
 
   /** 受けた要求の method の並び */
@@ -137,16 +152,20 @@ export class FakeBunker implements Nip46Pool {
     else this.send(req.client, { id: req.id, result: reply.result });
   }
 
-  private send(client: string, response: { id: string; result: string; error?: string }) {
-    const ck = getConversationKey(this.secretKey, client);
+  /** 応答を client へ送る（既定は署名側の鍵から NIP-44 で） */
+  send(client: string, response: { id: string; result: string; error?: string }, opts: SendOptions = {}) {
+    const from = opts.from ?? this.secretKey;
+    const json = JSON.stringify(response);
     const event = finalizeEvent(
       {
         kind: 24133,
         created_at: Math.floor(Date.now() / 1000),
         tags: [["p", client]],
-        content: encrypt(JSON.stringify(response), ck),
+        content: opts.nip04
+          ? nip04.encrypt(from, client, json)
+          : encrypt(json, getConversationKey(from, client)),
       },
-      this.secretKey,
+      from,
     );
     for (const { filters, subscriber } of this.subs) {
       if (filters.some((f) => f.kinds?.includes(24133) && f["#p"]?.includes(client))) subscriber.next(event);
