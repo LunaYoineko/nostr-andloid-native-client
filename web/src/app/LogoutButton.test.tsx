@@ -47,3 +47,13 @@ it("NIP-07 では秘密鍵が拡張機能に残る旨を出す", async () => {
     "この端末のログイン情報を削除します。秘密鍵は拡張機能に残ります。",
   );
 });
+
+it("NIP-46 では署名アプリとの接続を削除し、秘密鍵は署名アプリに残る旨を出す", async () => {
+  useSession.setState({ status: "in", method: "nip46", pubkey: PUBKEY });
+  render(<LogoutButton />);
+
+  await userEvent.click(screen.getByRole("button", { name: "ログアウト" }));
+  expect(dialog()).toHaveAccessibleDescription(
+    "この端末のログイン情報（署名アプリとの接続）を削除します。秘密鍵は署名アプリに残ります。",
+  );
+});

@@ -3,10 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { decode, npubEncode, nsecEncode } from "nostr-tools/nip19";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { SESSION_FLAG_KEY, SESSION_KEY, useSession } from "../signer/session";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { setNip46PoolForTest } from "../signer/nip46";
+import { LoginError, SESSION_FLAG_KEY, SESSION_KEY, useSession } from "../signer/session";
 import { getKeyVault } from "../signer/webKeyVault";
 import { installDialogPolyfill } from "../test/dialog";
+import { FakeBunker } from "../test/fakeBunker";
 import { installFakeNostr, installTestVault, PUBKEY, resetSession } from "../test/fakeNostr";
 import { routes } from "./routes";
 
@@ -228,5 +230,136 @@ describe("新規生成", () => {
     );
     expect(screen.queryByRole("heading", { name: "秘密鍵を控えてください" })).not.toBeInTheDocument();
     expect(useSession.getState().status).toBe("out");
+  });
+});
+
+describe("リモート署名（NIP-46）", () => {
+  const loginWithBunker = useSession.getState().loginWithBunker;
+  let bunker: FakeBunker;
+
+  beforeEach(() => {
+    bunker = new FakeBunker();
+    setNip46PoolForTest(bunker);
+  });
+
+  afterEach(() => {
+    useSession.setState({ loginWithBunker });
+  });
+
+  function summary() {
+    return screen.getByText("リモート署名でログイン（NIP-46）", { selector: "summary" });
+  }
+
+  async function openBunkerForm() {
+    await userEvent.click(summary());
+    return screen.getByLabelText("bunker:// を貼り付け");
+  }
+
+  it("並びは NIP-07 → リモート署名（閉じている）→ 秘密鍵", () => {
+    useSession.setState({ status: "out" });
+    renderAt("/app/login");
+
+    const nip07 = screen.getByRole("button", { name: "拡張機能でログイン（NIP-07）" });
+    const nsec = screen.getByText("秘密鍵（nsec）でログイン", { selector: "summary" });
+    expect(nip07.compareDocumentPosition(summary()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(summary().compareDocumentPosition(nsec) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect((summary().parentElement as HTMLDetailsElement).open).toBe(false);
+  });
+
+  it("bunker:// で始まらない入力では「接続」を押せない", async () => {
+    useSession.setState({ status: "out" });
+    renderAt("/app/login");
+    const input = await openBunkerForm();
+
+    expect(screen.getByText(/秘密鍵は署名アプリ側に残り、このブラウザには置きません。/)).toBeInTheDocument();
+    expect(input).toHaveAttribute("type", "text");
+    expect(input).toHaveAttribute("autocomplete", "off");
+    const connect = screen.getByRole("button", { name: "接続" });
+    expect(connect).toBeDisabled();
+    await userEvent.type(input, "nsec1abc");
+    expect(connect).toBeDisabled();
+    await userEvent.clear(input);
+    await userEvent.type(input, "bunker://x");
+    expect(connect).toBeEnabled();
+  });
+
+  it("接続に成功すると next へ戻り、secret は DOM に残らない", async () => {
+    await installTestVault();
+    useSession.setState({ status: "out" });
+    const router = renderAt("/app/login?next=%2Fsettings");
+    const input = await openBunkerForm();
+    const uri = bunker.uri({ secret: "very-secret-token" });
+
+    await userEvent.type(input, uri);
+    // 入力値は属性に出さない
+    expect(document.body.innerHTML).not.toContain("very-secret-token");
+    await userEvent.click(screen.getByRole("button", { name: "接続" }));
+
+    expect(await screen.findByRole("heading", { name: "設定" })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/app/settings");
+    expect(useSession.getState()).toMatchObject({ status: "in", method: "nip46", pubkey: bunker.user });
+    expect(document.body.innerHTML).not.toContain("very-secret-token");
+  });
+
+  it("署名アプリに拒否されたら、その旨を出す", async () => {
+    await installTestVault();
+    bunker.replies.set("connect", { error: "denied by user" });
+    useSession.setState({ status: "out" });
+    renderAt("/app/login");
+    const input = await openBunkerForm();
+
+    await userEvent.type(input, bunker.uri());
+    await userEvent.click(screen.getByRole("button", { name: "接続" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("署名アプリに拒否されました");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("denied by user");
+    expect(useSession.getState().status).toBe("out");
+  });
+
+  it.each([
+    ["invalid-uri", "bunker://… の形式で、wss:// のリレーを含む接続先を貼り付けてください"],
+    ["timeout", "署名アプリから応答がありませんでした。アプリで承認してから、もう一度お試しください"],
+    ["rejected", "署名アプリに拒否されました"],
+    ["unavailable", "このブラウザでは接続情報を保存できません。拡張機能（NIP-07）でログインしてください。"],
+  ] as const)("%s の文言", async (reason, message) => {
+    useSession.setState({
+      status: "out",
+      loginWithBunker: async () => {
+        throw new LoginError(reason);
+      },
+    });
+    renderAt("/app/login");
+    const input = await openBunkerForm();
+
+    await userEvent.type(input, "bunker://x");
+    await userEvent.click(screen.getByRole("button", { name: "接続" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+  });
+
+  it("接続中は他のログイン方法を押せず、「やめる」で戻る（エラーは出さない）", async () => {
+    await installTestVault();
+    bunker.replies.set("connect", "silent");
+    useSession.setState({ status: "out" });
+    renderAt("/app/login");
+    const input = await openBunkerForm();
+
+    await userEvent.type(input, bunker.uri());
+    await userEvent.click(screen.getByRole("button", { name: "接続" }));
+
+    const connecting = await screen.findByRole("button", { name: "接続中…（署名アプリで承認してください）" });
+    expect(connecting).toBeDisabled();
+    expect(screen.getByRole("button", { name: "拡張機能でログイン（NIP-07）" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "新規生成" })).toBeDisabled();
+    expect(input).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "やめる" }));
+
+    expect(await screen.findByRole("button", { name: "接続" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "やめる" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "拡張機能でログイン（NIP-07）" })).toBeEnabled();
+    expect(useSession.getState().status).toBe("out");
+    expect(bunker.openSubscriptions).toBe(0);
   });
 });

@@ -250,7 +250,7 @@ let opening: Promise<KeyVaultDb | null> | null = null;
  * 鍵の DB を開く（接続はアプリで 1 つ）。開けなければ null を返し、次の呼び出しでまた開き直す。
  * キャッシュの DB と違い、版の不一致や壊れた DB でも消して作り直さない（秘密鍵を失わない）。
  */
-function openVaultDatabase(): Promise<KeyVaultDb | null> {
+export function openVaultDatabase(): Promise<KeyVaultDb | null> {
   if (typeof indexedDB === "undefined") return Promise.resolve(null);
   opening ??= (async () => {
     const instance = createVaultDatabase();

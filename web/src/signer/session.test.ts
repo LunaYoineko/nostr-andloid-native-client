@@ -1,7 +1,10 @@
 import { decode, nsecEncode } from "nostr-tools/nip19";
 import { generateSecretKey, getPublicKey, verifyEvent } from "nostr-tools/pure";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { FakeBunker } from "../test/fakeBunker";
 import { installFakeNostr, installTestVault, OTHER_PUBKEY, PUBKEY, resetSession } from "../test/fakeNostr";
+import { resetNip46ForTest, setNip46PoolForTest } from "./nip46";
+import { getNip46Store, NIP46_ROW_ID } from "./nip46Store";
 import { currentSigner, LoginError, SESSION_FLAG_KEY, SESSION_KEY, useSession } from "./session";
 import { VAULT_ROW_ID } from "./webKeyVault";
 
@@ -290,5 +293,130 @@ describe("currentSigner", () => {
     const signed = await signer?.signEvent({ kind: 1, content: "x", tags: [], created_at: 1 });
     expect(signed && verifyEvent(signed)).toBe(true);
     expect(signed?.pubkey).toBe(useSession.getState().pubkey);
+  });
+});
+
+describe("NIP-46", () => {
+  let bunker: FakeBunker;
+
+  beforeEach(() => {
+    bunker = new FakeBunker();
+    setNip46PoolForTest(bunker);
+  });
+
+  async function clientKeyHex(): Promise<string> {
+    const saved = await getNip46Store().load();
+    if (!saved) throw new Error("no nip46 row");
+    return hex(saved.clientKey);
+  }
+
+  it("loginWithBunker で nip46 の in。localStorage には method と公開鍵だけで、クライアント鍵・secret は無い", async () => {
+    await installTestVault();
+    const storage = stubPersist();
+
+    await useSession.getState().loginWithBunker(bunker.uri({ secret: "top-secret" }));
+
+    expect(useSession.getState()).toMatchObject({ status: "in", method: "nip46", pubkey: bunker.user });
+    expect(localStorage.getItem(SESSION_KEY)).toBe(JSON.stringify({ method: "nip46", pubkey: bunker.user }));
+    const clientKey = await clientKeyHex();
+    for (const value of localStorageValues()) {
+      expect(value).not.toContain(clientKey);
+      expect(value).not.toContain("top-secret");
+    }
+    await vi.waitFor(() => expect(storage.persist).toHaveBeenCalledTimes(1));
+  });
+
+  it("Nip46Error の理由は同じ名前の LoginError にする", async () => {
+    await installTestVault();
+    await expect(useSession.getState().loginWithBunker("nsec1abc")).rejects.toMatchObject({
+      name: "LoginError",
+      reason: "invalid-uri",
+    });
+    bunker.replies.set("connect", { error: "denied" });
+    await expect(useSession.getState().loginWithBunker(bunker.uri())).rejects.toMatchObject({
+      reason: "rejected",
+    });
+    expect(localStorage.length).toBe(0);
+    expect(useSession.getState().status).toBe("loading");
+  });
+
+  it("保管庫に接続情報があれば restore で in（署名側へは何も送らない）", async () => {
+    await installTestVault();
+    await useSession.getState().loginWithBunker(bunker.uri());
+    const sent = bunker.requests.length;
+    resetNip46ForTest();
+    useSession.setState({ status: "loading", method: null, pubkey: null });
+
+    await useSession.getState().restore();
+
+    expect(useSession.getState()).toMatchObject({ status: "in", method: "nip46", pubkey: bunker.user });
+    expect(bunker.requests).toHaveLength(sent);
+    expect(currentSigner()).not.toBeNull();
+  });
+
+  it("保管庫に接続情報が無ければ restore で out にして nostrism.session を消す", async () => {
+    await installTestVault();
+    saveSession(PUBKEY, "nip46");
+
+    await useSession.getState().restore();
+
+    expect(useSession.getState().status).toBe("out");
+    expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+    expect(localStorage.length).toBe(0);
+  });
+
+  it("currentSigner は NIP-46 の署名者を返す", async () => {
+    await installTestVault();
+    await useSession.getState().loginWithBunker(bunker.uri());
+
+    const signed = await currentSigner()?.signEvent({ kind: 1, content: "x", tags: [], created_at: 1 });
+
+    expect(bunker.methods().at(-1)).toBe("sign_event");
+    expect(signed?.pubkey).toBe(bunker.user);
+    expect(signed && verifyEvent(signed)).toBe(true);
+  });
+
+  it("nsec でログインし直すと NIP-46 の接続を切る（logout を送り、nip46 行を消す）", async () => {
+    const db = await installTestVault();
+    await useSession.getState().loginWithBunker(bunker.uri());
+
+    await useSession.getState().loginWithNsec(nsecEncode(generateSecretKey()));
+
+    expect(useSession.getState().method).toBe("local");
+    await vi.waitFor(() => expect(bunker.methods()).toContain("logout"));
+    await vi.waitFor(async () => expect(await db.vault.get(NIP46_ROW_ID)).toBeUndefined());
+    expect(await db.vault.get(VAULT_ROW_ID)).toBeDefined();
+    await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(0));
+  });
+
+  it("NIP-07 でログインし直しても NIP-46 の接続を切る", async () => {
+    const db = await installTestVault();
+    await useSession.getState().loginWithBunker(bunker.uri());
+    installFakeNostr();
+
+    await useSession.getState().login();
+
+    await vi.waitFor(() => expect(bunker.methods()).toContain("logout"));
+    await vi.waitFor(async () => expect(await db.vault.get(NIP46_ROW_ID)).toBeUndefined());
+  });
+
+  it("logout で nip46 行が消え、署名側が無応答でも 3 秒で接続を閉じる", async () => {
+    const db = await installTestVault();
+    await useSession.getState().loginWithBunker(bunker.uri());
+    bunker.replies.set("logout", "silent");
+    vi.useFakeTimers();
+
+    useSession.getState().logout();
+
+    expect(useSession.getState().status).toBe("out");
+    expect(localStorage.length).toBe(0);
+    expect(currentSigner()).toBeNull();
+    await vi.advanceTimersByTimeAsync(2_999);
+    expect(bunker.openSubscriptions).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(bunker.openSubscriptions).toBe(0);
+    expect(bunker.methods()).toContain("logout");
+    vi.useRealTimers();
+    await vi.waitFor(async () => expect(await db.vault.get(NIP46_ROW_ID)).toBeUndefined());
   });
 });
