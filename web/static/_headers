@@ -1,0 +1,16 @@
+# 静的アセットにだけ効く（Worker が返す /api/* の応答には適用されない）。設計: #426 7.1 節。
+/app/*
+  X-Robots-Tag: noindex
+
+# ハッシュ付きファイル名が前提
+/app/*.wasm
+  Cache-Control: public, max-age=31536000, immutable
+/app/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/app/index.html
+  Cache-Control: no-cache
+# /app/*.js の immutable と結合されないよう、先に外してから付ける
+/app/sw.js
+  ! Cache-Control
+  Cache-Control: no-cache
