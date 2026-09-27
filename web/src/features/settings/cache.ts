@@ -2,7 +2,8 @@ import { db } from "../../db";
 import { createDatabase } from "../../db/schema";
 
 /**
- * キャッシュの DB（nostrism: イベント・送信待ち・OGP）を消す（ネイティブ purgeCache）。
+ * キャッシュの DB（nostrism: イベント・送信待ち・OGP・復号済みの DM）を消す（ネイティブ purgeCache）。
+ * DM は次に開いたとき復号し直す（NIP-07 / NIP-46 では再び承認を求められる）。
  * 鍵の DB（nostrism-vault）と localStorage（セッション・リレー・カラム構成など）は消さない。
  * テストでは fake-indexeddb の IDBFactory / IDBKeyRange を渡す。
  */

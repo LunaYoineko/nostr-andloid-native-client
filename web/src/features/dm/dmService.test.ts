@@ -10,6 +10,7 @@ import { requestOnce, subscribeUnstored } from "../../nostr/pool";
 import type { Signer } from "../../nostr/signer";
 import { addVerified, eventStore } from "../../nostr/store";
 import { currentSigner, type SessionMethod, useSession } from "../../signer/session";
+import { VaultError } from "../../signer/webKeyVault";
 import { createCipherSigner } from "../../test/cipherSigner";
 import { giftWrap, makeRumor, makeWrap } from "../../test/giftWrap";
 import { resumeDecrypting, startDecrypting, startDm } from "./dmService";
@@ -296,6 +297,30 @@ describe("復号と保存", () => {
     resumeDecrypting();
     await vi.waitFor(() => expect(contents()).toEqual(["m0"]));
     expect(useDm.getState()).toMatchObject({ paused: false, pending: 0 });
+  });
+
+  it("nsec でも鍵の保管庫の失敗（VaultError）は invalid と記録せず、一時停止 → 再開で復号する", async () => {
+    const database = await openDb();
+    decrypt44.mockRejectedValue(new VaultError("unavailable"));
+    login("local");
+    start(database);
+    await subscribed();
+    for (let n = 0; n < 4; n++) feed.next(wrapFromAlice(`v${n}`, 1_700_000_000 + n));
+    await vi.waitFor(() => expect(useDm.getState()).toMatchObject({ paused: true, pending: 1 }));
+    expect(decrypt44).toHaveBeenCalledTimes(3);
+    expect(await database.dmProcessed.count()).toBe(0);
+    expect(contents()).toEqual([]);
+
+    // 保管庫が戻った
+    decrypt44.mockReset();
+    decrypt44.mockImplementation(async (peer: string, ciphertext: string) =>
+      nip44.decrypt(ciphertext, nip44.getConversationKey(myKey, peer)),
+    );
+    resumeDecrypting();
+    await vi.waitFor(() => expect(contents()).toHaveLength(1));
+    expect(useDm.getState()).toMatchObject({ paused: false, pending: 0 });
+    await vi.waitFor(async () => expect(await database.dmProcessed.count()).toBe(1));
+    expect((await database.dmProcessed.toArray())[0].ok).toBe(true);
   });
 });
 

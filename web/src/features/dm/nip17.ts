@@ -1,6 +1,7 @@
 import { getEventHash, type NostrEvent, verifyEvent } from "nostr-tools/pure";
 import type { DmMessageRow } from "../../db/schema";
 import type { Signer } from "../../nostr/signer";
+import { VaultError } from "../../signer/webKeyVault";
 
 /** gift wrap の中身（kind:14。署名は無い） */
 export type Rumor = {
@@ -31,7 +32,9 @@ export class DmDecryptError extends Error {
 
 /**
  * 署名者での復号。例外は decryptErrorIsInvalid なら invalid（nsec: 何度やっても同じ = 壊れている）、
- * そうでなければ signer（NIP-07 / NIP-46: 拒否・無応答かもしれない）
+ * そうでなければ signer（NIP-07 / NIP-46: 拒否・無応答かもしれない）。
+ * nsec でも鍵の保管庫の失敗（VaultError: 鍵が無い・保管先が使えない）は中身のせいではないので signer
+ * （一時停止 → 再開でやり直す）
  */
 export async function decryptWith(
   decrypt: () => Promise<string>,
@@ -39,8 +42,8 @@ export async function decryptWith(
 ): Promise<string> {
   try {
     return await decrypt();
-  } catch {
-    throw new DmDecryptError(opts.decryptErrorIsInvalid ? "invalid" : "signer");
+  } catch (e) {
+    throw new DmDecryptError(opts.decryptErrorIsInvalid && !(e instanceof VaultError) ? "invalid" : "signer");
   }
 }
 
