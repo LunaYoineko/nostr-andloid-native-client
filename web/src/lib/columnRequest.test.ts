@@ -87,13 +87,14 @@ describe("requestFor", () => {
 });
 
 describe("viewFor", () => {
-  it("通知: 表示する kind は [1, 1111, 6, 16] の範囲に絞り、自分の投稿を落とす", () => {
-    expect(viewFor(notif, ctx()).filters).toEqual([{ kinds: [1, 1111], "#p": [ME] }]);
-    const all = build("NOTIFICATIONS", {}, NONE, 1);
-    const view = viewFor(all, ctx());
-    expect(view.filters).toEqual([{ kinds: [1, 1111, 6, 16], "#p": [ME] }]);
-    expect(view.predicate?.(note({ pubkey: ME }))).toBe(false);
-    expect(view.predicate?.(note({ pubkey: FOLLOW }))).toBe(true);
+  it("通知: カラムの種別（filter.kinds）に関わらず 6 種を読み、自分の投稿を落とす。未ログインなら読まない", () => {
+    for (const kinds of [[1], [1, 7, 9735]]) {
+      const view = viewFor({ ...notif, filter: { ...notif.filter, kinds } }, ctx());
+      expect(view.filters).toEqual([{ kinds: [1, 6, 16, 7, 9735, 1111], "#p": [ME] }]);
+      expect(view.predicate?.(note({ pubkey: ME }))).toBe(false);
+      expect(view.predicate?.(note({ pubkey: FOLLOW }))).toBe(true);
+    }
+    expect(viewFor(notif, ctx({ me: null }))).toEqual({ filters: [] });
   });
 
   it("キーワード・タグ: 本文を大文字小文字を無視して照合し、t タグでも拾う", () => {

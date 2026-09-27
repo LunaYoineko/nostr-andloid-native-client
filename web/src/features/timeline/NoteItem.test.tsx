@@ -12,6 +12,7 @@ import { renderWithRouter } from "../../test/renderWithRouter";
 import linkCardStyles from "../linkcard/LinkCard.module.css";
 import gridStyles from "../media/ImageGrid.module.css";
 import { NoteItem } from "./NoteItem";
+import noteStyles from "./NoteItem.module.css";
 
 // applesauce の Tokens.link はホストにドットを要求するため、テストの URL は *.test にする
 
@@ -456,4 +457,24 @@ it("OGP が取れなければカードを出さず、本文のリンクを残す
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+it("embedded（通知の本体）は返信先の 1 行と下線を出さない。既定では出す（#460）", async () => {
+  const parent = stored("親の投稿", { key: withProfile({ name: "heidi" }) });
+  const reply = post("通知の返信", { tags: [["e", parent.id, "", "reply"]] });
+
+  const normal = renderWithRouter(<NoteItem event={reply} />);
+  expect(await screen.findByText("heidi: 親の投稿")).toBeInTheDocument();
+  expect(normal.container.querySelector("article")).toHaveClass(noteStyles.note);
+  normal.unmount();
+
+  const { container } = renderWithRouter(<NoteItem event={reply} embedded />);
+  expect(screen.getByText("通知の返信")).toBeInTheDocument();
+  expect(screen.queryByText("heidi: 親の投稿")).toBeNull();
+  // 時刻（この投稿のスレッドへのリンク）以外に /e/ へのリンクが無い = 返信行が無い
+  const links = [...container.querySelectorAll('a[href^="/e/"]')].filter((a) => !a.querySelector("time"));
+  expect(links).toHaveLength(0);
+  const article = container.querySelector("article");
+  expect(article).not.toHaveClass(noteStyles.note);
+  expect(article).toHaveClass(noteStyles.embedded);
 });
