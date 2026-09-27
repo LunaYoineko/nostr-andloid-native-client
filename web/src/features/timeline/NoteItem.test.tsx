@@ -347,6 +347,20 @@ it("文字を選択しているとき・修飾キー付きのクリックでは�
   expect(where()).toMatch(/^\/e\/nevent1/);
 });
 
+it("メニュー（role=menu）の中を押してもスレッドを開かない", () => {
+  const { container, where } = renderNote(<NoteItem event={post("メニューのある投稿")} />);
+  const menu = document.createElement("div");
+  menu.setAttribute("role", "menu");
+  const heading = document.createElement("span");
+  heading.textContent = "Nostrism から投稿";
+  menu.append(heading);
+  container.querySelector("article")?.append(menu);
+
+  fireEvent.click(heading);
+
+  expect(where()).toBe("/");
+});
+
 it("openable={false} は押しても開かず、時刻もリンクにしない", async () => {
   const { container, where } = renderNote(<NoteItem event={post("開かない")} openable={false} />);
 
@@ -387,6 +401,15 @@ it("kind:1 には操作の行に「返信」ボタンがある", () => {
   expect(
     within(screen.getByRole("group", { name: "操作" })).getByRole("button", { name: "返信" }),
   ).toBeInTheDocument();
+});
+
+it("kind:1 の操作の行は 返信・リポスト・リアクション・絵文字でリアクション・その他の操作（#459）", () => {
+  renderWithRouter(<NoteItem event={post("反応できる投稿")} />);
+  expect(
+    within(screen.getByRole("group", { name: "操作" }))
+      .getAllByRole("button")
+      .map((b) => b.getAttribute("aria-label")),
+  ).toEqual(["返信", "リポスト", "リアクション", "絵文字でリアクション", "その他の操作"]);
 });
 
 it("リンクは OGP が取れたらメディアの下にカードを出し、本文からは消す（取得中は枠 + 本文のリンクのまま）", async () => {

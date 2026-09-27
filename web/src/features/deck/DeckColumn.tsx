@@ -11,11 +11,10 @@ import {
 } from "../../lib/columns";
 import { useDeck, widthOf } from "../../store/deck";
 import { columnIcon, Icon } from "../../ui/icons";
-import { NoteItem } from "../timeline/NoteItem";
+import { MyReactionRow } from "../actions/MyReactionRow";
 import { Timeline } from "../timeline/Timeline";
 import styles from "./DeckColumn.module.css";
 import { useColumnFeed } from "./useColumnFeed";
-import { useReactionTarget } from "./useReactionTarget";
 
 /** Web 版でまだ描けない種別（REQ も張らない） */
 const UNSUPPORTED_KINDS: ReadonlySet<ColumnKind> = new Set(["DM", "THREAD", "CHANNEL_LIST", "CHANNEL_ROOM"]);
@@ -96,7 +95,7 @@ function FavsFooter({ context }: { context?: FooterContext }) {
 
 const FAVS_COMPONENTS = { Footer: FavsFooter };
 
-/** ふぁぼ欄。自分のリアクション（kind:7）の対象の投稿を並べる */
+/** ふぁぼ欄。自分のリアクション（kind:7）を 1 行ずつ要約して並べる（MyReactionRow） */
 function FavsList({
   reactions,
   loading,
@@ -125,9 +124,7 @@ function FavsList({
 }
 
 function FavItem({ reaction }: { reaction: NostrEvent }) {
-  const target = useReactionTarget(reaction);
-  // 解決できない対象は出さない（仮想リストは高さ 0 の行を扱えないので 1px の空行を置く）
-  return target ? <NoteItem event={target} /> : <div className={styles.pending} />;
+  return <MyReactionRow reaction={reaction} />;
 }
 
 /**

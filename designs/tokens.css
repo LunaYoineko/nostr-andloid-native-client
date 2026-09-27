@@ -45,6 +45,8 @@
   --like:          #f76e8e;
   --verified: #4fa77a;  /* NIP-05 検証OK（Compose Color.kt verified と 1 対 1） */
   --warn: #c76b6b;  /* 検証エラー・警告（Color.kt warn） */
+  --react-heart: #e0245e;  /* ♡ 付与済み（Compose NoteItem.kt ReactHeartColor。明暗共通） */
+  --react-star: #f5b301;  /* ☆ 付与済み（同 ReactStarColor） */
 
   /* --- Radius --- */
   --r-sm: 8px;
@@ -90,6 +92,7 @@
   --type-label:   11px;  /* 時刻/ハンドル/ラベル */
   --type-micro:   10px;  /* バッジ/最小メタ */
   --type-emoji:   18px;  /* リアクション絵文字グリフ */
+  --type-emoji-lg: 22px;  /* 拡大絵文字（Compose DeckType.EmojiLg と 1 対 1） */
   --line-title:   22px;  /* 2段テキスト(タイトル+説明)のタイトル行高 */
   --line-desc:    18px;  /* 同・説明行高（合計40px, スペーサーなし） */
   --line-body: 20px;  /* 本文の行高（Compose CollapsibleText の lineHeight 20sp と 1 対 1） */

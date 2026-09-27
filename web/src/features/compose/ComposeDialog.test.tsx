@@ -326,3 +326,57 @@ describe("入力補完", () => {
     expect(body()).toHaveValue(":cat: ");
   });
 });
+
+describe("絵文字を挿入（#459）", () => {
+  it("ピッカーで選んだ絵文字をカーソル位置に入れる", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "ab");
+    body().setSelectionRange(1, 1);
+    fireEvent.select(body());
+
+    await user.click(screen.getByRole("button", { name: "絵文字を挿入" }));
+    const picker = screen.getByRole("dialog", { name: "リアクション" });
+    await user.click(within(picker).getByRole("button", { name: "😄" }));
+
+    expect(screen.queryByRole("dialog", { name: "リアクション" })).toBeNull();
+    expect(body()).toHaveValue("a😄b");
+    expect(publishEvent).not.toHaveBeenCalled();
+  });
+
+  it("カスタム絵文字は後ろに空白を付けて :cat: を入れる", async () => {
+    const user = userEvent.setup();
+    stored("", { kind: 10030, key: meKey, tags: [["emoji", "cat", "https://e/cat.png"]] });
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+
+    await user.click(screen.getByRole("button", { name: "絵文字を挿入" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "リアクション" })).getByRole("button", { name: ":cat:" }),
+    );
+    expect(body()).toHaveValue(":cat: ");
+  });
+
+  it("ピッカーの cancel / close では投稿シートを閉じない", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "x");
+
+    await user.click(screen.getByRole("button", { name: "絵文字を挿入" }));
+    fireEvent(
+      screen.getByRole("dialog", { name: "リアクション" }),
+      new Event("cancel", { cancelable: true }),
+    );
+    expect(screen.queryByRole("dialog", { name: "リアクション" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "絵文字を挿入" }));
+    fireEvent(screen.getByRole("dialog", { name: "リアクション" }), new Event("close"));
+    expect(screen.queryByRole("dialog", { name: "リアクション" })).toBeNull();
+
+    expect(screen.queryByRole("dialog", { name: "入力内容を破棄しますか？" })).toBeNull();
+    expect(useCompose.getState().request).toEqual({ mode: "new" });
+    expect(body()).toHaveValue("x");
+  });
+});

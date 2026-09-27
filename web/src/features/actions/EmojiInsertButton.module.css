@@ -1,0 +1,18 @@
+/* #458 の ComposeDialog の .tool / .toolIcon と同じ値 */
+.tool {
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.icon {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
