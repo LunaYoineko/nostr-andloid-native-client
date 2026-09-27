@@ -1,9 +1,17 @@
-import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
+import * as nip44 from "nostr-tools/nip44";
+import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from "nostr-tools/pure";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Signer } from "../../nostr/signer";
 import { createCipherSigner } from "../../test/cipherSigner";
 import { DM_TIME, giftWrap, makeRumor, makeSeal, makeWrap } from "../../test/giftWrap";
-import { DmDecryptError, dmFromRumor, unwrapGiftWrap } from "./nip17";
+import {
+  buildRumor,
+  DmDecryptError,
+  dmFromRumor,
+  unwrapGiftWrap,
+  WRAP_TIME_SPREAD_SEC,
+  wrapGiftWrap,
+} from "./nip17";
 
 const aliceKey = generateSecretKey();
 const ALICE = getPublicKey(aliceKey);
@@ -181,5 +189,72 @@ describe("dmFromRumor", () => {
   it("自分が当事者でなければ null", () => {
     const rumor = makeRumor(aliceKey, { content: "x", tags: [["p", BOB]] });
     expect(dmFromRumor(rumor, me)).toBeNull();
+  });
+});
+
+describe("送信（buildRumor / wrapGiftWrap）", () => {
+  const NOW = 1_800_000_000;
+
+  it("buildRumor: kind:14・宛先 p は相手・id は中身のハッシュ（受信側の makeRumor と同じ）", () => {
+    const rumor = buildRumor(me, ALICE, "hello", NOW);
+    expect(rumor).toEqual({
+      id: expect.any(String),
+      pubkey: me,
+      created_at: NOW,
+      kind: 14,
+      tags: [["p", ALICE]],
+      content: "hello",
+    });
+    expect(rumor.id).toBe(makeRumor(myKey, { content: "hello", tags: [["p", ALICE]], created_at: NOW }).id);
+  });
+
+  it("相手の鍵・自分の鍵のどちらで開いても同じ rumor に戻る。wrap の鍵は使い捨て（自分とも相手とも違う）", async () => {
+    const peer = createCipherSigner();
+    const rumor = buildRumor(me, peer.pubkey, "こんにちは", NOW);
+
+    const toPeer = await wrapGiftWrap(signer, rumor, peer.pubkey, { now: NOW });
+    const toSelf = await wrapGiftWrap(signer, rumor, me, { now: NOW });
+
+    expect(await unwrapGiftWrap(peer.signer, toPeer, asExtension)).toEqual(rumor);
+    expect(await unwrapGiftWrap(signer, toSelf, asExtension)).toEqual(rumor);
+    for (const wrap of [toPeer, toSelf]) {
+      expect(wrap.kind).toBe(1059);
+      expect(verifyEvent(wrap)).toBe(true);
+      expect(wrap.pubkey).not.toBe(me);
+      expect(wrap.pubkey).not.toBe(peer.pubkey);
+    }
+    expect(toPeer.tags).toEqual([["p", peer.pubkey]]);
+    expect(toSelf.tags).toEqual([["p", me]]);
+    expect(toPeer.pubkey).not.toBe(toSelf.pubkey);
+  });
+
+  it.each([
+    [0, NOW],
+    [0.999_999_999, NOW - WRAP_TIME_SPREAD_SEC + 1],
+  ])("seal / wrap の created_at は now - 2 日以上 now 以下（random = %d）", async (value, expected) => {
+    const rumor = buildRumor(me, ALICE, "time", NOW);
+    const wrap = await wrapGiftWrap(signer, rumor, me, { now: NOW, random: () => value });
+    const seal = JSON.parse(
+      nip44.decrypt(wrap.content, nip44.getConversationKey(myKey, wrap.pubkey)),
+    ) as typeof wrap;
+
+    for (const createdAt of [wrap.created_at, seal.created_at]) {
+      expect(createdAt).toBe(expected);
+      expect(createdAt).toBeGreaterThanOrEqual(NOW - WRAP_TIME_SPREAD_SEC);
+      expect(createdAt).toBeLessThanOrEqual(NOW);
+    }
+    expect(seal).toMatchObject({ kind: 13, pubkey: me, tags: [] });
+    expect(WRAP_TIME_SPREAD_SEC).toBe(2 * 24 * 3600);
+  });
+
+  it("NIP-44 の無い署名者・seal を別の鍵で署名する署名者は例外（メッセージに本文を入れない）", async () => {
+    const rumor = buildRumor(me, ALICE, "secret text", NOW);
+    const noNip44 = { ...signer, nip44: undefined };
+    await expect(wrapGiftWrap(noNip44, rumor, ALICE)).rejects.toThrow();
+
+    const other = createCipherSigner().signer;
+    const error = (await wrapGiftWrap(other, rumor, ALICE).catch((e: unknown) => e)) as Error;
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).not.toContain("secret text");
   });
 });

@@ -143,6 +143,45 @@ export async function publishEvent(draft: EventDraft, opts?: PublishOptions): Pr
   return signed;
 }
 
+/** 行を積んだアカウント（owner の無い行は署名した鍵） */
+function ownerOf(row: PublishQueueRow): string {
+  return row.owner ?? row.payload.pubkey;
+}
+
+/**
+ * 署名済みのイベントをそのまま送信キューへ積んで送る（DM の gift wrap。使い捨て鍵で署名してあるので
+ * publishEvent の「自分の署名」の検査を通らない）。EventStore には入れない。行の owner はログイン中の自分
+ * （自動再送・アカウントの照合は owner で見る）。relays が空なのは呼び出し側の誤り（TypeError）。
+ */
+export async function enqueueSigned(
+  event: NostrEvent,
+  opts: { relays: readonly string[]; refId: string | null; notify: boolean },
+): Promise<void> {
+  if (opts.relays.length === 0) throw new TypeError("enqueueSigned: relays is empty");
+  const me = useSession.getState().pubkey;
+  if (me === null) throw new PublishError("no-signer");
+  if (!verifyEvent(event)) throw new PublishError("sign-failed");
+
+  ensureWatchers();
+  const row: PublishQueueRow = {
+    eventId: event.id,
+    payload: event,
+    // gift wrap の created_at は過去へずらしてあるので使わない
+    createdAt: unixNow(),
+    attempts: 0,
+    relays: [...opts.relays],
+    refId: opts.refId,
+    owner: me,
+  };
+  rows.set(row.eventId, row);
+  try {
+    await queueDb?.publishQueue.put(row);
+  } catch (e) {
+    warn("未送信の保存に失敗", e);
+  }
+  send(row, opts.notify);
+}
+
 /**
  * 1 件を送り、ACK_TIMEOUT_MS 以内の受理（OK またはエコー）を待つ。未受理なら attempts を 1 増やす。
  * complete / error では決めない（リレーが閉じてもエコーを待つ）。
@@ -225,7 +264,7 @@ export function retryUnsent(): void {
   const now = Date.now();
   if (now - lastRetryAt < RETRY_MIN_INTERVAL_MS) return;
   const targets = [...rows.values()].filter(
-    (row) => row.payload.pubkey === account && shouldAutoRetry(row.attempts),
+    (row) => ownerOf(row) === account && shouldAutoRetry(row.attempts),
   );
   // 送るものが無い呼び出しでは間隔を数えない（起動時に DB の行を読み込む前の呼び出しで、読み込み後の再送を止めない）
   if (targets.length === 0) return;
@@ -266,7 +305,7 @@ export async function startPublishQueue(opts?: { database?: NostrismDb | null })
     }
     for (const row of stored) {
       try {
-        if (account !== null && row.payload.pubkey !== account) {
+        if (account !== null && ownerOf(row) !== account) {
           await target.publishQueue.delete(row.eventId);
           continue;
         }
@@ -277,7 +316,8 @@ export async function startPublishQueue(opts?: { database?: NostrismDb | null })
         }
         if (!rows.has(current.eventId)) {
           rows.set(current.eventId, current);
-          addVerified(current.payload);
+          // 他の鍵で署名した行（DM の gift wrap）は手元のイベントとして出さない
+          if (row.owner === undefined || row.owner === row.payload.pubkey) addVerified(current.payload);
         }
       } catch (e) {
         warn("未送信の復元に失敗", e);
@@ -301,7 +341,7 @@ export async function startPublishQueue(opts?: { database?: NostrismDb | null })
 export function setPublishAccount(pubkey: string): void {
   account = pubkey;
   for (const row of [...rows.values()]) {
-    if (row.payload.pubkey !== pubkey) dequeue(row.eventId);
+    if (ownerOf(row) !== pubkey) dequeue(row.eventId);
   }
   retryUnsent();
 }

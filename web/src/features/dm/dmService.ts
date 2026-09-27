@@ -28,6 +28,10 @@ type Running = {
   queue: DecryptQueue;
   /** 復号を始める（2 回目以降は何もしない） */
   startQueue(): void;
+  /** 自分が送った DM を出して保存し、送ったイベントを処理済みにする */
+  recordSent(row: DmMessageRow, eventIds: readonly string[]): Promise<void>;
+  /** 自分が送った DM を消す（楽観表示の取り消し） */
+  removeSent(id: string): Promise<void>;
   stop(): void;
 };
 
@@ -48,6 +52,22 @@ export function startDecrypting(): void {
 /** 署名者の失敗が続いて止めた復号を続ける（「再開」） */
 export function resumeDecrypting(): void {
   active?.queue.resume();
+}
+
+/**
+ * 自分が送った DM を会話に出して保存する（送信の楽観表示）。eventIds = 送る gift wrap / kind:4 の id。
+ * 処理済みにして、リレーから返ってきても復号しない（自分宛ての控えで署名者を呼ばない）。
+ * row.owner の DM を動かしていなければ（ログアウト・切り替えの後）何もしない
+ */
+export function recordSentDm(row: DmMessageRow, eventIds: readonly string[]): Promise<void> {
+  if (active?.me !== row.owner) return Promise.resolve();
+  return active.recordSent(row, eventIds);
+}
+
+/** recordSentDm で出した DM を消す（積む前に送信が失敗した） */
+export function removeSentDm(owner: string, id: string): Promise<void> {
+  if (active?.me !== owner) return Promise.resolve();
+  return active.removeSent(id);
 }
 
 /** DB の失敗は理由の名前だけ出す（復号した中身を出さない） */
@@ -266,6 +286,21 @@ function begin(
       decryptStarted = true;
       useDm.setState({ decrypting: true });
       queue.start();
+    },
+    recordSent(row, eventIds) {
+      if (stopped) return Promise.resolve();
+      for (const eventId of eventIds) processed.add(eventId);
+      useDm.getState().upsertMessages([row]);
+      notePeers([row.peer]);
+      return serial("保存に失敗", async (database) => {
+        await database.dmMessages.put(row);
+        for (const eventId of eventIds) await database.dmProcessed.put({ owner: me, eventId, ok: true });
+      });
+    },
+    removeSent(id) {
+      if (stopped) return Promise.resolve();
+      useDm.getState().removeMessage(id);
+      return serial("削除に失敗", (database) => database.dmMessages.delete([me, id]));
     },
     stop() {
       stopped = true;

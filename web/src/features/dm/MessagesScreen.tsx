@@ -83,7 +83,7 @@ function ListPane({ selectedPeer, onSelect }: { selectedPeer: string | null; onS
     <div className={styles.list}>
       <ScreenHeader title="メッセージ" />
       <div className={styles.listBody}>
-        <ConversationList selectedPeer={selectedPeer} onSelect={onSelect} showBanners />
+        <ConversationList selectedPeer={selectedPeer} onSelect={onSelect} showBanners showNewRow />
       </div>
     </div>
   );

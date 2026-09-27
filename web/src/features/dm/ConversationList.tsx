@@ -1,31 +1,53 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import { hrefForProfile } from "../../lib/content/labels";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { badgeText } from "../../ui/badge";
+import { EditIcon } from "../../ui/icons";
 import { Avatar } from "../timeline/NoteItem";
 import styles from "./ConversationList.module.css";
 import { resumeDecrypting } from "./dmService";
 import { type DmConversation, useConversations, useDm } from "./dmStore";
+import { NewConversationDialog } from "./NewConversationDialog";
 
 /**
  * 会話の一覧（ネイティブ DmConversationRows。メッセージ画面と DM カラムで使う）。新しい順。
  * 行 = アバター（プロフィールへ）・表示名・最後のメッセージ 1 行・未読数（ネイティブ #416）。行を押すと onSelect。
  * showBanners なら上に復号の状態（NIP-44 が無い・一時停止・復号中）を出す。
+ * showNewRow なら先頭に「新しいメッセージを送る」（相手を入れて onSelect。まだ会話の無い相手でもよい）。
  */
 export function ConversationList({
   selectedPeer,
   onSelect,
   showBanners,
+  showNewRow,
 }: {
   selectedPeer: string | null;
   onSelect(peer: string): void;
   showBanners: boolean;
+  showNewRow: boolean;
 }) {
   const conversations = useConversations();
   const loaded = useDm((s) => s.loaded);
+  const [composing, setComposing] = useState(false);
   return (
     <div className={styles.root}>
       {showBanners && <Banners />}
+      {showNewRow && (
+        <button type="button" className={styles.newRow} onClick={() => setComposing(true)}>
+          <EditIcon className={styles.newIcon} />
+          新しいメッセージを送る
+        </button>
+      )}
+      {composing && (
+        <NewConversationDialog
+          onOpen={(pubkey) => {
+            setComposing(false);
+            onSelect(pubkey);
+          }}
+          onDismiss={() => setComposing(false)}
+        />
+      )}
       {conversations.length === 0 ? (
         <p className={styles.empty}>{loaded ? "まだ会話がありません" : "読み込み中…"}</p>
       ) : (

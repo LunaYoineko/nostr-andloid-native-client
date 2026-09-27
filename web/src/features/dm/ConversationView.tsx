@@ -7,13 +7,16 @@ import { extractMedia } from "../../lib/media";
 import { shortNpub } from "../../lib/npub";
 import { formatAbsoluteTime } from "../../lib/time";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
+import { retryUnsentNow, useIsUnsent } from "../../nostr/publish";
 import { ArrowBackIcon } from "../../ui/icons";
+import { showToast } from "../../ui/toast";
 import { NoteMedia } from "../media/NoteMedia";
 import { NoteContent } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
 import styles from "./ConversationView.module.css";
 import { markSeen } from "./dmSeen";
 import { useConversations, useDm, useMessagesWith } from "./dmStore";
+import { type DmSendResult, sendDm } from "./send";
 
 /** 1 度に出す件数（新しい方から。古いものは「さらに表示」で足す） */
 const PAGE_SIZE = 200;
@@ -79,7 +82,73 @@ export function ConversationView({ peer, onBack }: { peer: string; onBack?: () =
           </button>
         )}
       </div>
+      <Composer peer={peer} />
     </section>
+  );
+}
+
+/** 送信結果ごとのトースト（ネイティブ ja リソースと同じ文言。sent / sent-no-peer-relays は別扱い） */
+const SEND_FAILURES: Record<Exclude<DmSendResult, "sent" | "sent-no-peer-relays">, string> = {
+  failed: "メッセージを送れませんでした",
+  "no-nip44": "この拡張機能は NIP-44 に対応していないため、このメッセージを送れません",
+  "no-nip04": "この拡張機能は NIP-04 に対応していないため、このメッセージを送れません",
+  "no-relays": "送り先のリレーがありません",
+};
+const NO_PEER_RELAYS_WARN = "相手がDMリレーを公開していないため、届かない可能性があります";
+
+/** 「届かない可能性があります」を出した相手（セッション中 1 回まで） */
+const warnedNoPeerRelays = new Set<string>();
+
+/**
+ * 会話の入力欄（ネイティブ DmScreen の入力行）。Enter は改行、Ctrl / Cmd + Enter で送信（IME 変換中は送らない）。
+ * 送信中は入力と送信を止める。送れたら空にし、送れなければ入力を残してトースト
+ */
+function Composer({ peer }: { peer: string }) {
+  const nip17 = useDm((s) => s.nip17);
+  const nip04 = useDm((s) => s.nip04);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const canSend = !sending && text.trim() !== "";
+
+  async function send() {
+    if (!canSend) return;
+    setSending(true);
+    const result = await sendDm(peer, text);
+    setSending(false);
+    if (result === "sent" || result === "sent-no-peer-relays") {
+      setText("");
+      if (result === "sent-no-peer-relays" && !warnedNoPeerRelays.has(peer)) {
+        warnedNoPeerRelays.add(peer);
+        showToast(NO_PEER_RELAYS_WARN);
+      }
+      return;
+    }
+    showToast(SEND_FAILURES[result]);
+  }
+
+  if (nip17 === "no-nip44" && nip04 === "no-nip04") {
+    return <p className={styles.cannotSend}>このログイン方法では DM を送れません</p>;
+  }
+  return (
+    <div className={styles.composer}>
+      <textarea
+        className={styles.input}
+        aria-label="メッセージ"
+        rows={1}
+        value={text}
+        disabled={sending}
+        onChange={(e) => setText(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            void send();
+          }
+        }}
+      />
+      <button type="button" className={styles.send} disabled={!canSend} onClick={() => void send()}>
+        送信
+      </button>
+    </div>
   );
 }
 
@@ -109,6 +178,7 @@ function Bubble({
   const media = extractMedia(event);
   const hasMedia = media.images.length + media.videos.length + media.youtube.length > 0;
   const showSender = !mine && !continuation;
+  const unsent = useIsUnsent(message.id);
   return (
     <div className={mine ? styles.mine : styles.theirs} data-continuation={continuation || undefined}>
       {!mine &&
@@ -120,6 +190,12 @@ function Bubble({
           {hasMedia && <NoteMedia media={media} />}
         </div>
         <span className={styles.time}>{formatAbsoluteTime(message.createdAt)}</span>
+        {mine && unsent && (
+          // 暗号文しか残っていないので「下書きに戻す」は出さない（ネイティブ ChannelRoomColumn の未送信）
+          <button type="button" className={styles.unsent} onClick={() => retryUnsentNow(message.id)}>
+            未送信・タップで再送
+          </button>
+        )}
       </div>
     </div>
   );

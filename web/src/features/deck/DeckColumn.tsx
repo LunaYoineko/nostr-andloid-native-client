@@ -65,6 +65,7 @@ function DmColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean 
           // カラムから会話を開くのは詳細を開くのと同じ扱い（履歴に積む）。戻るでデッキに戻れるように
           onSelect={(peer) => void navigate(`/messages/${npubEncode(peer)}`)}
           showBanners={false}
+          showNewRow={false}
         />
       </div>
     </section>

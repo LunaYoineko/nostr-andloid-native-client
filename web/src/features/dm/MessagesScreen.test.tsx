@@ -1,16 +1,18 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { npubEncode } from "nostr-tools/nip19";
+import { nprofileEncode, npubEncode } from "nostr-tools/nip19";
 import { act } from "react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DmMessageRow } from "../../db/schema";
+import { installDialogPolyfill } from "../../test/dialog";
 import { OTHER_PUBKEY, PUBKEY } from "../../test/fakeNostr";
 import { clearViewport, mockViewport } from "../../test/viewport";
 import { useDmSeen } from "./dmSeen";
 import { resumeDecrypting, startDecrypting } from "./dmService";
 import { useDm } from "./dmStore";
 import { MessagesScreen } from "./MessagesScreen";
+import { parsePeerInput } from "./NewConversationDialog";
 
 // 購読・復号はしない（状態はストアへ直接入れる）
 vi.mock("./dmService", () => ({ startDecrypting: vi.fn(), resumeDecrypting: vi.fn() }));
@@ -181,6 +183,67 @@ describe("Expanded", () => {
     expect(within(screen.getByRole("region")).getByText("bob です")).toBeInTheDocument();
     expect(screen.queryByText("会話を選択")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "戻る" })).not.toBeInTheDocument();
+  });
+});
+
+describe("新しい会話", () => {
+  beforeEach(() => {
+    installDialogPolyfill();
+  });
+
+  function openDialog() {
+    return userEvent.click(screen.getByRole("button", { name: "新しいメッセージを送る" }));
+  }
+
+  function field() {
+    return within(screen.getByRole("dialog", { name: "新しいメッセージ" })).getByPlaceholderText(
+      "npub または hex",
+    );
+  }
+
+  function openButton() {
+    return screen.getByRole("button", { name: "開く" });
+  }
+
+  it("不正な入力（空・壊れた npub・nprofile・63 桁の hex）では「開く」を押せない", async () => {
+    renderAt("/messages", 400);
+    await openDialog();
+    expect(openButton()).toBeDisabled();
+    for (const value of ["npub1broken", nprofileEncode({ pubkey: ALICE }), "a".repeat(63), "not a key"]) {
+      await userEvent.clear(field());
+      await userEvent.type(field(), value);
+      expect(openButton()).toBeDisabled();
+    }
+  });
+
+  it("npub で /messages/npub1… を開く（まだ会話の無い相手は空の会話 + 入力欄）", async () => {
+    const router = renderAt("/messages", 400);
+    await openDialog();
+    await userEvent.type(field(), npubEncode(ALICE));
+    await userEvent.click(openButton());
+
+    expect(router.state.location.pathname).toBe(`/messages/${npubEncode(ALICE)}`);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "メッセージ" })).toBeInTheDocument();
+  });
+
+  it("hex（大文字も可）でも開ける。「キャンセル」で閉じる", async () => {
+    const router = renderAt("/messages", 1000);
+    await openDialog();
+    await userEvent.click(screen.getByRole("button", { name: "キャンセル" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await openDialog();
+    await userEvent.type(field(), ` ${BOB.toUpperCase()} `);
+    await userEvent.click(openButton());
+    expect(router.state.location.pathname).toBe(`/messages/${npubEncode(BOB)}`);
+  });
+
+  it("parsePeerInput: npub / 64 桁の hex だけ", () => {
+    expect(parsePeerInput(npubEncode(ALICE))).toBe(ALICE);
+    expect(parsePeerInput(ALICE.toUpperCase())).toBe(ALICE);
+    expect(parsePeerInput(nprofileEncode({ pubkey: ALICE }))).toBeNull();
+    expect(parsePeerInput("")).toBeNull();
   });
 });
 
