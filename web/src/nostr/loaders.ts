@@ -8,7 +8,7 @@ import { type NostrEvent, verifyEvent } from "nostr-tools/pure";
 import { useMemo } from "react";
 import { catchError, type Observable, of } from "rxjs";
 import { shortNpub } from "../lib/npub";
-import { pool, relays } from "./pool";
+import { pool, readRelays$ } from "./pool";
 import { eventStore, verifiedStoreActions } from "./store";
 
 /**
@@ -17,13 +17,13 @@ import { eventStore, verifiedStoreActions } from "./store";
  */
 export const addressLoader = createAddressLoader(pool, {
   eventStore: verifiedStoreActions,
-  extraRelays: [...relays],
+  extraRelays: readRelays$,
 });
 
 /** ID 指定のイベント（リポスト元など）のバッチローダ。e タグのリレーヒントにも問い合わせる */
 export const eventLoader = createEventLoader(pool, {
   eventStore: verifiedStoreActions,
-  extraRelays: [...relays],
+  extraRelays: readRelays$,
 });
 
 // EventStore に無いものを読みに行く口。profile() / event() がストアに無いとき 1 度だけ呼ばれる

@@ -1,14 +1,24 @@
 import type { Filter } from "applesauce-core/helpers/filter";
 import { normalizeURL } from "applesauce-core/helpers/url";
 import type { NostrEvent } from "nostr-tools/pure";
-import { catchError, concat, defer, EMPTY, ignoreElements, type Observable } from "rxjs";
+import { catchError, concat, defer, EMPTY, ignoreElements, type Observable, Subscription } from "rxjs";
 import { INDEXER_RELAYS, OUTBOX_MAX_AUTHORS } from "../lib/columnRequest";
-import { relays, requestOnce, subscribeTo } from "./pool";
+import { useSession } from "../signer/session";
+import {
+  applyRelayPrefs,
+  defaultRelays,
+  readRelays,
+  requestOnce,
+  resetRelays,
+  subscribeTo,
+  useRelays,
+} from "./pool";
 import { eventStore } from "./store";
 
 /**
- * NIP-65（kind:10002）の読み書きリレーと、著者の書き込みリレーへの追加購読（アウトボックス）。
- * ネイティブの model/Nip65.kt と EventRepository の subscribeAuthorOutbox / authorWriteRelays の写し。
+ * NIP-65（kind:10002）の読み書きリレーと、著者の書き込みリレーへの追加購読（アウトボックス）、
+ * 自分の kind:10002 からのリレー集合。ネイティブの model/Nip65.kt と EventRepository の
+ * subscribeAuthorOutbox / authorWriteRelays / applyRelayList の写し。
  */
 
 /** kind:10002 の r タグ 1 件 */
@@ -16,6 +26,8 @@ export type RelayPref = { url: string; read: boolean; write: boolean };
 
 /** 著者の kind:10002 が手元に無いとき、取りに行って待つ最大時間 */
 export const OUTBOX_RELAYLIST_WAIT_MS = 10_000;
+/** ログイン後に自分の kind:10002 を取りに行って待つ最大時間 */
+export const OWN_RELAYLIST_TIMEOUT_MS = 10_000;
 
 /**
  * kind:10002 の r タグ → リレーの読み書き（ネイティブ nip65PrefsFromTags）。
@@ -80,7 +92,7 @@ export function authorOutbox$(authors: readonly string[], filters: Filter[]): Ob
     const relayList$ =
       needs.length > 0
         ? requestOnce(
-            [...new Set([...INDEXER_RELAYS, ...relays])],
+            [...new Set([...INDEXER_RELAYS, ...readRelays()])],
             [{ kinds: [10002], authors: needs, limit: needs.length }],
             OUTBOX_RELAYLIST_WAIT_MS,
           ).pipe(
@@ -90,10 +102,62 @@ export function authorOutbox$(authors: readonly string[], filters: Filter[]): Ob
           )
         : EMPTY;
     const outbox$ = defer(() => {
-      const own = new Set(relays.map((url) => normalizeURL(url)));
+      const own = new Set(readRelays().map((url) => normalizeURL(url)));
       const targets = [...new Set(authors.flatMap(writeRelaysOf))].filter((url) => !own.has(url));
       return targets.length === 0 ? EMPTY : subscribeTo(targets, filters);
     });
     return concat(relayList$, outbox$);
   });
+}
+
+// ---- 自分の kind:10002 → リレー集合（ネイティブ applyRelayList） ----
+
+/**
+ * 自分の kind:10002 の読み書きをリレー集合（pool.ts の useRelays）に反映し続ける。
+ * インデクサと既定リレーへ 1 度取りに行き、手元の最新版（DB から戻した分・後から届いた分・設定で発行した分）を反映する。
+ * 取れなければ今の集合（既定）のまま。nostrism.relays があるときは何もしない（保存値が優先）。
+ */
+export function followOwnRelayList(me: string): Subscription {
+  const subscription = new Subscription();
+  if (useRelays.getState().source === "saved") return subscription;
+  subscription.add(
+    eventStore.timeline({ kinds: [10002], authors: [me] }).subscribe(([latest]) => {
+      if (latest) applyRelayPrefs(relayPrefsFromEvent(latest));
+    }),
+  );
+  subscription.add(
+    requestOnce(
+      [...new Set([...INDEXER_RELAYS, ...defaultRelays()])],
+      [{ kinds: [10002], authors: [me], limit: 1 }],
+      OWN_RELAYLIST_TIMEOUT_MS,
+    ).subscribe({
+      // どこからも届かなければ今の集合のまま
+      error: () => {},
+    }),
+  );
+  return subscription;
+}
+
+/**
+ * ログイン中のアカウントに合わせて followOwnRelayList を張り替える（起動時に 1 度）。
+ * ログアウト・アカウントの切り替えでは起動時の集合へ戻してから張り直す。戻り値は止める関数。
+ */
+export function startOwnRelayList(): () => void {
+  let current: { me: string; subscription: Subscription } | null = null;
+  const follow = (me: string | null) => {
+    if ((current?.me ?? null) === me) return;
+    if (current) {
+      current.subscription.unsubscribe();
+      current = null;
+      resetRelays();
+    }
+    if (me) current = { me, subscription: followOwnRelayList(me) };
+  };
+  follow(useSession.getState().pubkey);
+  const unsubscribe = useSession.subscribe((state) => follow(state.pubkey));
+  return () => {
+    unsubscribe();
+    current?.subscription.unsubscribe();
+    current = null;
+  };
 }

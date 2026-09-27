@@ -17,7 +17,7 @@ import { eventStore } from "./store";
 vi.mock("./pool", async () => {
   const { Subject } = await import("rxjs");
   return {
-    relays: ["wss://relay.example"],
+    readRelays: () => ["wss://relay.example"],
     subscribeTo: vi.fn(() => new Subject<"EOSE">()),
     requestOnce: vi.fn(() => new Subject<NostrEvent>()),
   };

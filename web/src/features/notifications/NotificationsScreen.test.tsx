@@ -11,9 +11,13 @@ import { NotificationsScreen } from "./NotificationsScreen";
 vi.mock("../../nostr/pool", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../nostr/pool")>();
   const { Subject } = await import("rxjs");
+  const RELAYS = ["wss://relay.example"];
   return {
     ...actual,
-    relays: ["wss://relay.example"],
+    readRelays: () => RELAYS,
+    writeRelays: () => RELAYS,
+    // 毎回同じ配列を返す（新しい配列だと購読の張り直しが止まらない）
+    useReadRelays: () => RELAYS,
     subscribe: vi.fn(() => new Subject<"EOSE">()),
     subscribeTo: vi.fn(() => new Subject<"EOSE">()),
     requestOnce: vi.fn(() => new Subject<NostrEvent>()),

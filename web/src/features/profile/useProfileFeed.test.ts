@@ -11,8 +11,9 @@ import { PROFILE_FEED_MAX, PROFILE_OPEN_TIMEOUT_MS, useProfileFeed } from "./use
 // リレーには繋がず、REQ ごとに Subject を返す（EOSE・完了はテストから流す）
 vi.mock("../../nostr/pool", async () => {
   const { Subject } = await import("rxjs");
+  const relays = ["wss://relay.example"];
   return {
-    relays: ["wss://relay.example"],
+    useReadRelays: () => relays,
     subscribeTo: vi.fn(() => new Subject<"EOSE">()),
     requestOnce: vi.fn(() => new Subject<NostrEvent>()),
   };

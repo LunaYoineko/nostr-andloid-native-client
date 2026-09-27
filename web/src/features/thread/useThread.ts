@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { map } from "rxjs";
 import { LOADING_TIMEOUT_MS } from "../../lib/columnRequest";
 import { useEventByPointer } from "../../nostr/loaders";
-import { relays, subscribeTo } from "../../nostr/pool";
+import { subscribeTo, useReadRelays } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
 import {
   anchorsKey,
@@ -48,13 +48,14 @@ export function useThread(pointer: EventPointer): Thread {
   const key = anchorsKey(latest);
   if (key !== anchorsKey(anchors)) setAnchors(latest);
 
-  // 設定リレー + URL のリレーヒント（wss:// のみ）。ヒントは中身で比べる
+  // read リレー + URL のリレーヒント（wss:// のみ）。ヒントは中身で比べる
+  const relays = useReadRelays();
   const hintKey = JSON.stringify(
     (pointer.relays ?? []).filter((url) => url.startsWith("wss://")).slice(0, MAX_HINT_RELAYS),
   );
   const threadRelays = useMemo(
     () => [...new Set([...relays, ...(JSON.parse(hintKey) as string[])])],
-    [hintKey],
+    [relays, hintKey],
   );
 
   const [loading, setLoading] = useState(true);
@@ -69,13 +70,13 @@ export function useThread(pointer: EventPointer): Thread {
     return () => sub.unsubscribe();
   }, [threadRelays, anchors]);
 
-  // 起点への反応の REQ（起点の id だけで決まるので張り直さない）
+  // 起点への反応の REQ（起点の id と read リレーで決まる）
   useEffect(() => {
     const sub = subscribeTo(relays, [
       { kinds: [7, 6, 16], "#e": [pointer.id], limit: ENGAGEMENT_LIMIT },
     ]).subscribe();
     return () => sub.unsubscribe();
-  }, [pointer.id]);
+  }, [relays, pointer.id]);
 
   const entries =
     use$(

@@ -9,7 +9,8 @@ import { FollowError, OWN_CONTACTS_TIMEOUT_MS, toggleFollow } from "./follow";
 
 // リレーには繋がない（自分の kind:3 の取り直しはテストごとに完了 / 失敗を返す）
 vi.mock("../../nostr/pool", () => ({
-  relays: ["wss://relay.example"],
+  readRelays: () => ["wss://relay.example"],
+  writeRelays: () => ["wss://relay.example"],
   requestOnce: vi.fn(),
 }));
 
