@@ -107,10 +107,12 @@ it("root から段を付けて並べ、起点の下に日時と反応を出す",
   expect(within(focusRow).getByText("リプライ 1 · リポスト 1 · リアクション 2")).toBeInTheDocument();
 
   const [repostRow, heartRow] = reactorRows(container);
-  expect(within(repostRow).getByText("1")).toBeInTheDocument();
+  // 件数はラベルで見る（画像の無いアバターは pubkey の頭文字を出すので、数字の 1 文字と重なりうる）
+  const countOf = (row: HTMLElement) => row.getElementsByClassName(reactorStyles.label)[0];
+  expect(countOf(repostRow)).toHaveTextContent(/^1$/);
   expect(within(repostRow).getAllByRole("link")).toHaveLength(1);
   expect(within(heartRow).getByText("❤️")).toBeInTheDocument();
-  expect(within(heartRow).getByText("2")).toBeInTheDocument();
+  expect(countOf(heartRow)).toHaveTextContent(/^2$/);
   expect(within(heartRow).getAllByRole("link")).toHaveLength(2);
   for (const link of within(heartRow).getAllByRole("link")) {
     expect(link.getAttribute("href")).toMatch(/^\/p\/npub1/);

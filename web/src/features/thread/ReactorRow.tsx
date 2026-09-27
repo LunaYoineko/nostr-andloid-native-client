@@ -39,10 +39,10 @@ export function ReactorRow({
 function ReactorAvatar({ pubkey }: { pubkey: string }) {
   const profile = useProfile(pubkey);
   const picture = pictureOf(profile);
-  const name = displayName(profile, pubkey);
+  const name = displayName(profile, pubkey, "npub");
   return (
     <Link className={styles.avatarLink} to={hrefForProfile(pubkey)} aria-label={name} title={name}>
-      <Avatar key={picture} url={picture} size="xs" />
+      <Avatar key={picture} url={picture} size="xs" seed={pubkey} />
     </Link>
   );
 }

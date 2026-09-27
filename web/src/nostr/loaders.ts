@@ -42,14 +42,19 @@ export function useProfile(pubkey: string | undefined): ProfileContent | undefin
 }
 
 /**
- * 表示名（display_name → name の順）。無ければ npub の短縮。
+ * 表示名（display_name → name の順）。無ければ hex の先頭 10 字（ネイティブの toNoteUi / profileFor と同じ）。
+ * fallback = "npub" は npub の短縮（ネイティブのリアクションした人の一覧・投稿画面と同じ）。
  * kind:0 の中身は任意の JSON なので、文字列でない値は無視する。
  */
-export function displayName(profile: ProfileContent | undefined, pubkey: string): string {
+export function displayName(
+  profile: ProfileContent | undefined,
+  pubkey: string,
+  fallback: "hex" | "npub" = "hex",
+): string {
   for (const value of [profile?.display_name, profile?.displayName, profile?.name]) {
     if (typeof value === "string" && value.trim() !== "") return value.trim();
   }
-  return shortNpub(pubkey);
+  return fallback === "npub" ? shortNpub(pubkey) : pubkey.slice(0, 10);
 }
 
 /** プロフィール画像の URL（文字列でなければ undefined） */

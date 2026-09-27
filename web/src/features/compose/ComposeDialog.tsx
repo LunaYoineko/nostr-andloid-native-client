@@ -242,7 +242,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
         <div className={styles.card}>
           <div className={styles.head}>
             {me !== null && <ProfileAvatar pubkey={me} size={22} />}
-            <span className={styles.name}>{me !== null ? displayName(profile, me) : "あなた"}</span>
+            <span className={styles.name}>{me !== null ? displayName(profile, me, "npub") : "あなた"}</span>
             <button
               type="button"
               className={styles.close}
@@ -477,10 +477,10 @@ function ReplyTargetLine({ target }: { target: NostrEvent }) {
   return (
     <p className={styles.replyLine}>
       <ReplyIcon className={styles.replyIcon} />
-      <Avatar key={picture} url={picture} size="sm" />
+      <Avatar key={picture} url={picture} size="sm" seed={target.pubkey} />
       <span
         className={styles.replyText}
-      >{`${displayName(profile, target.pubkey)}: ${oneLine(target.content)}`}</span>
+      >{`${displayName(profile, target.pubkey, "npub")}: ${oneLine(target.content)}`}</span>
     </p>
   );
 }
@@ -493,7 +493,7 @@ function QuoteContextCard({ target }: { target: NostrEvent }) {
       <p className={styles.quoteLabel}>引用元</p>
       <div className={styles.quoteAuthor}>
         <ProfileAvatar pubkey={target.pubkey} size={28} />
-        <span className={styles.quoteName}>{displayName(profile, target.pubkey)}</span>
+        <span className={styles.quoteName}>{displayName(profile, target.pubkey, "npub")}</span>
       </div>
       <div className={styles.quoteBody}>
         <NoteContent event={target} variant="quote" />

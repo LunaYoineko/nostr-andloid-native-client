@@ -5,7 +5,7 @@ import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from 
 import type { ReactElement } from "react";
 import { useLocation } from "react-router";
 import { expect, it, vi } from "vitest";
-import { shortNpub } from "../../lib/npub";
+import { avatarShade } from "../../lib/avatar";
 import { unixNow } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { renderWithRouter } from "../../test/renderWithRouter";
@@ -252,9 +252,9 @@ it("画像 URL 2 本だけの投稿は本文を出さず、2 列のグリッド�
   });
   const { container } = renderWithRouter(<NoteItem event={event} />);
 
-  // 記事の文字は 名前・時刻だけ（本文も折りたたみのトグルも無い）
-  const name = shortNpub(getPublicKey(key));
-  expect(container.querySelector("article")?.textContent).toBe(`${name}now`);
+  // 記事の文字は アバターの頭文字・名前（hex の先頭 10 字）・時刻だけ（本文も折りたたみのトグルも無い）
+  const name = getPublicKey(key).slice(0, 10);
+  expect(container.querySelector("article")?.textContent).toBe(`${name[0].toUpperCase()}${name}now`);
   const grid = container.getElementsByClassName(gridStyles.cols2)[0];
   const images = grid.querySelectorAll("img");
   expect(images).toHaveLength(2);
@@ -477,4 +477,68 @@ it("embedded（通知の本体）は返信先の 1 行と下線を出さない�
   const article = container.querySelector("article");
   expect(article).not.toHaveClass(noteStyles.note);
   expect(article).toHaveClass(noteStyles.embedded);
+});
+
+it("画像の無いアバターは名前の頭文字を、名前から決めたグレーの丸に出す（ネイティブの Avatar）", () => {
+  const key = withProfile({ name: "alice" });
+  const { container } = renderWithRouter(<NoteItem event={post("頭文字", { key })} />);
+
+  const avatar = container.getElementsByClassName(noteStyles.initial)[0] as HTMLElement;
+  expect(avatar).toHaveTextContent(/^A$/);
+  expect(avatar.style.background).toBe(avatarShade("alice"));
+});
+
+it("アバターの画像がプロキシでも元 URL でも読めなければ頭文字に替える", () => {
+  const key = withProfile({ name: "bob", picture: "https://avatar-broken.test/bob.png" });
+  const { container } = renderWithRouter(<NoteItem event={post("読めない画像", { key })} />);
+
+  const avatarOf = () => container.querySelector("article a[aria-hidden] > *") as HTMLElement;
+  fireEvent.error(avatarOf());
+  expect(avatarOf()).toHaveAttribute("src", "https://avatar-broken.test/bob.png");
+  fireEvent.error(avatarOf());
+  expect(avatarOf()).toHaveTextContent(/^B$/);
+});
+
+it("プロフィールの無い人の名前は hex の先頭 10 字（ネイティブの toNoteUi）", () => {
+  const key = generateSecretKey();
+  renderWithRouter(<NoteItem event={post("名無し", { key })} />);
+  expect(screen.getByRole("link", { name: getPublicKey(key).slice(0, 10) })).toBeInTheDocument();
+});
+
+it("kind:6 の元投稿が 8 秒で取れなければ行ごと隠し、後から届けば出す（作り直しても隠したまま）", () => {
+  vi.useFakeTimers();
+  try {
+    const original = post("遅れて届く元投稿");
+    const repost = finalizeEvent(
+      { kind: 6, created_at: unixNow(), tags: [["e", original.id]], content: "" },
+      generateSecretKey(),
+    );
+    const first = renderWithRouter(<NoteItem event={repost} />);
+    expect(screen.getByText("元の投稿を読み込み中…")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(7_999);
+    });
+    expect(screen.getByText("元の投稿を読み込み中…")).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByText("元の投稿を読み込み中…")).toBeNull();
+    expect(first.container.querySelector("article")).toBeNull();
+    expect(first.container.getElementsByClassName(noteStyles.hiddenRow)).toHaveLength(1);
+    first.unmount();
+
+    // 仮想リストで作り直されても「読み込み中…」から始めない
+    const again = renderWithRouter(<NoteItem event={repost} />);
+    expect(screen.queryByText("元の投稿を読み込み中…")).toBeNull();
+
+    act(() => {
+      eventStore.add(original);
+    });
+    expect(screen.getByText("遅れて届く元投稿")).toBeInTheDocument();
+    expect(again.container.querySelector("article")).not.toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
 });

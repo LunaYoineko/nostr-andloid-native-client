@@ -1,7 +1,8 @@
 import { getSeenRelays } from "applesauce-core/helpers/relays";
 import type { NostrEvent } from "nostr-tools/pure";
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import { avatarInitial, avatarShade } from "../../lib/avatar";
 import { hrefForEvent, hrefForProfile } from "../../lib/content/labels";
 import { isBlankContent, parseNoteContent, withoutLinks, withoutMention } from "../../lib/content/parse";
 import { clientNameOf, contentWarningOf, quotePointerOf } from "../../lib/content/tags";
@@ -26,6 +27,15 @@ import { useOpenOnClick } from "./useOpenOnClick";
 
 /** アバターのプロキシ幅（表示 38px の約 2.5 倍。リポストヘッダの 16px でも同じ URL を使いキャッシュを共有する） */
 const AVATAR_PROXY_WIDTH = 96;
+
+/**
+ * リポスト元を待つ時間。過ぎても取れなければ行ごと隠す
+ * （ネイティブは未取得の間は行を出さない。待ち時間の値はネイティブに無い）
+ */
+const REPOST_WAIT_MS = 8_000;
+
+/** 待ちきれずに隠したリポストの id（仮想リストで作り直されたとき、また「読み込み中…」から始めない） */
+const gaveUpReposts = new Set<string>();
 
 /**
  * タイムラインの 1 件（ネイティブの NoteItem.kt）。返信先の 1 行・アバター・表示名・NIP-05・相対時刻・本文・引用カード。
@@ -72,6 +82,18 @@ function RepostItem({ repost, openable }: { repost: NostrEvent; openable: boolea
   // 開く先は元投稿（未解決の間は開かない）
   const href = openable && original ? threadHrefOf(original) : null;
   useOpenOnClick(ref, href);
+  const [gaveUp, setGaveUp] = useState(() => gaveUpReposts.has(repost.id));
+  const waiting = original === undefined && !gaveUp;
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setTimeout(() => {
+      gaveUpReposts.add(repost.id);
+      setGaveUp(true);
+    }, REPOST_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [waiting, repost.id]);
+  // 取れないまま待ち時間が過ぎたら隠す（仮想リストは高さ 0 の行を扱えないので 1px の空行）。後から届けば出す
+  if (!original && gaveUp) return <div className={styles.hiddenRow} aria-hidden="true" />;
   return (
     <article ref={ref} className={href ? `${styles.note} ${styles.openable}` : styles.note}>
       <RepostHeader reposter={repost.pubkey} />
@@ -105,6 +127,7 @@ function NoteBody({
 }) {
   const profile = useProfile(event.pubkey);
   const picture = pictureOf(profile);
+  const name = displayName(profile, event.pubkey);
   const nip05 =
     typeof profile?.nip05 === "string" && profile.nip05.trim() !== "" ? profile.nip05.trim() : null;
   const profileHref = hrefForProfile(event.pubkey);
@@ -133,13 +156,13 @@ function NoteBody({
       <div className={styles.row}>
         {/* 名前と同じリンク先なので、読み上げ・タブ移動は名前の方だけにする */}
         <Link className={styles.avatarLink} to={profileHref} tabIndex={-1} aria-hidden="true">
-          <Avatar key={picture} url={picture} size="md" />
+          <Avatar key={picture} url={picture} size="md" seed={name} />
         </Link>
         <div className={styles.main}>
           <div className={styles.meta}>
             <span className={styles.author}>
               <Link className={styles.name} to={profileHref}>
-                {displayName(profile, event.pubkey)}
+                {name}
               </Link>
               {nip05 && <span className={styles.handle}>{nip05}</span>}
             </span>
@@ -222,12 +245,23 @@ function avatarSrc(url: string | undefined, width: number): string | null {
 
 /**
  * アバター。プロキシが読めなければ元 URL（https のみ）で 1 度だけ取り直し、そのホストを拒否として学習する。
+ * 画像が無い・読めないときは seed（ネイティブと同じく名前か pubkey）の頭文字をグレーの丸に出す。
  * url が変わったら呼び出し側の key で作り直す。
  */
-export function Avatar({ url, size }: { url: string | undefined; size: AvatarSize }) {
+export function Avatar({ url, size, seed }: { url: string | undefined; size: AvatarSize; seed: string }) {
   const [src, setSrc] = useState(() => avatarSrc(url, AVATAR_PROXY[size]));
   const className = AVATAR_CLASS[size];
-  if (!src) return <span className={className} aria-hidden="true" />;
+  if (!src) {
+    return (
+      <span
+        className={`${className} ${styles.initial}`}
+        style={{ background: avatarShade(seed) }}
+        aria-hidden="true"
+      >
+        {avatarInitial(seed)}
+      </span>
+    );
+  }
 
   function onError() {
     const origin = originOf(src);

@@ -15,7 +15,7 @@ export function RepostHeader({ reposter }: { reposter: string }) {
   return (
     <p className={styles.repostHeader}>
       <RepeatIcon className={styles.repostIcon} />
-      <Avatar key={picture} url={picture} size="sm" />
+      <Avatar key={picture} url={picture} size="sm" seed={reposter} />
       <Link className={styles.repostName} to={hrefForProfile(reposter)}>
         {displayName(profile, reposter)}
       </Link>

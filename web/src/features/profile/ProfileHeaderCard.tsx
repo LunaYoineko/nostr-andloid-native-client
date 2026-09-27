@@ -86,6 +86,7 @@ export function ProfileHeaderCard({
   const profile = useProfile(pubkey);
   const profileEvent = use$(() => eventStore.replaceable(0, pubkey), [pubkey]);
   const picture = pictureOf(profile);
+  const name = displayName(profile, pubkey);
   const zoomablePicture = picture && WEB_URL.test(picture.trim()) ? picture.trim() : null;
   const banner = textOf(profile?.banner);
   const nip05 = textOf(profile?.nip05);
@@ -129,11 +130,11 @@ export function ProfileHeaderCard({
             aria-label="画像を表示"
             onClick={() => setZoom(zoomablePicture)}
           >
-            <Avatar key={picture} url={picture} size="xxl" />
+            <Avatar key={picture} url={picture} size="xxl" seed={name} />
           </button>
         ) : (
           <div className={styles.ring}>
-            <Avatar key={picture} url={picture} size="xxl" />
+            <Avatar key={picture} url={picture} size="xxl" seed={name} />
           </div>
         )}
         <div className={styles.actions}>
@@ -158,7 +159,7 @@ export function ProfileHeaderCard({
           </p>
         )}
         <div className={styles.nameRow}>
-          <h2 className={styles.name}>{displayName(profile, pubkey)}</h2>
+          <h2 className={styles.name}>{name}</h2>
           {followsMe && <span className={styles.badge}>フォローされています</span>}
         </div>
         {nip05 && (

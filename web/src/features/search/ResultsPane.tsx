@@ -3,7 +3,6 @@ import { Link } from "react-router";
 import { Virtuoso } from "react-virtuoso";
 import { buildSearchColumn } from "../../lib/columns";
 import { hrefForProfile, oneLine } from "../../lib/content/labels";
-import { shortNpub } from "../../lib/npub";
 import { unixNow } from "../../lib/time";
 import { useDeck } from "../../store/deck";
 import { useColumnFeed } from "../deck/useColumnFeed";
@@ -112,9 +111,9 @@ function StateView({ loading, emptyText }: { loading: boolean; emptyText: string
 function UserRow({ hit }: { hit: UserHit }) {
   return (
     <Link to={hrefForProfile(hit.pubkey)} className={styles.user}>
-      <Avatar key={hit.picture} url={hit.picture} size="lg" />
+      <Avatar key={hit.picture} url={hit.picture} size="lg" seed={hit.name || hit.pubkey} />
       <span className={styles.userTexts}>
-        <span className={styles.userName}>{hit.name || shortNpub(hit.pubkey)}</span>
+        <span className={styles.userName}>{hit.name || hit.pubkey.slice(0, 10)}</span>
         {hit.handle && <span className={styles.userHandle}>{hit.handle}</span>}
         {hit.about && <span className={styles.userAbout}>{oneLine(hit.about)}</span>}
       </span>
