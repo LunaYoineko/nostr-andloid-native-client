@@ -1,3 +1,4 @@
+import { act, renderHook } from "@testing-library/react";
 import type { PublishResponse } from "applesauce-relay/types";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import { nsecEncode } from "nostr-tools/nip19";
@@ -17,6 +18,7 @@ import { createTestSigner } from "../test/fakeSigner";
 import { connections$, pool, type RelayConnections } from "./pool";
 import {
   discardUnsent,
+  enqueueSigned,
   isAccepted,
   PublishError,
   publishEvent,
@@ -28,6 +30,7 @@ import {
   startPublishQueue,
   unconfirmed$,
   unsent$,
+  useIsUnsent,
   withClientTag,
 } from "./publish";
 import type { Signer } from "./signer";
@@ -409,5 +412,107 @@ describe("再送", () => {
     expect(eventStore.getEvent(signed.id)).toBeUndefined();
     expect(await database.publishQueue.get(signed.id)).toBeUndefined();
     expect(discardUnsent(signed.id)).toBeNull();
+  });
+});
+
+describe("enqueueSigned（DM の gift wrap）", () => {
+  /** 使い捨て鍵で署名した gift wrap の代わり（payload.pubkey は自分ではない） */
+  function wrapEvent(content = "wrap"): NostrEvent {
+    return finalizeEvent(
+      { kind: 1059, created_at: 1_700_000_000, tags: [["p", me]], content },
+      generateSecretKey(),
+    );
+  }
+
+  it("EventStore に入れず、owner・relays・refId 付きで積んで relays へ送る。refId で未送信・再送を引ける", async () => {
+    const database = await openDb();
+    await startPublishQueue({ database });
+    const wrap = wrapEvent();
+
+    await enqueueSigned(wrap, { relays: ["wss://dm"], refId: "rumor-1", notify: true });
+
+    expect(eventStore.getEvent(wrap.id)).toBeUndefined();
+    expect(await database.publishQueue.get(wrap.id)).toMatchObject({
+      eventId: wrap.id,
+      payload: { id: wrap.id, pubkey: wrap.pubkey, created_at: wrap.created_at, sig: wrap.sig },
+      createdAt: Math.floor(Date.now() / 1000),
+      attempts: 0,
+      relays: ["wss://dm"],
+      refId: "rumor-1",
+      owner: me,
+    });
+    expect(sends.map((s) => [s.relays, s.event.id])).toEqual([[["wss://dm"], wrap.id]]);
+
+    const { result } = renderHook(() => useIsUnsent("rumor-1"));
+    expect(result.current).toBe(false);
+    act(() => vi.advanceTimersByTime(10_000));
+    expect(result.current).toBe(true);
+    expect(unsentHas(wrap.id)).toBe(false);
+    expect(notices).toBe(1);
+
+    retryUnsentNow("rumor-1");
+    expect(sends.map((s) => s.event.id)).toEqual([wrap.id, wrap.id]);
+  });
+
+  it("notify: false は受理を確認できなくてもトーストを出さない", async () => {
+    await startPublishQueue({ database: null });
+    await enqueueSigned(wrapEvent(), { relays: ["wss://dm"], refId: null, notify: false });
+    vi.advanceTimersByTime(10_000);
+    expect(notices).toBe(0);
+  });
+
+  it("retryUnsent の対象（payload.pubkey が自分でなくても）。setPublishAccount(me) では消えず、別アカウントで消える", async () => {
+    const database = await openDb();
+    await startPublishQueue({ database });
+    const wrap = wrapEvent();
+    await enqueueSigned(wrap, { relays: ["wss://dm"], refId: "rumor-2", notify: false });
+    vi.advanceTimersByTime(10_000);
+    expect(unsentHas("rumor-2")).toBe(true);
+
+    setPublishAccount(me);
+    expect(sends.map((s) => s.event.id)).toEqual([wrap.id, wrap.id]);
+    expect(sends[1].relays).toEqual(["wss://dm"]);
+    expect(unsentHas("rumor-2")).toBe(true);
+
+    setPublishAccount(getPublicKey(generateSecretKey()));
+    expect(unsentHas("rumor-2")).toBe(false);
+    expect(await database.publishQueue.get(wrap.id)).toBeUndefined();
+  });
+
+  it("再起動（startPublishQueue）で復元して送り直す。EventStore には入れない。他のアカウントが積んだ行は消す", async () => {
+    const mine = wrapEvent("mine");
+    const others = wrapEvent("others");
+    const database = await openDb();
+    await database.publishQueue.bulkPut([
+      { ...rowOf(mine, 0), relays: ["wss://dm"], refId: "rumor-3", owner: me },
+      { ...rowOf(others, 1), relays: ["wss://dm"], refId: null, owner: getPublicKey(generateSecretKey()) },
+    ]);
+    setPublishAccount(me);
+    await startPublishQueue({ database });
+
+    expect(eventStore.getEvent(mine.id)).toBeUndefined();
+    expect(eventStore.getEvent(others.id)).toBeUndefined();
+    expect(await database.publishQueue.get(mine.id)).toMatchObject({ attempts: 1, owner: me });
+    expect(await database.publishQueue.get(others.id)).toBeUndefined();
+    expect(unsentHas("rumor-3")).toBe(true);
+    expect(sends.map((s) => [s.relays, s.event.id])).toEqual([[["wss://dm"], mine.id]]);
+  });
+
+  it("relays が空なら TypeError、未ログインなら no-signer、署名が壊れていれば sign-failed。どれも積まない", async () => {
+    await startPublishQueue({ database: null });
+    const wrap = wrapEvent();
+    await expect(enqueueSigned(wrap, { relays: [], refId: null, notify: true })).rejects.toBeInstanceOf(
+      TypeError,
+    );
+    // 検証済みの印（シンボル）を持ち越さないよう JSON を経由する
+    const forged: NostrEvent = { ...JSON.parse(JSON.stringify(wrapEvent())), content: "changed" };
+    await expect(
+      enqueueSigned(forged, { relays: ["wss://dm"], refId: null, notify: true }),
+    ).rejects.toMatchObject({ name: "PublishError", reason: "sign-failed" });
+    useSession.setState({ status: "out", method: null, pubkey: null });
+    await expect(
+      enqueueSigned(wrap, { relays: ["wss://dm"], refId: null, notify: true }),
+    ).rejects.toMatchObject({ name: "PublishError", reason: "no-signer" });
+    expect(pool.event).not.toHaveBeenCalled();
   });
 });

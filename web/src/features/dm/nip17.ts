@@ -1,7 +1,18 @@
-import { getEventHash, type NostrEvent, verifyEvent } from "nostr-tools/pure";
+import { encrypt, getConversationKey } from "nostr-tools/nip44";
+import {
+  finalizeEvent,
+  generateSecretKey,
+  getEventHash,
+  type NostrEvent,
+  verifyEvent,
+} from "nostr-tools/pure";
 import type { DmMessageRow } from "../../db/schema";
+import { unixNow } from "../../lib/time";
 import type { Signer } from "../../nostr/signer";
 import { VaultError } from "../../signer/webKeyVault";
+
+/** seal / gift wrap の created_at を過去へずらす幅（直近 2 日。NIP-17・ネイティブ sendDmNow） */
+export const WRAP_TIME_SPREAD_SEC = 2 * 24 * 3600;
 
 /** gift wrap の中身（kind:14。署名は無い） */
 export type Rumor = {
@@ -144,4 +155,49 @@ export function dmFromRumor(rumor: Rumor, me: string): Omit<DmMessageRow, "owner
     tags: rumor.tags,
     createdAt: rumor.created_at,
   };
+}
+
+/** 送る rumor（kind:14、宛先 p は相手 1 人。署名は無く id は計算する） */
+export function buildRumor(me: string, peer: string, text: string, now: number): Rumor {
+  const rumor = { pubkey: me, created_at: now, kind: 14, tags: [["p", peer]], content: text };
+  return { id: getEventHash(rumor), ...rumor };
+}
+
+/**
+ * rumor を自分の鍵の seal（kind:13）で包み、target 宛ての gift wrap（kind:1059、使い捨て鍵で署名）にする
+ * （ネイティブ Nip17.wrap）。seal / wrap の created_at は now から直近 2 日の範囲でずらす。
+ * 署名者が NIP-44 を使えない・seal の署名が自分でないときは例外（中身・鍵はメッセージに入れない）。
+ */
+export async function wrapGiftWrap(
+  signer: Signer,
+  rumor: Rumor,
+  target: string,
+  opts: { now?: number; random?: () => number } = {},
+): Promise<NostrEvent> {
+  const cipher = signer.nip44;
+  if (!cipher) throw new Error("署名者が NIP-44 に対応していない");
+  const now = opts.now ?? unixNow();
+  const random = opts.random ?? Math.random;
+  const past = () => now - Math.floor(random() * WRAP_TIME_SPREAD_SEC);
+
+  const { id, pubkey, created_at, kind, tags, content } = rumor;
+  const sealContent = await cipher.encrypt(
+    target,
+    JSON.stringify({ id, pubkey, created_at, kind, tags, content }),
+  );
+  const seal = await signer.signEvent({ kind: 13, content: sealContent, tags: [], created_at: past() });
+  if (seal.pubkey !== rumor.pubkey || !verifyEvent(seal)) throw new Error("seal の署名が不正");
+
+  const sk = generateSecretKey();
+  let ck: Uint8Array | null = null;
+  try {
+    ck = getConversationKey(sk, target);
+    return finalizeEvent(
+      { kind: 1059, tags: [["p", target]], content: encrypt(JSON.stringify(seal), ck), created_at: past() },
+      sk,
+    );
+  } finally {
+    sk.fill(0);
+    ck?.fill(0);
+  }
 }

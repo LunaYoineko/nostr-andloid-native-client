@@ -32,6 +32,8 @@ export type PublishQueueRow = {
   relays: string[] | null;
   /** 画面上の行の id（DM は rumor id）。null = eventId そのもの */
   refId: string | null;
+  /** 積んだアカウント（DM の gift wrap は使い捨て鍵で署名するので payload.pubkey と違う）。無い行は payload.pubkey */
+  owner?: string;
 };
 
 /** 鍵の保管。列は #462 が決める（id は "local" 固定の想定） */

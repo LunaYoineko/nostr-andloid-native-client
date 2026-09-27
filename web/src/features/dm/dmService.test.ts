@@ -5,7 +5,7 @@ import * as nip44 from "nostr-tools/nip44";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import { EMPTY, type Observable, Subject } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import { createDatabase, type NostrismDb } from "../../db/schema";
+import { createDatabase, type DmMessageRow, type NostrismDb } from "../../db/schema";
 import { requestOnce, subscribeUnstored } from "../../nostr/pool";
 import type { Signer } from "../../nostr/signer";
 import { addVerified, eventStore } from "../../nostr/store";
@@ -14,7 +14,7 @@ import { VaultError } from "../../signer/webKeyVault";
 import { createCipherSigner } from "../../test/cipherSigner";
 import { giftWrap, makeRumor, makeWrap } from "../../test/giftWrap";
 import { useDmSeen } from "./dmSeen";
-import { resumeDecrypting, startDecrypting, startDm } from "./dmService";
+import { recordSentDm, removeSentDm, resumeDecrypting, startDecrypting, startDm } from "./dmService";
 import { conversationsOf, useDm } from "./dmStore";
 
 // リレーには繋がない（購読はテストから流す）
@@ -403,5 +403,57 @@ describe("ログアウト・アカウントの切り替え", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(await database.dmProcessed.count()).toBe(1);
     expect(vi.mocked(subscribeUnstored)).not.toHaveBeenCalled();
+  });
+});
+
+describe("送信の記録（recordSentDm / removeSentDm）", () => {
+  function sentRow(content: string): { row: DmMessageRow; echo: NostrEvent } {
+    const rumor = makeRumor(myKey, { content, tags: [["p", ALICE]] });
+    const row: DmMessageRow = {
+      owner: me,
+      id: rumor.id,
+      peer: ALICE,
+      sender: me,
+      content,
+      tags: rumor.tags,
+      createdAt: rumor.created_at,
+      proto: "nip17",
+    };
+    return { row, echo: giftWrap(rumor, myKey, me) };
+  }
+
+  it("送った DM を出して保存し、送った gift wrap（自分宛ての控え）は返ってきても復号しない。取り消すと消える", async () => {
+    const database = await openDb();
+    login("local");
+    start(database);
+    await subscribed();
+    const { row, echo } = sentRow("sent");
+
+    await recordSentDm(row, [echo.id]);
+    expect(useDm.getState().messages[row.id]).toEqual(row);
+    expect(await database.dmMessages.get([me, row.id])).toEqual(row);
+    expect(await database.dmProcessed.get([me, echo.id])).toEqual({ owner: me, eventId: echo.id, ok: true });
+
+    // 控えの後に届いた相手の DM が出た時点で、控えは署名者を呼んでいない（順に処理する）
+    feed.next(echo);
+    feed.next(wrapFromAlice("after"));
+    await vi.waitFor(() => expect(contents()).toEqual(["after", "sent"]));
+    expect(decrypt44).toHaveBeenCalledTimes(2);
+
+    await removeSentDm(me, row.id);
+    expect(useDm.getState().messages[row.id]).toBeUndefined();
+    expect(await database.dmMessages.get([me, row.id])).toBeUndefined();
+  });
+
+  it("別のアカウント（ログアウト・切り替えの後）の行は記録しない", async () => {
+    const database = await openDb();
+    login("local");
+    start(database);
+    await subscribed();
+    const { row, echo } = sentRow("other");
+
+    await recordSentDm({ ...row, owner: ALICE }, [echo.id]);
+    expect(contents()).toEqual([]);
+    expect(await database.dmMessages.count()).toBe(0);
   });
 });

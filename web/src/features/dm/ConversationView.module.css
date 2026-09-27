@@ -171,3 +171,82 @@
   font-size: var(--type-micro);
   line-height: var(--line-desc);
 }
+
+/* NoteFooter の「未送信」と同じ */
+.unsent {
+  margin-top: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--warn);
+  font: inherit;
+  font-size: var(--type-label);
+  font-weight: var(--w-name);
+  cursor: pointer;
+}
+
+/* 入力欄（下端に固定。会話のスクロールとは別） */
+.composer {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.input {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-sm);
+  max-height: calc(var(--line-body) * 6 + var(--sp-2) * 2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  resize: none;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-body);
+  line-height: var(--line-body);
+  field-sizing: content;
+}
+
+.input:disabled {
+  color: var(--text-3);
+}
+
+/* ComposeDialog の「投稿」と同じ */
+.send {
+  flex: none;
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-4);
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: var(--type-body);
+  font-weight: var(--w-strong);
+  cursor: pointer;
+}
+
+.send:disabled {
+  background: var(--surface-3);
+  color: var(--text-3);
+  cursor: default;
+}
+
+.cannotSend {
+  flex: none;
+  margin: 0;
+  padding: var(--sp-3);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: var(--type-sub);
+  text-align: center;
+}
