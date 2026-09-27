@@ -8,9 +8,9 @@ import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { extractMedia } from "../../lib/media";
 import { relativeTime } from "../../lib/time";
 import { displayName, pictureOf, useEventByPointer, useProfile, useRepostedEvent } from "../../nostr/loaders";
+import { NoteMedia } from "../media/NoteMedia";
 import { CollapsibleContent } from "./CollapsibleContent";
 import { ContentWarning } from "./ContentWarning";
-import { MediaLinks } from "./MediaLinks";
 import { NoteContent } from "./NoteContent";
 import styles from "./NoteItem.module.css";
 import { QuoteCard } from "./QuoteCard";
@@ -94,7 +94,7 @@ function NoteBody({ event }: { event: NostrEvent }) {
                 </CollapsibleContent>
               )}
               {quote && <QuoteCard pointer={quote.pointer} encoded={quote.encoded} />}
-              {hasMedia && <MediaLinks media={media} />}
+              {hasMedia && <NoteMedia media={media} />}
             </>
           )}
         </div>

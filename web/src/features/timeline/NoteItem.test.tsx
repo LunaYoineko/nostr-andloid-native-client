@@ -7,6 +7,7 @@ import { shortNpub } from "../../lib/npub";
 import { unixNow } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { renderWithRouter } from "../../test/renderWithRouter";
+import gridStyles from "../media/ImageGrid.module.css";
 import { NoteItem } from "./NoteItem";
 
 // applesauce の Tokens.link はホストにドットを要求するため、テストの URL は *.test にする
@@ -233,15 +234,28 @@ it("相対時刻は時間が経つと進む", () => {
   }
 });
 
-it("画像だけの投稿は本文を出さず、暫定のリンクを 1 つ出す", () => {
+it("画像 URL 2 本だけの投稿は本文を出さず、2 列のグリッドに並べる（URL のリンクは出さない）", () => {
   const key = generateSecretKey();
-  const { container } = renderWithRouter(<NoteItem event={post("https://i.test/only.jpg", { key })} />);
+  const urls = ["https://i.test/1.jpg", "https://i.test/2.png"];
+  const event = post(urls.join("\n"), {
+    key,
+    tags: [
+      ["imeta", `url ${urls[0]}`, "dim 1920x1080", "alt 一枚目"],
+      ["imeta", `url ${urls[1]}`, "dim 800x600"],
+    ],
+  });
+  const { container } = renderWithRouter(<NoteItem event={event} />);
 
-  const links = screen.getAllByRole("link", { name: "https://i.test/only.jpg" });
-  expect(links).toHaveLength(1);
-  expect(links[0]).toHaveAttribute("href", "https://i.test/only.jpg");
-  // 記事の文字は 名前・時刻・暫定リンクだけ（本文も折りたたみのトグルも無い）
+  // 記事の文字は 名前・時刻だけ（本文も折りたたみのトグルも無い）
   const name = shortNpub(getPublicKey(key));
-  expect(container.querySelector("article")?.textContent).toBe(`${name}nowhttps://i.test/only.jpg`);
-  expect(screen.queryByRole("button")).toBeNull();
+  expect(container.querySelector("article")?.textContent).toBe(`${name}now`);
+  const grid = container.getElementsByClassName(gridStyles.cols2)[0];
+  const images = grid.querySelectorAll("img");
+  expect(images).toHaveLength(2);
+  expect(images[0]).toHaveAttribute("alt", "一枚目");
+  expect(screen.getAllByRole("button", { name: /^画像 \d \/ 2 を拡大$/ })).toHaveLength(2);
+  for (const url of urls) {
+    expect(screen.queryByRole("link", { name: url })).toBeNull();
+    expect(container.querySelector(`a[href="${url}"]`)).toBeNull();
+  }
 });

@@ -42,6 +42,7 @@
     "applesauce-react": "^6.0.0",
     "applesauce-relay": "^6.2.1",
     "applesauce-signers": "^6.2.2",
+    "blurhash": "^2.0.5",
     "dexie": "^4.4.6",
     "nostr-tools": "~2.19",
     "react-router": "^8.4.0",
