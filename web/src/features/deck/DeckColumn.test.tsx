@@ -123,6 +123,8 @@ it("DM カラムは会話の一覧を出し、購読しない。表示したら�
 
   await user.click(screen.getByRole("button", { name: /こんにちは/ }));
   expect(router.state.location.pathname).toBe(`/messages/${npubEncode(OTHER_PUBKEY)}`);
+  // 履歴に積む（戻るでデッキへ）
+  expect(router.state.historyAction).toBe("PUSH");
 });
 
 it("同期で入ってきた DM カラム（ネイティブの JSON）も会話の一覧になる", () => {

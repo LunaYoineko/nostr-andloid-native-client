@@ -62,8 +62,8 @@ function DmColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean 
       <div className={`${styles.body} ${styles.scroll}`}>
         <ConversationList
           selectedPeer={null}
-          // 宛先の切り替えなので置き換える（ネイティブの「宛先の切替は戻る対象ではない」）
-          onSelect={(peer) => void navigate(`/messages/${npubEncode(peer)}`, { replace: true })}
+          // カラムから会話を開くのは詳細を開くのと同じ扱い（履歴に積む）。戻るでデッキに戻れるように
+          onSelect={(peer) => void navigate(`/messages/${npubEncode(peer)}`)}
           showBanners={false}
         />
       </div>
