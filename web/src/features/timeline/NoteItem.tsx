@@ -3,7 +3,7 @@ import type { NostrEvent } from "nostr-tools/pure";
 import { memo, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { hrefForEvent, hrefForProfile } from "../../lib/content/labels";
-import { isBlankContent, parseNoteContent, withoutMention } from "../../lib/content/parse";
+import { isBlankContent, parseNoteContent, withoutLinks, withoutMention } from "../../lib/content/parse";
 import { clientNameOf, contentWarningOf, quotePointerOf } from "../../lib/content/tags";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { extractMedia } from "../../lib/media";
@@ -11,6 +11,8 @@ import { relativeTime } from "../../lib/time";
 import { displayName, pictureOf, useEventByPointer, useProfile, useRepostedEvent } from "../../nostr/loaders";
 import { NoteActionButtons } from "../actions/NoteActionButtons";
 import { NoteFooter } from "../compose/NoteFooter";
+import { LinkCards } from "../linkcard/LinkCard";
+import { useLinkCards } from "../linkcard/useLinkCards";
 import { NoteMedia } from "../media/NoteMedia";
 import { CollapsibleContent } from "./CollapsibleContent";
 import { ContentWarning } from "./ContentWarning";
@@ -95,9 +97,12 @@ function NoteBody({ event, threadHref }: { event: NostrEvent; threadHref: string
   const quote = useMemo(() => quotePointerOf(event), [event]);
   const quoted = useEventByPointer(quote?.pointer ?? null);
   const hideMention = quoted ? (quote?.encoded ?? null) : null;
+  // リンクも同じく、カードに出せたものだけ本文から消す（取得中・取れなかったものはリンクのまま）
+  const linkCards = useLinkCards(event, warning === null || revealed);
   const hasText = useMemo(
-    () => !isBlankContent(withoutMention(parseNoteContent(event), hideMention)),
-    [event, hideMention],
+    () =>
+      !isBlankContent(withoutLinks(withoutMention(parseNoteContent(event), hideMention), linkCards.carded)),
+    [event, hideMention, linkCards.carded],
   );
   const media = extractMedia(event);
   const hasMedia = media.images.length + media.videos.length + media.youtube.length > 0;
@@ -132,11 +137,12 @@ function NoteBody({ event, threadHref }: { event: NostrEvent; threadHref: string
             <>
               {hasText && (
                 <CollapsibleContent event={event}>
-                  <NoteContent event={event} hideMention={hideMention} />
+                  <NoteContent event={event} hideMention={hideMention} hideLinks={linkCards.carded} />
                 </CollapsibleContent>
               )}
               {quote && <QuoteCard pointer={quote.pointer} encoded={quote.encoded} />}
               {hasMedia && <NoteMedia media={media} />}
+              <LinkCards cards={linkCards.cards} />
             </>
           )}
           <NoteFooter event={event}>

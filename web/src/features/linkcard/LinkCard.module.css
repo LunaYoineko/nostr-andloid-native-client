@@ -1,0 +1,68 @@
+/* ネイティブの LinkEmbeds.kt OgpEmbed（枠線 1px・Surface2・角丸 Md。カード同士の間は Sm） */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.card {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 取得中はサムネ付きのカードと同じ高さを取っておく */
+.placeholder {
+  min-height: 88px;
+}
+
+/* 88dp 角・Crop。文字の方が高くても上に揃える（ネイティブの Row の既定） */
+.thumb {
+  flex: none;
+  align-self: flex-start;
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2);
+}
+
+.site,
+.url {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.title,
+.description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.title {
+  color: var(--text);
+  font-size: var(--type-sub);
+  font-weight: var(--w-strong);
+}
+
+.description {
+  color: var(--text-2);
+  font-size: var(--type-label);
+}
