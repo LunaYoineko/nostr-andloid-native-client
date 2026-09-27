@@ -8,8 +8,8 @@ import { Loading } from "./Loading";
 import styles from "./LoginGate.module.css";
 
 type ExtensionState = "checking" | "found" | "missing";
-/** 処理中のログイン方法（どれかの処理中は 3 つとも押せない） */
-type Busy = "nip07" | "nsec" | "new" | null;
+/** 処理中のログイン方法（どれかの処理中は他も押せない） */
+type Busy = "nip07" | "nip46" | "nsec" | "new" | null;
 
 const EXTERNAL_LINK = { target: "_blank", rel: "noopener noreferrer" } as const;
 
@@ -18,7 +18,8 @@ const UNAVAILABLE_MESSAGE =
 
 /**
  * 未ログイン時のゲート（ネイティブの LoginGate に対応）。鍵は勝手に生成せず、ログイン方法を選ばせる。
- * 並びは NIP-07 → 秘密鍵（nsec、折りたたみ）→ 新規生成。ログイン済みなら ?next=（無ければ /）へ戻す。
+ * 並びは NIP-07 → リモート署名（NIP-46、折りたたみ）→ 秘密鍵（nsec、折りたたみ）→ 新規生成。
+ * ログイン済みなら ?next=（無ければ /）へ戻す。
  */
 export function LoginGate() {
   const status = useSession((s) => s.status);
@@ -117,6 +118,13 @@ export function LoginGate() {
       )}
 
       <details className={styles.more}>
+        <summary>リモート署名でログイン（NIP-46）</summary>
+        <div className={styles.moreBody}>
+          <Nip46LoginForm busy={busy !== null} onBusy={(b) => setBusy(b ? "nip46" : null)} />
+        </div>
+      </details>
+
+      <details className={styles.more}>
         <summary>秘密鍵（nsec）でログイン</summary>
         <div className={styles.moreBody}>
           <NsecLoginForm busy={busy !== null} onBusy={(b) => setBusy(b ? "nsec" : null)} />
@@ -156,6 +164,109 @@ export function LoginGate() {
         />
       )}
     </main>
+  );
+}
+
+/**
+ * リモート署名（NIP-46）の bunker:// で接続する（ネイティブの Nip46Login）。
+ * bunker:// は secret を含むので、NsecLoginForm と同じく value は React で持たない（DOM 属性に出さない）。
+ */
+function Nip46LoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean): void }) {
+  const loginWithBunker = useSession((s) => s.loginWithBunker);
+  const input = useRef<HTMLInputElement>(null);
+  const controller = useRef<AbortController | null>(null);
+  const [ready, setReady] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const canPaste = typeof navigator.clipboard?.readText === "function";
+
+  // 画面を離れたら接続の待ちもやめる
+  useEffect(() => () => controller.current?.abort(), []);
+
+  function onInput(value: string) {
+    setReady(value.trim().startsWith("bunker://"));
+    setError(null);
+  }
+
+  async function onPaste() {
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (text && input.current) {
+        input.current.value = text;
+        onInput(text);
+      }
+    } catch {
+      // 読めなければ何もしない（権限の拒否など）
+    }
+  }
+
+  async function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const el = input.current;
+    if (!el) return;
+    const abort = new AbortController();
+    controller.current = abort;
+    onBusy(true);
+    setConnecting(true);
+    setError(null);
+    try {
+      await loginWithBunker(el.value, abort.signal);
+      el.value = "";
+      setReady(false);
+    } catch (err) {
+      setError(nip46ErrorMessage(err));
+    } finally {
+      if (controller.current === abort) controller.current = null;
+      setConnecting(false);
+      onBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <p>
+        署名アプリ（Amber など）や nsec.app
+        と接続します。秘密鍵は署名アプリ側に残り、このブラウザには置きません。
+      </p>
+      <form className={styles.moreBody} onSubmit={onSubmit}>
+        <label htmlFor="bunker-input">bunker:// を貼り付け</label>
+        <div className={styles.field}>
+          <input
+            ref={input}
+            id="bunker-input"
+            name="bunker"
+            type="text"
+            autoComplete="off"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="bunker://…"
+            onChange={(e) => onInput(e.target.value)}
+            disabled={busy}
+          />
+          {canPaste && (
+            <button type="button" className={styles.fieldAction} onClick={onPaste} disabled={busy}>
+              貼り付け
+            </button>
+          )}
+        </div>
+        {error && (
+          <p role="alert" className={styles.error}>
+            {error}
+          </p>
+        )}
+        <div className={styles.actions}>
+          <button type="submit" className={styles.submit} disabled={busy || !ready} aria-busy={connecting}>
+            {connecting ? "接続中…（署名アプリで承認してください）" : "接続"}
+          </button>
+          {connecting && (
+            <button type="button" className={styles.ghost} onClick={() => controller.current?.abort()}>
+              やめる
+            </button>
+          )}
+        </div>
+      </form>
+    </>
   );
 }
 
@@ -352,6 +463,25 @@ function errorMessage(e: unknown): string {
     return "ログインできませんでした。拡張機能で許可されなかった可能性があります。";
   }
   return "ログインできませんでした。";
+}
+
+// 例外のメッセージは出さない（署名アプリの応答や bunker:// の secret を含むことがある）
+function nip46ErrorMessage(e: unknown): string | null {
+  if (!(e instanceof LoginError)) return "ログインできませんでした。";
+  switch (e.reason) {
+    case "invalid-uri":
+      return "bunker://… の形式で、wss:// のリレーを含む接続先を貼り付けてください";
+    case "timeout":
+      return "署名アプリから応答がありませんでした。アプリで承認してから、もう一度お試しください";
+    case "rejected":
+      return "署名アプリに拒否されました";
+    case "unavailable":
+      return "このブラウザでは接続情報を保存できません。拡張機能（NIP-07）でログインしてください。";
+    case "cancelled":
+      return null;
+    default:
+      return "ログインできませんでした。";
+  }
 }
 
 // 例外のメッセージは出さない（bech32 のエラーは入力を丸ごと含むことがある）

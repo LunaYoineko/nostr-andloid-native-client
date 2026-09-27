@@ -1,5 +1,6 @@
 import { createBrowserRouter, RouterProvider } from "react-router";
 import { APP_BASENAME, synthesizeBaseEntry } from "./history";
+import { Nip46AuthPrompt } from "./Nip46AuthPrompt";
 import { routes } from "./routes";
 import { UpdateToast } from "./UpdateToast";
 
@@ -14,6 +15,7 @@ export function App() {
     <>
       <RouterProvider router={router} />
       <UpdateToast />
+      <Nip46AuthPrompt />
     </>
   );
 }

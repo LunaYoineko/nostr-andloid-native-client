@@ -1,5 +1,7 @@
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import { vi } from "vitest";
+import { resetNip46ForTest } from "../signer/nip46";
+import { createNip46Store, setNip46StoreForTest } from "../signer/nip46Store";
 import { useSession } from "../signer/session";
 import {
   createKeyVault,
@@ -26,7 +28,7 @@ export function installFakeNostr(opts: { pubkey?: string; reject?: boolean } = {
   return { getPublicKey };
 }
 
-/** 鍵の保管庫を fake-indexeddb の使い捨ての DB で動かす（resetSession で保管先なしに戻す） */
+/** 鍵の保管庫（NIP-46 の接続情報も同じ DB）を fake-indexeddb の使い捨ての DB で動かす（resetSession で保管先なしに戻す） */
 export async function installTestVault(): Promise<KeyVaultDb> {
   const database = createVaultDatabase({
     name: `vault-${crypto.randomUUID()}`,
@@ -35,6 +37,7 @@ export async function installTestVault(): Promise<KeyVaultDb> {
   });
   await database.open();
   setKeyVaultForTest(createKeyVault({ database: async () => database }));
+  setNip46StoreForTest(createNip46Store({ database: async () => database }));
   return database;
 }
 
@@ -44,4 +47,6 @@ export function resetSession() {
   localStorage.clear();
   useSession.setState({ status: "loading", method: null, pubkey: null });
   setKeyVaultForTest(createKeyVault({ database: async () => null }));
+  resetNip46ForTest();
+  setNip46StoreForTest(createNip46Store({ database: async () => null }));
 }

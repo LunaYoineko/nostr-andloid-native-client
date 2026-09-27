@@ -167,6 +167,19 @@
   cursor: default;
 }
 
+/* 送信ボタンと「やめる」を横に並べる（NIP-46 の接続中） */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.actions .submit {
+  margin-top: 0;
+}
+
 .newKey {
   display: flex;
   flex-direction: column;
