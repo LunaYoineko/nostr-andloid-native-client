@@ -87,6 +87,14 @@ function isEventShape(value: unknown): value is NostrEvent {
 }
 
 /**
+ * pointer の投稿（引用元・返信先など）。ストアに無ければ eventLoader がリレーへ取りに行き、届くまでは undefined。
+ * 購読は id で張り直す（同じ id の新しい pointer オブジェクトでは張り直さない）。
+ */
+export function useEventByPointer(pointer: EventPointer | null): NostrEvent | undefined {
+  return use$(() => (pointer ? eventStore.event(pointer) : undefined), [pointer?.id]);
+}
+
+/**
  * リポスト元の投稿。content の JSON を優先し、無ければ e タグの ID を EventStore から引く
  * （ストアに無ければ eventLoader がリレーへ取りに行く）。解決できるまでは undefined。
  */

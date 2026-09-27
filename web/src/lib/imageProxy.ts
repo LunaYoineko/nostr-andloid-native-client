@@ -30,6 +30,11 @@ export function setDataSaver(on: boolean) {
   dataSaver = on;
 }
 
+/** データセーバー中か（サムネのアニメーションを止める判定に使う） */
+export function isDataSaver(): boolean {
+  return dataSaver;
+}
+
 /**
  * width px 幅・webp・品質 quality に圧縮した URL を返す。
  * animated = true なら n=-1 で全フレームを保持する（wsrv.nl は既定で先頭 1 フレームのみ返す）。
