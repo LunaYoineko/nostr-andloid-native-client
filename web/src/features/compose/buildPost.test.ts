@@ -1,7 +1,15 @@
 import { neventEncode, npubEncode } from "nostr-tools/nip19";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import { describe, expect, it } from "vitest";
-import { buildNote, buildQuote, buildReply, type PostContext } from "./buildPost";
+import {
+  buildNote,
+  buildQuote,
+  buildReply,
+  imetaTags,
+  type PostContext,
+  type PostMedia,
+  withMediaUrls,
+} from "./buildPost";
 
 const CAT = "https://e/cat.png";
 
@@ -111,5 +119,55 @@ describe("buildQuote", () => {
     const target = event(1);
     const draft = buildQuote(target, "", null, ctx());
     expect(draft.content).toMatch(/^nostr:nevent1[0-9a-z]+$/);
+  });
+});
+
+describe("添付（withMediaUrls / imeta）", () => {
+  const IMAGE: PostMedia = {
+    kind: "image",
+    url: "https://m/a.webp",
+    m: "image/webp",
+    dim: "1200x900",
+    blurhash: "LEHV6nWB2yk8pyo0adR*.7kCMdnj",
+    x: "ab",
+  };
+  const VIDEO: PostMedia = { kind: "video", url: "https://m/v.mp4", m: "video/mp4" };
+
+  it("本文 → 画像 → 動画の URL を改行でつなぐ（本文が空白なら URL だけ）", () => {
+    expect(withMediaUrls("hi", [VIDEO, IMAGE])).toBe("hi\nhttps://m/a.webp\nhttps://m/v.mp4");
+    expect(withMediaUrls("", [IMAGE])).toBe("https://m/a.webp");
+    expect(withMediaUrls("hi", [])).toBe("hi");
+  });
+
+  it("imeta は URL と同じ順で url → m → dim → blurhash → x（無い項目は省く）", () => {
+    expect(imetaTags([VIDEO, IMAGE])).toEqual([
+      ["imeta", "url https://m/a.webp", "m image/webp", "dim 1200x900", `blurhash ${IMAGE.blurhash}`, "x ab"],
+      ["imeta", "url https://m/v.mp4", "m video/mp4"],
+    ]);
+  });
+
+  it("新規: 本文に URL を足し、タグの末尾（content-warning の後）に imeta", () => {
+    const draft = buildNote("#nostr 写真", "", ctx(), [IMAGE]);
+    expect(draft.content).toBe("#nostr 写真\nhttps://m/a.webp");
+    expect(draft.tags).toEqual([["t", "nostr"], ["content-warning", ""], imetaTags([IMAGE])[0]]);
+  });
+
+  it("返信: 先頭は返信タグのまま、末尾に imeta", () => {
+    const target = event(1);
+    const draft = buildReply(target, "", null, ctx(), [IMAGE]);
+    expect(draft.content).toBe("https://m/a.webp");
+    expect(draft.tags[0][0]).toBe("e");
+    expect(draft.tags.at(-1)).toEqual(imetaTags([IMAGE])[0]);
+  });
+
+  it("引用: 本文 → URL → nevent の順。imeta は content-warning の後", () => {
+    const target = event(1);
+    const draft = buildQuote(target, "見て", "cw", ctx(), [IMAGE]);
+    expect(draft.content).toMatch(/^見て\nhttps:\/\/m\/a\.webp\nnostr:nevent1[0-9a-z]+$/);
+    expect(draft.tags.slice(-2)).toEqual([["content-warning", "cw"], imetaTags([IMAGE])[0]]);
+    // 本文が空でも URL の後ろに nevent
+    expect(buildQuote(target, "", null, ctx(), [IMAGE]).content).toMatch(
+      /^https:\/\/m\/a\.webp\nnostr:nevent1[0-9a-z]+$/,
+    );
   });
 });

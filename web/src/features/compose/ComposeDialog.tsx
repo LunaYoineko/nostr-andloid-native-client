@@ -1,18 +1,27 @@
 import { npubEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
-import { type MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  type DragEvent,
+  type MouseEvent,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { oneLine } from "../../lib/content/labels";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { PublishError, publishEvent } from "../../nostr/publish";
 import { eventStore } from "../../nostr/store";
-import { useSession } from "../../signer/session";
+import { currentSigner, useSession } from "../../signer/session";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
-import { CloseIcon, ReplyIcon, VisibilityOffIcon } from "../../ui/icons";
+import { CloseIcon, ImageIcon, PlayArrowIcon, ReplyIcon, VisibilityOffIcon } from "../../ui/icons";
 import { EmojiInsertButton } from "../actions/EmojiInsertButton";
 import { NoteContent } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
-import { buildNote, buildQuote, buildReply, type PostContext } from "./buildPost";
+import { type Attachment, createAttachment, humanSize, uploadAttachments } from "./attachments";
+import { buildNote, buildQuote, buildReply, type PostContext, type PostMedia } from "./buildPost";
 import styles from "./ComposeDialog.module.css";
 import {
   activeEmoji,
@@ -27,6 +36,7 @@ import {
 } from "./completion";
 import { type ComposeRequest, closeCompose } from "./composeStore";
 import { type CustomEmoji, useCustomEmojis } from "./customEmojis";
+import { uploadServers, useMediaServer } from "./mediaServer";
 import { ProfileAvatar } from "./ProfileAvatar";
 import { storeRelayHints } from "./relayHints";
 import { type ProfileHit, searchProfiles } from "./searchProfiles";
@@ -54,9 +64,17 @@ function keepFocus(e: MouseEvent) {
   e.preventDefault();
 }
 
+/** 添付を選ぶ input の accept（スマホではカメラ / ギャラリーが開く） */
+const ATTACH_ACCEPT = "image/*,video/*";
+
+/** ドラッグ中のものにファイルが含まれるか */
+function hasFiles(e: DragEvent<HTMLElement>): boolean {
+  return Array.from(e.dataTransfer.types).includes("Files");
+}
+
 /**
- * 投稿シート（ネイティブ ComposeSheet.kt の M1 版: 添付・連投・ピン留め編集なし）。
- * 画面上端寄せのカードをモーダルで開く。本文・入力補完・返信先 / 引用元・センシティブ指定・送信。
+ * 投稿シート（ネイティブ ComposeSheet.kt の Web 版: 連投・ピン留め編集・添付の解像度の選択なし）。
+ * 画面上端寄せのカードをモーダルで開く。本文・入力補完・添付（画像・動画）・返信先 / 引用元・センシティブ指定・送信。
  */
 export function ComposeDialog({ request }: { request: ComposeRequest }) {
   const { mode } = request;
@@ -81,6 +99,16 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
   const controller = useRef<AbortController | null>(null);
   // コードで本文を変えたら、描画後にカーソルを合わせて本文へフォーカスを戻す
   const moveCursor = useRef(false);
+  // 添付（選んだ時点で圧縮を始め、アップロードは送信時。ネイティブ ComposeSheet と同じ）
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  /** 圧縮が終わった添付のバイト数（添付の id → バイト数） */
+  const [processedSizes, setProcessedSizes] = useState<ReadonlyMap<string, number>>(() => new Map());
+  /** アップロードの完了数（失敗も数える） */
+  const [uploadDone, setUploadDone] = useState(0);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const mediaServer = useMediaServer((s) => s.server);
+  /** まだ revoke していないプレビューの blob: URL（閉じたときにまとめて revoke する） */
+  const previews = useRef(new Set<string>());
 
   /** 本文を変える（新規投稿は入力のたびに下書きへ保存） */
   function update(next: TextState, fromCode: boolean) {
@@ -90,16 +118,50 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
     if (mode === "new") saveDraft(next.text);
   }
 
-  /** 閉じる操作の入口（✗・背景・Esc / 戻る）。書きかけなら確認を挟む。送信中は閉じない */
+  /** 閉じる操作の入口（✗・背景・Esc / 戻る）。書きかけ・添付ありなら確認を挟む。送信中は閉じない */
   function attemptClose() {
     if (sending) return;
-    if (value.text.trim() !== "") setConfirmDiscard(true);
+    if (value.text.trim() !== "" || attachments.length > 0) setConfirmDiscard(true);
     else closeCompose();
   }
   const latestAttemptClose = useRef(attemptClose);
   useLayoutEffect(() => {
     latestAttemptClose.current = attemptClose;
   });
+
+  /** 画像・動画を添付に足して圧縮を始める（それ以外のファイルは無視）。1 件でも足したら true */
+  function addFiles(files: Iterable<File>): boolean {
+    if (sending) return false;
+    const added: Attachment[] = [];
+    for (const file of files) {
+      const attachment = createAttachment(file);
+      if (attachment) added.push(attachment);
+    }
+    if (added.length === 0) return false;
+    for (const attachment of added) {
+      previews.current.add(attachment.preview);
+      void attachment.processed.then((p) =>
+        setProcessedSizes((sizes) => new Map(sizes).set(attachment.id, p.blob.size)),
+      );
+    }
+    setAttachments((list) => [...list, ...added]);
+    return true;
+  }
+
+  function removeAttachment(target: Attachment) {
+    URL.revokeObjectURL(target.preview);
+    previews.current.delete(target.preview);
+    setAttachments((list) => list.filter((a) => a.id !== target.id));
+  }
+
+  // 閉じたらプレビューの blob: URL を解放する
+  useEffect(() => {
+    const urls = previews.current;
+    return () => {
+      for (const url of urls) URL.revokeObjectURL(url);
+      urls.clear();
+    };
+  }, []);
 
   useEffect(() => {
     const d = dialog.current;
@@ -177,7 +239,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
   }
 
   // ---- 送信 ----
-  const canSend = !sending && (value.text.trim() !== "" || mode === "quote");
+  const canSend = !sending && (value.text.trim() !== "" || attachments.length > 0 || mode === "quote");
 
   async function send() {
     if (!canSend) return;
@@ -193,17 +255,33 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
       hints: storeRelayHints(me),
       lookup: (id) => eventStore.getEvent(id),
     };
-    const draft =
-      request.mode === "reply"
-        ? buildReply(request.target, content, cw, ctx)
-        : request.mode === "quote"
-          ? buildQuote(request.target, content, cw, ctx)
-          : buildNote(content, cw, ctx);
+    const list = attachments;
     const ac = new AbortController();
     controller.current = ac;
     setSending(true);
     setSendError(null);
+    setUploadDone(0);
     try {
+      // 添付は先にアップロードする（1 件でも失敗したら投稿しない）
+      let media: PostMedia[] = [];
+      if (list.length > 0) {
+        const signer = currentSigner();
+        if (!signer) throw new Error("no signer");
+        media = await uploadAttachments(list, {
+          servers: uploadServers(mediaServer),
+          signer,
+          signal: ac.signal,
+          onProgress: (done) => {
+            if (!ac.signal.aborted) setUploadDone(done);
+          },
+        });
+      }
+      const draft =
+        request.mode === "reply"
+          ? buildReply(request.target, content, cw, ctx, media)
+          : request.mode === "quote"
+            ? buildQuote(request.target, content, cw, ctx, media)
+            : buildNote(content, cw, ctx, media);
       const signed = await publishEvent(draft, { signal: ac.signal });
       // ネイティブと同じく、返信・引用の送信でも新規投稿の下書きを消す
       clearDraft();
@@ -219,7 +297,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
     }
   }
 
-  /** 送信中の「キャンセル」: 署名待ちを打ち切って編集に戻る */
+  /** 送信中の「キャンセル」: アップロード・署名待ちを打ち切って編集に戻る（本文・添付は残す） */
   function cancelSend() {
     controller.current?.abort();
     controller.current = null;
@@ -238,6 +316,20 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
         }}
         // ブラウザが強制で閉じた場合（下書きは入力のたびに保存済み）
         onClose={() => closeCompose()}
+        // PC: ファイルのドラッグ & ドロップと貼り付けで添付する
+        onDragOver={(e) => {
+          if (!hasFiles(e)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = sending ? "none" : "copy";
+        }}
+        onDrop={(e) => {
+          if (!hasFiles(e)) return;
+          e.preventDefault();
+          addFiles(Array.from(e.dataTransfer.files));
+        }}
+        onPaste={(e) => {
+          if (addFiles(Array.from(e.clipboardData.files))) e.preventDefault();
+        }}
       >
         <div className={styles.card}>
           <div className={styles.head}>
@@ -347,6 +439,14 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                 )}
               </>
             )}
+            {attachments.length > 0 && (
+              <AttachmentList
+                attachments={attachments}
+                processedSizes={processedSizes}
+                removable={!sending}
+                onRemove={removeAttachment}
+              />
+            )}
           </div>
           {request.mode !== "new" && (
             <div className={styles.context}>
@@ -378,7 +478,11 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
             {sending ? (
               <>
                 <span className={styles.spinner} aria-hidden="true" />
-                <span className={styles.sendingText}>投稿中…</span>
+                <span className={styles.sendingText}>
+                  {attachments.length > 0
+                    ? `画像 ${uploadDone}/${attachments.length} アップロード中…`
+                    : "投稿中…"}
+                </span>
                 <span className={styles.spacer} />
                 <button type="button" className={styles.cancel} onClick={cancelSend}>
                   キャンセル
@@ -387,6 +491,27 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
             ) : (
               <>
                 <div className={styles.tools}>
+                  <button
+                    type="button"
+                    className={styles.tool}
+                    aria-label="画像・動画を添付"
+                    onClick={() => fileInput.current?.click()}
+                  >
+                    <ImageIcon className={styles.toolIcon} />
+                  </button>
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    accept={ATTACH_ACCEPT}
+                    multiple
+                    hidden
+                    onChange={(e) => {
+                      const input = e.currentTarget;
+                      addFiles(Array.from(input.files ?? []));
+                      // 同じファイルをもう一度選べるように空にする
+                      input.value = "";
+                    }}
+                  />
                   <EmojiInsertButton onInsert={(str) => update(insertAtCursor(value, str), true)} />
                   <button
                     type="button"
@@ -421,6 +546,68 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
         />
       )}
     </>
+  );
+}
+
+/**
+ * 添付の一覧（ネイティブ ImageCarousel / VideoCarousel。84px のサムネ + 右上の ✗ + 下に容量）。
+ * 画像 → 動画の順に並べる（本文へ足す URL と同じ順）。
+ */
+function AttachmentList({
+  attachments,
+  processedSizes,
+  removable,
+  onRemove,
+}: {
+  attachments: readonly Attachment[];
+  processedSizes: ReadonlyMap<string, number>;
+  removable: boolean;
+  onRemove(attachment: Attachment): void;
+}) {
+  const ordered = [
+    ...attachments.filter((a) => a.kind === "image"),
+    ...attachments.filter((a) => a.kind === "video"),
+  ];
+  return (
+    <ul className={styles.attachments} aria-label="添付">
+      {ordered.map((a) => {
+        const original = a.file.size;
+        const processed = processedSizes.get(a.id);
+        const label =
+          a.kind === "image" && processed === undefined
+            ? "圧縮中…"
+            : processed !== undefined && processed < original
+              ? `${humanSize(original)}→${humanSize(processed)}`
+              : humanSize(original);
+        return (
+          <li key={a.id} className={styles.attachment}>
+            <div className={styles.thumb}>
+              {a.kind === "image" ? (
+                <img className={styles.thumbMedia} src={a.preview} alt="添付画像" decoding="async" />
+              ) : (
+                <>
+                  <video
+                    className={styles.thumbMedia}
+                    src={a.preview}
+                    aria-label="添付動画"
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                  <PlayArrowIcon className={styles.thumbPlay} />
+                </>
+              )}
+              {removable && (
+                <button type="button" className={styles.remove} aria-label="削除" onClick={() => onRemove(a)}>
+                  <CloseIcon className={styles.removeIcon} />
+                </button>
+              )}
+            </div>
+            <span className={styles.size}>{label}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
