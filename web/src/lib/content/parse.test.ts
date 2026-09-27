@@ -2,7 +2,7 @@ import type { Content } from "applesauce-content/nast";
 import { neventEncode, noteEncode, npubEncode } from "nostr-tools/nip19";
 import { finalizeEvent, generateSecretKey, type NostrEvent } from "nostr-tools/pure";
 import { expect, it } from "vitest";
-import { parseNoteContent, splitTrailingPunct, withoutMention } from "./parse";
+import { parseNoteContent, splitTrailingPunct, withoutLinks, withoutMention } from "./parse";
 
 // applesauce の Tokens.link はホストにドットを要求するため、テストの URL は *.test にする
 
@@ -156,6 +156,34 @@ it("link にならなかった http(s):// から空白までは文字のまま�
 it("t タグがあれば hashtag ノードに添える", () => {
   const root = parseNoteContent(note("#nostr", [["t", "nostr"]]));
   expect(root.children[0]).toMatchObject({ type: "hashtag", tag: ["t", "nostr"] });
+});
+
+it("withoutLinks はカードに出した URL の link を除き、空白・改行を潰して trim する（末尾の句読点は残す）", () => {
+  const root = parseNoteContent(
+    note("見て https://a.test/1.  と\n\n\nhttps://b.test/2\nhttps://c.test/3 おわり"),
+  );
+  expect(shape(withoutLinks(root, ["https://a.test/1", "https://c.test/3"]).children)).toEqual([
+    { text: "見て . と\n\n" },
+    { link: "https://b.test/2" },
+    { text: "\n おわり" },
+  ]);
+  // リンクだけの本文は空になる
+  expect(withoutLinks(parseNoteContent(note("https://a.test/1\n")), ["https://a.test/1"]).children).toEqual(
+    [],
+  );
+});
+
+it("withoutLinks は除くものが無ければ元の木をそのまま返し、キャッシュ済みの木を書き換えない", () => {
+  const event = note("a  https://a.test/1  b");
+  const root = parseNoteContent(event);
+  expect(withoutLinks(root, [])).toBe(root);
+  expect(withoutLinks(root, ["https://other.test/"])).toBe(root);
+  expect(shape(withoutLinks(root, ["https://a.test/1"]).children)).toEqual([{ text: "a b" }]);
+  expect(shape(parseNoteContent(event).children)).toEqual([
+    { text: "a  " },
+    { link: "https://a.test/1" },
+    { text: "  b" },
+  ]);
 });
 
 it("splitTrailingPunct は URL と末尾の句読点を分ける", () => {

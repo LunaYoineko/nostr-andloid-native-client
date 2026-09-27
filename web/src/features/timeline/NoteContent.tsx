@@ -21,7 +21,7 @@ import {
   mentionLabel,
   shortUrlLabel,
 } from "../../lib/content/labels";
-import { parseNoteContent, splitTrailingPunct, withoutMention } from "../../lib/content/parse";
+import { parseNoteContent, splitTrailingPunct, withoutLinks, withoutMention } from "../../lib/content/parse";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { useProfile } from "../../nostr/loaders";
 import styles from "./NoteContent.module.css";
@@ -191,20 +191,28 @@ const components: ComponentMap = {
   blossom: BlossomNode,
 };
 
+const NO_LINKS: readonly string[] = [];
+
 /**
  * 本文。applesauce-content の構文木（parseNoteContent）を React 要素にする。画像・動画の URL は木から除いてある。
- * hideMention は引用カードに出した参照（本文からは消す）。HTML としては一切解釈しない（dangerouslySetInnerHTML は使わない）。
+ * hideMention は引用カードに出した参照、hideLinks はリンクカードに出した URL（どちらも本文からは消す）。
+ * HTML としては一切解釈しない（dangerouslySetInnerHTML は使わない）。
  */
 export function NoteContent({
   event,
   variant = "full",
   hideMention = null,
+  hideLinks = NO_LINKS,
 }: {
   event: NostrEvent;
   variant?: Variant;
   hideMention?: string | null;
+  hideLinks?: readonly string[];
 }) {
-  const root = useMemo(() => withoutMention(parseNoteContent(event), hideMention), [event, hideMention]);
+  const root = useMemo(
+    () => withoutLinks(withoutMention(parseNoteContent(event), hideMention), hideLinks),
+    [event, hideMention, hideLinks],
+  );
   const content = useRenderNast(root, components);
   return (
     <NoteContentContext.Provider value={variant}>

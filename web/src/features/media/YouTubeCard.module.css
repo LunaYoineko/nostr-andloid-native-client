@@ -47,3 +47,34 @@
   font-size: var(--type-label);
   font-weight: var(--w-strong);
 }
+
+/* タイトル帯（黒 70%、左右 Md・上下 Sm。タイトルは Sub・w-strong・白で 2 行、チャンネル名は Label・白 80% で 1 行） */
+.band {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2) var(--sp-3);
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.bandTitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: #fff;
+  font-size: var(--type-sub);
+  font-weight: var(--w-strong);
+}
+
+.bandAuthor {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--type-label);
+}

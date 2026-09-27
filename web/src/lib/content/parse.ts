@@ -47,21 +47,28 @@ export function stripMediaLinks(): Transformer {
       }
     }
     if (!removed) return;
-
-    const merged: Content[] = [];
-    for (const node of kept) {
-      const last = merged[merged.length - 1];
-      if (node.type === "text" && last?.type === "text") {
-        merged[merged.length - 1] = { type: "text", value: last.value + node.value };
-      } else {
-        merged.push(node.type === "text" ? { type: "text", value: node.value } : node);
-      }
-    }
-    for (const node of merged) {
-      if (node.type === "text") node.value = node.value.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n");
-    }
-    tree.children = trimEdges(merged);
+    tree.children = trimEdges(mergeTexts(kept));
   };
+}
+
+/**
+ * 隣り合う text を 1 つにまとめ、連続空白・3 連以上の改行を潰す（ネイティブの Embed.kt removeUrls と同じ）。
+ * text は作り直す（キャッシュ済みの木のノードは書き換えない）。
+ */
+function mergeTexts(nodes: Content[]): Content[] {
+  const merged: Content[] = [];
+  for (const node of nodes) {
+    const last = merged[merged.length - 1];
+    if (node.type === "text" && last?.type === "text") {
+      merged[merged.length - 1] = { type: "text", value: last.value + node.value };
+    } else {
+      merged.push(node.type === "text" ? { type: "text", value: node.value } : node);
+    }
+  }
+  for (const node of merged) {
+    if (node.type === "text") node.value = node.value.replace(/[ \t]{2,}/g, " ").replace(/\n{3,}/g, "\n\n");
+  }
+  return merged;
 }
 
 /** 先頭の text を trimStart・末尾の text を trimEnd し、空になった text を捨てる（新しい配列を返す） */
@@ -97,6 +104,25 @@ export function withoutMention(root: Root, encoded: string | null | undefined): 
     afterHidden = false;
   }
   return { ...root, children: trimEdges(children) };
+}
+
+/**
+ * urls（リンクカードに出した URL）の link を除いた木（ネイティブの Embed.kt removeUrls）。URL の後ろの句読点は文字として残し、
+ * 隣り合う文字をまとめて連続空白・3 連以上の改行を潰し、前後を trim する。除くものが無ければ元の木をそのまま返す。
+ */
+export function withoutLinks(root: Root, urls: readonly string[]): Root {
+  const hidden = (node: Content) => node.type === "link" && urls.includes(trimUrlTail(node.value));
+  if (urls.length === 0 || !root.children.some(hidden)) return root;
+  const kept: Content[] = [];
+  for (const node of root.children) {
+    if (node.type === "link" && hidden(node)) {
+      const tail = node.value.slice(trimUrlTail(node.value).length);
+      if (tail !== "") kept.push({ type: "text", value: tail });
+    } else {
+      kept.push(node);
+    }
+  }
+  return { ...root, children: trimEdges(mergeTexts(kept)) };
 }
 
 /** 描く本文が無い（空白だけの text しか無い）か */
