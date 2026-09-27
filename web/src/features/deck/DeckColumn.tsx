@@ -9,7 +9,7 @@ import {
   editTemplate,
   encodeReqFilter,
 } from "../../lib/columns";
-import { useDeck, widthOf } from "../../store/deck";
+import { isMutedRevealed, useDeck, widthOf } from "../../store/deck";
 import { columnIcon, Icon } from "../../ui/icons";
 import { MyReactionRow } from "../actions/MyReactionRow";
 import { NotificationList } from "../notifications/NotificationList";
@@ -130,8 +130,9 @@ function FavItem({ reaction }: { reaction: NostrEvent }) {
 }
 
 /**
- * カラムの ⋯ メニュー（ネイティブの ColumnMenuButton）。移動 ◀ ▶ / フィルターを編集 / 更新 / 固定する /
- * カラム幅 / カラムを削除。外側のクリックと Escape で閉じる。onRefresh が無ければ「更新」を出さない。
+ * カラムの ⋯ メニュー（ネイティブの ColumnMenuButton）。移動 ◀ ▶ / フィルターを編集 / ミュートを表示・隠す /
+ * 更新 / 固定する / カラム幅 / カラムを削除。外側のクリックと Escape で閉じる。onRefresh が無ければ「更新」を出さない。
+ * 「ミュートを表示」は Web で描けるカラムだけ（描けない種別はミュートを当てていない）。
  */
 export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: () => void }) {
   const [open, setOpen] = useState(false);
@@ -140,6 +141,7 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
   const index = useDeck((s) => s.columns.findIndex((c) => c.id === spec.id));
   const count = useDeck((s) => s.columns.length);
   const width = useDeck((s) => widthOf(s, spec.id));
+  const mutedRevealed = useDeck((s) => isMutedRevealed(s, spec.id));
 
   useEffect(() => {
     if (!open) return;
@@ -214,6 +216,17 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
             >
               <Icon name="tune" size="md" />
               フィルターを編集
+            </button>
+          )}
+          {!UNSUPPORTED_KINDS.has(spec.kind) && (
+            <button
+              type="button"
+              role="menuitem"
+              className={styles.menuItem}
+              onClick={act(() => deck().setRevealMuted(spec.id, !mutedRevealed))}
+            >
+              <Icon name={mutedRevealed ? "visibilityOff" : "visibility"} size="md" />
+              {mutedRevealed ? "ミュートを隠す" : "ミュートを表示"}
             </button>
           )}
           {onRefresh && (

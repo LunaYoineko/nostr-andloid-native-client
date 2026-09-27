@@ -14,11 +14,15 @@ import { unixNow } from "../lib/time";
 export const COLUMNS_KEY = "nostrism.deck.columns";
 /** カラム幅（{"<id>":"S"|"L"}。M は書かない） */
 export const WIDTHS_KEY = "nostrism.deck.widths";
+/** ミュートを表示するカラム（id の配列。ネイティブ col_reveal_muted:<id>） */
+export const REVEAL_MUTED_KEY = "nostrism.deck.revealMuted";
 
 export type DeckState = {
   /** 固定 + 一時カラム。並び順 = 表示順（order は常に 0..n-1）。デッキの SSOT */
   columns: ColumnSpec[];
   widths: Record<string, ColumnWidth>;
+  /** ミュートを表示する（フィルタしない）カラムの id */
+  revealMuted: string[];
   /** ジャンプ要求のカラム id（デッキが消費して null に戻す） */
   jumpTarget: string | null;
   /** コンパクト表示で見えているカラム id */
@@ -44,6 +48,8 @@ export type DeckState = {
   /** フィルター編集。id / pinned / order は維持する */
   updateColumn(id: string, newSpec: ColumnSpec): void;
   setWidth(id: string, w: ColumnWidth): void;
+  /** カラムでミュートを表示するか（⋯ メニューの「ミュートを表示 / 隠す」） */
+  setRevealMuted(id: string, reveal: boolean): void;
   jumpTo(id: string): void;
   consumeJump(): void;
   setVisibleColumn(id: string | null): void;
@@ -112,6 +118,21 @@ export function loadWidths(): Record<string, ColumnWidth> {
   return widths;
 }
 
+export function saveRevealMuted(ids: readonly string[]) {
+  writeItem(REVEAL_MUTED_KEY, JSON.stringify(ids));
+}
+
+/** 保存済みの「ミュートを表示する」カラム（文字列だけを拾う。壊れていれば空） */
+export function loadRevealMuted(): string[] {
+  try {
+    const value: unknown = JSON.parse(readItem(REVEAL_MUTED_KEY) ?? "[]");
+    if (Array.isArray(value)) return [...new Set(value.filter((v): v is string => typeof v === "string"))];
+  } catch {
+    // 壊れた保存値は既定（すべて隠す）へ
+  }
+  return [];
+}
+
 // (一時カラム id, 開いた元のカラム id) の戻りスタック。back() の戻り先に使う
 const originStack: [string, string | null][] = [];
 
@@ -138,6 +159,7 @@ export const useDeck = create<DeckState>()((set, get) => {
   return {
     columns: loadColumns(),
     widths: loadWidths(),
+    revealMuted: loadRevealMuted(),
     jumpTarget: null,
     visibleColumnId: null,
     editingColumnId: null,
@@ -192,7 +214,7 @@ export const useDeck = create<DeckState>()((set, get) => {
     },
 
     removeColumn(id) {
-      const { columns, widths } = get();
+      const { columns, widths, revealMuted } = get();
       const wasPinned = columns.some((c) => c.id === id && c.pinned);
       commit(
         columns.filter((c) => c.id !== id),
@@ -204,6 +226,7 @@ export const useDeck = create<DeckState>()((set, get) => {
         set({ widths: rest });
         saveWidths(rest);
       }
+      if (revealMuted.includes(id)) get().setRevealMuted(id, false);
     },
 
     moveColumn(id, delta) {
@@ -231,6 +254,13 @@ export const useDeck = create<DeckState>()((set, get) => {
       else widths[id] = w;
       set({ widths });
       saveWidths(widths);
+    },
+
+    setRevealMuted(id, reveal) {
+      const rest = get().revealMuted.filter((c) => c !== id);
+      const revealMuted = reveal ? [...rest, id] : rest;
+      set({ revealMuted });
+      saveRevealMuted(revealMuted);
     },
 
     jumpTo(id) {
@@ -301,4 +331,9 @@ export function hasTransient(s: DeckState): boolean {
 
 export function widthOf(s: DeckState, id: string): ColumnWidth {
   return s.widths[id] ?? "M";
+}
+
+/** このカラムでミュートを表示するか */
+export function isMutedRevealed(s: DeckState, id: string): boolean {
+  return s.revealMuted.includes(id);
 }

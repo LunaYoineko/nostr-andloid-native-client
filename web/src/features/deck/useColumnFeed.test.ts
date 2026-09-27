@@ -7,6 +7,8 @@ import { authorOutbox$ } from "../../nostr/outbox";
 import { requestOnce, subscribe, subscribeTo } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
+import { useDeck } from "../../store/deck";
+import { EMPTY_MUTE_LIST, setMuteList } from "../mute/muteList";
 import { useColumnFeed } from "./useColumnFeed";
 
 // リレーには繋がず、REQ ごとに Subject を返す（EOSE・過去読みの完了はテストから流す）
@@ -28,7 +30,7 @@ vi.mock("../../nostr/outbox", async () => {
 });
 
 const RELAYS = ["wss://relay.example"];
-const [FOLLOWING, HASHTAG] = DEFAULT_COLUMNS;
+const [FOLLOWING, HASHTAG, NOTIFICATIONS] = DEFAULT_COLUMNS;
 
 let meKey: Uint8Array;
 let me: string;
@@ -46,6 +48,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  setMuteList(null);
 });
 
 function lastRequest() {
@@ -185,4 +188,53 @@ it("著者指定のカラム: 著者の書き込みリレーへも張り、refre
 it("ハッシュタグのカラムはアウトボックス購読をしない", () => {
   renderHook(() => useColumnFeed(HASHTAG));
   expect(vi.mocked(authorOutbox$)).not.toHaveBeenCalled();
+});
+
+it("ミュート: 対象を除き（自分の投稿は除かない）、カラムで「ミュートを表示」中は除かない", () => {
+  const tag = `mute${Date.now()}`;
+  const spec: ColumnSpec = { ...HASHTAG, id: "c_mute", filter: { ...HASHTAG.filter, hashtags: [tag] } };
+  const mutedKey = generateSecretKey();
+  const shown = signed(1, generateSecretKey(), [["t", tag]], "ok", 3_000);
+  const byMuted = signed(1, mutedKey, [["t", tag]], "muted user", 2_500);
+  const spam = signed(1, generateSecretKey(), [["t", tag]], "SPAM", 2_000);
+  const mine = signed(1, meKey, [["t", tag]], "my spam", 1_000);
+  act(() => {
+    for (const e of [shown, byMuted, spam, mine]) eventStore.add(e);
+    setMuteList({
+      ...EMPTY_MUTE_LIST,
+      entries: [
+        { category: "p", value: getPublicKey(mutedKey), isPublic: true, isPrivate: false },
+        { category: "word", value: "spam", isPublic: false, isPrivate: true },
+      ],
+    });
+  });
+
+  const { result } = renderHook(() => useColumnFeed(spec));
+  expect(result.current.events).toEqual([shown, mine]);
+
+  act(() => useDeck.getState().setRevealMuted(spec.id, true));
+  expect(result.current.events).toEqual([shown, byMuted, spam, mine]);
+
+  act(() => useDeck.getState().setRevealMuted(spec.id, false));
+  expect(result.current.events).toEqual([shown, mine]);
+});
+
+it("ミュート: 通知は相手で判定する（本文のワードでは隠さない）", () => {
+  const mutedKey = generateSecretKey();
+  const fromMuted = signed(1, mutedKey, [["p", me]], "hello", 2_000);
+  const withWord = signed(1, generateSecretKey(), [["p", me]], "spam reply", 1_000);
+  act(() => {
+    eventStore.add(fromMuted);
+    eventStore.add(withWord);
+    setMuteList({
+      ...EMPTY_MUTE_LIST,
+      entries: [
+        { category: "p", value: getPublicKey(mutedKey), isPublic: true, isPrivate: false },
+        { category: "word", value: "spam", isPublic: true, isPrivate: false },
+      ],
+    });
+  });
+
+  const { result } = renderHook(() => useColumnFeed(NOTIFICATIONS));
+  expect(result.current.events).toEqual([withWord]);
 });

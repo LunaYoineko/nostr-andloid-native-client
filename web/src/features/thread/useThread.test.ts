@@ -1,11 +1,12 @@
 import { act, renderHook } from "@testing-library/react";
 import type { Filter } from "applesauce-core/helpers/filter";
 import type { EventPointer } from "applesauce-core/helpers/pointers";
-import { finalizeEvent, generateSecretKey, type NostrEvent } from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import type { Subject } from "rxjs";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { subscribeTo } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
+import { EMPTY_MUTE_LIST, setMuteList } from "../mute/muteList";
 import { useThread } from "./useThread";
 
 // リレーには繋がず、REQ ごとに Subject を返す（EOSE はテストから流す）。
@@ -31,6 +32,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  setMuteList(null);
 });
 
 type Req = { relays: readonly string[]; filters: Filter[]; subject: Subject<"EOSE"> };
@@ -48,8 +50,13 @@ const isEngagement = (r: Req) => r.filters.some((f) => f.kinds?.includes(7));
 const replyRequests = () => requests().filter((r) => !isEngagement(r));
 const engagementRequests = () => requests().filter(isEngagement);
 
-function signed(tags: string[][] = [], createdAt = 1_000, content = ""): NostrEvent {
-  return finalizeEvent({ kind: 1, created_at: createdAt, tags, content }, generateSecretKey());
+function signed(
+  tags: string[][] = [],
+  createdAt = 1_000,
+  content = "",
+  key: Uint8Array = generateSecretKey(),
+): NostrEvent {
+  return finalizeEvent({ kind: 1, created_at: createdAt, tags, content }, key);
 }
 
 it("起点が未取得なら起点だけで返信と反応を購読する", () => {
@@ -153,4 +160,29 @@ it("アンマウントで全購読をやめる", () => {
   unmount();
 
   for (const r of all) expect(r.subject.observed).toBe(false);
+});
+
+it("ミュート: 起点は残し、それ以外のミュート対象の行を隠す", () => {
+  const mutedKey = generateSecretKey();
+  const root = signed([], 1_000, "root", mutedKey);
+  const focus = signed([["e", root.id, "", "root"]], 1_001, "focus", mutedKey);
+  const other = signed([["e", root.id, "", "root"]], 1_002, "other");
+  const spam = signed([["e", root.id, "", "root"]], 1_003, "buy SPAM now");
+  act(() => {
+    for (const e of [root, focus, other, spam]) eventStore.add(e);
+    setMuteList({
+      ...EMPTY_MUTE_LIST,
+      entries: [
+        { category: "p", value: getPublicKey(mutedKey), isPublic: true, isPrivate: false },
+        { category: "word", value: "spam", isPublic: false, isPrivate: true },
+      ],
+    });
+  });
+
+  const { result } = renderHook(() => useThread({ id: focus.id }));
+
+  expect(result.current.entries.map((e) => e.event.id)).toEqual([focus.id, other.id]);
+
+  act(() => setMuteList(null));
+  expect(result.current.entries.map((e) => e.event.id)).toEqual([root.id, focus.id, other.id, spam.id]);
 });

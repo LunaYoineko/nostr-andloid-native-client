@@ -12,6 +12,8 @@ import { renderWithRouter } from "../../test/renderWithRouter";
 import { useToast } from "../../ui/toast";
 import { useCompose } from "../compose/composeStore";
 import { NoteFooter } from "../compose/NoteFooter";
+import { EMPTY_MUTE_LIST, setMuteList } from "../mute/muteList";
+import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
 import { toggleFollow } from "../profile/follow";
 import { NoteActionButtons, REACTION_PENDING_MS } from "./NoteActionButtons";
 import styles from "./NoteActionButtons.module.css";
@@ -27,6 +29,16 @@ vi.mock("../../nostr/publish", async (importOriginal) => {
 vi.mock("../../nostr/pool", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../nostr/pool")>();
   return { ...actual, subscribe: vi.fn(() => NEVER) };
+});
+
+// ミュート / 解除は muteSync の関数を呼ぶところまで（取り直し・発行は muteSync.test.ts）
+vi.mock("../mute/muteSync", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../mute/muteSync")>();
+  return {
+    ...actual,
+    muteUser: vi.fn(async () => "done" as const),
+    unmuteUser: vi.fn(async () => "done" as const),
+  };
 });
 
 // フォロー / 解除は #457 の関数を呼ぶところまで
@@ -233,6 +245,36 @@ describe("⋯ メニュー", () => {
     await user.click(button("その他の操作"));
     await user.click(screen.getByRole("menuitem", { name: "フォロー" }));
     expect(toggleFollow).toHaveBeenCalledWith(me, event.pubkey, "follow");
+  });
+
+  it("「このユーザーをミュート」→ 確認 →「ミュート」で muteUser とトースト。ミュート中は「ミュートを解除」", async () => {
+    const user = userEvent.setup();
+    const event = post();
+    renderRow(event);
+    await user.click(button("その他の操作"));
+    await user.click(screen.getByRole("menuitem", { name: "このユーザーをミュート" }));
+    const dialog = screen.getByRole("dialog", { name: "このユーザーをミュートしますか？" });
+    await user.click(within(dialog).getByRole("button", { name: "ミュート" }));
+    expect(muteUser).toHaveBeenCalledWith(me, event.pubkey);
+    await waitFor(() => expect(useToast.getState().queue).toEqual(["ミュートしました"]));
+
+    act(() =>
+      setMuteList({
+        ...EMPTY_MUTE_LIST,
+        entries: [{ category: "p", value: event.pubkey, isPublic: false, isPrivate: true }],
+      }),
+    );
+    vi.mocked(unmuteUser).mockRejectedValueOnce(new MuteListError("locked"));
+    await user.click(button("その他の操作"));
+    await user.click(screen.getByRole("menuitem", { name: "ミュートを解除" }));
+    expect(unmuteUser).toHaveBeenCalledWith(me, event.pubkey);
+    await waitFor(() =>
+      expect(useToast.getState().queue).toEqual([
+        "ミュートしました",
+        "ミュートリストが変更できません（ロック中の可能性）",
+      ]),
+    );
+    act(() => setMuteList(null));
   });
 
   it("「通報」→ 理由「スパム」で kind:1984", async () => {
