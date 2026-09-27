@@ -18,6 +18,7 @@
   --accent:      #16171c;
   --accent-2:    #3b3c45;
   --accent-weak: rgba(0, 0, 0, 0.08);
+  --warn: #b04a4a;
 }
 
 :root {
@@ -41,6 +42,7 @@
   --zap:           #f7b955;  /* zap = ゴールド */
   --repost:        #4ade80;
   --like:          #f76e8e;
+  --warn: #c76b6b;  /* 注意（Compose DeckColors.Warn と 1 対 1） */
 
   /* --- Radius --- */
   --r-sm: 8px;

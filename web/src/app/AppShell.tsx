@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Outlet, useMatches, useNavigate, useParams } from "react-router";
 import { useShallow } from "zustand/react/shallow";
+import { ComposeHost } from "../features/compose/ComposeHost";
 import { AddColumnDialog } from "../features/deck/AddColumnDialog";
 import { EditColumnDialog } from "../features/deck/EditColumnDialog";
 import { notificationsColumnId, pinnedColumns, useDeck } from "../store/deck";
@@ -125,6 +126,7 @@ export function AppShell() {
             )}
           </DetailOverlay>
         )}
+        <ComposeHost showFab={dest === "home" && overlay === null} />
         <ConnectionPill />
       </main>
       {mode === "compact" && <BottomNav selected={selected} onSelect={open} />}

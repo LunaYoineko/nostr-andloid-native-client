@@ -1,0 +1,50 @@
+/* 枠の値は #452 の ColumnMenu と同じ。位置は MenuButton.tsx が left / top で決める */
+.menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  box-sizing: border-box;
+  min-width: 220px;
+  padding: var(--sp-1) 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+.header {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.separator {
+  margin: var(--sp-1) 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-3);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--surface-3);
+}
+
+.danger {
+  color: var(--warn);
+}

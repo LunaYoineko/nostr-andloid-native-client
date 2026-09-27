@@ -1,0 +1,60 @@
+/* .main の gap（8px）と合わせて本文 ↔ アクション行が 12px（ネイティブ DeckSpace.Md） */
+.footer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
+/* タッチ箱の内側余白ぶん左右へ出す（ネイティブの offset(-iconInset)）。fieldset の既定の枠・余白は消す */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  align-self: stretch;
+  min-width: 0;
+  margin: 0 calc((var(--icon-md) - var(--touch-sm)) / 2);
+  padding: 0;
+  border: 0;
+}
+
+.action {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--surface-2);
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.action svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.unsent {
+  padding: var(--sp-1) var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--warn);
+  font: inherit;
+  font-size: var(--type-label);
+  font-weight: var(--w-name);
+  cursor: pointer;
+}

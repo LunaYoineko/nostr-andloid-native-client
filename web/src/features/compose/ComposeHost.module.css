@@ -1,0 +1,27 @@
+/* 投稿ボタン（#453 の D）。56px はネイティブの FAB */
+.fab {
+  position: absolute;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--accent);
+  color: var(--bg);
+  cursor: pointer;
+}
+
+.fab:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.fabIcon {
+  width: var(--rail-icon);
+  height: var(--rail-icon);
+}

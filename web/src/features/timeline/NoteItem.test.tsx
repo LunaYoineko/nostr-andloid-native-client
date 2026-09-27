@@ -259,3 +259,10 @@ it("画像 URL 2 本だけの投稿は本文を出さず、2 列のグリッド�
     expect(container.querySelector(`a[href="${url}"]`)).toBeNull();
   }
 });
+
+it("kind:1 には操作の行に「返信」ボタンがある", () => {
+  renderWithRouter(<NoteItem event={post("返信できる投稿")} />);
+  expect(
+    within(screen.getByRole("group", { name: "操作" })).getByRole("button", { name: "返信" }),
+  ).toBeInTheDocument();
+});

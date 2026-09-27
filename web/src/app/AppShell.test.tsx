@@ -258,3 +258,22 @@ describe("一時カラム（/t/:tag）", () => {
     expect(useDeck.getState().columns.map((c) => c.id)).toEqual(["c_following", "c_hashtag", "c_notif"]);
   });
 });
+
+describe("投稿ボタン", () => {
+  it("デッキ（/）には「投稿」を出す", () => {
+    renderAt(["/"]);
+    expect(screen.getByRole("button", { name: "投稿" })).toBeInTheDocument();
+  });
+
+  it("検索では出さない", async () => {
+    renderAt(["/search"]);
+    expect(await screen.findByRole("heading", { name: "検索" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "投稿" })).toBeNull();
+  });
+
+  it("スレッドの詳細では出さない", () => {
+    renderAt([`/e/${NOTE}`]);
+    expect(screen.getByRole("region", { name: "スレッド" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "投稿" })).toBeNull();
+  });
+});
