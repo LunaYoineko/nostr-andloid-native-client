@@ -1,7 +1,9 @@
-import { act, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { neventEncode } from "nostr-tools/nip19";
+import { decode, neventEncode } from "nostr-tools/nip19";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
+import type { ReactElement } from "react";
+import { useLocation } from "react-router";
 import { expect, it, vi } from "vitest";
 import { shortNpub } from "../../lib/npub";
 import { unixNow } from "../../lib/time";
@@ -108,7 +110,9 @@ it("返信の親がストアに無ければ返信行を出さない", () => {
   const { container } = renderWithRouter(<NoteItem event={reply} />);
 
   expect(screen.getByText("返信です")).toBeInTheDocument();
-  expect(container.querySelector('a[href^="/e/"]')).toBeNull();
+  // 時刻（この投稿のスレッドへのリンク）以外に /e/ へのリンクが無い
+  const links = [...container.querySelectorAll('a[href^="/e/"]')].filter((a) => !a.querySelector("time"));
+  expect(links).toHaveLength(0);
 });
 
 it("kind:1111 で親が取れていない間は K タグから「kind N へのコメント」を出す", () => {
@@ -258,6 +262,123 @@ it("画像 URL 2 本だけの投稿は本文を出さず、2 列のグリッド�
     expect(screen.queryByRole("link", { name: url })).toBeNull();
     expect(container.querySelector(`a[href="${url}"]`)).toBeNull();
   }
+});
+
+/** 今の URL のパス（クリックで移動したかを見る） */
+function Where() {
+  return <output data-testid="where">{useLocation().pathname}</output>;
+}
+
+function renderNote(ui: ReactElement) {
+  const result = renderWithRouter(
+    <>
+      {ui}
+      <Where />
+    </>,
+  );
+  return { ...result, where: () => screen.getByTestId("where").textContent };
+}
+
+/** /e/nevent1… の指す id（それ以外のパスは null） */
+function threadIdOf(pathname: string | null): string | null {
+  const match = pathname?.match(/^\/e\/(nevent1\w+)$/);
+  if (!match) return null;
+  const decoded = decode(match[1]);
+  return decoded.type === "nevent" ? decoded.data.id : null;
+}
+
+it("本文を押すとスレッド（/e/nevent1…）を開く", async () => {
+  const event = post("本文です");
+  const { where } = renderNote(<NoteItem event={event} />);
+
+  await userEvent.click(screen.getByText("本文です"));
+
+  expect(threadIdOf(where())).toBe(event.id);
+});
+
+it("#タグ・引用カード・返信行・名前を押すとそれぞれのリンク先へ行き、スレッドは開かない", async () => {
+  const user = userEvent.setup();
+  const parent = stored("親の投稿", { key: withProfile({ name: "frank" }) });
+  const quoted = stored("引用元");
+  const quotedRef = neventEncode({ id: quoted.id });
+  const key = withProfile({ name: "grace" });
+  const event = post(`#nostr を見て nostr:${quotedRef}`, {
+    key,
+    tags: [
+      ["e", parent.id, "", "reply"],
+      ["t", "nostr"],
+    ],
+  });
+  const { where } = renderNote(<NoteItem event={event} />);
+
+  await user.click(screen.getByRole("link", { name: "#nostr" }));
+  expect(where()).toBe("/t/nostr");
+
+  await user.click(screen.getByRole("link", CARD));
+  expect(where()).toBe(`/e/${quotedRef}`);
+
+  await user.click(await screen.findByText("frank: 親の投稿"));
+  expect(threadIdOf(where())).toBe(parent.id);
+
+  await user.click(await screen.findByRole("link", { name: "grace" }));
+  expect(where()).toMatch(/^\/p\/npub1/);
+});
+
+it("文字を選択しているとき・修飾キー付きのクリックではスレッドを開かない", () => {
+  const { where } = renderNote(<NoteItem event={post("選べる本文")} />);
+  const text = screen.getByText("選べる本文");
+
+  const selection = vi
+    .spyOn(window, "getSelection")
+    .mockReturnValue({ toString: () => "選択" } as unknown as Selection);
+  try {
+    fireEvent.click(text);
+  } finally {
+    selection.mockRestore();
+  }
+  expect(where()).toBe("/");
+
+  fireEvent.click(text, { ctrlKey: true });
+  expect(where()).toBe("/");
+
+  // 選択も修飾キーも無ければ開く
+  fireEvent.click(text);
+  expect(where()).toMatch(/^\/e\/nevent1/);
+});
+
+it("openable={false} は押しても開かず、時刻もリンクにしない", async () => {
+  const { container, where } = renderNote(<NoteItem event={post("開かない")} openable={false} />);
+
+  await userEvent.click(screen.getByText("開かない"));
+
+  expect(where()).toBe("/");
+  expect(container.querySelector("time")?.closest("a")).toBeNull();
+});
+
+it("既定では時刻がスレッドへのリンク", () => {
+  const event = post("時刻のリンク");
+  const { container } = renderNote(<NoteItem event={event} />);
+
+  const link = container.querySelector("time")?.closest("a");
+  expect(threadIdOf(link?.getAttribute("href") ?? null)).toBe(event.id);
+});
+
+it("kind:6 は元投稿がストアにあるときだけ、押すと元投稿のスレッドを開く", async () => {
+  const original = stored("リポスト元");
+  const repost = (targetId: string) =>
+    finalizeEvent(
+      { kind: 6, created_at: unixNow(), tags: [["e", targetId]], content: "" },
+      generateSecretKey(),
+    );
+
+  const resolved = renderNote(<NoteItem event={repost(original.id)} />);
+  await userEvent.click(screen.getByText("リポスト元"));
+  expect(threadIdOf(resolved.where())).toBe(original.id);
+  resolved.unmount();
+
+  const pending = renderNote(<NoteItem event={repost("c".repeat(64))} />);
+  await userEvent.click(screen.getByText("元の投稿を読み込み中…"));
+  expect(pending.where()).toBe("/");
 });
 
 it("kind:1 には操作の行に「返信」ボタンがある", () => {

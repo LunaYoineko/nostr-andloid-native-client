@@ -1,0 +1,27 @@
+.stats {
+  padding: 0 var(--sp-3) var(--sp-2);
+}
+
+.summary {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.repost {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--repost);
+}
+
+/* 絵文字の大きさはネイティブ DeckType.Sub.asEmojiSize()（13dp） */
+.emoji {
+  width: 1em;
+  height: 1em;
+  font-size: var(--type-sub);
+  object-fit: contain;
+}
+
+.emojiText {
+  font-size: var(--type-sub);
+}

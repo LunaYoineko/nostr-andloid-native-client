@@ -254,6 +254,36 @@ export function ChevronRightIcon(props: MaterialIconProps) {
   return <MaterialIcon {...props} path="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />;
 }
 
+/** NIP-05 検証OK（verified・塗り。#457） */
+export function VerifiedIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82L8.6 22.5l3.4-1.47 3.4 1.46 1.89-3.19 3.61-.82-.34-3.69L23 12zm-12.91 4.72l-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.35z"
+    />
+  );
+}
+
+/** NIP-05 検証エラー（error・Outlined。#457） */
+export function ErrorOutlineIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"
+    />
+  );
+}
+
+// ネイティブの ReplyBox（Icons.AutoMirrored.Outlined.Send）
+export function SendIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M4.01 6.03l7.51 3.22-7.52-1 .01-2.22m7.5 8.72L4 17.97v-2.22l7.51-1M2.01 3L2 10l15 2-15 2 .01 7L23 12 2.01 3z"
+    />
+  );
+}
+
 /** 投稿ボタン（FAB, #458）。Material Symbols Outlined の edit */
 export function EditIcon(props: NamedIconProps) {
   return (

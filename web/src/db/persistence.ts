@@ -1,6 +1,7 @@
 import type { EventStore } from "applesauce-core/event-store";
 import type { NostrEvent } from "nostr-tools/pure";
 import { bufferTime, filter } from "rxjs";
+import { addVerifiedTo } from "../nostr/store";
 import { EVENTS_TRIM_TO, fromRow, hydratedSymbol, PERSIST_KINDS, toRow, trimEvents } from "./events";
 import type { NostrismDb } from "./schema";
 
@@ -85,7 +86,7 @@ export async function hydrate(eventStore: EventStore, db: NostrismDb): Promise<n
   const rows = await db.events.toArray();
   let added = 0;
   for (const row of rows) {
-    eventStore.add(fromRow(row));
+    addVerifiedTo(eventStore, fromRow(row));
     added++;
     if (added % HYDRATE_CHUNK === 0) await new Promise((r) => setTimeout(r));
   }

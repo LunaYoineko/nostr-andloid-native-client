@@ -5,10 +5,10 @@ import { BehaviorSubject, merge, type Observable, Subject, type Subscription } f
 import { db } from "../db";
 import type { NostrismDb, PublishQueueRow } from "../db/schema";
 import { unixNow } from "../lib/time";
-import { useSession } from "../signer/session";
+import { currentSigner, useSession } from "../signer/session";
 import { connections$, pool, relays } from "./pool";
-import { createNip07Signer, type Signer } from "./signer";
-import { eventStore } from "./store";
+import type { Signer } from "./signer";
+import { addVerified, eventStore } from "./store";
 
 /** NIP-89 の client タグに入れる名前（ネイティブと同じ） */
 export const CLIENT_NAME = "Nostrism";
@@ -64,13 +64,6 @@ export function shouldAutoRetry(attempts: number): boolean {
   return attempts >= 1 && attempts < MAX_AUTO_RETRY;
 }
 
-/** セッションの署名者。ログインしていなければ PublishError("no-signer") */
-export function currentSigner(): Signer {
-  const { status, method } = useSession.getState();
-  if (status === "in" && method === "nip07") return createNip07Signer();
-  throw new PublishError("no-signer");
-}
-
 // ---- 送信キュー（ネイティブの publish_queue + PublishAck）。セッション中の正本は rows、DB は再起動用の控え ----
 
 const rows = new Map<string, PublishQueueRow>();
@@ -111,7 +104,9 @@ function warn(message: string, e: unknown): void {
  * （10 秒以内に受理が無ければ未送信として残し、再送の対象にする）。
  */
 export async function publishEvent(draft: EventDraft, opts?: PublishOptions): Promise<NostrEvent> {
+  // セッションの署名者（#457 の currentSigner。nsec は #462 がそちらに足す）
   const signer = opts?.signer ?? currentSigner();
+  if (!signer) throw new PublishError("no-signer");
   const template = withClientTag({
     kind: draft.kind,
     content: draft.content,
@@ -129,7 +124,7 @@ export async function publishEvent(draft: EventDraft, opts?: PublishOptions): Pr
   if (!verifyEvent(signed) || (me !== null && signed.pubkey !== me)) throw new PublishError("sign-failed");
 
   ensureWatchers();
-  eventStore.add(signed);
+  addVerified(signed);
   const row: PublishQueueRow = {
     eventId: signed.id,
     payload: signed,
@@ -282,7 +277,7 @@ export async function startPublishQueue(opts?: { database?: NostrismDb | null })
         }
         if (!rows.has(current.eventId)) {
           rows.set(current.eventId, current);
-          eventStore.add(current.payload);
+          addVerified(current.payload);
         }
       } catch (e) {
         warn("未送信の復元に失敗", e);

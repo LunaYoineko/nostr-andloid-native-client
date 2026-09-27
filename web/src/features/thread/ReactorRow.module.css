@@ -1,0 +1,34 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding-top: var(--sp-1);
+}
+
+/* 先頭のアイコン枠（ネイティブ 22dp → --sp-5 にスナップ） */
+.lead {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--sp-5);
+}
+
+.label {
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.people {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: var(--sp-1);
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* アバターのリンクは中の画像の大きさだけを占める */
+.avatarLink {
+  flex: none;
+  display: flex;
+}

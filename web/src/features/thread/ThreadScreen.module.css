@@ -1,0 +1,22 @@
+/* 上の区切り線 = ネイティブのヘッダ下の HorizontalDivider */
+.screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sp-5);
+  color: var(--text-3);
+  font-size: var(--type-caption);
+  text-align: center;
+}

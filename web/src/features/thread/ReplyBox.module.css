@@ -1,0 +1,36 @@
+.box {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-3);
+  border: 0;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.box:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.pill {
+  flex: 1;
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}
+
+.send {
+  flex: none;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  padding: var(--sp-1);
+  color: var(--accent);
+}

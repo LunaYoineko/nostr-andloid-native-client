@@ -2,8 +2,16 @@ import { use$ } from "applesauce-react/hooks/use-$";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { map, type Subscription } from "rxjs";
-import { type Ctx, LOADING_TIMEOUT_MS, OLDER_TIMEOUT_MS, requestFor, viewFor } from "../../lib/columnRequest";
+import {
+  type Ctx,
+  LOADING_TIMEOUT_MS,
+  OLDER_TIMEOUT_MS,
+  outboxAuthorsFor,
+  requestFor,
+  viewFor,
+} from "../../lib/columnRequest";
 import { type ColumnSpec, encodeReqFilter } from "../../lib/columns";
+import { authorOutbox$ } from "../../nostr/outbox";
 import { relays, requestOnce, subscribeTo } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
@@ -45,6 +53,9 @@ export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
     return { plan: requestFor(spec, ctx), view: viewFor(spec, ctx) };
   }, [spec.id, filterKey, me, followKey]);
 
+  // 著者 1〜3 人のカラムは、その人たちの書き込みリレーへも張る（アウトボックス購読）
+  const outboxKey = outboxAuthorsFor(spec)?.join(",") ?? "";
+
   const [epoch, setEpoch] = useState(0);
   const [loading, setLoading] = useState(plan !== null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: epoch は refresh() で張り直すためのキー
@@ -57,11 +68,13 @@ export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
     const done = () => setLoading(false);
     const timer = setTimeout(done, LOADING_TIMEOUT_MS);
     const sub = subscribeTo(plan.relays, plan.filters).subscribe(done);
+    const outbox = outboxKey !== "" ? authorOutbox$(outboxKey.split(","), plan.filters).subscribe() : null;
     return () => {
       clearTimeout(timer);
       sub.unsubscribe();
+      outbox?.unsubscribe();
     };
-  }, [plan, epoch]);
+  }, [plan, epoch, outboxKey]);
 
   const events =
     use$(
