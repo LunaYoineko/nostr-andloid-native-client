@@ -1,18 +1,20 @@
 import { useId, useState } from "react";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { showToast } from "../../ui/toast";
+import { RelaySyncSection } from "../sync/RelaySyncSection";
 import { ConnectionMonitorDialog } from "./ConnectionMonitorDialog";
 import { clearCacheAndReload } from "./cache";
 import { setDeveloperMode, useDeveloperMode } from "./devMode";
 import styles from "./SettingsSections.module.css";
 
 /**
- * データ・キャッシュ（ネイティブ DataSettings の並び: キャッシュの強制消去 → 開発者モード → 接続と通信量）。
- * NIP-78 のリレー同期（#468）はこの項目の先頭に入る予定。web+nostr: リンクの登録（#541）はこの項目の末尾。
+ * データ・キャッシュ（ネイティブ DataSettings の並び: リレー同期[#468] → キャッシュの強制消去 →
+ * 開発者モード → 接続と通信量 → web+nostr: リンクの登録[#541]）。
  */
 export function DataSection() {
   return (
     <>
+      <RelaySyncSection />
       <PurgeCacheBlock />
       <DeveloperModeBlock />
       <ConnectionMonitorBlock />
