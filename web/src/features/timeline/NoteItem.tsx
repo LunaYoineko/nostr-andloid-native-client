@@ -5,7 +5,7 @@ import { Link } from "react-router";
 import { avatarInitial, avatarShade } from "../../lib/avatar";
 import { hrefForEvent, hrefForProfile } from "../../lib/content/labels";
 import { isBlankContent, parseNoteContent, withoutLinks, withoutMention } from "../../lib/content/parse";
-import { clientNameOf, contentWarningOf, quotePointerOf } from "../../lib/content/tags";
+import { clientNameOf, contentWarningOf, quotePointerOf, replyParentPointerOf } from "../../lib/content/tags";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { extractMedia } from "../../lib/media";
 import { relativeTime } from "../../lib/time";
@@ -16,6 +16,8 @@ import { NoteFooter } from "../compose/NoteFooter";
 import { LinkCards } from "../linkcard/LinkCard";
 import { useLinkCards } from "../linkcard/useLinkCards";
 import { NoteMedia } from "../media/NoteMedia";
+import { type NoteAccentKind, noteAccentKindOf } from "../theme/noteAccent";
+import { useThemePrefs } from "../theme/themePrefs";
 import { CollapsibleContent } from "./CollapsibleContent";
 import { ContentWarning } from "./ContentWarning";
 import { NoteContent } from "./NoteContent";
@@ -37,6 +39,32 @@ const REPOST_WAIT_MS = 8_000;
 
 /** 待ちきれずに隠したリポストの id（仮想リストで作り直されたとき、また「読み込み中…」から始めない） */
 const gaveUpReposts = new Set<string>();
+
+/**
+ * [#464] ノート種別の視覚表示（設定 > 表示。既定は「なし」）のクラス。
+ * ライン（左2px。box-shadow なので `background` を使う選択ハイライト（KbList.module.css）とは
+ * 競合しない）／背景色（alpha 0.14。KbList.module.css の選択時の背景より詳細度を弱くして、
+ * 選択ハイライトを前面にする）。ネイティブ NoteItem.kt 156–168 と同じ2種。
+ */
+const ACCENT_CLASS: Record<"line" | "bg", Record<NoteAccentKind, string>> = {
+  line: {
+    repost: styles.accentLineRepost,
+    quote: styles.accentLineQuote,
+    reply: styles.accentLineReply,
+    reaction: styles.accentLineReaction,
+  },
+  bg: {
+    repost: styles.accentBgRepost,
+    quote: styles.accentBgQuote,
+    reply: styles.accentBgReply,
+    reaction: styles.accentBgReaction,
+  },
+};
+
+function accentClassOf(kind: NoteAccentKind | null, style: "none" | "line" | "bg"): string | null {
+  if (kind === null || style === "none") return null;
+  return ACCENT_CLASS[style][kind];
+}
 
 /**
  * タイムラインの 1 件（ネイティブの NoteItem.kt）。返信先の 1 行・アバター・表示名・NIP-05・相対時刻・本文・引用カード。
@@ -70,8 +98,21 @@ function PostItem({
   const href = openable ? threadHrefOf(event) : null;
   useOpenOnClick(ref, href);
   const base = embedded ? styles.embedded : styles.note;
+  const noteAccent = useThemePrefs((s) => s.noteAccent);
+  const accentKind = useMemo(
+    () =>
+      noteAccentKindOf({
+        isRepost: false,
+        hasQuote: quotePointerOf(event) !== null,
+        isReaction: event.kind === 7,
+        isReply: replyParentPointerOf(event) !== null,
+      }),
+    [event],
+  );
+  const accentClass = accentClassOf(accentKind, noteAccent);
+  const className = [base, href ? styles.openable : null, accentClass].filter(Boolean).join(" ");
   return (
-    <article ref={ref} className={href ? `${base} ${styles.openable}` : base}>
+    <article ref={ref} className={className}>
       <NoteBody event={event} threadHref={href} embedded={embedded} />
     </article>
   );
@@ -93,10 +134,13 @@ function RepostItem({ repost, openable }: { repost: NostrEvent; openable: boolea
     }, REPOST_WAIT_MS);
     return () => clearTimeout(timer);
   }, [waiting, repost.id]);
+  const noteAccent = useThemePrefs((s) => s.noteAccent);
   // 取れないまま待ち時間が過ぎたら隠す（仮想リストは高さ 0 の行を扱えないので 1px の空行）。後から届けば出す
   if (!original && gaveUp) return <div className={styles.hiddenRow} aria-hidden="true" />;
+  const accentClass = accentClassOf("repost", noteAccent);
+  const className = [styles.note, href ? styles.openable : null, accentClass].filter(Boolean).join(" ");
   return (
-    <article ref={ref} className={href ? `${styles.note} ${styles.openable}` : styles.note}>
+    <article ref={ref} className={className}>
       <RepostHeader reposter={repost.pubkey} />
       {original ? (
         <NoteBody event={original} threadHref={href} />
