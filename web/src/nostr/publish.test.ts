@@ -12,10 +12,11 @@ import {
 import { Subject } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDatabase, type NostrismDb, type PublishQueueRow } from "../db/schema";
+import { SEARCH_RELAYS } from "../lib/columnRequest";
 import { useSession } from "../signer/session";
 import { installTestVault, resetSession } from "../test/fakeNostr";
 import { createTestSigner } from "../test/fakeSigner";
-import { connections$, pool, type RelayConnections } from "./pool";
+import { connectedRelayUrls, connections$, needsAuthForPublish, pool, type RelayConnections } from "./pool";
 import {
   discardUnsent,
   enqueueSigned,
@@ -42,6 +43,8 @@ vi.mock("./pool", async () => {
   return {
     pool: { event: vi.fn() },
     writeRelays: () => ["wss://r1", "wss://r2"],
+    connectedRelayUrls: vi.fn(() => []),
+    needsAuthForPublish: vi.fn(() => false),
     connections$: new Subject(),
   };
 });
@@ -64,6 +67,8 @@ beforeEach(() => {
     sends.push({ relays: relays as string[], event, responses });
     return responses;
   });
+  vi.mocked(connectedRelayUrls).mockReset().mockReturnValue([]);
+  vi.mocked(needsAuthForPublish).mockReset().mockReturnValue(false);
   ({ signer, pubkey: me, secretKey } = createTestSigner());
   useSession.setState({ status: "in", method: "nip07", pubkey: me });
   notices = 0;
@@ -178,6 +183,35 @@ describe("publishEvent", () => {
     });
     expect(pool.event).toHaveBeenCalledTimes(1);
     expect(pool.event).toHaveBeenCalledWith(RELAYS, signed);
+  });
+
+  it("既定の発行先: write に無い接続中のリレーにも送る（重複は除く、#582）", async () => {
+    vi.mocked(connectedRelayUrls).mockReturnValue(["wss://r2", "wss://read-only"]);
+    await startPublishQueue({ database: null });
+    await publishEvent(note(), { signer });
+    expect(sends[0].relays).toEqual(["wss://r1", "wss://r2", "wss://read-only"]);
+  });
+
+  it("既定の発行先: 検索専用リレーが接続中でも送らない（#582）", async () => {
+    vi.mocked(connectedRelayUrls).mockReturnValue([...SEARCH_RELAYS]);
+    await startPublishQueue({ database: null });
+    await publishEvent(note(), { signer });
+    expect(sends[0].relays).toEqual(RELAYS);
+  });
+
+  it("既定の発行先: AUTH を要求していてまだ認証できていないリレーには送らない（#582）", async () => {
+    vi.mocked(connectedRelayUrls).mockReturnValue(["wss://auth-only"]);
+    vi.mocked(needsAuthForPublish).mockImplementation((url) => url === "wss://auth-only");
+    await startPublishQueue({ database: null });
+    await publishEvent(note(), { signer });
+    expect(sends[0].relays).toEqual(RELAYS);
+  });
+
+  it("opts.relays の明示指定があれば write ∪ 接続中は使わずそれだけへ送る（#582）", async () => {
+    vi.mocked(connectedRelayUrls).mockReturnValue(["wss://read-only"]);
+    await startPublishQueue({ database: null });
+    await publishEvent(note(), { signer, relays: ["wss://x"] });
+    expect(sends[0].relays).toEqual(["wss://x"]);
   });
 
   it.each([[{ ok: true, from: "wss://r1" }], [{ ok: false, message: "duplicate: x", from: "wss://r2" }]])(
