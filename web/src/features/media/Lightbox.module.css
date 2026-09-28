@@ -45,11 +45,10 @@
   -webkit-user-drag: none;
 }
 
-/* ダブルクリック / ダブルタップで 2.5 倍（NoteImages.kt の scale = 2.5f） */
+/* 拡大中（ピンチで 1〜5 倍・ダブルクリック / ダブルタップで 2.5 倍）。倍率は inline style の width で決める */
 .zoomed {
   max-width: none;
   max-height: none;
-  width: 250%;
 }
 
 .error {

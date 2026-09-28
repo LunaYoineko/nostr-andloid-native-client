@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, expect, it, vi } from "vitest";
 import type { MediaItem } from "../../lib/media";
+import { useToast } from "../../ui/toast";
 import { Lightbox } from "./Lightbox";
 import styles from "./Lightbox.module.css";
 
@@ -17,7 +18,9 @@ beforeAll(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   Reflect.deleteProperty(navigator, "clipboard");
+  useToast.setState({ queue: [] });
 });
 
 const ITEMS: MediaItem[] = [
@@ -35,6 +38,10 @@ function image(): HTMLImageElement {
   const img = screen.getByRole("dialog", { name: "画像" }).querySelector("img");
   if (!img) throw new Error("img が無い");
   return img;
+}
+
+function stage(): HTMLElement {
+  return image().parentElement as HTMLElement;
 }
 
 it("渡した番号の画像を原 URL で出し、n / N と「閉じる」へのフォーカス", () => {
@@ -251,4 +258,102 @@ it("履歴を積まない（戻るはモーダルの cancel として届く）",
   expect(pushState).not.toHaveBeenCalled();
   expect(replaceState).not.toHaveBeenCalled();
   expect(history.length).toBe(length);
+});
+
+it("2 本指のピンチで倍率が 1〜5 に収まる（inline style の width で決まる）", () => {
+  renderLightbox();
+  const el = stage();
+
+  fireEvent.pointerDown(el, { pointerId: 1, clientX: 100, clientY: 100 });
+  fireEvent.pointerDown(el, { pointerId: 2, clientX: 200, clientY: 100 }); // 距離 100
+  fireEvent.pointerMove(el, { pointerId: 2, clientX: 500, clientY: 100 }); // 距離 400 → 倍率 4
+  expect(image()).toHaveClass(styles.zoomed);
+  expect(image().style.width).toBe("400%");
+
+  // 上限 5 倍を超えない
+  fireEvent.pointerMove(el, { pointerId: 2, clientX: 1000, clientY: 100 }); // 距離 900 → 倍率 9 のはずが 5 に収まる
+  expect(image().style.width).toBe("500%");
+
+  // ピンチの終わり（指を離す）は click として閉じたり拡大を変えたりしない
+  fireEvent.pointerUp(el, { pointerId: 1, clientX: 100, clientY: 100 });
+  fireEvent.pointerUp(el, { pointerId: 2, clientX: 1000, clientY: 100 });
+  fireEvent.click(image());
+  expect(screen.getByText("2 / 3")).toBeInTheDocument();
+  expect(image()).toHaveClass(styles.zoomed);
+});
+
+it("ピンチで縮めれば下限 1 倍で止まり、拡大が解ける", () => {
+  renderLightbox();
+  const el = stage();
+
+  fireEvent.pointerDown(el, { pointerId: 1, clientX: 100, clientY: 100 });
+  fireEvent.pointerDown(el, { pointerId: 2, clientX: 300, clientY: 100 }); // 距離 200
+  fireEvent.pointerMove(el, { pointerId: 2, clientX: 700, clientY: 100 }); // 距離 600 → 倍率 3
+  expect(image().style.width).toBe("300%");
+
+  fireEvent.pointerMove(el, { pointerId: 2, clientX: 105, clientY: 100 }); // 距離 5 → 倍率 0.025 のはずが 1 に収まる
+  expect(image()).not.toHaveClass(styles.zoomed);
+});
+
+it("等倍（1 倍）のときだけ横スワイプで前後へ送る", () => {
+  renderLightbox();
+
+  // ダブルクリックで 2.5 倍にすると、同じ移動量のスワイプでも送らない
+  fireEvent.dblClick(image());
+  expect(image()).toHaveClass(styles.zoomed);
+  fireEvent.pointerDown(image(), { pointerId: 1, clientX: 300, clientY: 100 });
+  fireEvent.pointerUp(image(), { pointerId: 1, clientX: 150, clientY: 100 });
+  expect(screen.getByText("2 / 3")).toBeInTheDocument();
+
+  fireEvent.dblClick(image());
+  expect(image()).not.toHaveClass(styles.zoomed);
+  fireEvent.pointerDown(image(), { pointerId: 1, clientX: 300, clientY: 100 });
+  fireEvent.pointerUp(image(), { pointerId: 1, clientX: 150, clientY: 100 });
+  expect(screen.getByText("3 / 3")).toBeInTheDocument();
+});
+
+it("画像を保存: fetch → Blob → <a download> で保存し、「保存しました」のトーストを出す", async () => {
+  const blob = new Blob(["x"], { type: "image/jpeg" });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(blob, { status: 200 })),
+  );
+  const originalCreate = URL.createObjectURL;
+  const originalRevoke = URL.revokeObjectURL;
+  URL.createObjectURL = vi.fn(() => "blob:test/1");
+  URL.revokeObjectURL = vi.fn();
+  let downloadName = "";
+  const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    downloadName = this.download;
+  });
+
+  renderLightbox();
+  await userEvent.click(screen.getByRole("button", { name: "画像を保存" }));
+
+  expect(fetch).toHaveBeenCalledWith("https://i.test/1.jpg");
+  expect(downloadName).toBe("1.jpg");
+  expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:test/1");
+  expect(useToast.getState().queue).toContain("画像を保存しました");
+
+  clickSpy.mockRestore();
+  URL.createObjectURL = originalCreate;
+  URL.revokeObjectURL = originalRevoke;
+});
+
+it("画像を保存: 読めなければ「保存に失敗しました」を出し、「新しいタブで開く」は残る", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(null, { status: 403 })),
+  );
+
+  renderLightbox();
+  await userEvent.click(screen.getByRole("button", { name: "画像を保存" }));
+
+  expect(useToast.getState().queue).toContain("保存に失敗しました");
+  expect(screen.getByRole("link", { name: "新しいタブで開く" })).toHaveAttribute(
+    "href",
+    "https://i.test/1.jpg",
+  );
 });

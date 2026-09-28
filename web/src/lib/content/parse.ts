@@ -18,12 +18,16 @@ type Transformer = ReturnType<(typeof textNoteTransformers)[number]>;
 /** 本文の構文木のキャッシュキー（applesauce 既定の TextNoteContentSymbol とは別の木） */
 export const NOTE_CONTENT_KEY = Symbol.for("nostrism.note-content");
 
+/** 画像・動画（直リンク）のみ。YouTube・OGP・Spotify は畳むかどうかが設定次第なので、ここでは触らない（#532） */
 function isMedia(url: string): boolean {
-  return mediaKindOf(url) !== null;
+  const kind = mediaKindOf(url);
+  return kind === "image" || kind === "video";
 }
 
 /**
- * 画像・動画・YouTube の URL を本文から取り除く（ネイティブの Embed.kt extractMediaUrls と同じ）。
+ * 画像・動画（直リンク）の URL を本文から取り除く（ネイティブの Embed.kt extractMediaUrls と同じ）。
+ * どちらも本文の外（画像グリッド / インラインプレイヤー）に出るので常に畳む。YouTube・OGP・Spotify の URL は
+ * 設定（embedPrefs の hideCardedUrls）次第で withoutLinks が畳む。
  * 取り除いたときだけ、隣り合う文字を 1 つにまとめて連続空白・3 連以上の改行を潰し、前後を trim する。
  */
 export function stripMediaLinks(): Transformer {
