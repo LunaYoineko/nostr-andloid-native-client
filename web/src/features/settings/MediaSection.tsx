@@ -121,7 +121,8 @@ export function MediaSection() {
 
 /**
  * [#533] 画像アップロード時の圧縮（ネイティブ MediaCompressionSheet / ImageCompressionBlock）。
- * 「低 / 中」の長辺（px）と再エンコード品質（%）。「高」は常に無加工なので設定は無い。
+ * 「低 / 中」の長辺（px）と再エンコード品質（%）。「高」は縮小しないが、EXIF を消すため同じ品質で
+ * 再エンコードする（プラポリ 4.4。ネイティブは「高」= 無加工だが Web はこちらを優先）。
  */
 function ImageCompressionBlock() {
   const prefs = useImageCompression((s) => s.prefs);
@@ -141,8 +142,9 @@ function ImageCompressionBlock() {
       <h3 className={styles.caption}>画像アップロードの圧縮</h3>
       <p className={styles.desc}>
         投稿画像は「低 / 中」選択時に下の長辺（px）へリサイズして再エンコードします（WebP。書けなければ
-        JPEG）。「高」は常に原寸のままです。既定値: 低 = {DEFAULT_LOW_DIM}px・中 = {DEFAULT_MID_DIM}px・品質 =
-        {` ${DEFAULT_QUALITY}%`}（範囲: 長辺 {DIM_MIN}〜{DIM_MAX} / 品質 {QUALITY_MIN}〜{QUALITY_MAX}）。
+        JPEG）。「高」は縮小しませんが、位置情報などの EXIF を取り除くため同じ品質で再エンコードします。
+        既定値: 低 = {DEFAULT_LOW_DIM}px・中 = {DEFAULT_MID_DIM}px・品質 ={` ${DEFAULT_QUALITY}%`}（範囲: 長辺{" "}
+        {DIM_MIN}〜{DIM_MAX} / 品質 {QUALITY_MIN}〜{QUALITY_MAX}）。
       </p>
       <div className={styles.row}>
         <label className={styles.field}>

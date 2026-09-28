@@ -10,6 +10,7 @@ import { currentSigner, useSession } from "../../signer/session";
 import { installDialogPolyfill } from "../../test/dialog";
 import { createTestSigner } from "../../test/fakeSigner";
 import { renderWithRouter } from "../../test/renderWithRouter";
+import { useToast } from "../../ui/toast";
 import { ComposeDialog } from "./ComposeDialog";
 import { type ComposeRequest, openCompose, useCompose } from "./composeStore";
 import { setMediaServer } from "./mediaServer";
@@ -53,6 +54,7 @@ afterEach(() => {
   act(() => useCompose.setState({ request: null }));
   localStorage.clear();
   useSession.setState({ status: "loading", method: null, pubkey: null });
+  useToast.setState({ queue: [] });
 });
 
 /** 開いている要求の投稿シート（閉じたら消える = ComposeHost と同じ） */
@@ -486,7 +488,7 @@ describe("連投（#533）", () => {
     expect(localStorage.getItem(THREAD_DRAFT_KEY)).toBeNull();
   });
 
-  it("途中で失敗したら残りは送らない", async () => {
+  it("途中で失敗したら残りは送らない。送れた段落は外し、残りを新しい連投の下書きにする", async () => {
     const user = userEvent.setup();
     vi.mocked(publishEvent).mockImplementationOnce(async (draft: EventDraft) =>
       finalizeEvent(
@@ -505,10 +507,17 @@ describe("連投（#533）", () => {
     await user.click(screen.getByRole("button", { name: "連投" }));
 
     await waitFor(() => expect(publishEvent).toHaveBeenCalledTimes(2));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "投稿に失敗しました。添付はそのままなので、もう一度お試しください。",
-    );
     expect(useCompose.getState().request).not.toBeNull();
+    // 「1つ目」は送れたので外れ、失敗した「2つ目」が本文へ戻り（編集中の行として一覧にも出る）、
+    // 「3つ目」だけが段落として一覧に残る
+    expect(body()).toHaveValue("2つ目");
+    const list = screen.getByRole("list", { name: "連投" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(list).getByText("3つ目")).toBeInTheDocument();
+    expect(within(list).queryByText("1つ目")).toBeNull();
+    expect(useToast.getState().queue).toContain(
+      "1件目までは送信済み。残りは新しい連投として下書きに残しました",
+    );
   });
 });
 

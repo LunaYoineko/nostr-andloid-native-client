@@ -24,6 +24,7 @@ import {
   ReplyIcon,
   VisibilityOffIcon,
 } from "../../ui/icons";
+import { showToast } from "../../ui/toast";
 import { EmojiInsertButton } from "../actions/EmojiInsertButton";
 import { NoteContent } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
@@ -41,6 +42,7 @@ import {
   buildThread,
   type PostContext,
   type PostMedia,
+  threadStepSources,
 } from "./buildPost";
 import styles from "./ComposeDialog.module.css";
 import {
@@ -386,14 +388,20 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
       lookup: (id) => eventStore.getEvent(id),
     };
     const list = attachments;
+    const isThread = threadSegments.length > 0;
+    // 積んだ段落 + いま書いている本文（editIdx の位置）。連投でなければ空
+    const raw = isThread
+      ? [...threadSegments.slice(0, editIdx), content, ...threadSegments.slice(editIdx)]
+      : [];
     const ac = new AbortController();
     controller.current = ac;
     setSending(true);
     setSendError(null);
     setUploadDone(0);
+    let media: PostMedia[] = [];
+    let sentCount = 0;
     try {
       // 添付は先にアップロードする（1 件でも失敗したら投稿しない）
-      let media: PostMedia[] = [];
       if (list.length > 0) {
         const signer = currentSigner();
         if (!signer) throw new Error("no signer");
@@ -406,10 +414,8 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
           },
         });
       }
-      if (threadSegments.length > 0) {
-        // [#533] 連投: 積んだ段落 + いま書いている本文（editIdx の位置）を先頭から順に発行し、
-        // 前の段落の id が決まってから次を署名する（自己スレッド化）。
-        const raw = [...threadSegments.slice(0, editIdx), content, ...threadSegments.slice(editIdx)];
+      if (isThread) {
+        // [#533] 連投: 先頭から順に発行し、前の段落の id が決まってから次を署名する（自己スレッド化）。
         const steps = buildThread(raw, cw, ctx, media, editIdx);
         let rootId: string | null = null;
         let prevId: string | null = null;
@@ -419,6 +425,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
           recordHashtags(step.content, signed.created_at);
           rootId = rootId ?? signed.id;
           prevId = signed.id;
+          sentCount += 1;
         }
       } else {
         const draft =
@@ -438,7 +445,28 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
     } catch (e) {
       // キャンセル済み（もう編集に戻っている）
       if (ac.signal.aborted || (e instanceof PublishError && e.reason === "aborted")) return;
-      setSendError(SEND_FAILED);
+      if (isThread && sentCount > 0) {
+        // [#533] 送れた段落はもう二度と送らない（送り直すと二重投稿になる）ので下書きから外し、
+        // 失敗した段落から先だけを新しい連投の下書きに残す（root/reply は次に送るときに新しく組み直す）。
+        const sources = threadStepSources(raw, media, editIdx);
+        const pending = sources.slice(sentCount);
+        // 添付はもともと editIdx の段落に付けていた。まだ送れていなければ次に引き継ぎ、送れていれば
+        // 別の段落へ誤って付かないよう外す。
+        const mediaPending = media.length > 0 && editIdx >= sentCount;
+        const currentPos = mediaPending ? editIdx - sentCount : 0;
+        const newBody = pending[currentPos];
+        setThread({ segs: [...pending.slice(0, currentPos), ...pending.slice(currentPos + 1)], edit: 0 });
+        update({ text: newBody, cursor: newBody.length }, true);
+        if (media.length > 0 && !mediaPending) {
+          for (const a of list) URL.revokeObjectURL(a.preview);
+          previews.current.clear();
+          setAttachments([]);
+          setProcessedSizes(new Map());
+        }
+        showToast(`${sentCount}件目までは送信済み。残りは新しい連投として下書きに残しました`);
+      } else {
+        setSendError(SEND_FAILED);
+      }
       setSending(false);
     } finally {
       if (controller.current === ac) controller.current = null;

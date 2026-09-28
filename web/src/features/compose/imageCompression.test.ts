@@ -47,7 +47,7 @@ describe("setImageCompression / resetImageCompression", () => {
 });
 
 describe("maxDimFor", () => {
-  it("低 / 中はそれぞれの長辺、高は null（無加工）", () => {
+  it("低 / 中はそれぞれの長辺、高は null（縮小しない）", () => {
     const prefs = { lowMaxDim: 640, midMaxDim: 1200, quality: 85 };
     expect(maxDimFor("low", prefs)).toBe(640);
     expect(maxDimFor("mid", prefs)).toBe(1200);

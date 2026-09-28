@@ -92,7 +92,7 @@ export function resetImageCompression(): void {
   }
 }
 
-/** プリセットに対応する長辺 px（ネイティブ maxDimFor）。高は null（無加工） */
+/** プリセットに対応する長辺 px（ネイティブ maxDimFor）。高は null（縮小しない。ただし EXIF は消すため再エンコードはする） */
 export function maxDimFor(resolution: ImageResolution, prefs: ImageCompressionPrefs): number | null {
   switch (resolution) {
     case "low":

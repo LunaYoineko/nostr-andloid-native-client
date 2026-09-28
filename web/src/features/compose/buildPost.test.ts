@@ -9,6 +9,7 @@ import {
   imetaTags,
   type PostContext,
   type PostMedia,
+  threadStepSources,
   withMediaUrls,
 } from "./buildPost";
 
@@ -223,5 +224,11 @@ describe("buildThread", () => {
   it("本文が空で添付も無い段落（いま書いている本文が空のとき）は除く", () => {
     const steps = buildThread(["a", "", "b"], null, ctx());
     expect(steps.map((s) => s.content)).toEqual(["a", "b"]);
+  });
+
+  it("threadStepSources は buildThread と同じ並び・件数の元テキストを返す（添付の URL は含めない）", () => {
+    const IMG: PostMedia = { kind: "image", url: "https://m/a.webp" };
+    expect(threadStepSources(["a", "", "b"])).toEqual(["a", "b"]);
+    expect(threadStepSources(["a", "b"], [IMG], 1)).toEqual(["a", "b"]);
   });
 });

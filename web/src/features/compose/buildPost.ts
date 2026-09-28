@@ -233,3 +233,19 @@ export function buildThread(
       },
     }));
 }
+
+/**
+ * buildThread に渡す前の、本文も添付も無い段落を除いた「元のテキスト」（buildThread が返す ThreadStep と
+ * 同じ並び・同じ件数）。途中で送信に失敗したとき、どこまで送れたかをもとの入力へ戻すのに使う
+ * （送れた分を除き、残りをそのまま新しい連投の下書きにする）。
+ */
+export function threadStepSources(
+  segments: readonly string[],
+  media: readonly PostMedia[] = [],
+  mediaIndex: number = segments.length - 1,
+): string[] {
+  return segments
+    .map((raw, i) => ({ raw: raw.trim(), body: withMediaUrls(raw.trim(), i === mediaIndex ? media : []) }))
+    .filter((s) => s.body.trim() !== "")
+    .map((s) => s.raw);
+}
