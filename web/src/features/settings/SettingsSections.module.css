@@ -64,8 +64,10 @@
   cursor: pointer;
 }
 
-.accountButton:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .accountButton:hover {
+    background: var(--surface-3);
+  }
 }
 
 .names {
@@ -175,8 +177,10 @@
   color: var(--text-2);
 }
 
-.ghost:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .ghost:hover {
+    background: var(--surface-3);
+  }
 }
 
 .danger {
@@ -312,8 +316,10 @@
   cursor: pointer;
 }
 
-.textButton:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .textButton:hover {
+    background: var(--surface-3);
+  }
 }
 
 /* ネイティブ DeckTextButton（「▼ 候補から追加（おすすめ）」） */
@@ -329,8 +335,10 @@
   cursor: pointer;
 }
 
-.link:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .link:hover {
+    background: var(--surface-3);
+  }
 }
 
 /* 候補のチップ（ネイティブ PresetChip）。折り返して並べる */
@@ -358,8 +366,10 @@
   cursor: pointer;
 }
 
-.chip:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .chip:hover {
+    background: var(--surface-3);
+  }
 }
 
 .chipPlus {

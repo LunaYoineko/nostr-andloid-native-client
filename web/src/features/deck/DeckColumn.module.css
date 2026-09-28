@@ -139,8 +139,10 @@
   cursor: pointer;
 }
 
-.iconButton:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .iconButton:hover {
+    background: var(--surface-3);
+  }
 }
 
 .menu {
@@ -211,8 +213,10 @@
   cursor: pointer;
 }
 
-.menuItem:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .menuItem:hover {
+    background: var(--surface-3);
+  }
 }
 
 .danger {

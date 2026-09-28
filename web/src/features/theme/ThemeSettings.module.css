@@ -150,8 +150,10 @@
   cursor: pointer;
 }
 
-.navRow:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .navRow:hover {
+    background: var(--surface-3);
+  }
 }
 
 .navRowText {

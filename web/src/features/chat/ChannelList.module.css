@@ -33,8 +33,10 @@
   cursor: pointer;
 }
 
-.createRow:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .createRow:hover {
+    background: var(--surface-3);
+  }
 }
 
 .createIcon {
@@ -50,8 +52,10 @@
   border-bottom: 1px solid var(--border);
 }
 
-.item:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .item:hover {
+    background: var(--surface-3);
+  }
 }
 
 .item:has(> [aria-current="true"]) {
@@ -139,8 +143,10 @@
   cursor: pointer;
 }
 
-.edit:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .edit:hover {
+    background: var(--surface-2);
+  }
 }
 
 .editIcon {
@@ -162,8 +168,10 @@
   cursor: pointer;
 }
 
-.pin:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .pin:hover {
+    background: var(--surface-2);
+  }
 }
 
 /* ピン留め済み（ネイティブは Zap 色） */

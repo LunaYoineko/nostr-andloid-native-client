@@ -93,8 +93,10 @@
   cursor: pointer;
 }
 
-.mention:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .mention:hover {
+    background: var(--surface-2);
+  }
 }
 
 .mentionName {

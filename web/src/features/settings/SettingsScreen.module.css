@@ -73,8 +73,10 @@
   cursor: pointer;
 }
 
-.row:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .row:hover {
+    background: var(--surface-3);
+  }
 }
 
 .row[aria-current="page"] {

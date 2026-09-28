@@ -62,8 +62,10 @@
   cursor: pointer;
 }
 
-.newRow:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .newRow:hover {
+    background: var(--surface-3);
+  }
 }
 
 .newIcon {
@@ -87,8 +89,10 @@
   border-bottom: 1px solid var(--border);
 }
 
-.item:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .item:hover {
+    background: var(--surface-3);
+  }
 }
 
 .item:has(> [aria-current="true"]) {

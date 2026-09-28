@@ -48,8 +48,10 @@
   cursor: pointer;
 }
 
-.add:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .add:hover {
+    background: var(--surface-3);
+  }
 }
 
 .added {

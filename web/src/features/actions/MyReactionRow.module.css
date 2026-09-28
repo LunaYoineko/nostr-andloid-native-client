@@ -7,8 +7,10 @@
   text-decoration: none;
 }
 
-.row:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .row:hover {
+    background: var(--surface-2);
+  }
 }
 
 /* 38px = ネイティブの AvatarSize（投稿のアバター列と揃える） */

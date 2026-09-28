@@ -98,8 +98,10 @@
   overflow: hidden;
 }
 
-.cell:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .cell:hover {
+    background: var(--surface-3);
+  }
 }
 
 .cell img {

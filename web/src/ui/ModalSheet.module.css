@@ -76,8 +76,10 @@
   cursor: pointer;
 }
 
-.close:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .close:hover {
+    background: var(--surface-3);
+  }
 }
 
 .closeIcon {
