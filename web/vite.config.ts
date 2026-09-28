@@ -30,6 +30,14 @@ export default defineConfig({
           { src: "/app/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
           { src: "/app/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
+        // 他アプリの共有シートから開く（#541）。/app/share が title・text・url を下書きにして投稿シートを開く
+        share_target: {
+          action: "/app/share",
+          method: "GET",
+          params: { title: "title", text: "text", url: "url" },
+        },
+        // web+nostr: リンクをこのアプリで開く（#541。登録は設定「データ・キャッシュ」の registerProtocolHandler）
+        protocol_handlers: [{ protocol: "web+nostr", url: "/app/open?uri=%s" }],
       },
       workbox: {
         navigateFallback: "/app/index.html",

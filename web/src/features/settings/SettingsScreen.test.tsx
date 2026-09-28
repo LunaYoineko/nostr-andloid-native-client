@@ -173,6 +173,23 @@ describe("Expanded", () => {
     expect(screen.queryByRole("dialog", { name: "接続と通信量" })).toBeNull();
   });
 
+  it("データ・キャッシュ: 「nostr: リンクをこのアプリで開く」は manifest と同じ scheme / URL で登録する（#541）", async () => {
+    const registerProtocolHandler = vi.fn();
+    Object.defineProperty(navigator, "registerProtocolHandler", {
+      configurable: true,
+      value: registerProtocolHandler,
+    });
+    renderAt("/settings/data", 1000);
+    await userEvent.click(screen.getByRole("button", { name: "nostr: リンクをこのアプリで開く" }));
+    expect(registerProtocolHandler).toHaveBeenCalledWith("web+nostr", "/app/open?uri=%s");
+    Reflect.deleteProperty(navigator, "registerProtocolHandler");
+  });
+
+  it("データ・キャッシュ: registerProtocolHandler が無いブラウザでは出さない（#541）", () => {
+    renderAt("/settings/data", 1000);
+    expect(screen.queryByRole("button", { name: "nostr: リンクをこのアプリで開く" })).toBeNull();
+  });
+
   it("データ・キャッシュ: キャッシュの強制消去は確認してから", async () => {
     renderAt("/settings/data", 1000);
     await userEvent.click(screen.getByRole("button", { name: "キャッシュを強制消去" }));

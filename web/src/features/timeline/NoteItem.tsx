@@ -16,6 +16,7 @@ import { NoteFooter } from "../compose/NoteFooter";
 import { LinkCards } from "../linkcard/LinkCard";
 import { useLinkCards } from "../linkcard/useLinkCards";
 import { NoteMedia } from "../media/NoteMedia";
+import { useTranslation, useTranslationPending } from "../translate/translateStore";
 import { CollapsibleContent } from "./CollapsibleContent";
 import { ContentWarning } from "./ContentWarning";
 import { NoteContent } from "./NoteContent";
@@ -184,6 +185,7 @@ function NoteBody({
                   <NoteContent event={event} hideMention={hideMention} hideLinks={linkCards.carded} />
                 </CollapsibleContent>
               )}
+              <TranslationBlock eventId={event.id} />
               {quote && <QuoteCard pointer={quote.pointer} encoded={quote.encoded} />}
               {hasMedia && <NoteMedia media={media} />}
               <LinkCards cards={linkCards.cards} />
@@ -196,6 +198,22 @@ function NoteBody({
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * ⋯「翻訳」の結果（本文の下に別ブロック。#541。ネイティブ NoteItem.kt と同じ置き場所）。
+ * 取得中はキャプションだけ出し、隠している間（visible: false）は取得済みでも何も描かない。
+ */
+function TranslationBlock({ eventId }: { eventId: string }) {
+  const entry = useTranslation(eventId);
+  const pending = useTranslationPending(eventId);
+  if (!pending && !entry?.visible) return null;
+  return (
+    <div className={styles.translation}>
+      <p className={styles.translationCaption}>{pending ? "翻訳中…" : "翻訳"}</p>
+      {entry?.visible && <p className={styles.translationText}>{entry.text}</p>}
+    </div>
   );
 }
 
