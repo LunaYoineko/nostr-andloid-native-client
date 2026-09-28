@@ -92,6 +92,14 @@ export function ProfileScreen({
     if (scrollEl && initialPosition.scrollY > 0) scrollEl.scrollTop = initialPosition.scrollY;
   }, [scrollEl]);
 
+  // 閉じた後に予約済みの保存が走ると、遷移先（別のプロフィール等）の履歴エントリへ書いてしまうので取り消す
+  useEffect(
+    () => () => {
+      if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    },
+    [],
+  );
+
   function onScroll(e: UIEvent<HTMLDivElement>) {
     scrollYRef.current = e.currentTarget.scrollTop;
     if (scrollFrame.current !== null) return;
