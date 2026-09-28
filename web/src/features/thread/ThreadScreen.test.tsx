@@ -1,6 +1,6 @@
 import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { finalizeEvent, generateSecretKey, type NostrEvent } from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import type { ReactElement } from "react";
 import { useLocation } from "react-router";
 import { VirtuosoMockContext } from "react-virtuoso";
@@ -13,6 +13,7 @@ import { renderWithRouter } from "../../test/renderWithRouter";
 import cardStyles from "./CommentRootCard.module.css";
 import reactorStyles from "./ReactorRow.module.css";
 import { ThreadScreen } from "./ThreadScreen";
+import zapStyles from "./ZapRow.module.css";
 
 // リレーには繋がず、REQ ごとに Subject を返す（EOSE はテストから流す）
 vi.mock("../../nostr/pool", async (importOriginal) => {
@@ -76,6 +77,37 @@ function conversation(focusTags: string[][] = []) {
     { content: "返信の投稿", createdAt: 1_002 },
   );
   return { root, focus, reply };
+}
+
+/** target への Zap 受領（kind:9735）。金額は Zap リクエストの amount（msat） */
+function storedZap(
+  target: NostrEvent,
+  {
+    sender,
+    sats,
+    comment = "",
+    createdAt = 2_000,
+  }: { sender: string; sats: number; comment?: string; createdAt?: number },
+): NostrEvent {
+  const request = {
+    kind: 9734,
+    pubkey: sender,
+    content: comment,
+    tags: [
+      ["amount", String(sats * 1000)],
+      ["e", target.id],
+    ],
+  };
+  return stored(
+    9735,
+    [
+      ["e", target.id],
+      ["p", target.pubkey],
+      ["P", sender],
+      ["description", JSON.stringify(request)],
+    ],
+    { createdAt },
+  );
 }
 
 /** ReactorRow の行（DOM の順） */
@@ -224,4 +256,57 @@ it("kind:1 / 1111 以外の起点は「Web 版ではまだ表示できません�
   render(<ThreadScreen pointer={{ id: article.id }} />);
 
   expect(screen.getByText("kind 30023 の投稿は Web 版ではまだ表示できません")).toBeInTheDocument();
+});
+
+it("起点への Zap 受領を購読し、⚡ 行に合計 sats と Zap した人（重複なし）を出す", () => {
+  const { focus } = conversation();
+  const [alice, bob] = [getPublicKey(generateSecretKey()), getPublicKey(generateSecretKey())];
+  storedZap(focus, { sender: alice, sats: 100, createdAt: 2_000 });
+  storedZap(focus, { sender: bob, sats: 1_000, createdAt: 2_001 });
+  storedZap(focus, { sender: alice, sats: 21, createdAt: 2_002 });
+
+  const { container } = render(<ThreadScreen pointer={{ id: focus.id }} />);
+
+  expect(subscribeTo).toHaveBeenCalledWith(
+    ["wss://relay.example"],
+    [{ kinds: [9735], "#e": [focus.id], limit: 500 }],
+  );
+  const [zapRow] = reactorRows(container);
+  expect(zapRow.getElementsByClassName(reactorStyles.label)[0]).toHaveTextContent(/^1121 sats$/);
+  expect(within(zapRow).getAllByRole("link")).toHaveLength(2);
+});
+
+it("Zap だけの起点でも ⚡ 行を出す（集計の 1 行目は出さない）", () => {
+  const root = stored(1, [], { content: "ルートの投稿" });
+  const focus = stored(1, [["e", root.id, "", "root"]], { content: "起点の投稿", createdAt: 1_001 });
+  storedZap(focus, { sender: getPublicKey(generateSecretKey()), sats: 21 });
+
+  const { container } = render(<ThreadScreen pointer={{ id: focus.id }} />);
+
+  expect(screen.queryByText(/リプライ|リアクション/)).toBeNull();
+  const [zapRow] = reactorRows(container);
+  expect(zapRow.getElementsByClassName(reactorStyles.label)[0]).toHaveTextContent(/^21 sats$/);
+});
+
+it("コメント付き Zap だけを返信の後に新しい順で行にする（⚡・名前・金額・コメント）", () => {
+  const { focus, reply } = conversation();
+  const alice = generateSecretKey();
+  stored(0, [], { key: alice, content: JSON.stringify({ name: "アリス" }) });
+  const aliceHex = getPublicKey(alice);
+  storedZap(focus, { sender: aliceHex, sats: 100, comment: "ありがとう", createdAt: 2_000 });
+  storedZap(focus, { sender: getPublicKey(generateSecretKey()), sats: 5, createdAt: 2_001 });
+  storedZap(focus, { sender: getPublicKey(generateSecretKey()), sats: 7, comment: "  ", createdAt: 2_002 });
+  storedZap(focus, { sender: aliceHex, sats: 1_000, comment: "すごい", createdAt: 2_003 });
+
+  const { container } = render(<ThreadScreen pointer={{ id: focus.id }} />);
+
+  const rows = [...container.getElementsByClassName(zapStyles.row)] as HTMLElement[];
+  expect(rows).toHaveLength(2);
+  expect(rows[0]).toHaveTextContent("アリス1000 satsすごい");
+  expect(rows[1]).toHaveTextContent("アリス100 satsありがとう");
+  expect(within(rows[0]).getByRole("img", { name: "Zap" })).toBeInTheDocument();
+  expect(within(rows[0]).getByRole("link", { name: "アリス" }).getAttribute("href")).toMatch(/^\/p\/npub1/);
+  // 返信の後
+  const replyArticle = screen.getByText(reply.content).closest("article") as HTMLElement;
+  expect(replyArticle.compareDocumentPosition(rows[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });

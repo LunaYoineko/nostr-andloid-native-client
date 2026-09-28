@@ -8,6 +8,7 @@ import { useSession } from "../../signer/session";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import {
   AddReactionIcon,
+  BoltIcon,
   FavoriteBorderIcon,
   FavoriteIcon,
   MoreHorizIcon,
@@ -23,6 +24,8 @@ import { useMuteMatcher } from "../mute/muteList";
 import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
 import { followsFromContacts } from "../profile/contacts";
 import { FollowError, toggleFollow } from "../profile/follow";
+import { useZapSats } from "../zap/useZapReceipts";
+import { formatSats } from "../zap/zapTotals";
 import { moreMenuEntries } from "./moreMenu";
 import styles from "./NoteActionButtons.module.css";
 import { copyText, noteLinksOf, plainTextOf } from "./noteLinks";
@@ -50,7 +53,7 @@ function warn(message: string) {
 
 /**
  * 投稿のアクション行の「返信」の後ろ（NoteItem から NoteFooter の children として呼ぶ唯一の入口）:
- * リポスト → 既定リアクション（♡ / ☆）→ 絵文字 → 余白 → ⋯。数は出さない（押下状態だけ）。
+ * リポスト → 既定リアクション（♡ / ☆）→ 絵文字 → ⚡ → 余白 → ⋯。数は Zap の合計だけ出す（他は押下状態だけ）。
  */
 export function NoteActionButtons({ event }: { event: NostrEvent }) {
   const me = useSession((s) => s.pubkey);
@@ -62,6 +65,7 @@ export function NoteActionButtons({ event }: { event: NostrEvent }) {
       <RepostButton event={event} />
       <DefaultReactionButton event={event} />
       <EmojiReactionButton event={event} />
+      <ZapAction event={event} />
       <span className={styles.spacer} aria-hidden="true" />
       <MoreMenu event={event} />
     </>
@@ -176,6 +180,31 @@ function EmojiReactionButton({ event }: { event: NostrEvent }) {
         />
       )}
     </>
+  );
+}
+
+/**
+ * ⚡ Zap（ネイティブ ZapAction）。作者の kind:0 に lud16 があるか、受領の合計が 0 より大きいときだけ出す。
+ * 合計 > 0 なら右に金額（formatSats）を --zap で、0 なら --text-3。送金（#524）が入るまでは表示だけで押せない。
+ */
+function ZapAction({ event }: { event: NostrEvent }) {
+  const author = useProfile(event.pubkey);
+  const hasLud16 = typeof author?.lud16 === "string" && author.lud16.trim() !== "";
+  const sats = useZapSats(event.id);
+  if (!hasLud16 && sats === 0) return null;
+  const label = sats > 0 ? `Zap ${formatSats(sats)} sats` : "Zap";
+  return (
+    <span
+      className={sats > 0 ? `${styles.zap} ${styles.zapped}` : styles.zap}
+      role="img"
+      aria-label={label}
+      title={label}
+    >
+      <span className={styles.zapIcon}>
+        <BoltIcon />
+      </span>
+      {sats > 0 && <span className={styles.zapAmount}>{formatSats(sats)}</span>}
+    </span>
   );
 }
 
