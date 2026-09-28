@@ -6,7 +6,16 @@ import { INDEXER_RELAYS } from "../lib/columnRequest";
 import { useSession } from "../signer/session";
 import { createTestSigner } from "../test/fakeSigner";
 import { followOwnRelayList, OWN_RELAYLIST_TIMEOUT_MS, startOwnRelayList } from "./outbox";
-import { defaultRelaysFor, pool, RELAYS_KEY, requestOnce, resetRelays, subscribe, useRelays } from "./pool";
+import {
+  defaultRelaysFor,
+  pool,
+  RELAYS_KEY,
+  relayRows,
+  requestOnce,
+  resetRelays,
+  subscribe,
+  useRelays,
+} from "./pool";
 import { publishEvent, resetPublishQueueForTest } from "./publish";
 import { addVerified } from "./store";
 
@@ -17,6 +26,9 @@ vi.mock("./pool", async (importOriginal) => ({
 }));
 
 const DEFAULTS = defaultRelaysFor(navigator.language ?? "");
+// リレー表（#585）は addRelay / applyOwnRelayList と同じ normalizeURL で揃えるので、既定リレーも
+// useRelays.getState() の期待値では正規化した形（末尾の /）を使う
+const NORMALIZED_DEFAULTS = DEFAULTS.map((url) => normalizeURL(url));
 
 let me: string;
 let secretKey: Uint8Array;
@@ -102,11 +114,19 @@ it("kind:10002 のあるアカウントはインデクサ + 既定リレーか�
 it("kind:10002 の無いアカウント・どこからも応答が無いときは既定のまま", () => {
   respondWith();
   follow(me);
-  expect(useRelays.getState()).toEqual({ read: DEFAULTS, write: DEFAULTS, source: "default" });
+  expect(useRelays.getState()).toEqual({
+    read: NORMALIZED_DEFAULTS,
+    write: NORMALIZED_DEFAULTS,
+    source: "default",
+  });
 
   vi.mocked(requestOnce).mockReturnValue(throwError(() => new Error("timeout")));
   follow(createTestSigner().pubkey);
-  expect(useRelays.getState()).toEqual({ read: DEFAULTS, write: DEFAULTS, source: "default" });
+  expect(useRelays.getState()).toEqual({
+    read: NORMALIZED_DEFAULTS,
+    write: NORMALIZED_DEFAULTS,
+    source: "default",
+  });
 });
 
 it("手元にある新しい版（DB から戻した分・後から届いた分）も反映する", () => {
@@ -115,22 +135,31 @@ it("手元にある新しい版（DB から戻した分・後から届いた分�
   follow(me);
   expect(useRelays.getState().read).toEqual(["wss://cached.example/"]);
 
+  // ネイティブ applyRelayList と同じ合成規則: 新しい版に無い NIP-65 行も消えない（default だけ外れる）
   addVerified(relayList([["r", "wss://newer.example"]], 2_000));
-  expect(useRelays.getState().read).toEqual(["wss://newer.example/"]);
+  expect(useRelays.getState().read).toEqual(["wss://cached.example/", "wss://newer.example/"]);
 });
 
-it("nostrism.relays があれば kind:10002 を取りに行かず、保存値を使う", () => {
-  localStorage.setItem(RELAYS_KEY, JSON.stringify(["wss://saved.example"]));
+it("nostrism.relays があっても NIP-65 を優先する（手動リレーへ引き継ぐだけ。#585 挙動1.8）", () => {
+  localStorage.setItem(RELAYS_KEY, JSON.stringify(["wss://legacy.example"]));
   resetRelays();
   respondWith(relayList([["r", "wss://nip65.example"]]));
 
   follow(me);
 
-  expect(vi.mocked(requestOnce)).not.toHaveBeenCalled();
+  // 旧版の保存値はこのアカウントの手動リレーへ引き継がれる（消えない）
+  expect(vi.mocked(requestOnce)).toHaveBeenCalled();
+  expect(relayRows()).toEqual(
+    expect.arrayContaining([
+      { url: "wss://legacy.example/", read: true, write: true, source: "manual" },
+      { url: "wss://nip65.example/", read: true, write: true, source: "nip65" },
+    ]),
+  );
+  // 接続先は NIP-65 と手動の合わせ技（NIP-65 が無視されない）
   expect(useRelays.getState()).toEqual({
-    read: ["wss://saved.example"],
-    write: ["wss://saved.example"],
-    source: "saved",
+    read: expect.arrayContaining(["wss://legacy.example/", "wss://nip65.example/"]),
+    write: expect.arrayContaining(["wss://legacy.example/", "wss://nip65.example/"]),
+    source: "nip65",
   });
 });
 
