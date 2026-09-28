@@ -13,6 +13,7 @@ import {
   encodeReqFilter,
   roomColumnFor,
 } from "../../lib/columns";
+import { useProfile } from "../../nostr/loaders";
 import {
   FEED_CATEGORIES,
   type FeedCategory,
@@ -195,15 +196,24 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
   );
 }
 
-/** カラムヘッダ（ネイティブの ColumnHeader）。先頭 40px のアイコン、タイトル + 説明、末尾に ⋯ */
+/**
+ * カラムヘッダ（ネイティブの ColumnHeader）。先頭 40px のアイコン、タイトル + 説明、末尾に ⋯。
+ * PROFILE はプロフィール（kind:0）の名前をタイトルにする（ネイティブ ProfileColumn.kt:66-71。未取得なら spec.title）。
+ */
 function ColumnHeader({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: () => void }) {
+  const profilePubkey = spec.kind === "PROFILE" ? spec.filter.authors[0] : undefined;
+  const profile = useProfile(profilePubkey);
+  const title =
+    profilePubkey && typeof profile?.name === "string" && profile.name.trim() !== ""
+      ? profile.name
+      : spec.title;
   return (
     <header className={styles.header}>
       <span className={styles.icon}>
         <Icon name={columnIcon(spec.kind)} size="lg" />
       </span>
       <div className={styles.titles}>
-        <h2 className={styles.title}>{spec.title}</h2>
+        <h2 className={styles.title}>{title}</h2>
         <p className={styles.subtitle}>{columnSubtitleFor(spec)}</p>
       </div>
       <ColumnMenu spec={spec} onRefresh={onRefresh} />
