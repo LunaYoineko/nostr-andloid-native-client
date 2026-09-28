@@ -4,6 +4,7 @@ import { hrefForProfile } from "../../lib/content/labels";
 import { useSession } from "../../signer/session";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { useLayoutMode } from "../../ui/useLayoutMode";
+import { WalletSection } from "../wallet/WalletSection";
 import { AccountSection, AccountSummary } from "./AccountSection";
 import { BookmarksSection } from "./BookmarksSection";
 import { DataSection } from "./DataSection";
@@ -165,6 +166,8 @@ function SectionBody({ id }: { id: string }) {
       return <DmRelaySection />;
     case "media":
       return <MediaSection />;
+    case "wallet":
+      return <WalletSection />;
     case "display":
       return <DisplaySection />;
     case "data":

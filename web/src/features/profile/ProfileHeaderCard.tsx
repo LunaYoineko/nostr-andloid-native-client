@@ -11,6 +11,7 @@ import { Lightbox } from "../media/Lightbox";
 import { useMuteMatcher } from "../mute/muteList";
 import { RichText } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
+import { payInvoiceWithNwc, useNwc } from "../wallet/nwcManager";
 import { ZapDialog } from "../zap/ZapDialog";
 import { parseAbout } from "./about";
 import { FollowButton } from "./FollowButton";
@@ -110,6 +111,8 @@ export function ProfileHeaderCard({
   const [error, showError] = useTimedMessage(ERROR_MS);
   const [zoom, setZoom] = useState<string | null>(null);
   const [zapping, setZapping] = useState(false);
+  // [#537] ウォレット接続（NWC）済みなら Zap ダイアログの受け口へアプリ内送金を渡す
+  const walletConnected = useNwc((s) => s.connection !== null);
 
   async function copyNpub() {
     try {
@@ -231,7 +234,13 @@ export function ProfileHeaderCard({
       </div>
       {zoom && <Lightbox items={[{ url: zoom }]} index={0} onClose={() => setZoom(null)} />}
       {zapping && lud16 && (
-        <ZapDialog recipient={pubkey} recipientName={name} lud16={lud16} onClose={() => setZapping(false)} />
+        <ZapDialog
+          recipient={pubkey}
+          recipientName={name}
+          lud16={lud16}
+          payWithWallet={walletConnected ? payInvoiceWithNwc : undefined}
+          onClose={() => setZapping(false)}
+        />
       )}
     </div>
   );

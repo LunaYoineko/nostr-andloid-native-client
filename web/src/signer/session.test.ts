@@ -5,6 +5,7 @@ import { FakeBunker } from "../test/fakeBunker";
 import { installFakeNostr, installTestVault, OTHER_PUBKEY, PUBKEY, resetSession } from "../test/fakeNostr";
 import { resetNip46ForTest, setNip46PoolForTest } from "./nip46";
 import { getNip46Store, NIP46_ROW_ID } from "./nip46Store";
+import { createNwcStore, getNwcStore, NWC_ROW_ID, setNwcStoreForTest } from "./nwcStore";
 import { currentSigner, LoginError, SESSION_FLAG_KEY, SESSION_KEY, useSession } from "./session";
 import { VAULT_ROW_ID } from "./webKeyVault";
 
@@ -248,6 +249,23 @@ describe("logout", () => {
 
     expect(useSession.getState()).toMatchObject({ status: "out", method: null, pubkey: null });
     expect(localStorage.length).toBe(0);
+  });
+
+  it("[#537] ログアウトで NWC の接続情報も消す（Web は共用 PC を想定）", async () => {
+    const db = await installTestVault();
+    setNwcStoreForTest(createNwcStore({ database: async () => db }));
+    await getNwcStore().save(
+      `nostr+walletconnect://${"a".repeat(64)}?relay=wss://r&secret=${"b".repeat(64)}`,
+    );
+    try {
+      installFakeNostr();
+      await useSession.getState().login();
+      useSession.getState().logout();
+
+      await vi.waitFor(async () => expect(await db.vault.get(NWC_ROW_ID)).toBeUndefined());
+    } finally {
+      setNwcStoreForTest(createNwcStore({ database: async () => null }));
+    }
   });
 
   it("local のログアウトで保管庫の鍵も消す", async () => {
