@@ -39,7 +39,9 @@ function DestScreen({ dest }: { dest: Dest }) {
     case "search":
       return <SearchScreen />;
     case "messages":
-      return <MessagesScreen />;
+      return <MessagesScreen segment="dm" />;
+    case "channels":
+      return <MessagesScreen segment="chat" />;
     case "notifications":
       return <NotificationsScreen />;
     case "settings":

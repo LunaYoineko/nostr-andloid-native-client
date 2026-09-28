@@ -10,6 +10,7 @@ import {
   columnSubtitleFor,
   editTemplate,
   encodeReqFilter,
+  roomColumnFor,
 } from "../../lib/columns";
 import {
   FEED_CATEGORIES,
@@ -21,6 +22,9 @@ import {
 } from "../../store/deck";
 import { columnIcon, Icon } from "../../ui/icons";
 import { MyReactionRow } from "../actions/MyReactionRow";
+import { ChannelList } from "../chat/ChannelList";
+import { ChannelRoom } from "../chat/ChannelRoom";
+import { pinRoom, usePinnedRoomIds } from "../chat/pin";
 import { ConversationList } from "../dm/ConversationList";
 import { startDecrypting } from "../dm/dmService";
 import { KbRow, useKbList } from "../keyboard/KbList";
@@ -34,7 +38,7 @@ import type { FeedRow } from "./followingMix";
 import { useColumnFeed } from "./useColumnFeed";
 
 /** Web 版でまだ描けない種別（REQ も張らない） */
-const UNSUPPORTED_KINDS: ReadonlySet<ColumnKind> = new Set(["THREAD", "CHANNEL_LIST", "CHANNEL_ROOM"]);
+const UNSUPPORTED_KINDS: ReadonlySet<ColumnKind> = new Set(["THREAD"]);
 
 const WIDTHS: readonly { width: ColumnWidth; label: string }[] = [
   { width: "S", label: "狭" },
@@ -55,6 +59,8 @@ const CATEGORY_LABEL: Record<FeedCategory, string> = {
 export function DeckColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
   if (UNSUPPORTED_KINDS.has(spec.kind)) return <UnsupportedColumn spec={spec} showHeader={showHeader} />;
   if (spec.kind === "DM") return <DmColumn spec={spec} showHeader={showHeader} />;
+  if (spec.kind === "CHANNEL_LIST") return <ChannelListColumn spec={spec} showHeader={showHeader} />;
+  if (spec.kind === "CHANNEL_ROOM") return <RoomColumn spec={spec} showHeader={showHeader} />;
   return <FeedColumn spec={spec} showHeader={showHeader} />;
 }
 
@@ -90,6 +96,52 @@ function DmColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean 
         />
       </div>
     </section>
+  );
+}
+
+/**
+ * NIP-28 のチャンネル一覧カラム（ネイティブ ChannelListColumn。同期で来たものを描く）。行を押すとルームを一時カラムで開き
+ * （戻るとこのカラムへ）、ピンで固定カラムにする。
+ */
+function ChannelListColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
+  const pinnedIds = usePinnedRoomIds();
+  return (
+    <section className={styles.column} aria-label={spec.title}>
+      {showHeader && <ColumnHeader spec={spec} />}
+      <div className={`${styles.body} ${styles.scroll}`}>
+        <ChannelList
+          selectedId={null}
+          pinnedIds={pinnedIds}
+          onSelect={(channel) => useDeck.getState().openTransient(roomColumnFor(channel), spec.id)}
+          onPin={pinRoom}
+        />
+      </div>
+    </section>
+  );
+}
+
+/** NIP-28 のルームカラム（ネイティブ LiveChannelRoom の deckMode）。⋯ の「ミュートを表示」が効く */
+function RoomColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
+  const revealed = useDeck((s) => isMutedRevealed(s, spec.id));
+  const header = showHeader ? <ColumnHeader spec={spec} /> : null;
+  const channelId = spec.filter.channelId;
+  if (channelId === null) {
+    return (
+      <section className={styles.column} aria-label={spec.title}>
+        {header}
+        <p className={styles.empty}>チャンネルが指定されていません</p>
+      </section>
+    );
+  }
+  return (
+    <ChannelRoom
+      key={channelId}
+      channelId={channelId}
+      title={spec.title}
+      mode="column"
+      header={header}
+      revealMuted={revealed}
+    />
   );
 }
 

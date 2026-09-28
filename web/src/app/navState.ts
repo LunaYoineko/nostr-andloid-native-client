@@ -1,7 +1,7 @@
 import type { UIMatch } from "react-router";
 
-/** 宛先（URL のパス）。notFound = どのナビも選択しない */
-export type Dest = "home" | "search" | "messages" | "notifications" | "settings" | "notFound";
+/** 宛先（URL のパス）。messages = DM、channels = パブリックチャット（どちらもナビの「メッセージ」）。notFound = どのナビも選択しない */
+export type Dest = "home" | "search" | "messages" | "channels" | "notifications" | "settings" | "notFound";
 
 /** 宛先の上に重ねる詳細 */
 export type OverlayKind = "thread" | "profile";
@@ -64,7 +64,7 @@ export function bottomSelection(
   return {
     home: dest === "home" && !notifications,
     search: dest === "search",
-    messages: dest === "messages",
+    messages: dest === "messages" || dest === "channels",
     notifications,
     settings: dest === "settings",
   };
