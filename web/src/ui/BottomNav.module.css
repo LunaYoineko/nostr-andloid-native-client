@@ -1,14 +1,20 @@
 /*
- * 80px = M3 NavigationBar の既定。下端はホームインジケータ 34px → 8px に詰める（iOS ネイティブの値。0 未満は 0）。
- * バーの下 26px がインジケータ帯に重なるが、アイコンは 80px の中央なので重ならない。
+ * 80px = M3 NavigationBar の既定。下端のインセットは OS ごとにネイティブへ合わせる（#598）。
+ * - Android: systemBars の実値をそのまま確保する（詰めるとナビゲーション操作領域と重なる）。
+ * - iOS: ホームインジケータ 34px → 8px に詰める（0 未満は 0）。バーの下 26px がインジケータ帯に
+ *   重なるが、アイコンは 80px の中央なので重ならない。data-os="ios" は main.tsx が付ける。
  */
 .nav {
   flex: none;
   display: flex;
   box-sizing: content-box;
   height: 80px;
-  padding-bottom: max(0px, env(safe-area-inset-bottom, 0px) - 26px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   background: var(--bg);
+}
+
+:root[data-os="ios"] .nav {
+  padding-bottom: max(0px, env(safe-area-inset-bottom, 0px) - 26px);
 }
 
 .item {
