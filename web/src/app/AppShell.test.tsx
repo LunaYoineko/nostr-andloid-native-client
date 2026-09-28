@@ -4,6 +4,7 @@ import { neventEncode, noteEncode, npubEncode } from "nostr-tools/nip19";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useCompose } from "../features/compose/composeStore";
+import { saveDraft } from "../features/compose/storage";
 import { useDmSeen } from "../features/dm/dmSeen";
 import { useDm } from "../features/dm/dmStore";
 import type { ColumnSpec } from "../lib/columns";
@@ -342,6 +343,14 @@ describe("共有（/share。#541）", () => {
     const router = renderAt(["/share?text=本文だけ"]);
     await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
     expect(screen.getByRole("textbox", { name: "本文" })).toHaveValue("本文だけ");
+  });
+
+  it("書きかけの下書きは消さず、空行を挟んで後ろへ足す", async () => {
+    installDialogPolyfill();
+    saveDraft("書きかけ");
+    const router = renderAt(["/share?url=https://x"]);
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(screen.getByRole("textbox", { name: "本文" })).toHaveValue("書きかけ\n\nhttps://x");
   });
 });
 
