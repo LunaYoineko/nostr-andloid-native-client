@@ -7,9 +7,11 @@ import {
   loadDraft,
   loadThreadDraft,
   loadUsedHashtags,
+  loadUsedHashtagsDetailed,
   pinnedHashtagsFrom,
   recentHashtagChips,
   recordHashtags,
+  removeUsedHashtag,
   saveDraft,
   saveThreadDraft,
   THREAD_DRAFT_KEY,
@@ -62,6 +64,19 @@ it("使用履歴: 新しい順、500 件まで、壊れていれば空", () => {
 
   localStorage.setItem(USED_HASHTAGS_KEY, "{broken");
   expect(loadUsedHashtags()).toEqual([]);
+});
+
+it("使用履歴の詳細: 最終使用時刻つき（新しい順）。削除は端末ローカルで発行しない", () => {
+  recordHashtags("#a #b", 1);
+  recordHashtags("#a", 2);
+  expect(loadUsedHashtagsDetailed()).toEqual([
+    { tag: "a", lastUsed: 2 },
+    { tag: "b", lastUsed: 1 },
+  ]);
+
+  removeUsedHashtag("a");
+  expect(loadUsedHashtagsDetailed()).toEqual([{ tag: "b", lastUsed: 1 }]);
+  expect(loadUsedHashtags()).toEqual(["b"]);
 });
 
 it("最近のタグはピン留めを除いて 8 件、候補は前方一致（断片そのものは除く）8 件", () => {

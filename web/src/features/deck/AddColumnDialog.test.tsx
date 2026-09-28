@@ -1,8 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { afterEach, beforeAll, beforeEach, expect, it } from "vitest";
 import { DEFAULT_COLUMNS, decodeDeckColumns, encodeReqFilter } from "../../lib/columns";
+import { addVerified } from "../../nostr/store";
+import { useSession } from "../../signer/session";
 import { COLUMNS_KEY, useDeck } from "../../store/deck";
+import { USED_HASHTAGS_KEY } from "../compose/storage";
 import { AddColumnDialog } from "./AddColumnDialog";
 
 // jsdom は <dialog> の showModal / close を持たないので、開閉と close イベントだけを足す
@@ -23,6 +27,7 @@ beforeEach(() => {
 
 afterEach(() => {
   localStorage.clear();
+  useSession.setState({ status: "loading", method: null, pubkey: null });
 });
 
 it("ハッシュタグ Nostr を足すと #Nostr のカラムが末尾に増えて保存され、ダイアログが閉じる", async () => {
@@ -73,4 +78,44 @@ it("指定 npub の投稿に読めない文字列を入れるとエラーを出�
   expect(screen.getByText("npub または hex を入力")).toBeInTheDocument();
   expect(useDeck.getState().columns).toHaveLength(3);
   expect(useDeck.getState().showAddColumn).toBe(true);
+});
+
+it("ハッシュタグ / キーワード・タグ: ピン留め・最近使ったタグのチップを押すと入力に入る（#536）", async () => {
+  const meKey = generateSecretKey();
+  const me = getPublicKey(meKey);
+  useSession.setState({ status: "in", method: "local", pubkey: me });
+  addVerified(
+    finalizeEvent(
+      {
+        kind: 30015,
+        created_at: 1,
+        tags: [
+          ["d", "pinned"],
+          ["t", "zap"],
+        ],
+        content: "",
+      },
+      meKey,
+    ),
+  );
+  localStorage.setItem(USED_HASHTAGS_KEY, JSON.stringify([{ tag: "bitcoin", lastUsed: 1 }]));
+  const user = userEvent.setup();
+  render(<AddColumnDialog />);
+
+  await user.click(screen.getByRole("button", { name: /^ハッシュタグ/ }));
+  const chips = screen.getByRole("list", { name: "ピン留め・最近使ったタグ" });
+  expect(
+    within(chips)
+      .getAllByRole("button")
+      .map((b) => b.textContent),
+  ).toEqual(["#zap", "#bitcoin"]);
+  await user.click(within(chips).getByRole("button", { name: "#zap" }));
+  expect(screen.getByRole("textbox", { name: "ハッシュタグ" })).toHaveValue("zap");
+
+  await user.click(screen.getByRole("button", { name: "戻る" }));
+  await user.click(screen.getByRole("button", { name: /^キーワード・タグ/ }));
+  const searchChips = screen.getByRole("list", { name: "ピン留め・最近使ったタグ" });
+  await user.type(screen.getByRole("textbox", { name: "キーワード・タグ" }), "hello");
+  await user.click(within(searchChips).getByRole("button", { name: "#bitcoin" }));
+  expect(screen.getByRole("textbox", { name: "キーワード・タグ" })).toHaveValue("hello #bitcoin");
 });

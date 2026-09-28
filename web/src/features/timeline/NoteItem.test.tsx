@@ -12,6 +12,7 @@ import { renderWithRouter } from "../../test/renderWithRouter";
 import { useToast } from "../../ui/toast";
 import linkCardStyles from "../linkcard/LinkCard.module.css";
 import gridStyles from "../media/ImageGrid.module.css";
+import { DEFAULT_THEME_PREFS, setNoteAccent, useThemePrefs } from "../theme/themePrefs";
 import { useTranslateStore } from "../translate/translateStore";
 import contentStyles from "./NoteContent.module.css";
 import { NoteItem } from "./NoteItem";
@@ -22,6 +23,10 @@ vi.mock("../../nostr/loaders", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../nostr/loaders")>()),
   useEventByAddress: vi.fn(() => ({ event: undefined, failed: false })),
 }));
+
+afterEach(() => {
+  useThemePrefs.setState(DEFAULT_THEME_PREFS);
+});
 
 // applesauce の Tokens.link はホストにドットを要求するため、テストの URL は *.test にする
 
@@ -565,6 +570,62 @@ it("kind:6 の元投稿が 8 秒で取れなければ行ごと隠し、後から
   } finally {
     vi.useRealTimers();
   }
+});
+
+it("[#464] 種別の視覚表示は既定オフ（なし）なら通常の投稿にクラスを付けない", () => {
+  const reply = post("返信", { tags: [["e", "f".repeat(64), "", "reply"]] });
+  const { container } = renderWithRouter(<NoteItem event={reply} />);
+  const article = container.querySelector("article");
+  expect(article).not.toHaveClass(noteStyles.accentLineReply);
+  expect(article).not.toHaveClass(noteStyles.accentBgReply);
+});
+
+it("[#464] 返信は line / bg で --kind-reply のスタイルを付ける", () => {
+  const reply = post("返信", { tags: [["e", "f".repeat(64), "", "reply"]] });
+
+  setNoteAccent("line");
+  const line = renderWithRouter(<NoteItem event={reply} />);
+  expect(line.container.querySelector("article")).toHaveClass(noteStyles.accentLineReply);
+  line.unmount();
+
+  setNoteAccent("bg");
+  const bg = renderWithRouter(<NoteItem event={reply} />);
+  expect(bg.container.querySelector("article")).toHaveClass(noteStyles.accentBgReply);
+});
+
+it("[#464] 引用は返信より優先する（同じ投稿が両方でも quote になる）", () => {
+  const quoted = stored("引用元");
+  const event = post(`nostr:${neventEncode({ id: quoted.id })}`, {
+    tags: [["e", "f".repeat(64), "", "reply"]],
+  });
+  setNoteAccent("line");
+
+  const { container } = renderWithRouter(<NoteItem event={event} />);
+
+  expect(container.querySelector("article")).toHaveClass(noteStyles.accentLineQuote);
+  expect(container.querySelector("article")).not.toHaveClass(noteStyles.accentLineReply);
+});
+
+it("[#464] kind:7（リアクション）は reaction のスタイルを付ける", () => {
+  setNoteAccent("bg");
+  const reaction = post("+", { kind: 7 });
+
+  const { container } = renderWithRouter(<NoteItem event={reaction} />);
+
+  expect(container.querySelector("article")).toHaveClass(noteStyles.accentBgReaction);
+});
+
+it("[#464] kind:6（リポスト）は中身の種別に関係なく repost のスタイルを付ける", () => {
+  const original = stored("リポスト元");
+  const repost = finalizeEvent(
+    { kind: 6, created_at: unixNow(), tags: [["e", original.id]], content: "" },
+    generateSecretKey(),
+  );
+  setNoteAccent("line");
+
+  const { container } = renderWithRouter(<NoteItem event={repost} />);
+
+  expect(container.querySelector("article")).toHaveClass(noteStyles.accentLineRepost);
 });
 
 // ---- ⋯「翻訳」（#541） ----

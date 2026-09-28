@@ -10,7 +10,9 @@ import { BookmarksSection } from "./BookmarksSection";
 import { DataSection } from "./DataSection";
 import { DisplaySection } from "./DisplaySection";
 import { DmRelaySection } from "./DmRelaySection";
+import { EmojiSection } from "./EmojiSection";
 import { FavsSection } from "./FavsSection";
+import { HashtagSection } from "./HashtagSection";
 import { MediaSection } from "./MediaSection";
 import { MuteSection } from "./MuteSection";
 import { ProfileEditSection } from "./ProfileEditSection";
@@ -156,6 +158,10 @@ function SectionBody({ id }: { id: string }) {
       return <BookmarksSection />;
     case "mute":
       return <MuteSection />;
+    case "emoji":
+      return <EmojiSection />;
+    case "hashtags":
+      return <HashtagSection />;
     case "profile-edit":
       return <ProfileEditSection />;
     case "account":
