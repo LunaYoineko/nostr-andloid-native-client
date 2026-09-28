@@ -5,6 +5,7 @@ import { EMPTY, throwError } from "rxjs";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { requestOnce, resetRelays } from "../../nostr/pool";
 import { publishEvent } from "../../nostr/publish";
+import { AUTH_POLICY_KEY, setAuthPolicy } from "../../nostr/relayAuth";
 import { useSession } from "../../signer/session";
 import { installDialogPolyfill } from "../../test/dialog";
 import { useToast } from "../../ui/toast";
@@ -110,4 +111,21 @@ it("Read も Write も無ければ保存できない", async () => {
   await userEvent.click(screen.getByRole("button", { name: "relay.damus.io を削除" }));
   await userEvent.click(screen.getByRole("button", { name: "nos.lol を削除" }));
   expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
+});
+
+it("AUTH（NIP-42）への応答は 3 択で、既定は DM/自分のリレーのみ。選ぶと保存する", async () => {
+  render(<RelaySection />);
+  expect(screen.getByRole("button", { name: "DM/自分のリレーのみ" })).toHaveAttribute("aria-pressed", "true");
+
+  await userEvent.click(screen.getByRole("button", { name: "無効" }));
+  expect(screen.getByRole("button", { name: "無効" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "DM/自分のリレーのみ" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  expect(localStorage.getItem(AUTH_POLICY_KEY)).toBe("off");
+
+  await userEvent.click(screen.getByRole("button", { name: "常に応答" }));
+  expect(localStorage.getItem(AUTH_POLICY_KEY)).toBe("always");
+  setAuthPolicy("dm");
 });
