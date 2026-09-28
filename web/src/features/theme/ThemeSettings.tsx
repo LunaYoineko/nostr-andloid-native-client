@@ -1,4 +1,6 @@
-import { useEffect, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { useSession } from "../../signer/session";
+import { showToast } from "../../ui/toast";
 import { CUSTOM_PRESETS, type CustomColors, contrastRatio, normalizeHex } from "./customPalette";
 import type { NoteAccentStyle } from "./noteAccent";
 import styles from "./ThemeSettings.module.css";
@@ -19,6 +21,7 @@ import {
   useThemePrefs,
   useThemeUndo,
 } from "./themePrefs";
+import { publishTheme, ThemePublishError } from "./themeStore";
 
 type Option<T extends string> = { value: T; label: string };
 
@@ -107,8 +110,11 @@ export function ThemeSettings() {
   );
 }
 
-/** 適用直後の「元に戻す」（ネイティブ ThemeUndoBar）。モード・カスタム配色の変更でだけ出る */
-function ThemeUndoBar() {
+/**
+ * 適用直後の「元に戻す」（ネイティブ ThemeUndoBar）。モード・カスタム配色の変更でだけ出る。
+ * テーマストア（#539）の画面でも、ストアから適用した直後に同じバーを出すために export する。
+ */
+export function ThemeUndoBar() {
   const undo = useThemeUndo();
   if (!undo) return null;
   return (
@@ -139,6 +145,8 @@ function ThemeCustomize() {
   const custom = useThemePrefs((s) => s.custom);
   const textRatio = contrastRatio(custom.bg, custom.text);
   const accentRatio = contrastRatio(custom.bg, custom.accent);
+  const me = useSession((s) => s.pubkey);
+  const [publishOpen, setPublishOpen] = useState(false);
   return (
     <div className={styles.customize}>
       <p className={styles.desc}>
@@ -179,12 +187,130 @@ function ThemeCustomize() {
       <button type="button" className={styles.reset} onClick={resetCustomColors}>
         既定に戻す
       </button>
+      {me && (
+        <>
+          <hr className={styles.divider} />
+          <p className={styles.desc}>
+            この配色をテーマストアに公開すると、他の人が探して使えるようになります。同じ名前で再公開すると更新されます。
+          </p>
+          <button type="button" className={styles.reset} onClick={() => setPublishOpen(true)}>
+            テーマストアに公開
+          </button>
+        </>
+      )}
+      {publishOpen && me && (
+        <PublishThemeDialog me={me} colors={custom} onDismiss={() => setPublishOpen(false)} />
+      )}
     </div>
   );
 }
 
-/** プリセット行の見本（背景の上に文字サンプルとアクセントの小さな四角） */
-function ThemeSwatch({ colors }: { colors: CustomColors }) {
+/** 発行の失敗を文言へ（#478 の規則。理由ごとにネイティブと揃えた文言） */
+function themePublishFailureMessage(e: unknown): string {
+  if (e instanceof ThemePublishError) {
+    switch (e.reason) {
+      case "no-theme":
+        return "最新の状態を取得できなかったため、公開しませんでした。接続を確認してもう一度お試しください";
+      case "stale":
+        return "別の端末で更新されていたため、公開しませんでした。もう一度お試しください";
+    }
+  }
+  // ネイティブ theme_publish_failed
+  return "テーマを公開できませんでした。";
+}
+
+/**
+ * 公開ダイアログ（ネイティブ DeckInputDialog 相当）。名前だけ聞いて公開する（配色は編集中の下書きをそのまま使う）。
+ * #478 の規則（取り直し・食い違いチェック）は publishTheme 側で行う。
+ */
+function PublishThemeDialog({
+  me,
+  colors,
+  onDismiss,
+}: {
+  me: string;
+  colors: CustomColors;
+  onDismiss(): void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const inputId = useId();
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const d = dialog.current;
+    if (d && !d.open) d.showModal();
+  }, []);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (trimmed === "" || busy) return;
+    setBusy(true);
+    try {
+      await publishTheme(me, trimmed, colors);
+      showToast("テーマを公開しました。");
+      onDismiss();
+    } catch (err) {
+      showToast(themePublishFailureMessage(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <dialog
+      ref={dialog}
+      className={styles.dialog}
+      aria-labelledby={titleId}
+      onCancel={(e) => {
+        e.preventDefault();
+        if (!busy) onDismiss();
+      }}
+    >
+      <form onSubmit={(e) => void submit(e)}>
+        <h2 id={titleId} className={styles.dialogTitle}>
+          テーマストアに公開
+        </h2>
+        <label htmlFor={inputId} className="srOnly">
+          テーマ名
+        </label>
+        <input
+          id={inputId}
+          className={styles.dialogInput}
+          type="text"
+          placeholder="テーマ名"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={busy}
+        />
+        <div className={styles.dialogButtons}>
+          <button
+            type="button"
+            className={`${styles.dialogButton} ${styles.dialogDismiss}`}
+            onClick={onDismiss}
+            disabled={busy}
+          >
+            キャンセル
+          </button>
+          <button
+            type="submit"
+            className={`${styles.dialogButton} ${styles.dialogConfirm}`}
+            disabled={name.trim() === "" || busy}
+          >
+            {busy ? "公開中…" : "公開"}
+          </button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
+
+/**
+ * プリセット行の見本（背景の上に文字サンプルとアクセントの小さな四角）。
+ * テーマストア（#539）のミニカードにも同じ見た目を使うために export する。
+ */
+export function ThemeSwatch({ colors }: { colors: CustomColors }) {
   return (
     <span className={styles.swatch} style={{ background: colors.bg }} aria-hidden="true">
       <span style={{ color: colors.text }}>Aa</span>
