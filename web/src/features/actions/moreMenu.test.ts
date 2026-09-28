@@ -18,6 +18,7 @@ function actions(): MoreMenuActions {
     copyId: vi.fn(),
     copyNote1: vi.fn(),
     copyNevent: vi.fn(),
+    viewJson: vi.fn(),
   };
 }
 
@@ -143,4 +144,23 @@ it("client タグが無ければ見出しと最初の区切りを出さない", 
     on: actions(),
   });
   expect(shape(entries)[0]).toBe("削除をリクエスト (danger)");
+});
+
+it("開発者モードの間は末尾に「イベントJSONを表示」", () => {
+  const on = actions();
+  const base = {
+    clientName: null,
+    isMine: true,
+    isFollowing: null,
+    isMuted: false,
+    note1: NOTE1,
+    nevent: NEVENT,
+    on,
+  };
+  expect(shape(moreMenuEntries({ ...base, developerMode: false })).at(-1)).toBe("nevent1abcde… をコピー");
+  const entries = moreMenuEntries({ ...base, developerMode: true });
+  expect(shape(entries)).toEqual(["削除をリクエスト (danger)", ...COPIES, "イベントJSONを表示"]);
+  const last = entries.at(-1);
+  if (last?.type === "item") last.onSelect();
+  expect(on.viewJson).toHaveBeenCalledTimes(1);
 });

@@ -6,6 +6,7 @@ import { displayName, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { EventJsonDialog } from "../../ui/EventJsonDialog";
 import {
   AddReactionIcon,
   BoltIcon,
@@ -24,6 +25,7 @@ import { useMuteMatcher } from "../mute/muteList";
 import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
 import { followsFromContacts } from "../profile/contacts";
 import { FollowError, toggleFollow } from "../profile/follow";
+import { useDeveloperMode } from "../settings/devMode";
 import { useZapSats } from "../zap/useZapReceipts";
 import { ZapDialog } from "../zap/ZapDialog";
 import { formatSats } from "../zap/zapTotals";
@@ -249,7 +251,7 @@ function muteFailureMessage(e: unknown): string {
   return "ミュートリストが変更できません（ロック中の可能性）";
 }
 
-/** ⋯ メニュー（並びは moreMenuEntries）と、そこから開く確認・通報のダイアログ */
+/** ⋯ メニュー（並びは moreMenuEntries）と、そこから開く確認・通報・イベント JSON のダイアログ */
 function MoreMenu({ event }: { event: NostrEvent }) {
   const me = useSession((s) => s.pubkey);
   const author = useProfile(event.pubkey);
@@ -259,7 +261,8 @@ function MoreMenu({ event }: { event: NostrEvent }) {
   const isFollowing = contacts ? followsFromContacts(contacts).includes(event.pubkey) : null;
   const links = useMemo(() => noteLinksOf(event), [event]);
   const isMuted = useMuteMatcher().users.has(event.pubkey);
-  const [dialog, setDialog] = useState<"unfollow" | "mute" | "delete" | "report" | null>(null);
+  const developerMode = useDeveloperMode((s) => s.enabled);
+  const [dialog, setDialog] = useState<"unfollow" | "mute" | "delete" | "report" | "json" | null>(null);
 
   function follow(action: "follow" | "unfollow") {
     if (!me) return;
@@ -288,6 +291,7 @@ function MoreMenu({ event }: { event: NostrEvent }) {
     isMuted,
     note1: links.note1,
     nevent: links.nevent,
+    developerMode,
     on: {
       follow: () => follow("follow"),
       unfollow: () => setDialog("unfollow"),
@@ -300,6 +304,7 @@ function MoreMenu({ event }: { event: NostrEvent }) {
       copyId: () => void copyText(event.id),
       copyNote1: () => void copyText(links.note1),
       copyNevent: () => void copyText(links.nevent),
+      viewJson: () => setDialog("json"),
     },
   });
 
@@ -358,6 +363,7 @@ function MoreMenu({ event }: { event: NostrEvent }) {
           onDismiss={() => setDialog(null)}
         />
       )}
+      {dialog === "json" && <EventJsonDialog event={event} onDismiss={() => setDialog(null)} />}
     </>
   );
 }

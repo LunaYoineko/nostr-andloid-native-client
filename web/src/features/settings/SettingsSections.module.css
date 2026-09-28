@@ -247,18 +247,71 @@
   background: var(--surface-3);
 }
 
-/* 接続状態の点（RelayIndicator と同じ色） */
-.dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: var(--r-full);
-  background: var(--text-3);
+/* ネイティブ DeckTextButton（「▼ 候補から追加（おすすめ）」） */
+.link {
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
 }
 
-/* 信号色はトークン外の例外（RelayIndicator の全接続と同じ緑） */
-.dot[data-connected="true"] {
-  background: #3fb950;
+.link:hover {
+  background: var(--surface-3);
+}
+
+/* 候補のチップ（ネイティブ PresetChip）。折り返して並べる */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-label);
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--surface-3);
+}
+
+.chipPlus {
+  color: var(--accent);
+  font-size: var(--type-sub);
+}
+
+.chipNote {
+  color: var(--text-3);
+}
+
+.presetGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.presetCategory {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-micro);
 }
 
 /* ---- 表示 ---- */

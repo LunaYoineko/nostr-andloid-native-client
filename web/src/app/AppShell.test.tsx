@@ -67,11 +67,12 @@ function mainNav() {
   return screen.getByRole("navigation", { name: "メイン" });
 }
 
-/** レール・下部ナビのボタンの名前（DOM の順） */
+/** レール・下部ナビのボタンの名前（DOM の順。レールのリレーの接続表示は除く） */
 function navLabels() {
   return within(mainNav())
     .getAllByRole("button")
-    .map((b) => b.getAttribute("aria-label"));
+    .map((b) => b.getAttribute("aria-label"))
+    .filter((label) => !label?.startsWith("リレー接続 "));
 }
 
 function currentNavLabels() {

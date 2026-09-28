@@ -98,7 +98,7 @@
 <ul>
   <li><strong>ログアウト</strong>：ログイン情報（秘密鍵・リモート署名の接続情報を含む）、復号した DM と既読の状態を、このブラウザから削除します。Web 版では秘密鍵を表示・書き出しできないため、秘密鍵でログインしている場合は、控えがあることを確かめてからログアウトしてください。</li>
   <li><strong>ログアウトしても残るもの</strong>：キャッシュ（プロフィール等・リンクカード・送信待ちの投稿）、リレー一覧・カラムの構成・表示設定、投稿の下書き、検索・ハッシュタグ・絵文字の履歴。共用の端末では、下の「サイトデータの削除」も行ってください。</li>
-  <li><strong>キャッシュの消去</strong>（設定 → 開発者 → キャッシュを消去）：キャッシュ、送信待ちの投稿、復号した DM を削除します。ログイン情報と設定は残ります。</li>
+  <li><strong>キャッシュの消去</strong>（設定 → データ・キャッシュ → キャッシュを強制消去）：キャッシュ、送信待ちの投稿、復号した DM を削除します。ログイン情報と設定は残ります。</li>
   <li><strong>サイトデータの削除</strong>：ブラウザの設定で <code>nostrism.shino3.net</code> のサイトデータを削除すると、Web 版が保存したすべての情報（秘密鍵を含む）が消えます。ホーム画面に追加した Web 版は、ブラウザとは別に保存している場合があります。その場合はホーム画面からも削除してください。</li>
   <li><strong>自動で消えるもの</strong>：リンクカードは 7 日（取得に失敗したものは 1 日）で取り直し、14 日を過ぎたものは次の起動時に削除します。プロフィール等のキャッシュは、件数が上限を超えると古いものから削除します。送信待ちの投稿は、送信が済むか、別のアカウントでログインしたときに削除します。</li>
   <li>ブラウザによっては、空き容量が少ないときや長く使わなかったときに、保存した情報（秘密鍵を含む）が自動で削除されることがあります。</li>
@@ -188,7 +188,7 @@
 <ul>
   <li><strong>Logging out</strong> removes your login information (including a stored private key or remote-signer connection), decrypted DMs and read status from this browser. The web version cannot display or export your private key, so if you logged in with one, make sure you have a backup before logging out.</li>
   <li><strong>Kept after logout</strong>: the cache (profiles etc., link cards, posts waiting to be sent), relay list, column layout, display settings, post draft, and search, hashtag and emoji history. On a shared device, also delete the site data as described below.</li>
-  <li><strong>Clearing the cache</strong> (Settings → 開発者 (Developer) → キャッシュを消去 (Clear cache)) removes the cache, posts waiting to be sent and decrypted DMs. Login information and settings are kept.</li>
+  <li><strong>Clearing the cache</strong> (Settings → データ・キャッシュ (Data &amp; cache) → キャッシュを強制消去 (Force clear cache)) removes the cache, posts waiting to be sent and decrypted DMs. Login information and settings are kept.</li>
   <li><strong>Deleting site data</strong>: deleting the site data for <code>nostrism.shino3.net</code> in your browser settings removes everything the web version stored (including your private key). A web version added to your home screen may keep its data separately from the browser; in that case, also remove it from the home screen.</li>
   <li><strong>Automatic deletion</strong>: link cards are refreshed after 7 days (1 day if fetching failed), and those older than 14 days are deleted at the next start. Cached profiles etc. are deleted oldest first when their number exceeds a limit. Posts waiting to be sent are deleted once sent, or when you log in with a different account.</li>
   <li>Some browsers may automatically delete stored data (including your private key) when storage is low or the site has not been used for a while.</li>

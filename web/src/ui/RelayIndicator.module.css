@@ -4,13 +4,23 @@
   align-items: center;
   gap: var(--sp-1);
   padding: var(--sp-1);
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
   color: var(--text-3);
+  font: inherit;
   font-size: var(--type-label);
   font-weight: var(--w-link);
+  cursor: pointer;
+}
+
+.indicator:hover {
+  background: var(--surface-3);
 }
 
 .indicator[data-orientation="vertical"] {
   flex-direction: column;
+  border-radius: var(--r-md);
   font-size: var(--type-micro);
   font-weight: var(--w-strong);
 }

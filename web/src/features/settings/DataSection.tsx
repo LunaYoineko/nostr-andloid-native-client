@@ -1,0 +1,91 @@
+import { useId, useState } from "react";
+import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { ConnectionMonitorDialog } from "./ConnectionMonitorDialog";
+import { clearCacheAndReload } from "./cache";
+import { setDeveloperMode, useDeveloperMode } from "./devMode";
+import styles from "./SettingsSections.module.css";
+
+/**
+ * データ・キャッシュ（ネイティブ DataSettings の並び: キャッシュの強制消去 → 開発者モード → 接続と通信量）。
+ * NIP-78 のリレー同期（#468）はこの項目の先頭に入る予定。
+ */
+export function DataSection() {
+  return (
+    <>
+      <PurgeCacheBlock />
+      <DeveloperModeBlock />
+      <ConnectionMonitorBlock />
+    </>
+  );
+}
+
+/** キャッシュの強制消去（ネイティブ purgeCache）。確認のうえ消して再読み込みする */
+function PurgeCacheBlock() {
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>キャッシュ</h3>
+      <p className={styles.desc}>
+        端末内に保存しているキャッシュ（タイムライン履歴・プロフィール・送信待ち・リンクカード）をすべて消去し、再読み込みしてリレーから取り直します。DM
+        の復号済みメッセージも消えます。NIP-07 / NIP-46
+        では次に開いたとき再び承認を求められます。鍵・リレー・カラムの設定は保持されます。
+      </p>
+      <button
+        type="button"
+        className={`${styles.danger} ${styles.alignStart}`}
+        onClick={() => setConfirming(true)}
+      >
+        キャッシュを強制消去
+      </button>
+      {confirming && (
+        <ConfirmDialog
+          title="キャッシュを消去しますか？"
+          text="保存済みのイベント・プロフィール・送信待ち・リンクカードをすべて削除し、再読み込みしてリレーから取り直します。DM の復号済みメッセージも消えます。NIP-07 / NIP-46 では次に開いたとき再び承認を求められます。鍵・リレー・カラムの設定は消えません。この操作は元に戻せません。"
+          confirmLabel="消去する"
+          destructive
+          onConfirm={() => {
+            setConfirming(false);
+            void clearCacheAndReload();
+          }}
+          onDismiss={() => setConfirming(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** 開発者モード（ネイティブ #351）。ON で投稿の ⋯ に「イベントJSONを表示」 */
+function DeveloperModeBlock() {
+  const enabled = useDeveloperMode((s) => s.enabled);
+  const id = useId();
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>開発者モード</h3>
+      <p className={styles.desc}>
+        投稿やチャットの「⋯」メニューに「イベントJSONを表示」が追加され、タイムラインに流れてくるイベントの生データを確認できます。
+      </p>
+      <label className={styles.check} htmlFor={id}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setDeveloperMode(e.target.checked)}
+        />
+        開発者モードを有効にする
+      </label>
+    </div>
+  );
+}
+
+/** 接続と通信量（ネイティブ ConnectionMonitorDialog #364）への入口 */
+function ConnectionMonitorBlock() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={styles.block}>
+      <button type="button" className={`${styles.ghost} ${styles.alignStart}`} onClick={() => setOpen(true)}>
+        接続と通信量を表示
+      </button>
+      {open && <ConnectionMonitorDialog onDismiss={() => setOpen(false)} />}
+    </div>
+  );
+}

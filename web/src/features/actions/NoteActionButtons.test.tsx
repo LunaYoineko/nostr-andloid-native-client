@@ -16,6 +16,7 @@ import { NoteFooter } from "../compose/NoteFooter";
 import { EMPTY_MUTE_LIST, setMuteList } from "../mute/muteList";
 import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
 import { toggleFollow } from "../profile/follow";
+import { setDeveloperMode } from "../settings/devMode";
 import { NoteActionButtons, REACTION_PENDING_MS } from "./NoteActionButtons";
 import styles from "./NoteActionButtons.module.css";
 import { setDefaultReaction, useDefaultReaction } from "./reactionPrefs";
@@ -83,6 +84,7 @@ afterEach(() => {
   useCompose.setState({ request: null });
   useToast.setState({ queue: [] });
   useSession.setState({ status: "loading", method: null, pubkey: null });
+  setDeveloperMode(false);
 });
 
 function post(key = generateSecretKey(), tags: string[][] = []): NostrEvent {
@@ -428,5 +430,51 @@ describe("⋯ メニュー", () => {
     await waitFor(() =>
       expect(useToast.getState().queue).toEqual(["コピーしました", "コピーできませんでした"]),
     );
+  });
+
+  it("開発者モードが OFF なら「イベントJSONを表示」は無い", async () => {
+    const user = userEvent.setup();
+    renderRow(post());
+    await user.click(button("その他の操作"));
+    expect(screen.getByRole("menuitem", { name: "テキストをコピー" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: "イベントJSONを表示" })).toBeNull();
+  });
+
+  it("開発者モードが ON なら末尾の「イベントJSONを表示」で整形した JSON を出し、コピーでトースト", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    setDeveloperMode(true);
+    const event = post();
+    renderRow(event);
+
+    await user.click(button("その他の操作"));
+    const items = screen.getAllByRole("menuitem");
+    expect(items.at(-1)).toHaveTextContent("イベントJSONを表示");
+    await user.click(screen.getByRole("menuitem", { name: "イベントJSONを表示" }));
+
+    const dialog = screen.getByRole("dialog", { name: "イベントJSON" });
+    const expected = JSON.stringify(
+      {
+        id: event.id,
+        pubkey: event.pubkey,
+        created_at: event.created_at,
+        kind: 1,
+        tags: [],
+        content: "本文です",
+        sig: event.sig,
+      },
+      null,
+      2,
+    );
+    expect(dialog.querySelector("pre")?.textContent).toBe(expected);
+    expect(within(dialog).getByText("kind:1")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "テキストをコピー" }));
+    expect(writeText).toHaveBeenCalledWith(expected);
+    await waitFor(() => expect(useToast.getState().queue).toEqual(["JSONをコピーしました"]));
+
+    await user.click(within(dialog).getByRole("button", { name: "閉じる" }));
+    expect(screen.queryByRole("dialog", { name: "イベントJSON" })).toBeNull();
   });
 });
