@@ -10,9 +10,12 @@ import { formatAbsoluteTime } from "../../lib/time";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { retryUnsentNow, useIsUnsent } from "../../nostr/publish";
 import { currentSigner } from "../../signer/session";
-import { ArrowBackIcon, CloseIcon, ImageIcon, PlayArrowIcon, VideocamIcon } from "../../ui/icons";
+import { ArrowBackIcon, CloseIcon, ImageIcon, PlayArrowIcon, ReplyIcon, VideocamIcon } from "../../ui/icons";
 import { showToast } from "../../ui/toast";
 import { EmojiInsertButton } from "../actions/EmojiInsertButton";
+import { ReplyQuote } from "../chat/ChannelRoom";
+import { ReplyingTo } from "../chat/ChatComposer";
+import { replyParentIdOf } from "../chat/chatMessage";
 import {
   type Attachment,
   createAttachment,
@@ -46,6 +49,21 @@ const PAGE_SIZE = 200;
 const CONTINUATION_SEC = 300;
 
 /**
+ * DmMessageRow → kind:14 相当の NostrEvent（本文の描画・返信元の受け渡し用。EventStore には入れない。#589）。
+ */
+function dmEvent(message: DmMessageRow): NostrEvent {
+  return {
+    id: message.id,
+    pubkey: message.sender,
+    kind: 14,
+    created_at: message.createdAt,
+    content: message.content,
+    tags: message.tags,
+    sig: "",
+  };
+}
+
+/**
  * 相手との会話（ネイティブ DmScreen の会話側）。最新が下。
  * スクロール領域は column-reverse で下端に揃える（DOM は新しい順。ネイティブの reverseLayout と同じで、
  * 読み込み後に最下部へ飛ばす処理は書かない）。onBack があれば（Compact）「←」を出す。
@@ -61,10 +79,15 @@ export function ConversationView({ peer, onBack }: { peer: string; onBack?: () =
     if (me !== null && unread > 0) markSeen(me, peer, lastIncomingAt);
   }, [me, peer, unread, lastIncomingAt]);
   const [limit, setLimit] = useState(PAGE_SIZE);
+  // 返信中のメッセージ（#589）。会話を切り替えたら持ち越さない
+  const [replyTo, setReplyTo] = useState<NostrEvent | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: peer は「会話が変わったら」のキーとして見るだけ
+  useEffect(() => setReplyTo(null), [peer]);
   const profile = useProfile(peer);
   const picture = pictureOf(profile);
   const name = displayName(profile, peer);
 
+  const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   const start = Math.max(0, messages.length - limit);
   // DOM は新しい順（column-reverse で下から積む）
   const rows: ReactNode[] = [];
@@ -75,8 +98,17 @@ export function ConversationView({ peer, onBack }: { peer: string; onBack?: () =
       prev !== undefined &&
       prev.sender === message.sender &&
       message.createdAt - prev.createdAt < CONTINUATION_SEC;
+    // 返信元（#e の reply マーカー）。手元に無ければ引用は出さない（#589）
+    const parentId = replyParentIdOf(dmEvent(message));
     rows.push(
-      <Bubble key={message.id} message={message} mine={message.sender === me} continuation={continuation} />,
+      <Bubble
+        key={message.id}
+        message={message}
+        mine={message.sender === me}
+        continuation={continuation}
+        parent={parentId ? byId.get(parentId) : undefined}
+        onReply={() => setReplyTo(dmEvent(message))}
+      />,
     );
   }
 
@@ -104,7 +136,12 @@ export function ConversationView({ peer, onBack }: { peer: string; onBack?: () =
           </button>
         )}
       </div>
-      <Composer peer={peer} />
+      <Composer
+        peer={peer}
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+        onSent={() => setReplyTo(null)}
+      />
     </section>
   );
 }
@@ -134,7 +171,17 @@ const warnedNoPeerRelays = new Set<string>();
  * （ネイティブ Composer の onSend と同じ）。1 件でも失敗したら送らず chat_upload_failed。
  * 送信中は入力と送信を止める。送れたら空にし、送れなければ入力・添付を残してトースト
  */
-function Composer({ peer }: { peer: string }) {
+function Composer({
+  peer,
+  replyTo,
+  onCancelReply,
+  onSent,
+}: {
+  peer: string;
+  replyTo: NostrEvent | null;
+  onCancelReply(): void;
+  onSent(): void;
+}) {
   const nip17 = useDm((s) => s.nip17);
   const nip04 = useDm((s) => s.nip04);
   const me = useDm((s) => s.owner);
@@ -151,6 +198,11 @@ function Composer({ peer }: { peer: string }) {
   const moveCursor = useRef(false);
   // まだ revoke していないプレビューの blob: URL（会話を離れたらまとめて revoke する）
   const previews = useRef(new Set<string>());
+
+  // 返信を選んだら入力欄へ（ネイティブ・ChatComposer と同じ #589）
+  useEffect(() => {
+    if (replyTo) textarea.current?.focus();
+  }, [replyTo]);
 
   useEffect(() => {
     const urls = previews.current;
@@ -234,13 +286,14 @@ function Composer({ peer }: { peer: string }) {
         return;
       }
     }
-    const result = await sendDm(peer, text);
+    const result = await sendDm(peer, text, replyTo);
     setSending(false);
     if (result === "sent" || result === "sent-no-peer-relays") {
       for (const a of list) URL.revokeObjectURL(a.preview);
       previews.current.clear();
       setAttachments([]);
       update({ text: "", cursor: 0 }, true);
+      onSent();
       if (result === "sent-no-peer-relays" && !warnedNoPeerRelays.has(peer)) {
         warnedNoPeerRelays.add(peer);
         showToast(NO_PEER_RELAYS_WARN);
@@ -255,6 +308,11 @@ function Composer({ peer }: { peer: string }) {
   }
   return (
     <div className={styles.composerColumn}>
+      {replyTo && (
+        <div className={styles.replying}>
+          <ReplyingTo target={replyTo} onCancel={onCancelReply} />
+        </div>
+      )}
       {emojiHits.length > 0 ? (
         <div className={styles.chips}>
           {emojiHits.map((emoji) => (
@@ -426,29 +484,25 @@ function AttachmentList({
   );
 }
 
-/** 吹き出し。自分 = 右寄せ、相手 = 左寄せ + アバター（連投は省く） */
+/**
+ * 吹き出し。自分 = 右寄せ、相手 = 左寄せ + アバター（連投は省く）。
+ * [parent] は返信元（無ければ引用は出さない）、[onReply] は返信ボタン（ネイティブ MessageActions。#589）。
+ */
 function Bubble({
   message,
   mine,
   continuation,
+  parent,
+  onReply,
 }: {
   message: DmMessageRow;
   mine: boolean;
   continuation: boolean;
+  parent: DmMessageRow | undefined;
+  onReply(): void;
 }) {
   // 本文の描画用に kind:14 のイベントの形にする（EventStore には入れない）
-  const event = useMemo<NostrEvent>(
-    () => ({
-      id: message.id,
-      pubkey: message.sender,
-      kind: 14,
-      created_at: message.createdAt,
-      content: message.content,
-      tags: message.tags,
-      sig: "",
-    }),
-    [message],
-  );
+  const event = useMemo<NostrEvent>(() => dmEvent(message), [message]);
   const media = extractMedia(event);
   const hasMedia = media.images.length + media.videos.length + media.youtube.length > 0;
   const showSender = !mine && !continuation;
@@ -459,9 +513,14 @@ function Bubble({
         (showSender ? <SenderAvatar pubkey={message.sender} /> : <span className={styles.avatarGap} />)}
       <div className={styles.column}>
         {showSender && <SenderName pubkey={message.sender} />}
-        <div className={styles.bubble}>
-          <NoteContent event={event} />
-          {hasMedia && <NoteMedia media={media} />}
+        {parent && <ReplyQuote parent={dmEvent(parent)} />}
+        <div className={styles.bubbleRow}>
+          {mine && <ReplyButton onClick={onReply} />}
+          <div className={styles.bubble}>
+            <NoteContent event={event} />
+            {hasMedia && <NoteMedia media={media} />}
+          </div>
+          {!mine && <ReplyButton onClick={onReply} />}
         </div>
         <span className={styles.time}>{formatAbsoluteTime(message.createdAt)}</span>
         {mine && unsent && (
@@ -472,6 +531,15 @@ function Bubble({
         )}
       </div>
     </div>
+  );
+}
+
+/** 吹き出し横のリプライボタン（ネイティブ MessageActions の Reply アイコン。DM はリアクション・Zap 無し） */
+function ReplyButton({ onClick }: { onClick(): void }) {
+  return (
+    <button type="button" className={styles.action} aria-label="リプライ" title="リプライ" onClick={onClick}>
+      <ReplyIcon className={styles.actionIcon} />
+    </button>
   );
 }
 

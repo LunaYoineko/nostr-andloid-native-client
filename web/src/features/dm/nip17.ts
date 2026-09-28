@@ -158,9 +158,21 @@ export function dmFromRumor(rumor: Rumor, me: string): Omit<DmMessageRow, "owner
   };
 }
 
-/** 送る rumor（kind:14、宛先 p は相手 1 人。署名は無く id は計算する） */
-export function buildRumor(me: string, peer: string, text: string, now: number): Rumor {
-  const rumor = { pubkey: me, created_at: now, kind: 14, tags: [["p", peer]], content: text };
+/**
+ * 送る rumor（kind:14、宛先 p は相手 1 人）。[replyTo] があれば NIP-10 の reply マーカー付き #e を添える
+ * （ネイティブ EventRepository.publishChannelMessage と同じ形。DM は 1:1 なので相手への #p は増やさない）。
+ * 署名は無く id は計算する
+ */
+export function buildRumor(
+  me: string,
+  peer: string,
+  text: string,
+  now: number,
+  replyTo?: NostrEvent | null,
+): Rumor {
+  const tags: string[][] = [["p", peer]];
+  if (replyTo) tags.push(["e", replyTo.id, "", "reply"]);
+  const rumor = { pubkey: me, created_at: now, kind: 14, tags, content: text };
   return { id: getEventHash(rumor), ...rumor };
 }
 

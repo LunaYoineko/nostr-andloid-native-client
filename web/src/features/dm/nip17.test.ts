@@ -1,5 +1,11 @@
 import * as nip44 from "nostr-tools/nip44";
-import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from "nostr-tools/pure";
+import {
+  finalizeEvent,
+  generateSecretKey,
+  getPublicKey,
+  type NostrEvent,
+  verifyEvent,
+} from "nostr-tools/pure";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Signer } from "../../nostr/signer";
 import { createCipherSigner } from "../../test/cipherSigner";
@@ -223,6 +229,18 @@ describe("送信（buildRumor / wrapGiftWrap）", () => {
       content: "hello",
     });
     expect(rumor.id).toBe(makeRumor(myKey, { content: "hello", tags: [["p", ALICE]], created_at: NOW }).id);
+  });
+
+  it("buildRumor: [replyTo] があれば NIP-10 の reply マーカー付き #e を足す（#589。ネイティブ publishChannelMessage と同じ形）", () => {
+    const parent = { id: "1".repeat(64) } as NostrEvent;
+    const rumor = buildRumor(me, ALICE, "reply", NOW, parent);
+    expect(rumor.tags).toEqual([
+      ["p", ALICE],
+      ["e", parent.id, "", "reply"],
+    ]);
+
+    // replyTo が無ければ従来どおり #e は付かない
+    expect(buildRumor(me, ALICE, "hello", NOW, null).tags).toEqual([["p", ALICE]]);
   });
 
   it("相手の鍵・自分の鍵のどちらで開いても同じ rumor に戻る。wrap の鍵は使い捨て（自分とも相手とも違う）", async () => {
