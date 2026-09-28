@@ -102,7 +102,10 @@ export function NavRail({
       </div>
       <div className={styles.divider} />
       <div className={`${styles.block} ${styles.bottom}`}>
-        <RelayIndicator orientation="vertical" />
+        {/* [#597] 接続表示のタップ領域を他のレール項目（.slot 48dp）と揃える */}
+        <span className={styles.relaySlot}>
+          <RelayIndicator orientation="vertical" />
+        </span>
         {dest("settings", selected.settings, <AccountAvatar size={40} />)}
       </div>
     </nav>

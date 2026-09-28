@@ -75,6 +75,22 @@ describe("compact", () => {
     mockViewport(400);
   });
 
+  it("[#597] 439px まではタブ列に接続表示がある。440〜599px は左レール表示なのでタブ列側は出さない", () => {
+    mockViewport(439);
+    const first = render(<DeckScreen />);
+    expect(screen.getByRole("button", { name: /^リレー接続/ })).toBeInTheDocument();
+    first.unmount();
+
+    mockViewport(440);
+    const second = render(<DeckScreen />);
+    expect(screen.queryByRole("button", { name: /^リレー接続/ })).not.toBeInTheDocument();
+    second.unmount();
+
+    mockViewport(599);
+    render(<DeckScreen />);
+    expect(screen.queryByRole("button", { name: /^リレー接続/ })).not.toBeInTheDocument();
+  });
+
   it("カラムヘッダ無しで 3 カラム、タブ列と選択カラムの ⋯、カラム追加はタブ列の ＋ だけ", () => {
     render(<DeckScreen />);
     for (const id of ["c_following", "c_hashtag", "c_notif"]) {

@@ -109,6 +109,14 @@
   height: var(--rail-item);
 }
 
+/* [#597] 接続表示（RelayIndicator）を .slot と同じタップ領域で包む（ネイティブ RailSlot 48dp） */
+.relaySlot {
+  display: grid;
+  place-items: center;
+  min-width: var(--rail-item);
+  min-height: var(--rail-item);
+}
+
 .brand {
   width: var(--rail-mark);
   height: var(--rail-mark);

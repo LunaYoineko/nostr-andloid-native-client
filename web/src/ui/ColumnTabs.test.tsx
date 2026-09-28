@@ -18,10 +18,37 @@ function renderTabs(activeId: string | null, onSelect = vi.fn()) {
       onSelect={onSelect}
       onAdd={() => {}}
       menu={<button type="button">カラムメニュー</button>}
+      showRelay
     />,
   );
   return { ...view, onSelect };
 }
+
+it("[#597] showRelay=false なら接続表示を出さない。true なら出す", () => {
+  const { rerender } = render(
+    <ColumnTabs
+      columns={TABS}
+      activeId="c_following"
+      onSelect={() => {}}
+      onAdd={() => {}}
+      menu={null}
+      showRelay={false}
+    />,
+  );
+  expect(screen.queryByRole("button", { name: /^リレー接続/ })).not.toBeInTheDocument();
+
+  rerender(
+    <ColumnTabs
+      columns={TABS}
+      activeId="c_following"
+      onSelect={() => {}}
+      onAdd={() => {}}
+      menu={null}
+      showRelay
+    />,
+  );
+  expect(screen.getByRole("button", { name: /^リレー接続/ })).toBeInTheDocument();
+});
 
 it("タブ 3 つと「カラム追加」。選択タブだけ aria-current と tabIndex=0。⋯ はタブ列（nav）の外", () => {
   renderTabs("c_hashtag");
@@ -67,7 +94,7 @@ it("画面外のタブが選択されたら前に 48px 覗かせて寄せ、完�
   setBox(screen.getByRole("button", { name: "#nostr" }), { offsetLeft: 100, offsetWidth: 80 });
   setBox(screen.getByRole("button", { name: "通知" }), { offsetLeft: 280, offsetWidth: 80 });
 
-  const props = { columns: TABS, onSelect: () => {}, onAdd: () => {}, menu: null };
+  const props = { columns: TABS, onSelect: () => {}, onAdd: () => {}, menu: null, showRelay: true };
   rerender(<ColumnTabs {...props} activeId="c_hashtag" />);
   expect(strip.scrollLeft).toBe(0);
 

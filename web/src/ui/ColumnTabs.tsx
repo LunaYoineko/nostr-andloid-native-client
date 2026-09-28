@@ -10,6 +10,7 @@ export type ColumnTab = { id: string; title: string };
  * Compact の上部バー（ネイティブ CompactPager のタブ列）。タブ + 「＋」→ 選択カラムの ⋯ → 接続表示。
  * ⋯ はタブの中ではなくタブ列の右に置く（タブ列は横スクロールするので、中に置くとドロップダウンが切れる）。
  * 選択タブが完全に見えていれば動かさず、見えていなければ前に少し覗かせて寄せる（#324 / #334）。
+ * [#597] 左レール表示時（440px 以上）はレール側に同じ接続表示が出るので、showRelay=false で二重表示を避ける。
  */
 export function ColumnTabs({
   columns,
@@ -17,12 +18,14 @@ export function ColumnTabs({
   onSelect,
   onAdd,
   menu,
+  showRelay,
 }: {
   columns: ColumnTab[];
   activeId: string | null;
   onSelect(id: string): void;
   onAdd(): void;
   menu: ReactNode;
+  showRelay: boolean;
 }) {
   const strip = useRef<HTMLUListElement>(null);
   const tabs = useRef(new Map<string, HTMLButtonElement>());
@@ -87,7 +90,7 @@ export function ColumnTabs({
         </ul>
       </nav>
       {menu}
-      <RelayIndicator orientation="horizontal" />
+      {showRelay && <RelayIndicator orientation="horizontal" />}
     </div>
   );
 }
