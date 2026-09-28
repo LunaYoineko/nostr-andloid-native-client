@@ -151,6 +151,11 @@ button.ring {
   background: var(--surface-3);
 }
 
+/* 「ユーザーを通報」（ネイティブ DeckColors.Warn） */
+.danger {
+  color: var(--warn);
+}
+
 .text {
   display: flex;
   flex-direction: column;
@@ -208,6 +213,9 @@ button.ring {
 }
 
 .counts {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
   margin-top: var(--sp-2);
 }
 
@@ -233,6 +241,19 @@ button.ring {
 .hint {
   color: var(--text-3);
   font-size: var(--type-label);
+}
+
+/* 「フォロワーを確認」（ネイティブ: 枠線 1dp・角丸 Sm・Label・Text3、余白 横 Sm 縦 Xs） */
+.followers {
+  min-height: var(--touch-xs);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--type-label);
+  cursor: pointer;
 }
 
 /* 行高は RichText の --line-body（20px。ネイティブ 19sp をスナップ） */

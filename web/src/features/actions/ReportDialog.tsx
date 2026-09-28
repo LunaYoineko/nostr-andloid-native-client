@@ -12,10 +12,19 @@ const REASONS: readonly { type: string; label: string }[] = [
 ];
 
 /**
- * 通報の理由を選ぶダイアログ（ネイティブ NoteItem.kt の ReportDialog）。枠は #458 の ConfirmDialog と同じ。
- * マウントしたらモーダルで開く。Esc / Android の戻る（cancel）は「キャンセル」と同じ。
+ * 通報の理由を選ぶダイアログ（ネイティブ NoteItem.kt / ProfileScreen.kt の ReportDialog）。
+ * 枠は #458 の ConfirmDialog と同じ。マウントしたらモーダルで開く。Esc / Android の戻る（cancel）は「キャンセル」と同じ。
+ * title は投稿の通報（既定）とユーザーの通報（プロフィールの ⋯）で出し分ける。
  */
-export function ReportDialog({ onPick, onDismiss }: { onPick(type: string): void; onDismiss(): void }) {
+export function ReportDialog({
+  title = "この投稿を通報",
+  onPick,
+  onDismiss,
+}: {
+  title?: string;
+  onPick(type: string): void;
+  onDismiss(): void;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const textId = useId();
@@ -37,7 +46,7 @@ export function ReportDialog({ onPick, onDismiss }: { onPick(type: string): void
       }}
     >
       <h2 id={titleId} className={styles.title}>
-        この投稿を通報
+        {title}
       </h2>
       <p id={textId} className={styles.text}>
         理由を選んでください（NIP-56 で報告します）

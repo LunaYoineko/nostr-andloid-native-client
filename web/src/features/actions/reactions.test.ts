@@ -17,6 +17,7 @@ import {
   reactionKey,
   reactWithDefault,
   reportNote,
+  reportUser,
   requestDelete,
   useIsReacted,
   useIsReposted,
@@ -226,6 +227,12 @@ it("reportNote は kind:1984 で e に理由・p に作者", async () => {
       ],
     },
   ]);
+});
+
+it("reportUser（プロフィールの ⋯）は kind:1984 で p だけ、e タグは付けない", async () => {
+  const target = getPublicKey(generateSecretKey());
+  await reportUser(target, "spam");
+  expect(drafts()).toEqual([{ kind: 1984, content: "", tags: [["p", target, "spam"]] }]);
 });
 
 describe("押下状態", () => {

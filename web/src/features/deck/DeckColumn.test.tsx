@@ -1,11 +1,17 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { npubEncode } from "nostr-tools/nip19";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { type ColumnSpec, columnSubtitleFor, DEFAULT_COLUMNS, decodeDeckColumns } from "../../lib/columns";
+import {
+  buildColumn,
+  type ColumnSpec,
+  columnSubtitleFor,
+  DEFAULT_COLUMNS,
+  decodeDeckColumns,
+} from "../../lib/columns";
 import { unixNow } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
@@ -15,8 +21,15 @@ import { renderWithRouter } from "../../test/renderWithRouter";
 import { startDecrypting } from "../dm/dmService";
 import { useDm } from "../dm/dmStore";
 import { dmNotices, toNotification } from "../notifications/notificationModel";
+import { toggleFollow } from "../profile/follow";
 import { DeckColumn } from "./DeckColumn";
 import { useColumnFeed } from "./useColumnFeed";
+
+// フォロー / 解除は署名・発行しない（DeckColumn の PROFILE カードのテスト用）
+vi.mock("../profile/follow", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../profile/follow")>()),
+  toggleFollow: vi.fn(async () => "done"),
+}));
 
 // DM の購読・復号はしない（状態はストアへ直接入れる）
 vi.mock("../dm/dmService", () => ({ startDecrypting: vi.fn(), resumeDecrypting: vi.fn() }));
@@ -454,4 +467,111 @@ it("フォロー中カラムは混ぜた行を描く（投稿・通知の行・�
   } finally {
     if (original) vi.mocked(useColumnFeed).mockImplementation(original);
   }
+});
+
+it("PROFILE カラムは上部にカード（アバター・名前・npub・フォローボタン）を出す（#530）", async () => {
+  const user = userEvent.setup();
+  useSession.setState({ status: "in", method: "nip07", pubkey: PUBKEY });
+  const targetKey = generateSecretKey();
+  const target = getPublicKey(targetKey);
+  eventStore.add(
+    finalizeEvent(
+      { kind: 0, created_at: 1_000, tags: [], content: JSON.stringify({ name: "Alice" }) },
+      targetKey,
+    ),
+  );
+  const spec = buildColumn("PROFILE", { text: target }, new Set(), unixNow());
+  if (!spec) throw new Error("buildColumn returned null");
+  try {
+    render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 2000, itemHeight: 100 }}>
+        <DeckColumn spec={spec} showHeader />
+      </VirtuosoMockContext.Provider>,
+    );
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    const npub = npubEncode(target);
+    expect(screen.getByText(`${npub.slice(0, 20)}…${npub.slice(-6)}`)).toBeInTheDocument();
+
+    const button = screen.getByRole("button", { name: "フォロー" });
+    await user.click(button);
+    expect(vi.mocked(toggleFollow)).toHaveBeenCalledWith(PUBKEY, target, "follow");
+  } finally {
+    useSession.setState({ status: "loading", method: null, pubkey: null });
+  }
+});
+
+it("PROFILE カラムの上部カードは投稿と同じスクロール領域に入る（一覧の先頭。固定表示ではない。#530 修正）", () => {
+  const targetKey = generateSecretKey();
+  const target = getPublicKey(targetKey);
+  eventStore.add(
+    finalizeEvent(
+      { kind: 0, created_at: 1_000, tags: [], content: JSON.stringify({ name: "Alice" }) },
+      targetKey,
+    ),
+  );
+  const post = finalizeEvent({ kind: 1, created_at: 900, tags: [], content: "ここに投稿" }, targetKey);
+  const spec = buildColumn("PROFILE", { text: target }, new Set(), unixNow());
+  if (!spec) throw new Error("buildColumn returned null");
+  const original = vi.mocked(useColumnFeed).getMockImplementation();
+  vi.mocked(useColumnFeed).mockImplementation(() => ({
+    mode: "column",
+    loading: false,
+    events: [post],
+    rows: null,
+    loadingOlder: false,
+    loadOlder: () => {},
+    refresh: () => {},
+  }));
+  try {
+    const { container } = renderWithRouter(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 2000, itemHeight: 100 }}>
+        <DeckColumn spec={spec} showHeader />
+      </VirtuosoMockContext.Provider>,
+    );
+    // カードは Virtuoso のスクローラの中（= 投稿と同じスクロール領域）にある
+    const scroller = container.querySelector<HTMLElement>('[data-testid="virtuoso-scroller"]');
+    if (!scroller) throw new Error("scroller が無い");
+    const npub = npubEncode(target);
+    expect(within(scroller).getByText(`${npub.slice(0, 20)}…${npub.slice(-6)}`)).toBeInTheDocument();
+    expect(within(scroller).getByText("ここに投稿")).toBeInTheDocument();
+  } finally {
+    if (original) vi.mocked(useColumnFeed).mockImplementation(original);
+  }
+});
+
+it("PROFILE 以外のカラムには上部カードを出さない（#530 修正）", () => {
+  const [, hashtag] = DEFAULT_COLUMNS;
+  renderWithRouter(
+    <VirtuosoMockContext.Provider value={{ viewportHeight: 2000, itemHeight: 100 }}>
+      <DeckColumn spec={hashtag} showHeader />
+    </VirtuosoMockContext.Provider>,
+  );
+  expect(screen.queryByRole("button", { name: "フォロー" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "画像を表示" })).not.toBeInTheDocument();
+});
+
+it("PROFILE カラムの上部カードは固定投稿（#531。その人の kind:10001）も出す（ネイティブと同じ位置・件数）", () => {
+  const targetKey = generateSecretKey();
+  const target = getPublicKey(targetKey);
+  eventStore.add(
+    finalizeEvent(
+      { kind: 0, created_at: 1_000, tags: [], content: JSON.stringify({ name: "Alice" }) },
+      targetKey,
+    ),
+  );
+  const pinned = finalizeEvent({ kind: 1, created_at: 500, tags: [], content: "固定されたやつ" }, targetKey);
+  eventStore.add(pinned);
+  eventStore.add(
+    finalizeEvent({ kind: 10001, created_at: 2_000, tags: [["e", pinned.id]], content: "" }, targetKey),
+  );
+  const spec = buildColumn("PROFILE", { text: target }, new Set(), unixNow());
+  if (!spec) throw new Error("buildColumn returned null");
+  renderWithRouter(
+    <VirtuosoMockContext.Provider value={{ viewportHeight: 2000, itemHeight: 100 }}>
+      <DeckColumn spec={spec} showHeader />
+    </VirtuosoMockContext.Provider>,
+  );
+  expect(screen.getByText("📌")).toBeInTheDocument();
+  expect(screen.getByText("固定された投稿")).toBeInTheDocument();
+  expect(screen.getByText("固定されたやつ")).toBeInTheDocument();
 });

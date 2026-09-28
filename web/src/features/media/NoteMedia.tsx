@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { NoteMedia as Media } from "../../lib/media";
+import { useEmbedPrefs } from "../linkcard/embedPrefs";
 import { ImageGrid } from "./ImageGrid";
 import { Lightbox } from "./Lightbox";
 import styles from "./NoteMedia.module.css";
@@ -17,9 +18,13 @@ const EMBED_LIMIT = 4;
  */
 export function NoteMedia({ media }: { media: Media }) {
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const prefs = useEmbedPrefs();
   const { images } = media;
-  const videos = media.videos.slice(0, EMBED_LIMIT);
-  const youtube = media.youtube.slice(0, EMBED_LIMIT - videos.length);
+  // 上限 4 は設定に関係なく決める（動画を OFF にしても、その分を YouTube に回さない）
+  const videosDetected = media.videos.slice(0, EMBED_LIMIT);
+  const youtubeDetected = media.youtube.slice(0, EMBED_LIMIT - videosDetected.length);
+  const videos = prefs.video ? videosDetected : [];
+  const youtube = prefs.youtube ? youtubeDetected : [];
   if (images.length + videos.length + youtube.length === 0) return null;
 
   return (
@@ -30,7 +35,7 @@ export function NoteMedia({ media }: { media: Media }) {
           <VideoPlayer key={video.url} item={video} />
         ))}
         {youtube.map((video) => (
-          <YouTubeCard key={video.id} url={video.url} id={video.id} />
+          <YouTubeCard key={video.id} id={video.id} />
         ))}
       </div>
       {lightbox !== null && <Lightbox items={images} index={lightbox} onClose={() => setLightbox(null)} />}

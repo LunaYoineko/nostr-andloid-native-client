@@ -8,11 +8,19 @@ import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
+import { useDeck } from "../../store/deck";
 import { clearViewport, mockViewport } from "../../test/viewport";
+import { reportUser } from "../actions/reactions";
+import { EMPTY_MUTE_MATCHER, useMute } from "../mute/muteList";
+import { muteUser, unmuteUser } from "../mute/muteSync";
 import { FollowError, toggleFollow } from "./follow";
+import type { FollowersState } from "./followers";
+import { useFollowers } from "./followers";
+import type { Nip51Set } from "./nip51";
 import { ProfileScreen } from "./ProfileScreen";
 import { useContactsOf } from "./useContactsOf";
 import { useProfileFeed } from "./useProfileFeed";
+import { useProfileLists } from "./useProfileLists";
 
 // 自分の kind:3 の購読（useFollows）はリレーに繋がない。それ以外はテスト用のオフライン WebSocket のまま
 vi.mock("../../nostr/pool", async (importOriginal) => {
@@ -32,6 +40,23 @@ vi.mock("./useContactsOf", () => ({ useContactsOf: vi.fn(() => null) }));
 vi.mock("./follow", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./follow")>()),
   toggleFollow: vi.fn(async () => "done"),
+}));
+
+// フォロワー集計は REQ を出さない（state はテストから直接差し込む）
+vi.mock("./followers", () => ({ useFollowers: vi.fn() }));
+
+// リストタブは REQ を出さない（sets はテストから直接差し込む）
+vi.mock("./useProfileLists", () => ({ useProfileLists: vi.fn(() => ({ loading: false, sets: [] })) }));
+
+// ミュートの発行・通報は署名・送信しない
+vi.mock("../mute/muteSync", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../mute/muteSync")>()),
+  muteUser: vi.fn(async () => "done"),
+  unmuteUser: vi.fn(async () => "done"),
+}));
+vi.mock("../actions/reactions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../actions/reactions")>()),
+  reportUser: vi.fn(async () => {}),
 }));
 
 const BANNER = "https://img.test/banner.jpg";
@@ -76,6 +101,21 @@ beforeEach(() => {
   vi.mocked(toggleFollow).mockResolvedValue("done");
   vi.mocked(useContactsOf).mockReturnValue(null);
   vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [] });
+  vi.mocked(useFollowers).mockReturnValue({
+    followers: null,
+    hasMore: false,
+    loading: false,
+    start: vi.fn(),
+    loadMore: vi.fn(),
+  });
+  vi.mocked(useProfileLists).mockReturnValue({ loading: false, sets: [] });
+  vi.mocked(muteUser).mockReset();
+  vi.mocked(muteUser).mockResolvedValue("done");
+  vi.mocked(unmuteUser).mockReset();
+  vi.mocked(unmuteUser).mockResolvedValue("done");
+  vi.mocked(reportUser).mockReset();
+  vi.mocked(reportUser).mockResolvedValue(undefined);
+  useMute.setState({ matcher: EMPTY_MUTE_MATCHER, list: null });
   mockViewport(400);
 });
 
@@ -85,7 +125,16 @@ afterEach(() => {
   clearViewport();
   Reflect.deleteProperty(navigator, "clipboard");
   useSession.setState({ status: "loading", method: null, pubkey: null });
+  useMute.setState({ matcher: EMPTY_MUTE_MATCHER, list: null });
 });
+
+/** them をミュート中にする（他は空のミュートリスト） */
+function muteThem() {
+  useMute.setState({
+    matcher: { ...EMPTY_MUTE_MATCHER, isEmpty: false, users: new Set([them]) },
+    list: null,
+  });
+}
 
 /** navigator.clipboard を差し替える（userEvent.setup() は自前の clipboard を入れるので、その後にも呼ぶ） */
 function mockClipboard() {
@@ -466,5 +515,217 @@ describe("固定投稿（#531。その人の kind:10001）", () => {
     alice();
     renderScreen();
     expect(screen.queryByText("固定された投稿")).toBeNull();
+  });
+});
+
+describe("フォロワー", () => {
+  function followersState(overrides: Partial<FollowersState> = {}) {
+    return { followers: null, hasMore: false, loading: false, ...overrides };
+  }
+
+  it("「フォロワーを確認」を押すまで集計しない。押すと start() を呼びフォロワー一覧に置き換わる", async () => {
+    const user = userEvent.setup();
+    const start = vi.fn();
+    vi.mocked(useFollowers).mockReturnValue({ ...followersState(), start, loadMore: vi.fn() });
+    alice();
+    renderScreen();
+
+    expect(start).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "フォロワーを確認" }));
+    expect(start).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("heading", { name: "フォロワー" })).toBeInTheDocument();
+    expect(
+      screen.getByText("リレーで観測できた範囲のみ表示しています（全数ではありません）"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("集計中…")).toBeInTheDocument();
+  });
+
+  it("件数が増えていれば行と「さらに読み込む」を出す。押すと loadMore、「戻る」でプロフィールに戻る", async () => {
+    const user = userEvent.setup();
+    const loadMore = vi.fn();
+    const f1 = getPublicKey(generateSecretKey());
+    const f2 = getPublicKey(generateSecretKey());
+    vi.mocked(useFollowers).mockReturnValue({
+      ...followersState({ followers: [f1, f2], hasMore: true }),
+      start: vi.fn(),
+      loadMore,
+    });
+    alice();
+    renderScreen();
+
+    await user.click(screen.getByRole("button", { name: "フォロワーを確認" }));
+    const links = screen.getAllByRole("link");
+    expect(links.map((a) => a.getAttribute("href"))).toEqual([
+      `/p/${npubEncode(f1)}`,
+      `/p/${npubEncode(f2)}`,
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "さらに読み込む" }));
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "戻る" }));
+    expect(screen.getByRole("heading", { level: 2, name: "Alice" })).toBeInTheDocument();
+  });
+
+  it("増えなければ「さらに読み込む」を出さない。0 件なら「見つかりませんでした」", async () => {
+    const user = userEvent.setup();
+    vi.mocked(useFollowers).mockReturnValue({
+      ...followersState({ followers: [] }),
+      start: vi.fn(),
+      loadMore: vi.fn(),
+    });
+    alice();
+    renderScreen();
+    await user.click(screen.getByRole("button", { name: "フォロワーを確認" }));
+    expect(screen.getByText("見つかりませんでした")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "さらに読み込む" })).not.toBeInTheDocument();
+  });
+});
+
+describe("ミュート / 通報", () => {
+  it("ミュート中は名前の横に「ミュート中」、⋯ には「ミュートを解除」だけ出る", async () => {
+    const user = userEvent.setup();
+    alice();
+    muteThem();
+    renderScreen();
+    expect(screen.getByText("ミュート中")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "メニュー" }));
+    expect(screen.getByRole("menuitem", { name: "ミュートを解除" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "このユーザーをミュート" })).not.toBeInTheDocument();
+  });
+
+  it("「このユーザーをミュート」は確認してから muteUser を呼ぶ", async () => {
+    const user = userEvent.setup();
+    alice();
+    renderScreen();
+    await user.click(screen.getByRole("button", { name: "メニュー" }));
+    await user.click(screen.getByRole("menuitem", { name: "このユーザーをミュート" }));
+    expect(vi.mocked(muteUser)).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: "このユーザーをミュートしますか？" });
+    await user.click(within(dialog).getByRole("button", { name: "ミュート" }));
+    expect(vi.mocked(muteUser)).toHaveBeenCalledWith(me, them);
+  });
+
+  it("ミュート中の「ミュートを解除」は確認してから unmuteUser を呼ぶ", async () => {
+    const user = userEvent.setup();
+    alice();
+    muteThem();
+    renderScreen();
+    await user.click(screen.getByRole("button", { name: "メニュー" }));
+    await user.click(screen.getByRole("menuitem", { name: "ミュートを解除" }));
+    const dialog = screen.getByRole("dialog", { name: "ミュートを解除しますか？" });
+    await user.click(within(dialog).getByRole("button", { name: "解除する" }));
+    expect(vi.mocked(unmuteUser)).toHaveBeenCalledWith(me, them);
+  });
+
+  it("「ユーザーを通報」は理由を選ぶと reportUser を呼ぶ（e タグの無い通報。中身は reactions.test.ts）", async () => {
+    const user = userEvent.setup();
+    alice();
+    renderScreen();
+    await user.click(screen.getByRole("button", { name: "メニュー" }));
+    await user.click(screen.getByRole("menuitem", { name: "ユーザーを通報" }));
+    const dialog = screen.getByRole("dialog", { name: "このユーザーを通報" });
+    await user.click(within(dialog).getByRole("button", { name: "スパム" }));
+    expect(vi.mocked(reportUser)).toHaveBeenCalledWith(them, "spam");
+  });
+
+  it("自分のプロフィールにはミュート・通報の項目が無い", async () => {
+    const user = userEvent.setup();
+    addProfile(meKey, { name: "Me" });
+    renderScreen(me);
+    await user.click(screen.getByRole("button", { name: "メニュー" }));
+    expect(screen.queryByRole("menuitem", { name: /ミュート/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "ユーザーを通報" })).not.toBeInTheDocument();
+  });
+});
+
+describe("リストタブ", () => {
+  function followSet(overrides: Partial<Nip51Set> = {}): Nip51Set {
+    return {
+      kind: 30000,
+      author: them,
+      dTag: "friends",
+      title: "仲良し",
+      description: "",
+      image: null,
+      members: [],
+      eventIds: [],
+      addresses: [],
+      createdAt: 100,
+      hasPrivate: false,
+      ...overrides,
+    };
+  }
+
+  it("空なら「公開されているリストはありません」", async () => {
+    const user = userEvent.setup();
+    alice();
+    renderScreen();
+    await user.click(screen.getByRole("tab", { name: "リスト" }));
+    expect(screen.getByText("公開されているリストはありません")).toBeInTheDocument();
+  });
+
+  it("フォローセット: 件数・展開でメンバー一覧、「カラムで開く」で一時カラムを追加（ネイティブ buildListColumn）", async () => {
+    const user = userEvent.setup();
+    const m1 = getPublicKey(generateSecretKey());
+    const m2 = getPublicKey(generateSecretKey());
+    vi.mocked(useProfileLists).mockReturnValue({ loading: false, sets: [followSet({ members: [m1, m2] })] });
+    alice();
+    renderScreen();
+    const before = useDeck.getState().columns.length;
+
+    await user.click(screen.getByRole("tab", { name: "リスト" }));
+    expect(screen.getByText("仲良し")).toBeInTheDocument();
+    expect(screen.getByText("2 件")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /仲良し/ }));
+    const links = screen.getAllByRole("link");
+    expect(links.map((a) => a.getAttribute("href"))).toEqual([
+      `/p/${npubEncode(m1)}`,
+      `/p/${npubEncode(m2)}`,
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "カラムで開く" }));
+    const columns = useDeck.getState().columns;
+    expect(columns).toHaveLength(before + 1);
+    expect(columns.at(-1)).toMatchObject({
+      title: "仲良し",
+      subtitle: "list",
+      kind: "LIST",
+      renderer: "FEED",
+      pinned: false,
+      filter: expect.objectContaining({ kinds: [1, 6, 16], authors: [m1, m2] }),
+    });
+    useDeck.setState({ columns: columns.slice(0, before) });
+  });
+
+  it("ブックマークセット: 展開すると対象の投稿、非公開ありなら注記も出す", async () => {
+    const user = userEvent.setup();
+    const bookmarked = finalizeEvent(
+      { kind: 1, created_at: 900, tags: [], content: "ブックマークした投稿" },
+      generateSecretKey(),
+    );
+    eventStore.add(bookmarked);
+    vi.mocked(useProfileLists).mockReturnValue({
+      loading: false,
+      sets: [
+        followSet({
+          kind: 30003,
+          dTag: "reads",
+          title: "あとで読む",
+          eventIds: [bookmarked.id],
+          hasPrivate: true,
+        }),
+      ],
+    });
+    alice();
+    renderScreen();
+
+    await user.click(screen.getByRole("tab", { name: "リスト" }));
+    await user.click(screen.getByRole("button", { name: /あとで読む/ }));
+    expect(await screen.findByText("ブックマークした投稿")).toBeInTheDocument();
+    expect(
+      screen.getByText("このリストには非公開の項目があります（本人以外は読めません）。"),
+    ).toBeInTheDocument();
   });
 });

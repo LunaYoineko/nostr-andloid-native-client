@@ -36,9 +36,9 @@ it("画像の URL を本文から除き、3 連以上の改行を潰して前後
   ]);
 });
 
-it("動画・YouTube の URL も除き、連続した空白を 1 つに潰す", () => {
+it("動画（直リンク）は除いて連続した空白を 1 つに潰すが、YouTube は残す（畳むかは hideCardedUrls 次第。#532）", () => {
   const root = parseNoteContent(note("  a https://v.test/1.mp4  b https://youtu.be/dQw4w9WgXcQ \n"));
-  expect(shape(root.children)).toEqual([{ text: "a b" }]);
+  expect(shape(root.children)).toEqual([{ text: "a b " }, { link: "https://youtu.be/dQw4w9WgXcQ" }]);
 });
 
 it("画像だけの gallery は丸ごと除く", () => {

@@ -2,6 +2,7 @@ import { npubEncode } from "nostr-tools/nip19";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildColumn,
+  buildListColumn,
   type ColumnSpec,
   columnSubtitleFor,
   DEFAULT_COLUMNS,
@@ -12,6 +13,7 @@ import {
   editText,
   encodeDeckColumns,
   encodeReqFilter,
+  LIST_COLUMN_AUTHOR_CAP,
   newColumnId,
   TEMPLATES,
 } from "./columns";
@@ -141,6 +143,30 @@ describe("buildColumn", () => {
     expect(encodeDeckColumns([spec])).toBe(
       '[{"id":"col_dm_100","title":"DM","subtitle":"NIP-17","kind":"DM","renderer":"FEED","filter":{"kinds":[14]}}]',
     );
+  });
+});
+
+describe("buildListColumn", () => {
+  it("投稿+リポストを著者で集める一時カラム。タイトルが空なら「リスト」", () => {
+    const spec = buildListColumn("仲良し", ["a", "b"], 100);
+    expect(spec).toEqual({
+      id: "col_list_100",
+      title: "仲良し",
+      subtitle: "list",
+      kind: "LIST",
+      renderer: "FEED",
+      filter: { ...defaultFilter(), kinds: [1, 6, 16], authors: ["a", "b"] },
+      pinned: false,
+      order: 0,
+    });
+    expect(buildListColumn("", ["a"], 100).title).toBe("リスト");
+  });
+
+  it("重複は除き、先に見えた順を保ったまま上限で頭打ちにする", () => {
+    const members = ["a", "b", "a", "c"];
+    expect(buildListColumn("t", members, 100).filter.authors).toEqual(["a", "b", "c"]);
+    const many = Array.from({ length: LIST_COLUMN_AUTHOR_CAP + 10 }, (_, i) => `p${i}`);
+    expect(buildListColumn("t", many, 100).filter.authors).toEqual(many.slice(0, LIST_COLUMN_AUTHOR_CAP));
   });
 });
 

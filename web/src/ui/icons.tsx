@@ -255,6 +255,10 @@ export function OpenInNewIcon(props: MaterialIconProps) {
   );
 }
 
+export function DownloadIcon(props: MaterialIconProps) {
+  return <MaterialIcon {...props} path="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />;
+}
+
 export function CloseIcon(props: MaterialIconProps) {
   return (
     <MaterialIcon

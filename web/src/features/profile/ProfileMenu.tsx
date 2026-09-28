@@ -1,15 +1,44 @@
 import { nprofileEncode } from "nostr-tools/nip19";
 import { useEffect, useRef, useState } from "react";
 import { relayHintsOf } from "../../nostr/outbox";
+import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { Icon } from "../../ui/icons";
+import { showToast } from "../../ui/toast";
+import { ReportDialog } from "../actions/ReportDialog";
+import { reportUser } from "../actions/reactions";
+import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
 import styles from "./ProfileHeaderCard.module.css";
+
+/** ミュート・解除の失敗の文言（ネイティブ note_mute_locked。NoteActionButtons と同じ） */
+function muteFailureMessage(e: unknown): string {
+  if (e instanceof MuteListError && e.reason === "no-mute-list") {
+    return "最新のミュートリストを取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
+  }
+  if (e instanceof MuteListError && e.reason === "no-cipher") {
+    return "この署名方式は暗号化に対応していないため、非公開でミュートできません（公開では追加しません）";
+  }
+  return "ミュートリストが変更できません（ロック中の可能性）";
+}
 
 /**
  * プロフィールの ⋯ メニュー。nprofile（相手の kind:10002 の先頭 3 件をリレーヒントに）と njump のリンクをコピーする。
- * 開閉は ColumnMenu と同じ（外側のクリックと Escape で閉じる）。ミュート / 通報は #465 / M2。
+ * 開閉は ColumnMenu と同じ（外側のクリックと Escape で閉じる）。
+ * me が非 null（他人のプロフィール）なら、ミュート / 解除（確認ダイアログ）とユーザーの通報も出す。
  */
-export function ProfileMenu({ pubkey, onCopied }: { pubkey: string; onCopied: (message: string) => void }) {
+export function ProfileMenu({
+  pubkey,
+  me,
+  muted,
+  onCopied,
+}: {
+  pubkey: string;
+  /** 自分の pubkey（自分のプロフィールを見ているときは null。ミュート・通報の項目を出さない） */
+  me: string | null;
+  muted: boolean;
+  onCopied: (message: string) => void;
+}) {
   const [open, setOpen] = useState(false);
+  const [dialog, setDialog] = useState<"mute" | "report" | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
 
@@ -44,6 +73,23 @@ export function ProfileMenu({ pubkey, onCopied }: { pubkey: string; onCopied: (m
     onCopied(message);
   }
 
+  function mute(action: "mute" | "unmute") {
+    if (!me) return;
+    const run = action === "mute" ? muteUser(me, pubkey) : unmuteUser(me, pubkey);
+    run.then(
+      () => showToast(action === "mute" ? "ミュートしました" : "ミュートを解除しました"),
+      (e) => showToast(muteFailureMessage(e)),
+    );
+  }
+
+  function report(type: string) {
+    setDialog(null);
+    reportUser(pubkey, type).then(
+      () => showToast("通報しました"),
+      (e) => console.warn("[profile] 通報に失敗", e),
+    );
+  }
+
   return (
     <div ref={root} className={styles.menuRoot}>
       <button
@@ -75,7 +121,61 @@ export function ProfileMenu({ pubkey, onCopied }: { pubkey: string; onCopied: (m
           >
             リンクをコピー（njump）
           </button>
+          {me !== null && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuItem}
+                onClick={() => {
+                  setOpen(false);
+                  setDialog("mute");
+                }}
+              >
+                {muted ? "ミュートを解除" : "このユーザーをミュート"}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={`${styles.menuItem} ${styles.danger}`}
+                onClick={() => {
+                  setOpen(false);
+                  setDialog("report");
+                }}
+              >
+                ユーザーを通報
+              </button>
+            </>
+          )}
         </div>
+      )}
+      {dialog === "mute" &&
+        (muted ? (
+          <ConfirmDialog
+            title="ミュートを解除しますか？"
+            text="このユーザーの投稿が再びタイムラインに表示されるようになります。"
+            confirmLabel="解除する"
+            onConfirm={() => {
+              setDialog(null);
+              mute("unmute");
+            }}
+            onDismiss={() => setDialog(null)}
+          />
+        ) : (
+          <ConfirmDialog
+            title="このユーザーをミュートしますか？"
+            text="このユーザーの投稿がタイムラインに表示されなくなります。ミュートは非公開（NIP-51）で保存されます。"
+            confirmLabel="ミュート"
+            destructive
+            onConfirm={() => {
+              setDialog(null);
+              mute("mute");
+            }}
+            onDismiss={() => setDialog(null)}
+          />
+        ))}
+      {dialog === "report" && (
+        <ReportDialog title="このユーザーを通報" onPick={report} onDismiss={() => setDialog(null)} />
       )}
     </div>
   );

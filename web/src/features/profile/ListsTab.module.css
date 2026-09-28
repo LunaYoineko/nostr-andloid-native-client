@@ -1,0 +1,109 @@
+/* Expanded では .main の中で自前スクロール、Compact では .scroll の中の通常フロー（高さ指定が無いので no-op） */
+.own {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sp-5);
+  color: var(--text-3);
+  font-size: var(--type-caption);
+  text-align: center;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  border-bottom: 1px solid var(--border);
+}
+
+/* ネイティブ ListSetRow（余白 横 Lg 縦 Md） */
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.image {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
+.texts {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.count {
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.chevron {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}
+
+.body {
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+
+/* 「カラムで開く」（ゴーストボタン） */
+.openColumn {
+  display: block;
+  margin: var(--sp-2) var(--sp-4);
+  min-height: var(--touch-xs);
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-label);
+  cursor: pointer;
+}
+
+.loading {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}
+
+.privateNote {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4);
+  color: var(--text-3);
+  font-size: var(--type-label);
+}

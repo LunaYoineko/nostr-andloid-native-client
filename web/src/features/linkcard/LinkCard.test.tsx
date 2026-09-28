@@ -8,6 +8,7 @@ it("サムネ（プロキシ経由）・サイト名・タイトル・説明・U
   render(
     <LinkCard
       url={URL}
+      kind="ogp"
       ogp={{
         url: URL,
         title: "記事のタイトル",
@@ -52,13 +53,22 @@ it("OGP の文字は HTML として解釈しない", () => {
   expect(screen.getByText("<b>太字</b>")).toBeInTheDocument();
 });
 
+it('ogpImages が false なら画像を出さない。Spotify（kind="spotify"）は false でも画像を出す', () => {
+  const ogp = { url: URL, title: "t", image: "https://cdn.example.test/x.png" };
+  const { container, rerender } = render(<LinkCard url={URL} ogp={ogp} kind="ogp" ogpImages={false} />);
+  expect(container.querySelector("img")).toBeNull();
+
+  rerender(<LinkCard url={URL} ogp={ogp} kind="spotify" ogpImages={false} />);
+  expect(container.querySelector("img")).not.toBeNull();
+});
+
 it("LinkCards: 取得中は枠（読み上げない）、取れなかったものは出さない、全部無ければ何も描かない", () => {
   const { container, rerender } = render(
     <LinkCards
       cards={[
-        { url: "https://a.test/1", ogp: undefined },
-        { url: "https://b.test/2", ogp: null },
-        { url: "https://c.test/3", ogp: { url: "https://c.test/3", title: "C" } },
+        { url: "https://a.test/1", kind: "ogp", ogp: undefined },
+        { url: "https://b.test/2", kind: "ogp", ogp: null },
+        { url: "https://c.test/3", kind: "ogp", ogp: { url: "https://c.test/3", title: "C" } },
       ]}
     />,
   );
@@ -68,7 +78,7 @@ it("LinkCards: 取得中は枠（読み上げない）、取れなかったも�
   expect(placeholder).toHaveTextContent("a.test");
   expect(container).not.toHaveTextContent("b.test");
 
-  rerender(<LinkCards cards={[{ url: "https://b.test/2", ogp: null }]} />);
+  rerender(<LinkCards cards={[{ url: "https://b.test/2", kind: "ogp", ogp: null }]} />);
   expect(container).toBeEmptyDOMElement();
   rerender(<LinkCards cards={[]} />);
   expect(container).toBeEmptyDOMElement();

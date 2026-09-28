@@ -4,7 +4,10 @@ import { useSession } from "../../signer/session";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { useLayoutMode } from "../../ui/useLayoutMode";
 import { useFollows } from "../deck/useFollows";
+import { FollowersList } from "./FollowersList";
 import { FollowingList } from "./FollowingList";
+import { useFollowers } from "./followers";
+import { ListsTab } from "./ListsTab";
 import { ProfileHeaderCard } from "./ProfileHeaderCard";
 import { ProfilePostList } from "./ProfilePostList";
 import styles from "./ProfileScreen.module.css";
@@ -19,7 +22,7 @@ const NO_PUBKEYS: readonly string[] = [];
  * プロフィール画面（ネイティブ ProfileScreen）。
  * Compact = 上バー（← + 名前）→ ヘッダカード → 張り付くタブ → 投稿 を 1 つの縦スクロールで。
  * Expanded = 左 340px（上バー「プロフィール」+ ヘッダカード）｜右（タブ + 投稿）。
- * 「フォロー中」の件数を押すと一覧に置き換わる（← で戻る）。
+ * 「フォロー中」の件数を押すと一覧に、「フォロワーを確認」を押すとフォロワー一覧に置き換わる（← で戻る）。
  */
 export function ProfileScreen({
   pubkey,
@@ -41,12 +44,18 @@ export function ProfileScreen({
   const followsMe = !isMe && me !== null && (theirFollows?.includes(me) ?? false);
   const { loading, posts, media } = useProfileFeed(pubkey, relayHints);
   const pinnedPosts = usePinnedPosts(pubkey);
+  const followers = useFollowers(pubkey);
   const [tab, setTab] = useState<ProfileTab>("posts");
-  const [view, setView] = useState<"profile" | "following">("profile");
+  const [view, setView] = useState<"profile" | "following" | "followers">("profile");
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
 
   if (view === "following") {
     return <FollowingList pubkeys={followingList} onBack={() => setView("profile")} />;
+  }
+  if (view === "followers") {
+    return (
+      <FollowersList state={followers} onLoadMore={followers.loadMore} onBack={() => setView("profile")} />
+    );
   }
 
   const header = (
@@ -59,6 +68,10 @@ export function ProfileScreen({
       followsMe={followsMe}
       followingCount={followingList.length}
       onShowFollowing={() => setView("following")}
+      onShowFollowers={() => {
+        followers.start();
+        setView("followers");
+      }}
     />
   );
   const events = tab === "posts" ? posts : media;
@@ -72,8 +85,12 @@ export function ProfileScreen({
         <div className={styles.scroll} ref={setScrollEl}>
           {header}
           <ProfileTabs tab={tab} onChange={setTab} sticky />
-          {scrollEl && (
-            <ProfilePostList events={events} loading={loading} pinned={pinned} scrollParent={scrollEl} />
+          {tab === "lists" ? (
+            <ListsTab pubkey={pubkey} />
+          ) : (
+            scrollEl && (
+              <ProfilePostList events={events} loading={loading} pinned={pinned} scrollParent={scrollEl} />
+            )
           )}
         </div>
       </div>
@@ -89,7 +106,11 @@ export function ProfileScreen({
       </aside>
       <div className={styles.main}>
         <ProfileTabs tab={tab} onChange={setTab} />
-        <ProfilePostList events={events} loading={loading} pinned={pinned} />
+        {tab === "lists" ? (
+          <ListsTab pubkey={pubkey} />
+        ) : (
+          <ProfilePostList events={events} loading={loading} pinned={pinned} />
+        )}
       </div>
     </div>
   );
