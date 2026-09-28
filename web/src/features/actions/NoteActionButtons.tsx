@@ -27,6 +27,7 @@ import { followsFromContacts } from "../profile/contacts";
 import { FollowError, toggleFollow } from "../profile/follow";
 import { useDeveloperMode } from "../settings/devMode";
 import { useZapSats } from "../zap/useZapReceipts";
+import { ZapDialog } from "../zap/ZapDialog";
 import { formatSats } from "../zap/zapTotals";
 import { moreMenuEntries } from "./moreMenu";
 import styles from "./NoteActionButtons.module.css";
@@ -187,26 +188,54 @@ function EmojiReactionButton({ event }: { event: NostrEvent }) {
 
 /**
  * ⚡ Zap（ネイティブ ZapAction）。作者の kind:0 に lud16 があるか、受領の合計が 0 より大きいときだけ出す。
- * 合計 > 0 なら右に金額（formatSats）を --zap で、0 なら --text-3。送金（#524）が入るまでは表示だけで押せない。
+ * 合計 > 0 なら右に金額（formatSats）を --zap で、0 なら --text-3。lud16 があれば押すと Zap ダイアログ（投稿への Zap）、
+ * 無ければ表示だけで押せない。
  */
 function ZapAction({ event }: { event: NostrEvent }) {
   const author = useProfile(event.pubkey);
-  const hasLud16 = typeof author?.lud16 === "string" && author.lud16.trim() !== "";
+  const lud16 = typeof author?.lud16 === "string" ? author.lud16.trim() : "";
   const sats = useZapSats(event.id);
-  if (!hasLud16 && sats === 0) return null;
+  const [open, setOpen] = useState(false);
+  if (lud16 === "" && sats === 0) return null;
   const label = sats > 0 ? `Zap ${formatSats(sats)} sats` : "Zap";
-  return (
-    <span
-      className={sats > 0 ? `${styles.zap} ${styles.zapped}` : styles.zap}
-      role="img"
-      aria-label={label}
-      title={label}
-    >
+  const className = sats > 0 ? `${styles.zap} ${styles.zapped}` : styles.zap;
+  const content = (
+    <>
       <span className={styles.zapIcon}>
         <BoltIcon />
       </span>
       {sats > 0 && <span className={styles.zapAmount}>{formatSats(sats)}</span>}
-    </span>
+    </>
+  );
+  if (lud16 === "") {
+    return (
+      <span className={className} role="img" aria-label={label} title={label}>
+        {content}
+      </span>
+    );
+  }
+  return (
+    <>
+      <button
+        type="button"
+        className={`${className} ${styles.zapButton}`}
+        aria-label={label}
+        title={label}
+        onClick={() => setOpen(true)}
+      >
+        {content}
+      </button>
+      {open && (
+        <ZapDialog
+          recipient={event.pubkey}
+          recipientName={displayName(author, event.pubkey)}
+          lud16={lud16}
+          eventId={event.id}
+          targetKind={event.kind}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
   );
 }
 

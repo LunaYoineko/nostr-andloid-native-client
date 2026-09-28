@@ -1,0 +1,26 @@
+/* ---- プロフィール編集（入力欄の見た目は SettingsSections の .input / .row を使う） ---- */
+
+/* 1 項目（ラベル + 入力欄。ネイティブ ProfileField） */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/* .input の flex: 1 は横並び用。縦並びでは高さを中身どおりにする */
+.field > input,
+.field > textarea {
+  flex: none;
+}
+
+/* ネイティブ HintText */
+.label {
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.textarea {
+  min-height: 6em;
+  resize: vertical;
+  line-height: var(--line-desc);
+}

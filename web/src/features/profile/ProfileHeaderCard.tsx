@@ -10,6 +10,7 @@ import { ContentCopyIcon } from "../../ui/icons";
 import { Lightbox } from "../media/Lightbox";
 import { RichText } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
+import { ZapDialog } from "../zap/ZapDialog";
 import { parseAbout } from "./about";
 import { FollowButton } from "./FollowButton";
 import { Nip05Handle } from "./Nip05Handle";
@@ -64,6 +65,7 @@ function useTimedMessage(durationMs: number): [string | null, (message: string) 
 /**
  * プロフィールのヘッダ（ネイティブ ProfileHeaderCard）。バナー・アバター・⋯・フォロー / 編集、名前・NIP-05・npub・
  * フォロー中の件数・自己紹介・lud16・website・使用リレー。バナーとアバターは押すと原寸で開く。
+ * 他人の lud16 は押すとプロフィール Zap。
  */
 export function ProfileHeaderCard({
   pubkey,
@@ -103,6 +105,7 @@ export function ProfileHeaderCard({
   const [status, showStatus] = useTimedMessage(STATUS_MS);
   const [error, showError] = useTimedMessage(ERROR_MS);
   const [zoom, setZoom] = useState<string | null>(null);
+  const [zapping, setZapping] = useState(false);
 
   async function copyNpub() {
     try {
@@ -143,7 +146,7 @@ export function ProfileHeaderCard({
             <button
               type="button"
               className={`${styles.pill} ${styles.ghost}`}
-              onClick={() => navigate("/settings/account", { replace: true })}
+              onClick={() => navigate("/settings/profile-edit", { replace: true })}
             >
               編集
             </button>
@@ -194,7 +197,15 @@ export function ProfileHeaderCard({
             <RichText root={aboutRoot} size="sub" />
           </div>
         )}
-        {lud16 && <p className={styles.lud16}>{`⚡ ${lud16}`}</p>}
+        {lud16 &&
+          (isMe ? (
+            <p className={styles.lud16}>{`⚡ ${lud16}`}</p>
+          ) : (
+            // 他人の lud16 は押すとプロフィール Zap（e タグ無し。ネイティブ ProfileZapSheet）
+            <button type="button" className={styles.lud16} onClick={() => setZapping(true)}>
+              {`⚡ ${lud16}`}
+            </button>
+          ))}
         {website &&
           (WEB_URL.test(website) ? (
             <a
@@ -211,6 +222,9 @@ export function ProfileHeaderCard({
         <ProfileRelays pubkey={pubkey} />
       </div>
       {zoom && <Lightbox items={[{ url: zoom }]} index={0} onClose={() => setZoom(null)} />}
+      {zapping && lud16 && (
+        <ZapDialog recipient={pubkey} recipientName={name} lud16={lud16} onClose={() => setZapping(false)} />
+      )}
     </div>
   );
 }

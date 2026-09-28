@@ -10,6 +10,7 @@ import { DisplaySection } from "./DisplaySection";
 import { FavsSection } from "./FavsSection";
 import { MediaSection } from "./MediaSection";
 import { MuteSection } from "./MuteSection";
+import { ProfileEditSection } from "./ProfileEditSection";
 import { RelaySection } from "./RelaySection";
 import styles from "./SettingsScreen.module.css";
 import {
@@ -150,6 +151,8 @@ function SectionBody({ id }: { id: string }) {
       return <FavsSection />;
     case "mute":
       return <MuteSection />;
+    case "profile-edit":
+      return <ProfileEditSection />;
     case "account":
       return <AccountSection />;
     case "relays":
