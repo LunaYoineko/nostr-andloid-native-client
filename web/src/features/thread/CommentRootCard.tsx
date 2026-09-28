@@ -1,9 +1,10 @@
 import type { AddressPointer } from "applesauce-core/helpers/pointers";
-import { naddrEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { Link } from "react-router";
 import { hrefForEvent } from "../../lib/content/labels";
 import { useEventByPointer } from "../../nostr/loaders";
+import { ArticleCard, ArticleCardBody } from "../article/ArticleCard";
+import articleStyles from "../article/ArticleCard.module.css";
 import styles from "./CommentRootCard.module.css";
 
 const HEX64 = /^[0-9a-f]{64}$/i;
@@ -22,8 +23,9 @@ function articleAddressOf(rootA: string): AddressPointer | null {
 
 /**
  * NIP-22 コメント（kind:1111）のコメント対象（ネイティブの CommentRootCard.kt）。スレッドの先頭に 1 枚出す。
- * ルート A → 「kind N へのコメント」（記事 kind:30023 なら押すと記事へ。#534）、ルート E → 取得済みの
- * kind 1 / 1111 は出さない（ツリーに出る）・他は「kind N へのコメント」、ルート I → 「<ホスト> へのコメント」+ URL。
+ * ルート A → 記事（kind:30023）なら記事カード（#591。押すと記事へ）・他は「kind N へのコメント」、ルート E →
+ * 取得済みの kind 1 / 1111 は出さない（ツリーに出る）・記事（30023）なら同じく記事カード（#591）・他は
+ * 「kind N へのコメント」、ルート I → 「<ホスト> へのコメント」+ URL。
  */
 export function CommentRootCard({ focus }: { focus: NostrEvent }) {
   const rootA = firstTagValue(focus, "A");
@@ -34,7 +36,13 @@ export function CommentRootCard({ focus }: { focus: NostrEvent }) {
 
   if (rootA) {
     const addr = articleAddressOf(rootA);
-    if (addr) return <GenericRootCard label="kind 30023 へのコメント" to={hrefForEvent(naddrEncode(addr))} />;
+    if (addr) {
+      return (
+        <div className={styles.wrap}>
+          <ArticleCard addr={addr} />
+        </div>
+      );
+    }
     const kind = rootA.split(":")[0];
     return <GenericRootCard label={`kind ${/^\d+$/.test(kind) ? kind : (rootK ?? "?")} へのコメント`} />;
   }
@@ -66,6 +74,15 @@ function EventRootCard({ id, hint, rootK }: { id: string; hint: string | undefin
   const root = useEventByPointer({ id, relays: hint ? [hint] : undefined });
   if (root) {
     if (root.kind === 1 || root.kind === 1111) return null;
+    if (root.kind === 30023) {
+      return (
+        <div className={styles.wrap}>
+          <Link className={articleStyles.card} to={hrefForEvent({ id })}>
+            <ArticleCardBody event={root} />
+          </Link>
+        </div>
+      );
+    }
     return <GenericRootCard label={`kind ${root.kind} へのコメント`} to={hrefForEvent({ id })} />;
   }
   return <GenericRootCard label={rootK !== null ? `kind ${rootK} へのコメント` : "コメント対象を取得中…"} />;
