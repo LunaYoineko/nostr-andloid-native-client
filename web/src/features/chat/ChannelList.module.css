@@ -1,0 +1,121 @@
+/* Timeline.module.css の .empty と同じ */
+.empty {
+  margin: 0;
+  padding: var(--sp-5) var(--sp-4);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--type-sub);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface);
+}
+
+/* ネイティブ ChannelRow: 行高は固定（アバター 38 + 上下 12）、右端に 40px のピン */
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding-right: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.item:hover {
+  background: var(--surface-3);
+}
+
+.item:has(> [aria-current="true"]) {
+  background: var(--accent-weak);
+}
+
+.row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 62px;
+  padding: var(--sp-3) 0 var(--sp-3) var(--sp-3);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.icon {
+  display: block;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
+/* NoteItem.module.css の .initial と同じ */
+.initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #fff;
+  font-size: var(--type-body);
+  font-weight: var(--w-strong);
+  line-height: 1;
+  user-select: none;
+}
+
+.texts {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.name,
+.about {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.name {
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+  line-height: var(--line-title);
+}
+
+.about {
+  color: var(--text-2);
+  font-size: var(--type-caption);
+  line-height: var(--line-desc);
+}
+
+.pin {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.pin:hover {
+  background: var(--surface-2);
+}
+
+/* ピン留め済み（ネイティブは Zap 色） */
+.pin[aria-pressed="true"] {
+  color: var(--zap);
+}

@@ -39,10 +39,12 @@ export const NotificationRow = memo(function NotificationRow({ item }: { item: N
   const profile = useProfile(item.actor);
   const picture = pictureOf(profile);
   const now = useNow();
-  const href = notificationHref(item);
+  // 対象（自分の投稿）。kind:42 ならチャンネルのルームを開く。返信・メンションは見出しの抜粋にも使う
+  const targetEvent = useEventByPointer(item.target);
+  const href = notificationHref(item, targetEvent);
   const ref = useRef<HTMLElement>(null);
   useOpenOnClick(ref, href);
-  const target = useEventByPointer(isReply ? item.target : null);
+  const target = isReply ? targetEvent : undefined;
 
   let head: ReactNode;
   let body: ReactNode;

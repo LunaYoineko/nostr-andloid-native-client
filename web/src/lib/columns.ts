@@ -411,6 +411,23 @@ export function buildColumn(
   }
 }
 
+/**
+ * NIP-28 のルームのカラム（ネイティブ SampleData.roomColumnFor）。一覧の「ピン留め」・一覧カラムから開くときに使う。
+ * subtitle はチャンネルの説明、空なら "NIP-28 · kind:42"（保存・同期される）。
+ */
+export function roomColumnFor(channel: { id: string; name: string; about: string }): ColumnSpec {
+  return {
+    id: `room_${channel.id}`,
+    title: channel.name,
+    subtitle: channel.about.trim() === "" ? "NIP-28 · kind:42" : channel.about,
+    kind: "CHANNEL_ROOM",
+    renderer: "ROOM",
+    filter: { ...defaultFilter(), kinds: [42], channelId: channel.id },
+    pinned: false,
+    order: 100,
+  };
+}
+
 /** 「フィルターを編集」に使うテンプレ（設定を持たないカラムは null） */
 export function editTemplate(spec: ColumnSpec): TemplateId | null {
   switch (spec.kind) {
