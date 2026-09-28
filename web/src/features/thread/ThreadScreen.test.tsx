@@ -7,6 +7,7 @@ import { VirtuosoMockContext } from "react-virtuoso";
 import type { Subject } from "rxjs";
 import { beforeEach, expect, it, vi } from "vitest";
 import { formatAbsoluteTime } from "../../lib/time";
+import { useEventByAddress } from "../../nostr/loaders";
 import { subscribeTo } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
 import { renderWithRouter } from "../../test/renderWithRouter";
@@ -28,8 +29,15 @@ vi.mock("../../nostr/pool", async (importOriginal) => {
   };
 });
 
+// naddr の解決（addressLoader・実リレー）はしない。#534 の naddr 専用テストだけが差し替える
+vi.mock("../../nostr/loaders", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../nostr/loaders")>()),
+  useEventByAddress: vi.fn(),
+}));
+
 beforeEach(() => {
   vi.mocked(subscribeTo).mockClear();
+  vi.mocked(useEventByAddress).mockReturnValue({ event: undefined, failed: false });
 });
 
 /** 今の URL のパス（クリックで移動したかを見る） */
@@ -120,7 +128,7 @@ it("root から段を付けて並べ、起点の下に日時と反応を出す",
   for (let i = 0; i < 2; i++) stored(7, [["e", focus.id]], { content: "+" });
   stored(6, [["e", focus.id]]);
 
-  const { container } = render(<ThreadScreen pointer={{ id: focus.id }} />);
+  const { container } = render(<ThreadScreen onBack={() => {}} pointer={{ id: focus.id }} />);
 
   const articles = container.querySelectorAll("article");
   expect(articles).toHaveLength(3);
@@ -154,7 +162,7 @@ it("root から段を付けて並べ、起点の下に日時と反応を出す",
 it("client タグが無ければ日時だけ", () => {
   const { focus } = conversation();
 
-  render(<ThreadScreen pointer={{ id: focus.id }} />);
+  render(<ThreadScreen onBack={() => {}} pointer={{ id: focus.id }} />);
 
   expect(screen.getByText(formatAbsoluteTime(focus.created_at))).toBeInTheDocument();
 });
@@ -163,7 +171,7 @@ it("反応が 0 件なら集計の行を出さない", () => {
   const root = stored(1, [], { content: "ルートの投稿" });
   const focus = stored(1, [["e", root.id, "", "root"]], { content: "起点の投稿", createdAt: 1_001 });
 
-  const { container } = render(<ThreadScreen pointer={{ id: focus.id }} />);
+  const { container } = render(<ThreadScreen onBack={() => {}} pointer={{ id: focus.id }} />);
 
   expect(screen.getByText("起点の投稿")).toBeInTheDocument();
   expect(screen.queryByText(/リプライ/)).toBeNull();
@@ -174,7 +182,7 @@ it("リアクションした人が 13 人ならアバターは 12 個と +1", ()
   const { focus } = conversation();
   for (let i = 0; i < 13; i++) stored(7, [["e", focus.id]], { content: "🔥" });
 
-  const { container } = render(<ThreadScreen pointer={{ id: focus.id }} />);
+  const { container } = render(<ThreadScreen onBack={() => {}} pointer={{ id: focus.id }} />);
 
   const [fireRow] = reactorRows(container);
   expect(within(fireRow).getByText("🔥")).toBeInTheDocument();
@@ -187,7 +195,7 @@ it("onReply を渡すと返信ボックスが出て、押すと起点で呼ぶ",
   const { focus } = conversation();
   const onReply = vi.fn();
 
-  render(<ThreadScreen pointer={{ id: focus.id }} onReply={onReply} />);
+  render(<ThreadScreen onBack={() => {}} pointer={{ id: focus.id }} onReply={onReply} />);
   await userEvent.click(screen.getByRole("button", { name: "返信を書く" }));
 
   expect(onReply).toHaveBeenCalledWith(focus);
@@ -196,14 +204,14 @@ it("onReply を渡すと返信ボックスが出て、押すと起点で呼ぶ",
 it("onReply が無ければ返信ボックスを出さない", () => {
   const { focus } = conversation();
 
-  render(<ThreadScreen pointer={{ id: focus.id }} />);
+  render(<ThreadScreen onBack={() => {}} pointer={{ id: focus.id }} />);
 
   expect(screen.queryByRole("button", { name: "返信を書く" })).toBeNull();
 });
 
 it("行の本文を押してもスレッドを開き直さない", async () => {
   const { focus } = conversation();
-  render(<ThreadScreen pointer={{ id: focus.id }} />);
+  render(<ThreadScreen onBack={() => {}} pointer={{ id: focus.id }} />);
   const before = screen.getByTestId("where").textContent;
 
   await userEvent.click(screen.getByText("返信の投稿"));
@@ -216,7 +224,7 @@ it("行の本文を押してもスレッドを開き直さない", async () => {
 it("行が 0 件なら読み込み中、EOSE の後は見つかりませんでした", () => {
   const missing = signed(1).id;
 
-  render(<ThreadScreen pointer={{ id: missing }} />);
+  render(<ThreadScreen onBack={() => {}} pointer={{ id: missing }} />);
   expect(screen.getByText("読み込み中…")).toBeInTheDocument();
 
   const reply = vi.mocked(subscribeTo).mock.results[0].value as Subject<"EOSE">;
@@ -231,7 +239,7 @@ it("NIP-22 コメント（I タグ）は先頭に外部リンクのカードを�
     ["K", "web"],
   ]);
 
-  render(<ThreadScreen pointer={{ id: comment.id }} />);
+  render(<ThreadScreen onBack={() => {}} pointer={{ id: comment.id }} />);
 
   const card = screen.getByRole("link", { name: /example\.com へのコメント/ });
   expect(card).toHaveAttribute("href", "https://example.com/a");
@@ -244,18 +252,78 @@ it("NIP-22 コメントのルート（E）が未取得なら K タグから「ki
     ["K", "30023"],
   ]);
 
-  const { container } = render(<ThreadScreen pointer={{ id: comment.id }} />);
+  const { container } = render(<ThreadScreen onBack={() => {}} pointer={{ id: comment.id }} />);
 
   const [wrap] = container.getElementsByClassName(cardStyles.wrap);
   expect(wrap).toHaveTextContent("kind 30023 へのコメント");
 });
 
-it("kind:1 / 1111 以外の起点は「Web 版ではまだ表示できません」", () => {
-  const article = stored(30023, [["d", "x"]], { content: "# 記事" });
+it("NIP-22 コメントのルート（A）が記事（kind:30023）なら押すと記事へ（#534）", () => {
+  const author = getPublicKey(generateSecretKey());
+  const comment = stored(1111, [["A", `30023:${author}:x`]]);
 
-  render(<ThreadScreen pointer={{ id: article.id }} />);
+  render(<ThreadScreen onBack={() => {}} pointer={{ id: comment.id }} />);
 
-  expect(screen.getByText("kind 30023 の投稿は Web 版ではまだ表示できません")).toBeInTheDocument();
+  const card = screen.getByRole("link", { name: /kind 30023 へのコメント/ });
+  expect(card.getAttribute("href")).toMatch(/^\/e\/naddr1/);
+});
+
+it("kind:1 / 1111 / 30023 以外の起点は「Web 版ではまだ表示できません」", () => {
+  const other = stored(9999, [], { content: "" });
+
+  render(<ThreadScreen onBack={() => {}} pointer={{ id: other.id }} />);
+
+  expect(screen.getByText("kind 9999 の投稿は Web 版ではまだ表示できません")).toBeInTheDocument();
+});
+
+it("起点が kind:30023 なら記事リーダーを描く（#534。今の「表示できません」の置き換え）", () => {
+  const article = stored(
+    30023,
+    [
+      ["d", "x"],
+      ["title", "記事タイトル"],
+    ],
+    { content: "本文です" },
+  );
+
+  render(<ThreadScreen onBack={() => {}} pointer={{ id: article.id }} />);
+
+  expect(screen.getByRole("heading", { level: 1, name: "記事タイトル" })).toBeInTheDocument();
+  expect(screen.queryByText(/Web 版ではまだ表示できません/)).toBeNull();
+});
+
+it("naddr（AddressPointer）は addressLoader で解決するまで「読み込み中…」（#534）", () => {
+  const addr = { kind: 30023 as const, pubkey: getPublicKey(generateSecretKey()), identifier: "y" };
+
+  render(<ThreadScreen onBack={() => {}} pointer={addr} />);
+
+  expect(screen.getByText("読み込み中…")).toBeInTheDocument();
+});
+
+it("naddr が 6 秒（ネイティブの resolveAddress と同じ）届かず諦めたら「記事を取得できませんでした」（#534）", () => {
+  vi.mocked(useEventByAddress).mockReturnValue({ event: undefined, failed: true });
+  const addr = { kind: 30023 as const, pubkey: getPublicKey(generateSecretKey()), identifier: "y" };
+
+  render(<ThreadScreen onBack={() => {}} pointer={addr} />);
+
+  expect(screen.getByText("記事を取得できませんでした")).toBeInTheDocument();
+});
+
+it("naddr が解決すれば記事リーダーになる（#534）", () => {
+  const article = stored(
+    30023,
+    [
+      ["d", "y"],
+      ["title", "解決した記事"],
+    ],
+    { content: "本文" },
+  );
+  vi.mocked(useEventByAddress).mockReturnValue({ event: article, failed: false });
+  const addr = { kind: 30023 as const, pubkey: article.pubkey, identifier: "y" };
+
+  render(<ThreadScreen onBack={() => {}} pointer={addr} />);
+
+  expect(screen.getByRole("heading", { level: 1, name: "解決した記事" })).toBeInTheDocument();
 });
 
 it("起点への Zap 受領を購読し、⚡ 行に合計 sats と Zap した人（重複なし）を出す", () => {
@@ -265,7 +333,7 @@ it("起点への Zap 受領を購読し、⚡ 行に合計 sats と Zap した�
   storedZap(focus, { sender: bob, sats: 1_000, createdAt: 2_001 });
   storedZap(focus, { sender: alice, sats: 21, createdAt: 2_002 });
 
-  const { container } = render(<ThreadScreen pointer={{ id: focus.id }} />);
+  const { container } = render(<ThreadScreen onBack={() => {}} pointer={{ id: focus.id }} />);
 
   expect(subscribeTo).toHaveBeenCalledWith(
     ["wss://relay.example"],
@@ -281,7 +349,7 @@ it("Zap だけの起点でも ⚡ 行を出す（集計の 1 行目は出さな�
   const focus = stored(1, [["e", root.id, "", "root"]], { content: "起点の投稿", createdAt: 1_001 });
   storedZap(focus, { sender: getPublicKey(generateSecretKey()), sats: 21 });
 
-  const { container } = render(<ThreadScreen pointer={{ id: focus.id }} />);
+  const { container } = render(<ThreadScreen onBack={() => {}} pointer={{ id: focus.id }} />);
 
   expect(screen.queryByText(/リプライ|リアクション/)).toBeNull();
   const [zapRow] = reactorRows(container);
@@ -298,7 +366,7 @@ it("コメント付き Zap だけを返信の後に新しい順で行にする�
   storedZap(focus, { sender: getPublicKey(generateSecretKey()), sats: 7, comment: "  ", createdAt: 2_002 });
   storedZap(focus, { sender: aliceHex, sats: 1_000, comment: "すごい", createdAt: 2_003 });
 
-  const { container } = render(<ThreadScreen pointer={{ id: focus.id }} />);
+  const { container } = render(<ThreadScreen onBack={() => {}} pointer={{ id: focus.id }} />);
 
   const rows = [...container.getElementsByClassName(zapStyles.row)] as HTMLElement[];
   expect(rows).toHaveLength(2);

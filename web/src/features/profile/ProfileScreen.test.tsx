@@ -24,7 +24,7 @@ vi.mock("../../nostr/pool", async (importOriginal) => {
 });
 
 vi.mock("./useProfileFeed", () => ({
-  useProfileFeed: vi.fn(() => ({ loading: false, posts: [], media: [] })),
+  useProfileFeed: vi.fn(() => ({ loading: false, posts: [], media: [], articles: [] })),
 }));
 
 vi.mock("./useContactsOf", () => ({ useContactsOf: vi.fn(() => null) }));
@@ -75,7 +75,7 @@ beforeEach(() => {
   vi.mocked(toggleFollow).mockReset();
   vi.mocked(toggleFollow).mockResolvedValue("done");
   vi.mocked(useContactsOf).mockReturnValue(null);
-  vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [] });
+  vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [], articles: [] });
   mockViewport(400);
 });
 
@@ -405,6 +405,7 @@ describe("タブ", () => {
       loading: false,
       posts: [photo, repost, text],
       media: [photo],
+      articles: [],
     });
     renderScreen();
 
@@ -422,14 +423,71 @@ describe("タブ", () => {
     expect(media[0]).toHaveTextContent("写真");
   });
 
+  it("記事タブは本人の kind:30023 を新しい順にカードで出す。0 件でもタブは出る（#534）", async () => {
+    const user = userEvent.setup();
+    alice();
+    const older = finalizeEvent(
+      {
+        kind: 30023,
+        created_at: 1_000,
+        tags: [
+          ["d", "a"],
+          ["title", "古い記事"],
+        ],
+        content: "",
+      },
+      themKey,
+    );
+    const newer = finalizeEvent(
+      {
+        kind: 30023,
+        created_at: 2_000,
+        tags: [
+          ["d", "b"],
+          ["title", "新しい記事"],
+        ],
+        content: "",
+      },
+      themKey,
+    );
+    vi.mocked(useProfileFeed).mockReturnValue({
+      loading: false,
+      posts: [],
+      media: [],
+      articles: [newer, older],
+    });
+    renderScreen();
+
+    expect(screen.getByRole("tab", { name: "記事" })).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "記事" }));
+
+    const panel = screen.getByRole("tabpanel");
+    const links = within(panel).getAllByRole("link");
+    expect(links.map((l) => l.textContent)).toEqual([
+      expect.stringContaining("新しい記事"),
+      expect.stringContaining("古い記事"),
+    ]);
+    expect(links[0].getAttribute("href")).toMatch(/^\/e\/naddr1/);
+  });
+
+  it("記事が 0 件なら「まだ記事がありません」", async () => {
+    const user = userEvent.setup();
+    alice();
+    vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [], articles: [] });
+    renderScreen();
+
+    await user.click(screen.getByRole("tab", { name: "記事" }));
+    expect(screen.getByText("まだ記事がありません")).toBeInTheDocument();
+  });
+
   it("空なら「まだ投稿がありません」、読み込み中は「読み込み中…」", () => {
     alice();
-    vi.mocked(useProfileFeed).mockReturnValue({ loading: true, posts: [], media: [] });
+    vi.mocked(useProfileFeed).mockReturnValue({ loading: true, posts: [], media: [], articles: [] });
     const { unmount } = renderScreen();
     expect(screen.getByText("読み込み中…")).toBeInTheDocument();
     unmount();
 
-    vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [] });
+    vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [], articles: [] });
     renderScreen();
     expect(screen.getByText("まだ投稿がありません")).toBeInTheDocument();
   });
@@ -446,7 +504,12 @@ describe("固定投稿（#531。その人の kind:10001）", () => {
     );
     const text = note(themKey, "ふつうの投稿", 1_000);
     const photo = note(themKey, "写真 https://img.test/p.jpg", 1_002);
-    vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [text], media: [photo] });
+    vi.mocked(useProfileFeed).mockReturnValue({
+      loading: false,
+      posts: [text],
+      media: [photo],
+      articles: [],
+    });
     renderScreen();
 
     const panel = screen.getByRole("tabpanel");

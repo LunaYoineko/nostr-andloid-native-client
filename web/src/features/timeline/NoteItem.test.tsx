@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { decode, neventEncode } from "nostr-tools/nip19";
+import { decode, naddrEncode, neventEncode } from "nostr-tools/nip19";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import type { ReactElement } from "react";
 import { useLocation } from "react-router";
@@ -11,8 +11,15 @@ import { eventStore } from "../../nostr/store";
 import { renderWithRouter } from "../../test/renderWithRouter";
 import linkCardStyles from "../linkcard/LinkCard.module.css";
 import gridStyles from "../media/ImageGrid.module.css";
+import contentStyles from "./NoteContent.module.css";
 import { NoteItem } from "./NoteItem";
 import noteStyles from "./NoteItem.module.css";
+
+// naddr の解決（addressLoader・実リレー）はしない。ここでは埋め込みの並び順だけを見る（中身は ArticleCard.test.tsx）
+vi.mock("../../nostr/loaders", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../nostr/loaders")>()),
+  useEventByAddress: vi.fn(() => ({ event: undefined, failed: false })),
+}));
 
 // applesauce の Tokens.link はホストにドットを要求するため、テストの URL は *.test にする
 
@@ -411,6 +418,21 @@ it("kind:1 の操作の行は 返信・リポスト・リアクション・絵�
       .getAllByRole("button")
       .map((b) => b.getAttribute("aria-label")),
   ).toEqual(["返信", "リポスト", "リアクション", "絵文字でリアクション", "その他の操作"]);
+});
+
+it("本文の naddr（記事）は記事カードにし、埋め込み（本文）の後・操作の行の前に置く（#534）", () => {
+  const naddr = naddrEncode({ kind: 30023, pubkey: getPublicKey(generateSecretKey()), identifier: "a" });
+  const event = stored(`本文です nostr:${naddr}`);
+
+  const { container } = renderWithRouter(<NoteItem event={event} />);
+
+  // 本文中のメンション（↗naddr1…）とは別に、下に記事カード（解決中）が出る
+  const card = screen.getByText("読み込み中…").closest("a") as HTMLAnchorElement;
+  expect(card.getAttribute("href")).toMatch(/^\/e\/naddr1/);
+  const body = container.querySelector(`.${contentStyles.content}`) as HTMLElement;
+  const actions = screen.getByRole("group", { name: "操作" });
+  expect(body.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(card.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
 it("リンクは OGP が取れたらメディアの下にカードを出し、本文からは消す（取得中は枠 + 本文のリンクのまま）", async () => {

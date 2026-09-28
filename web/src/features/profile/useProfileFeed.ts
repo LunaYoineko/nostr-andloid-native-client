@@ -8,8 +8,8 @@ import { authorOutbox$ } from "../../nostr/outbox";
 import { requestOnce, subscribeTo, useReadRelays } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
 
-/** 開いている間に張る REQ の kind（プロフィール・投稿・リポスト・リレーリスト） */
-export const PROFILE_REQ_KINDS = [0, 1, 6, 16, 10002];
+/** 開いている間に張る REQ の kind（プロフィール・投稿・リポスト・リレーリスト・記事。#534） */
+export const PROFILE_REQ_KINDS = [0, 1, 6, 16, 10002, 30023];
 /** 投稿タブに出す kind（返信も含む） */
 export const PROFILE_FEED_KINDS = [1, 6, 16];
 export const PROFILE_REQ_LIMIT = 100;
@@ -40,7 +40,7 @@ export function hasProfileMedia(event: NostrEvent): boolean {
 export function useProfileFeed(
   pubkey: string,
   relayHints: readonly string[],
-): { loading: boolean; posts: NostrEvent[]; media: NostrEvent[] } {
+): { loading: boolean; posts: NostrEvent[]; media: NostrEvent[]; articles: NostrEvent[] } {
   const hintsKey = relayHints
     .filter((url) => url.startsWith("wss://"))
     .slice(0, 3)
@@ -78,5 +78,8 @@ export function useProfileFeed(
       [pubkey],
     ) ?? NO_EVENTS;
   const media = useMemo(() => posts.filter(hasProfileMedia), [posts]);
-  return { loading, posts, media };
+  // [#534] 本人の記事（kind:30023）。新しい順、同じ d タグは最新版だけ（eventStore.timeline の既定動作）
+  const articles =
+    use$(() => eventStore.timeline({ kinds: [30023], authors: [pubkey] }), [pubkey]) ?? NO_EVENTS;
+  return { loading, posts, media, articles };
 }
