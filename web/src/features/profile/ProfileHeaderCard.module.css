@@ -252,6 +252,20 @@ button.ring {
   text-overflow: ellipsis;
 }
 
+/* 他人の lud16（押すと Zap）。見た目は文字のまま */
+button.lud16 {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.lud16:hover {
+  text-decoration: underline;
+}
+
 .website {
   max-width: 100%;
   margin-top: var(--sp-1);

@@ -258,6 +258,25 @@ describe("ヘッダカード", () => {
     expect(screen.queryByRole("link", { name: "alice.example" })).not.toBeInTheDocument();
   });
 
+  it("他人の lud16 を押すとプロフィール Zap のダイアログ", async () => {
+    const user = userEvent.setup();
+    alice({ lud16: "alice@getalby.com" });
+    renderScreen();
+    await user.click(screen.getByRole("button", { name: "⚡ alice@getalby.com" }));
+    const dialog = screen.getByRole("dialog", { name: "⚡ Zap" });
+    expect(within(dialog).getByText(/^Alice へ投げ銭します/)).toBeInTheDocument();
+    expect(within(dialog).getByText("送信先: alice@getalby.com")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "キャンセル" }));
+    expect(screen.queryByRole("dialog", { name: "⚡ Zap" })).not.toBeInTheDocument();
+  });
+
+  it("自分の lud16 は文字だけ（押せない）", () => {
+    addProfile(meKey, { name: "Me", lud16: "me@getalby.com" });
+    renderScreen(me);
+    expect(screen.getByText("⚡ me@getalby.com")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "⚡ me@getalby.com" })).not.toBeInTheDocument();
+  });
+
   it("使用リレー: 押すと URL（wss:// と末尾 / 無し）と read / write。kind:10002 が無ければ出さない", async () => {
     const user = userEvent.setup();
     alice();
