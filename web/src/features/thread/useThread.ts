@@ -25,6 +25,8 @@ const MAX_HINT_RELAYS = 3;
 
 const NO_EVENTS: NostrEvent[] = [];
 const NO_ENTRIES: ThreadEntry[] = [];
+/** pointer が無い間（#534。naddr の解決待ち）の anchors */
+const EMPTY_ANCHORS: ThreadAnchors = { focusId: "", ids: [], rootId: "", address: null };
 
 const resolveEvent = (id: string) => eventStore.getEvent(id);
 
@@ -43,10 +45,15 @@ export type Thread = {
 /**
  * スレッドの購読と表示（ネイティブの EventRepository.kt subscribeThread / subscribeNoteEngagement / threadFeed）。
  * 起点が届いて root が決まったら返信の REQ を張り直す（URL 直開きで起点が未取得のまま開いた場合）。
+ * pointer が null（#534。naddr を addressLoader で解決している間）は何も購読せず空を返す。
  */
-export function useThread(pointer: EventPointer): Thread {
+export function useThread(pointer: EventPointer | null): Thread {
   const focus = useEventByPointer(pointer);
-  const latest = useMemo(() => threadAnchors(pointer.id, focus), [pointer.id, focus]);
+  const pointerId = pointer?.id ?? null;
+  const latest = useMemo(
+    () => (pointerId ? threadAnchors(pointerId, focus) : EMPTY_ANCHORS),
+    [pointerId, focus],
+  );
   // ids と address が同じ間は前のオブジェクトを使い続ける（起点が届いても root が同じなら張り直さない）
   const [anchors, setAnchors] = useState(latest);
   const key = anchorsKey(latest);
@@ -55,7 +62,7 @@ export function useThread(pointer: EventPointer): Thread {
   // read リレー + URL のリレーヒント（wss:// のみ）。ヒントは中身で比べる
   const relays = useReadRelays();
   const hintKey = JSON.stringify(
-    (pointer.relays ?? []).filter((url) => url.startsWith("wss://")).slice(0, MAX_HINT_RELAYS),
+    (pointer?.relays ?? []).filter((url) => url.startsWith("wss://")).slice(0, MAX_HINT_RELAYS),
   );
   const threadRelays = useMemo(
     () => [...new Set([...relays, ...(JSON.parse(hintKey) as string[])])],
@@ -70,25 +77,29 @@ export function useThread(pointer: EventPointer): Thread {
 
   // 返信の REQ。root が決まるなど条件が変わったら前の REQ を CLOSE して張り直す
   useEffect(() => {
+    if (pointerId === null) return;
     const sub = subscribeTo(threadRelays, threadRequestFilters(anchors)).subscribe(() => setLoading(false));
     return () => sub.unsubscribe();
-  }, [threadRelays, anchors]);
+  }, [pointerId, threadRelays, anchors]);
 
   // 起点への反応の REQ（起点の id と read リレーで決まる）
   useEffect(() => {
+    if (pointerId === null) return;
     const sub = subscribeTo(relays, [
-      { kinds: [7, 6, 16], "#e": [pointer.id], limit: ENGAGEMENT_LIMIT },
+      { kinds: [7, 6, 16], "#e": [pointerId], limit: ENGAGEMENT_LIMIT },
     ]).subscribe();
     return () => sub.unsubscribe();
-  }, [relays, pointer.id]);
+  }, [relays, pointerId]);
 
   const allEntries =
     use$(
       () =>
-        eventStore
-          .timeline(threadViewFilters(anchors))
-          .pipe(map((list) => buildThread(list, pointer.id, anchors.rootId))),
-      [anchors, pointer.id],
+        pointerId
+          ? eventStore
+              .timeline(threadViewFilters(anchors))
+              .pipe(map((list) => buildThread(list, pointerId, anchors.rootId)))
+          : undefined,
+      [anchors, pointerId],
     ) ?? NO_ENTRIES;
 
   // ミュート（#465）。起点は残し、それ以外のミュート対象の行を隠す（ネイティブ ThreadColumn と同じ）
@@ -99,14 +110,17 @@ export function useThread(pointer: EventPointer): Thread {
       matcher.isEmpty
         ? allEntries
         : allEntries.filter(
-            (entry) => entry.event.id === pointer.id || !isNoteMuted(matcher, entry.event, me, resolveEvent),
+            (entry) => entry.event.id === pointerId || !isNoteMuted(matcher, entry.event, me, resolveEvent),
           ),
-    [allEntries, matcher, me, pointer.id],
+    [allEntries, matcher, me, pointerId],
   );
 
   const engagementEvents =
-    use$(() => eventStore.timeline([{ kinds: [1, 1111, 6, 16, 7], "#e": [pointer.id] }]), [pointer.id]) ??
-    NO_EVENTS;
+    use$(
+      () =>
+        pointerId ? eventStore.timeline([{ kinds: [1, 1111, 6, 16, 7], "#e": [pointerId] }]) : undefined,
+      [pointerId],
+    ) ?? NO_EVENTS;
 
   return { focus, anchors, entries, engagementEvents, loading };
 }

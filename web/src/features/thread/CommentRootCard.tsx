@@ -1,18 +1,29 @@
+import type { AddressPointer } from "applesauce-core/helpers/pointers";
+import { naddrEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { Link } from "react-router";
 import { hrefForEvent } from "../../lib/content/labels";
 import { useEventByPointer } from "../../nostr/loaders";
 import styles from "./CommentRootCard.module.css";
 
+const HEX64 = /^[0-9a-f]{64}$/i;
+
 /** 最初の name タグの値（空文字は無視） */
 function firstTagValue(event: NostrEvent, name: string): string | null {
   return event.tags.find((t) => t[0] === name && typeof t[1] === "string" && t[1] !== "")?.[1] ?? null;
 }
 
+/** rootA（`kind:pubkey:d`）が記事（kind:30023）を指しているときの AddressPointer。形が崩れていれば null */
+function articleAddressOf(rootA: string): AddressPointer | null {
+  const [kind, pubkey, ...d] = rootA.split(":");
+  if (kind !== "30023" || !pubkey || !HEX64.test(pubkey)) return null;
+  return { kind: 30023, pubkey: pubkey.toLowerCase(), identifier: d.join(":") };
+}
+
 /**
  * NIP-22 コメント（kind:1111）のコメント対象（ネイティブの CommentRootCard.kt）。スレッドの先頭に 1 枚出す。
- * ルート A → 「kind N へのコメント」、ルート E → 取得済みの kind 1 / 1111 は出さない（ツリーに出る）・他は
- * 「kind N へのコメント」、ルート I → 「<ホスト> へのコメント」+ URL。記事（30023）のカードは M2。
+ * ルート A → 「kind N へのコメント」（記事 kind:30023 なら押すと記事へ。#534）、ルート E → 取得済みの
+ * kind 1 / 1111 は出さない（ツリーに出る）・他は「kind N へのコメント」、ルート I → 「<ホスト> へのコメント」+ URL。
  */
 export function CommentRootCard({ focus }: { focus: NostrEvent }) {
   const rootA = firstTagValue(focus, "A");
@@ -22,6 +33,8 @@ export function CommentRootCard({ focus }: { focus: NostrEvent }) {
   const rootK = k !== null && /^\d+$/.test(k) ? k : null;
 
   if (rootA) {
+    const addr = articleAddressOf(rootA);
+    if (addr) return <GenericRootCard label="kind 30023 へのコメント" to={hrefForEvent(naddrEncode(addr))} />;
     const kind = rootA.split(":")[0];
     return <GenericRootCard label={`kind ${/^\d+$/.test(kind) ? kind : (rootK ?? "?")} へのコメント`} />;
   }

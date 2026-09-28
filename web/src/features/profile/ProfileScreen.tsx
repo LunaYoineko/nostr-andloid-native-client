@@ -8,6 +8,7 @@ import { FollowersList } from "./FollowersList";
 import { FollowingList } from "./FollowingList";
 import { useFollowers } from "./followers";
 import { ListsTab } from "./ListsTab";
+import { ProfileArticleList } from "./ProfileArticleList";
 import { ProfileHeaderCard } from "./ProfileHeaderCard";
 import { ProfilePostList } from "./ProfilePostList";
 import styles from "./ProfileScreen.module.css";
@@ -42,7 +43,7 @@ export function ProfileScreen({
   const followingList = (isMe ? myFollows : theirFollows) ?? NO_PUBKEYS;
   const following = myFollows?.includes(pubkey) ?? false;
   const followsMe = !isMe && me !== null && (theirFollows?.includes(me) ?? false);
-  const { loading, posts, media } = useProfileFeed(pubkey, relayHints);
+  const { loading, posts, media, articles } = useProfileFeed(pubkey, relayHints);
   const pinnedPosts = usePinnedPosts(pubkey);
   const followers = useFollowers(pubkey);
   const [tab, setTab] = useState<ProfileTab>("posts");
@@ -75,8 +76,16 @@ export function ProfileScreen({
     />
   );
   const events = tab === "posts" ? posts : media;
-  // 固定投稿は投稿タブの先頭だけ（ネイティブ pinnedForTab。メディアタブには出さない）
+  // 固定投稿は投稿タブの先頭だけ（ネイティブ pinnedForTab。メディア・記事タブには出さない）
   const pinned = tab === "posts" ? pinnedPosts : undefined;
+
+  function tabPanel(scrollParent?: HTMLDivElement) {
+    if (tab === "lists") return <ListsTab pubkey={pubkey} />;
+    if (tab === "articles") {
+      return <ProfileArticleList events={articles} loading={loading} scrollParent={scrollParent} />;
+    }
+    return <ProfilePostList events={events} loading={loading} pinned={pinned} scrollParent={scrollParent} />;
+  }
 
   if (mode === "compact") {
     return (
@@ -85,13 +94,7 @@ export function ProfileScreen({
         <div className={styles.scroll} ref={setScrollEl}>
           {header}
           <ProfileTabs tab={tab} onChange={setTab} sticky />
-          {tab === "lists" ? (
-            <ListsTab pubkey={pubkey} />
-          ) : (
-            scrollEl && (
-              <ProfilePostList events={events} loading={loading} pinned={pinned} scrollParent={scrollEl} />
-            )
-          )}
+          {tab === "lists" ? tabPanel() : scrollEl && tabPanel(scrollEl)}
         </div>
       </div>
     );
@@ -106,11 +109,7 @@ export function ProfileScreen({
       </aside>
       <div className={styles.main}>
         <ProfileTabs tab={tab} onChange={setTab} />
-        {tab === "lists" ? (
-          <ListsTab pubkey={pubkey} />
-        ) : (
-          <ProfilePostList events={events} loading={loading} pinned={pinned} />
-        )}
+        {tabPanel()}
       </div>
     </div>
   );
