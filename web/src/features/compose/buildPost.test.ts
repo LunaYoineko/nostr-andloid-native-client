@@ -5,6 +5,7 @@ import {
   buildNote,
   buildQuote,
   buildReply,
+  buildThread,
   imetaTags,
   type PostContext,
   type PostMedia,
@@ -169,5 +170,58 @@ describe("添付（withMediaUrls / imeta）", () => {
     expect(buildQuote(target, "", null, ctx(), [IMAGE]).content).toMatch(
       /^https:\/\/m\/a\.webp\nnostr:nevent1[0-9a-z]+$/,
     );
+  });
+});
+
+describe("buildThread", () => {
+  const ROOT = "r".repeat(64);
+  const SEG2 = "s".repeat(64);
+
+  it("1 件目は e 無し、2 件目は root だけ、3 件目は root と reply。CW は全段落に付く", () => {
+    const c = ctx();
+    const steps = buildThread(["a", "b", "c"], "cw", c);
+    expect(steps.map((s) => s.content)).toEqual(["a", "b", "c"]);
+
+    const d1 = steps[0].build(null);
+    expect(d1.tags.filter((t) => t[0] === "e")).toEqual([]);
+    expect(d1.tags).toContainEqual(["content-warning", "cw"]);
+
+    const d2 = steps[1].build({ rootId: ROOT, prevId: ROOT });
+    expect(d2.tags.filter((t) => t[0] === "e")).toEqual([["e", ROOT, "", "root", c.me]]);
+    expect(d2.tags).toContainEqual(["p", c.me, ""]);
+    expect(d2.tags).toContainEqual(["content-warning", "cw"]);
+
+    const d3 = steps[2].build({ rootId: ROOT, prevId: SEG2 });
+    expect(d3.tags.filter((t) => t[0] === "e")).toEqual([
+      ["e", ROOT, "", "root", c.me],
+      ["e", SEG2, "", "reply", c.me],
+    ]);
+    expect(d3.tags).toContainEqual(["content-warning", "cw"]);
+  });
+
+  it("メンションの p が自己スレッド用の p（自分）と重複しない", () => {
+    const c = ctx();
+    const steps = buildThread([`hi nostr:${npubEncode(c.me)}`, "b"], null, c);
+    const d2 = steps[1].build({ rootId: ROOT, prevId: ROOT });
+    expect(d2.tags.filter((t) => t[0] === "p" && t[1] === c.me)).toHaveLength(1);
+    // 1 件目（自分の p を積んでいない）はメンションどおり 1 つ付く
+    const d1 = steps[0].build(null);
+    expect(d1.tags.filter((t) => t[0] === "p" && t[1] === c.me)).toHaveLength(1);
+  });
+
+  it("添付は mediaIndex の段落にだけ URL と imeta を付ける", () => {
+    const c = ctx();
+    const IMG: PostMedia = { kind: "image", url: "https://m/a.webp", m: "image/webp" };
+    const steps = buildThread(["a", "b"], null, c, [IMG], 1);
+    const d1 = steps[0].build(null);
+    const d2 = steps[1].build({ rootId: ROOT, prevId: ROOT });
+    expect(d1.tags.some((t) => t[0] === "imeta")).toBe(false);
+    expect(steps[1].content).toBe(`b\n${IMG.url}`);
+    expect(d2.tags.at(-1)).toEqual(imetaTags([IMG])[0]);
+  });
+
+  it("本文が空で添付も無い段落（いま書いている本文が空のとき）は除く", () => {
+    const steps = buildThread(["a", "", "b"], null, ctx());
+    expect(steps.map((s) => s.content)).toEqual(["a", "b"]);
   });
 });

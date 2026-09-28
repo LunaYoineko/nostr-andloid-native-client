@@ -104,6 +104,21 @@ describe("processImage", () => {
     expect((await processImage(still)).blob).not.toBe(still);
   });
 
+  it("解像度「低」「高」: 低は長辺 640px、高（maxDim=null）は無加工で元のファイルのまま", async () => {
+    stubBitmap(2000, 1000);
+    const low = await processImage(file(["x"], "a.png", "image/png"), 640, 85);
+    expect(canvases).toContainEqual({ width: 640, height: 320 });
+    expect(low).toMatchObject({ mime: "image/webp", name: "a.webp", dim: { w: 640, h: 320 } });
+
+    toBlobCalls.length = 0;
+    const src = file(["x"], "b.jpg", "image/jpeg");
+    const high = await processImage(src, null, 85);
+    expect(high.blob).toBe(src);
+    expect(high).toMatchObject({ mime: "image/jpeg", name: "b.jpg", dim: { w: 2000, h: 1000 } });
+    expect(toBlobCalls).toEqual([]);
+    expect(isBlurhashValid(high.blurhash ?? "").result).toBe(true);
+  });
+
   it("読めない画像は元のまま（寸法・blurhash なし）", async () => {
     vi.stubGlobal(
       "createImageBitmap",

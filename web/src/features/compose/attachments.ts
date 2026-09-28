@@ -39,6 +39,17 @@ export function createAttachment(file: File): Attachment | null {
   };
 }
 
+/** 解像度を変えたら画像添付を圧縮し直す（動画は対象外。ネイティブ: 解像度セレクタを変えたら再圧縮） */
+export function reprocessImages(
+  list: readonly Attachment[],
+  maxDim: number | null,
+  quality: number,
+): Attachment[] {
+  return list.map((a) =>
+    a.kind === "image" ? { ...a, processed: processImage(a.file, maxDim, quality) } : a,
+  );
+}
+
 /** バイト数を 1.5MB / 293KB / 512B のように（ネイティブ ComposeSheet の humanSize。切り捨て） */
 export function humanSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(Math.floor((bytes * 10) / (1024 * 1024)) / 10).toFixed(1)}MB`;

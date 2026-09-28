@@ -35,6 +35,54 @@ export function clearDraft(): void {
   }
 }
 
+// ---- 連投の下書き（本文の下書きとは別枠。ネイティブ saveThreadDraft / loadThreadDraft） ----
+
+/** 値は { "edit": <本文がスレッドの何番目か>, "segs": [...] }。本文 1 枠の下書きとは別キー */
+export const THREAD_DRAFT_KEY = "nostrism.compose.threadDraft";
+
+export type ThreadDraft = { segs: string[]; edit: number };
+
+/** 積んだ段落と本文の位置を保存する。段落が無ければキーごと消す */
+export function saveThreadDraft(segs: readonly string[], edit: number): void {
+  try {
+    if (segs.length === 0) {
+      localStorage.removeItem(THREAD_DRAFT_KEY);
+      return;
+    }
+    localStorage.setItem(THREAD_DRAFT_KEY, JSON.stringify({ edit, segs }));
+  } catch {
+    // 保存できなくても入力は続けられる
+  }
+}
+
+/** 保存済みの連投下書き。無い・壊れていれば null（ネイティブ loadThreadDraft と同じく edit は 0〜segs.length に丸める） */
+export function loadThreadDraft(): ThreadDraft | null {
+  try {
+    const raw = localStorage.getItem(THREAD_DRAFT_KEY);
+    if (raw === null) return null;
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== "object" || value === null) return null;
+    const segs = (value as { segs?: unknown }).segs;
+    if (!Array.isArray(segs) || segs.length === 0 || !segs.every((s): s is string => typeof s === "string")) {
+      return null;
+    }
+    const editRaw = (value as { edit?: unknown }).edit;
+    const edit =
+      typeof editRaw === "number" ? Math.min(Math.max(0, Math.trunc(editRaw)), segs.length) : segs.length;
+    return { segs, edit };
+  } catch {
+    return null;
+  }
+}
+
+export function clearThreadDraft(): void {
+  try {
+    localStorage.removeItem(THREAD_DRAFT_KEY);
+  } catch {
+    // 同上
+  }
+}
+
 // ---- ハッシュタグの使用履歴（ネイティブの used_hashtag） ----
 
 /** 値は [{ "tag": string, "lastUsed": number }]（新しい順） */

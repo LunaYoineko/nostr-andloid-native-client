@@ -274,6 +274,16 @@ export function ImageIcon(props: MaterialIconProps) {
   );
 }
 
+/** 連投に追加（ネイティブ Icons.AutoMirrored.Outlined.PlaylistAdd） */
+export function PlaylistAddIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm16-2v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4z"
+    />
+  );
+}
+
 export function ChevronLeftIcon(props: MaterialIconProps) {
   return <MaterialIcon {...props} path="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z" />;
 }

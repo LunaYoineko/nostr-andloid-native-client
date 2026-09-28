@@ -13,7 +13,7 @@ import { renderWithRouter } from "../../test/renderWithRouter";
 import { ComposeDialog } from "./ComposeDialog";
 import { type ComposeRequest, openCompose, useCompose } from "./composeStore";
 import { setMediaServer } from "./mediaServer";
-import { DRAFT_KEY, USED_HASHTAGS_KEY } from "./storage";
+import { DRAFT_KEY, THREAD_DRAFT_KEY, USED_HASHTAGS_KEY } from "./storage";
 
 // 署名・送信はしない（publishEvent だけ差し替える）
 vi.mock("../../nostr/publish", async (importOriginal) => {
@@ -48,8 +48,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // 閉じる（= ComposeDialog を unmount。連投の下書きはここで保存される）→ その後で消す。
+  // 逆順だと直前のテストの連投下書きが unmount 時の保存で localStorage に戻ってしまう。
+  act(() => useCompose.setState({ request: null }));
   localStorage.clear();
-  useCompose.setState({ request: null });
   useSession.setState({ status: "loading", method: null, pubkey: null });
 });
 
@@ -386,6 +388,127 @@ describe("絵文字を挿入（#459）", () => {
     expect(screen.queryByRole("dialog", { name: "入力内容を破棄しますか？" })).toBeNull();
     expect(useCompose.getState().request).toEqual({ mode: "new" });
     expect(body()).toHaveValue("x");
+  });
+});
+
+describe("連投（#533）", () => {
+  it("返信・引用では「連投に追加」ボタンが出ない", () => {
+    renderWithRouter(<Harness />);
+    open({ mode: "reply", target: stored("元") });
+    expect(screen.queryByRole("button", { name: "連投に追加" })).toBeNull();
+
+    act(() => useCompose.setState({ request: null }));
+    open({ mode: "quote", target: stored("元") });
+    expect(screen.queryByRole("button", { name: "連投に追加" })).toBeNull();
+  });
+
+  it("本文が空なら無効。追加で入力欄が空になり一覧に出る。件数表示も更新される", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    expect(screen.getByRole("button", { name: "連投に追加" })).toBeDisabled();
+
+    await user.type(body(), "1つ目");
+    await user.click(screen.getByRole("button", { name: "連投に追加" }));
+    expect(body()).toHaveValue("");
+    const list = screen.getByRole("list", { name: "連投" });
+    expect(within(list).getByText("1つ目")).toBeInTheDocument();
+    expect(screen.getByText("連投 2")).toBeInTheDocument();
+  });
+
+  it("段落を押すと入力欄に戻り、書いていた本文はその段落が居た位置へ積む", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "1つ目");
+    await user.click(screen.getByRole("button", { name: "連投に追加" }));
+    await user.type(body(), "2つ目");
+
+    const list = screen.getByRole("list", { name: "連投" });
+    await user.click(within(list).getByRole("button", { name: "1つ目" }));
+    expect(body()).toHaveValue("1つ目");
+    expect(within(list).getByText("2つ目")).toBeInTheDocument();
+  });
+
+  it("✗ でその段落を取り消す", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "1つ目");
+    await user.click(screen.getByRole("button", { name: "連投に追加" }));
+    await user.type(body(), "2つ目");
+    await user.click(screen.getByRole("button", { name: "連投に追加" }));
+    await user.type(body(), "3つ目");
+
+    const list = screen.getByRole("list", { name: "連投" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    await user.click(within(list).getAllByRole("button", { name: "この段落を取り消す" })[0]);
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(list).queryByText("1つ目")).toBeNull();
+  });
+
+  it("閉じて開くと連投の下書きが戻る（本文の位置も含めて）", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "1つ目");
+    await user.click(screen.getByRole("button", { name: "連投に追加" }));
+    await user.type(body(), "2つ目");
+
+    act(() => useCompose.setState({ request: null }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    open({ mode: "new" });
+    expect(body()).toHaveValue("2つ目");
+    const list = screen.getByRole("list", { name: "連投" });
+    expect(within(list).getByText("1つ目")).toBeInTheDocument();
+    expect(screen.getByText("連投 2")).toBeInTheDocument();
+  });
+
+  it("送信ボタンは「連投」。先頭から順に kind 1 を発行し、2 件目に root の e。送信成功で下書きが消える", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "1つ目");
+    await user.click(screen.getByRole("button", { name: "連投に追加" }));
+    await user.type(body(), "2つ目");
+
+    await user.click(screen.getByRole("button", { name: "連投" }));
+
+    expect(publishEvent).toHaveBeenCalledTimes(2);
+    const calls = vi.mocked(publishEvent).mock.calls;
+    expect(calls[0][0]).toMatchObject({ kind: 1, content: "1つ目" });
+    const first = await vi.mocked(publishEvent).mock.results[0].value;
+    expect(calls[1][0]).toMatchObject({ kind: 1, content: "2つ目" });
+    expect(calls[1][0].tags[0]).toEqual(["e", first.id, "", "root", me]);
+    expect(useCompose.getState().request).toBeNull();
+    expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+    expect(localStorage.getItem(THREAD_DRAFT_KEY)).toBeNull();
+  });
+
+  it("途中で失敗したら残りは送らない", async () => {
+    const user = userEvent.setup();
+    vi.mocked(publishEvent).mockImplementationOnce(async (draft: EventDraft) =>
+      finalizeEvent(
+        { kind: draft.kind, content: draft.content, tags: draft.tags, created_at: unixNow() },
+        meKey,
+      ),
+    );
+    vi.mocked(publishEvent).mockRejectedValueOnce(new PublishError("sign-failed"));
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+    await user.type(body(), "1つ目");
+    await user.click(screen.getByRole("button", { name: "連投に追加" }));
+    await user.type(body(), "2つ目");
+    await user.click(screen.getByRole("button", { name: "連投に追加" }));
+    await user.type(body(), "3つ目");
+    await user.click(screen.getByRole("button", { name: "連投" }));
+
+    await waitFor(() => expect(publishEvent).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "投稿に失敗しました。添付はそのままなので、もう一度お試しください。",
+    );
+    expect(useCompose.getState().request).not.toBeNull();
   });
 });
 

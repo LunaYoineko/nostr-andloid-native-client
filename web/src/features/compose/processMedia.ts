@@ -83,13 +83,14 @@ function blurhashOf(bitmap: ImageBitmap): string | undefined {
 
 /**
  * 画像を長辺 maxDim px 以下へ縮めて品質 quality% で再エンコードする（ネイティブ processImage）。
+ * maxDim が null（解像度「高」）なら無加工で元のファイルを返す（ネイティブ Android の HIGH と同じ。EXIF ごと元のまま）。
  * EXIF の向きは画素へ焼き込む（createImageBitmap の imageOrientation: "from-image"。再エンコードで EXIF は消える）。
  * GIF・アニメーション WebP は圧縮しない。読めない形式（ブラウザが対応していない HEIC 等）や失敗時は元のまま返す。
- * 寸法・blurhash は読めた画像なら付ける（imeta 用）。
+ * 寸法・blurhash は読めた画像なら付ける（imeta 用。maxDim が null でも付ける）。
  */
 export async function processImage(
   file: File,
-  maxDim = IMAGE_MAX_DIM,
+  maxDim: number | null = IMAGE_MAX_DIM,
   quality = IMAGE_QUALITY,
 ): Promise<ProcessedMedia> {
   const original: ProcessedMedia = {
@@ -107,7 +108,7 @@ export async function processImage(
     const dim = { w: bitmap.width, h: bitmap.height };
     const blurhash = blurhashOf(bitmap);
     const withMeta: ProcessedMedia = { ...original, dim, blurhash };
-    if (dim.w <= 0 || dim.h <= 0 || (await keepOriginal(file))) return withMeta;
+    if (dim.w <= 0 || dim.h <= 0 || maxDim === null || (await keepOriginal(file))) return withMeta;
 
     const scale = Math.min(1, maxDim / Math.max(dim.w, dim.h));
     const w = Math.max(1, Math.round(dim.w * scale));

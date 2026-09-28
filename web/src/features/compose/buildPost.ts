@@ -174,3 +174,62 @@ export function buildQuote(
     tags,
   };
 }
+
+/** 直前までに発行した段落（e タグ組み立て用。先頭の段落は null） */
+export type ThreadPrior = { rootId: string; prevId: string };
+
+/** 連投の 1 段落。id は実際に publishEvent した後にしか分からないので、build は呼び出し側が順に呼ぶ */
+export type ThreadStep = {
+  /** 発行する本文（添付の URL を足した後） */
+  content: string;
+  build(prior: ThreadPrior | null): EventDraft;
+};
+
+/**
+ * 連投（ネイティブ EventRepository.publishThread）。段落ごとに kind:1 を組み立てる。先頭は通常の投稿と同じ、
+ * 2 段落目以降は ["e", root, "", "root", 自分] → 直前が root と違えば ["e", 直前, "", "reply", 自分] →
+ * ["p", 自分] を先頭に付け、t → emoji → メンションの p（自分の p と重複させない）→ content-warning（全段落）
+ * → imeta の順に続ける。添付は mediaIndex 段落（既定は最後）にだけ URL を足し、imeta を付ける。
+ * 本文も添付も無い段落（積んだ段落は常に非空なので、これが起きるのは「いま書いている本文」が空のときだけ）は除く。
+ */
+export function buildThread(
+  segments: readonly string[],
+  cw: string | null,
+  ctx: PostContext,
+  media: readonly PostMedia[] = [],
+  mediaIndex: number = segments.length - 1,
+): ThreadStep[] {
+  return segments
+    .map((raw, i) => {
+      const segMedia = i === mediaIndex ? media : [];
+      return { content: withMediaUrls(raw.trim(), segMedia), media: segMedia };
+    })
+    .filter((seg) => seg.content.trim() !== "")
+    .map(({ content, media: segMedia }) => ({
+      content,
+      build(prior: ThreadPrior | null): EventDraft {
+        const head: string[][] =
+          prior === null
+            ? []
+            : [
+                ["e", prior.rootId, "", "root", ctx.me],
+                ...(prior.prevId !== prior.rootId ? [["e", prior.prevId, "", "reply", ctx.me]] : []),
+                ["p", ctx.me],
+              ];
+        return {
+          kind: 1,
+          content,
+          tags: withHints(
+            [
+              ...head,
+              ...bodyTags(content, ctx),
+              ...mentionPTags(content, prior === null ? [] : [ctx.me]),
+              ...cwTags(cw),
+              ...imetaTags(segMedia),
+            ],
+            ctx,
+          ),
+        };
+      },
+    }));
+}
