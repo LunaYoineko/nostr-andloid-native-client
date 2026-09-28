@@ -1,6 +1,7 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { type ListRange, Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { KbRow, useKbList } from "../keyboard/KbList";
 import { NoteItem } from "./NoteItem";
 import styles from "./Timeline.module.css";
 
@@ -42,6 +43,8 @@ const renderNote = (event: NostrEvent) => <NoteItem event={event} />;
  * 新着が無くても 3 件目以降まで下りていれば「↑ 最新へ戻る」を出す（ネイティブの FeedTopPill。ピルは 1 つにまとめる）。
  * 末尾まで来たら onEndReached（過去読み）を呼ぶ。
  * 行は既定で投稿（NoteItem）。renderItem を渡すと投稿以外の行（フォロー中カラムの混在）も並べられる（id で数える）。
+ * デッキのカラムでは postOf が投稿を返す行だけをキー操作（j / k）で選べる（r / t / f の対象）。
+ * postOf の既定は、renderItem が無ければ行そのもの（すべて投稿）、あれば無し（どの行も選べて、どれも投稿ではない）。
  */
 export function Timeline<T extends { id: string } = NostrEvent>({
   events,
@@ -50,6 +53,7 @@ export function Timeline<T extends { id: string } = NostrEvent>({
   loadingOlder = false,
   emptyText = "まだ投稿がありません",
   renderItem,
+  postOf,
 }: {
   events: T[];
   loading: boolean;
@@ -58,9 +62,12 @@ export function Timeline<T extends { id: string } = NostrEvent>({
   emptyText?: string;
   /** 省略時は T = NostrEvent として NoteItem で描く */
   renderItem?: (item: T) => ReactNode;
+  /** 行の投稿（投稿の行でなければ null）。キー操作で選べる行と r / t / f の対象を決める */
+  postOf?: (item: T) => NostrEvent | null;
 }) {
   // renderItem を省くのは投稿の一覧だけ（T = NostrEvent）
   const render = renderItem ?? (renderNote as unknown as (item: T) => ReactNode);
+  const toPost = postOf ?? (renderItem ? undefined : (item: T) => item as unknown as NostrEvent);
   const list = useRef<VirtuosoHandle>(null);
   const [atTop, setAtTop] = useState(true);
   const topId = events[0]?.id;
@@ -94,6 +101,13 @@ export function Timeline<T extends { id: string } = NostrEvent>({
     [firstItemIndex],
   );
 
+  // デッキのカラムならキー操作（j / k 等）の対象にする
+  useKbList(
+    list,
+    events.length,
+    toPost && ((index) => (index < events.length ? (toPost(events[index]) ?? undefined) : undefined)),
+  );
+
   const newCount = atTop ? 0 : positionOf(events, anchor.seenTopId);
   const pill = newCount > 0 ? `${newCount} 件の新着` : scrolledAway ? "最新へ戻る" : null;
 
@@ -124,7 +138,7 @@ export function Timeline<T extends { id: string } = NostrEvent>({
         endReached={onEndReached}
         components={COMPONENTS}
         context={{ loadingOlder }}
-        itemContent={(_, item) => render(item)}
+        itemContent={(index, item) => <KbRow index={index - firstItemIndex}>{render(item)}</KbRow>}
       />
     </div>
   );

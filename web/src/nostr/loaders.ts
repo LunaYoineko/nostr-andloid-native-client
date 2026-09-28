@@ -121,3 +121,10 @@ export function useRepostedEvent(repost: NostrEvent): NostrEvent | undefined {
   );
   return embedded ?? loaded;
 }
+
+/** リポスト元のうち、いま手元にあるもの（content の JSON か EventStore。取りには行かない）。無ければ undefined */
+export function repostedEventNow(repost: NostrEvent): NostrEvent | undefined {
+  const tag = repost.tags.find((t) => t[0] === "e");
+  const pointer = tag ? getEventPointerFromETag(tag) : null;
+  return embeddedRepost(repost, pointer) ?? (pointer ? eventStore.getEvent(pointer.id) : undefined);
+}

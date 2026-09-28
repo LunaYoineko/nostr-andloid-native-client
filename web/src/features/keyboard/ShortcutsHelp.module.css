@@ -1,0 +1,89 @@
+/* 画面全体を覆う枠（スクリムとカードを重ねる） */
+.dialog {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+}
+
+.dialog::backdrop {
+  background: transparent;
+}
+
+/* スクリム（ネイティブは黒 60%） */
+.scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.6);
+  cursor: default;
+}
+
+/* ネイティブ ShortcutsHelpOverlay のカード（外側の余白 Lg 込みで最大 440dp・内側の余白 Lg・角丸 Lg・Surface） */
+.card {
+  position: relative;
+  box-sizing: border-box;
+  width: min(408px, calc(100% - var(--sp-4) * 2));
+  max-height: calc(100% - var(--sp-4) * 2);
+  overflow-y: auto;
+  padding: var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.title {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+}
+
+.list {
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-1) 0;
+}
+
+.row dt {
+  flex: none;
+}
+
+/* キーの札（最小 92dp・Surface2・角丸 Sm） */
+.keys {
+  display: inline-block;
+  box-sizing: border-box;
+  min-width: 92px;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--type-caption);
+  font-weight: var(--w-strong);
+}
+
+.description {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+
+.hint {
+  margin: var(--sp-3) 0 0;
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}

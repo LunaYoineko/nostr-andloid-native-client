@@ -2,7 +2,7 @@ import { npubEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { Virtuoso } from "react-virtuoso";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import {
   type ColumnKind,
   type ColumnSpec,
@@ -23,6 +23,7 @@ import { columnIcon, Icon } from "../../ui/icons";
 import { MyReactionRow } from "../actions/MyReactionRow";
 import { ConversationList } from "../dm/ConversationList";
 import { startDecrypting } from "../dm/dmService";
+import { KbRow, useKbList } from "../keyboard/KbList";
 import { NotificationList } from "../notifications/NotificationList";
 import { NotificationRow } from "../notifications/NotificationRow";
 import { NoteItem } from "../timeline/NoteItem";
@@ -119,6 +120,7 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             onEndReached={loadOlder}
             loadingOlder={loadingOlder}
             renderItem={renderFeedRow}
+            postOf={feedRowPost}
           />
         ) : (
           <Timeline
@@ -163,6 +165,11 @@ function renderFeedRow(row: FeedRow) {
   }
 }
 
+/** 混在の行の投稿（キー操作で選べるのは投稿の行だけ。通知・リアクション・DM の行は飛ばす） */
+function feedRowPost(row: FeedRow): NostrEvent | null {
+  return row.type === "post" ? row.event : null;
+}
+
 type FooterContext = { loadingOlder: boolean };
 
 function FavsFooter({ context }: { context?: FooterContext }) {
@@ -183,18 +190,26 @@ function FavsList({
   onEndReached: () => void;
   loadingOlder: boolean;
 }) {
+  const list = useRef<VirtuosoHandle>(null);
+  // キー操作の対象にする（ふぁぼの行は r / t / f の対象外）
+  useKbList(list, reactions.length);
   if (reactions.length === 0) {
     return <p className={styles.empty}>{loading ? "読み込み中…" : "ふぁぼした投稿はまだありません。"}</p>;
   }
   return (
     <Virtuoso
+      ref={list}
       className={styles.list}
       data={reactions}
       computeItemKey={(_, reaction) => reaction.id}
       endReached={onEndReached}
       components={FAVS_COMPONENTS}
       context={{ loadingOlder }}
-      itemContent={(_, reaction) => <FavItem reaction={reaction} />}
+      itemContent={(index, reaction) => (
+        <KbRow index={index}>
+          <FavItem reaction={reaction} />
+        </KbRow>
+      )}
     />
   );
 }
