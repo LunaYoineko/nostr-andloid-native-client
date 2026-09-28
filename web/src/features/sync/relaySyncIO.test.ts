@@ -71,10 +71,10 @@ function refetchResponds(byD: Partial<Record<string, NostrEvent>>) {
   });
 }
 
-function setBasedOn(settings: string | null, columns: string | null): void {
+function setBasedOn(settings: string | null, columns: string | null, pubkey = me): void {
   localStorage.setItem(
     BASED_ON_KEY,
-    JSON.stringify({ [SETTINGS_SYNC_D]: settings, [DECK_COLUMNS_D]: columns }),
+    JSON.stringify({ [pubkey]: { [SETTINGS_SYNC_D]: settings, [DECK_COLUMNS_D]: columns } }),
   );
 }
 
@@ -125,6 +125,15 @@ describe("[#468 データ保護1・2] 発行前の安全確認（#478 の規則�
     expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
   });
 
+  it("basedOn は別のアカウントの版とは照合しない（同じ端末で別アカウントが読み込んだ版でも stale）", async () => {
+    const settingsEvent = sync30078(SETTINGS_SYNC_D, encodeSettingsPayload({}), 1_000);
+    refetchResponds({ [SETTINGS_SYNC_D]: settingsEvent });
+    setBasedOn(settingsEvent.id, null, "f".repeat(64));
+
+    await expect(publishRelaySync(me)).rejects.toMatchObject({ reason: "stale" });
+    expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
+  });
+
   it("一度も読み込み・保存していない（basedOn が null）のにリレーに版があれば stale", async () => {
     const columnsEvent = sync30078(DECK_COLUMNS_D, "[]", 1_000);
     refetchResponds({ [DECK_COLUMNS_D]: columnsEvent });
@@ -157,8 +166,8 @@ describe("[#468 データ保護1・2] 発行前の安全確認（#478 の規則�
     expect(drafts).toHaveLength(2);
     expect(drafts[0]).toMatchObject({ kind: 30078, tags: [["d", SETTINGS_SYNC_D]] });
     expect(drafts[1]).toMatchObject({ kind: 30078, tags: [["d", DECK_COLUMNS_D]] });
-    expect(basedOnIdFor(SETTINGS_SYNC_D)).toBe("new-settings-id");
-    expect(basedOnIdFor(DECK_COLUMNS_D)).toBe("new-columns-id");
+    expect(basedOnIdFor(me, SETTINGS_SYNC_D)).toBe("new-settings-id");
+    expect(basedOnIdFor(me, DECK_COLUMNS_D)).toBe("new-columns-id");
   });
 });
 
@@ -179,6 +188,79 @@ describe("[#468 データ保護3] Web が知らない設定キーを保つ", () 
     // 未知のキーは残り、ホワイトリストの5キーは Web の現在値（既定 dm）で上書きされる
     expect(payload.settings.future_setting).toBe("from-native");
     expect(payload.settings.nip42_auth_policy).toBe("dm");
+  });
+});
+
+describe("[#468 データ保護3] Web が読めない形は上書きで消さない", () => {
+  function changeColumns() {
+    useDeck.setState({
+      columns: [
+        ...DEFAULT_COLUMNS,
+        { ...DEFAULT_COLUMNS[0], id: "c_extra", order: 3, filter: defaultFilter() },
+      ],
+    });
+  }
+
+  it("設定の文字列でない値・settings 以外の項目・d 以外のタグは、保存後も残る", async () => {
+    const content = JSON.stringify({
+      version: 1,
+      settings: { nested: { a: 1 }, count: 3, nip42_auth_policy: "always" },
+      extra: "from-native",
+    });
+    const settingsEvent = finalizeEvent(
+      {
+        kind: 30078,
+        created_at: 1_000,
+        tags: [
+          ["d", SETTINGS_SYNC_D],
+          ["client", "nostrism"],
+        ],
+        content,
+      },
+      key,
+    );
+    refetchResponds({ [SETTINGS_SYNC_D]: settingsEvent });
+    setBasedOn(settingsEvent.id, null);
+    vi.mocked(publishEvent).mockImplementation(async (draft) => stubSigned("signed", draft));
+
+    await publishRelaySync(me);
+
+    const draft = publishedDrafts()[0];
+    expect(draft.tags).toEqual([
+      ["d", SETTINGS_SYNC_D],
+      ["client", "nostrism"],
+    ]);
+    const payload = JSON.parse(draft.content);
+    expect(payload.extra).toBe("from-native");
+    expect(payload.settings.nested).toEqual({ a: 1 });
+    expect(payload.settings.count).toBe(3);
+    expect(payload.settings.nip42_auth_policy).toBe("dm");
+  });
+
+  it.each([
+    ["新しい version", JSON.stringify({ version: 2, settings: {} })],
+    ["壊れた JSON", "{not json"],
+    ["settings が無い", JSON.stringify({ version: 1 })],
+  ])("設定が%sなら 1 件も発行しない（unknown-format）", async (_label, content) => {
+    const settingsEvent = sync30078(SETTINGS_SYNC_D, content, 1_000);
+    refetchResponds({ [SETTINGS_SYNC_D]: settingsEvent });
+    setBasedOn(settingsEvent.id, null);
+    changeColumns();
+
+    await expect(publishRelaySync(me)).rejects.toMatchObject({ reason: "unknown-format" });
+    expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
+  });
+
+  it("カラム構成に Web が知らない種類の行があれば、設定も含めて 1 件も発行しない（unknown-format）", async () => {
+    const rows = JSON.parse(encodeDeckColumns(DEFAULT_COLUMNS));
+    rows.push({ ...rows[0], id: "c_future", kind: "FUTURE_KIND" });
+    const columnsEvent = sync30078(DECK_COLUMNS_D, JSON.stringify(rows), 1_000);
+    refetchResponds({ [DECK_COLUMNS_D]: columnsEvent });
+    setBasedOn(null, columnsEvent.id);
+    changeColumns();
+
+    await expect(publishRelaySync(me)).rejects.toMatchObject({ reason: "unknown-format" });
+    expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
   });
 });
 
@@ -224,8 +306,17 @@ describe("loadRelaySync（リレーから読み込む）", () => {
 
     expect(snapshot.settings).toEqual({ nip42_auth_policy: "always" });
     expect(snapshot.columns).toEqual(DEFAULT_COLUMNS);
-    expect(basedOnIdFor(SETTINGS_SYNC_D)).toBe(settingsEvent.id);
-    expect(basedOnIdFor(DECK_COLUMNS_D)).toBe(columnsEvent.id);
+    expect(basedOnIdFor(me, SETTINGS_SYNC_D)).toBe(settingsEvent.id);
+    expect(basedOnIdFor(me, DECK_COLUMNS_D)).toBe(columnsEvent.id);
+  });
+
+  it("どのリレーからも応答が無ければ unreachable で、basedOn は書き換えない", async () => {
+    vi.mocked(requestOnce).mockReturnValue(throwError(() => new Error("timeout")));
+    setBasedOn("kept-settings", "kept-columns");
+
+    await expect(loadRelaySync(me, 10)).rejects.toMatchObject({ reason: "unreachable" });
+    expect(basedOnIdFor(me, SETTINGS_SYNC_D)).toBe("kept-settings");
+    expect(basedOnIdFor(me, DECK_COLUMNS_D)).toBe("kept-columns");
   });
 
   it("リレーに何も無ければ両方 null（sync_no_data 相当）で、basedOn も null になる", async () => {
@@ -235,7 +326,7 @@ describe("loadRelaySync（リレーから読み込む）", () => {
     const snapshot = await loadRelaySync(me, 10);
 
     expect(snapshot).toEqual({ settings: null, columns: null });
-    expect(basedOnIdFor(SETTINGS_SYNC_D)).toBeNull();
-    expect(basedOnIdFor(DECK_COLUMNS_D)).toBeNull();
+    expect(basedOnIdFor(me, SETTINGS_SYNC_D)).toBeNull();
+    expect(basedOnIdFor(me, DECK_COLUMNS_D)).toBeNull();
   });
 });

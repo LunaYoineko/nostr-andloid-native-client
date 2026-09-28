@@ -151,6 +151,30 @@ export function encodeSettingsPayload(settings: Record<string, string>): string 
 }
 
 /**
+ * 保存用の content を作る（[#468] データ保護3）。リモートの content（無ければ null）を、Web が知らない部分
+ * （知らないキー・文字列でない値・settings 以外のトップレベルの項目）ごと残し、settings の local のキーだけを
+ * 上書きする。リモートが読めない・新しい version（1 以外）なら null（上書きすると消すので発行しない）。
+ */
+export function mergeSettingsContent(
+  remoteContent: string | null,
+  local: Record<string, string>,
+): string | null {
+  if (remoteContent === null) return encodeSettingsPayload(local);
+  let value: unknown;
+  try {
+    value = JSON.parse(remoteContent);
+  } catch {
+    return null;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  const obj = value as Record<string, unknown>;
+  if (Object.hasOwn(obj, "version") && obj.version !== 1) return null;
+  const settings = obj.settings;
+  if (typeof settings !== "object" || settings === null || Array.isArray(settings)) return null;
+  return JSON.stringify({ ...obj, settings: { ...settings, ...local } });
+}
+
+/**
  * content を読む（壊れていれば null）。settings の値が文字列でないキーだけを個別に捨てる
  * （[#468] データ保護6: 形が想定外でも、他のキーまで壊さない）。
  */

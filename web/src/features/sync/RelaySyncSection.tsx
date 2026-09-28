@@ -51,10 +51,17 @@ function columnDiffLabel(diff: ColumnDiff): string {
   }
 }
 
-/** 保存の失敗の文言（stale は #478 の規則に沿った案内、それ以外は一般的な失敗） */
+/** 保存の失敗の文言（#478 の規則で止めたものは理由を案内する。それ以外は一般的な失敗） */
 function saveFailureMessage(e: unknown): string {
-  if (e instanceof RelaySyncError && e.reason === "stale") {
-    return "リレー上のデータが別の端末で更新されています。先に「リレーから読み込む」で差分を確認してください。";
+  if (e instanceof RelaySyncError) {
+    switch (e.reason) {
+      case "stale":
+        return "リレー上のデータが別の端末で更新されています。先に「リレーから読み込む」で差分を確認してください。";
+      case "unreachable":
+        return "リレーから最新のデータを取得できなかったため、上書きを避けて保存しませんでした。";
+      case "unknown-format":
+        return "リレー上のデータに、この Web 版が読めない形式が含まれているため、消さないように保存しませんでした。";
+    }
   }
   return "リレーへの保存に失敗しました。";
 }
@@ -90,6 +97,12 @@ export function RelaySyncSection() {
       } else {
         setDiffs({ settings: settingDiffs, columns: columnDiffs });
       }
+    } catch (e) {
+      setMessage(
+        e instanceof RelaySyncError && e.reason === "unreachable"
+          ? "リレーから取得できませんでした。接続を確認して、もう一度お試しください。"
+          : "リレーからの読み込みに失敗しました。",
+      );
     } finally {
       setBusyLoad(false);
     }
