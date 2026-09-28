@@ -8,6 +8,7 @@ import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
 import { ContentCopyIcon } from "../../ui/icons";
 import { Lightbox } from "../media/Lightbox";
+import { useMuteMatcher } from "../mute/muteList";
 import { RichText } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
 import { ZapDialog } from "../zap/ZapDialog";
@@ -64,8 +65,8 @@ function useTimedMessage(durationMs: number): [string | null, (message: string) 
 
 /**
  * プロフィールのヘッダ（ネイティブ ProfileHeaderCard）。バナー・アバター・⋯・フォロー / 編集、名前・NIP-05・npub・
- * フォロー中の件数・自己紹介・lud16・website・使用リレー。バナーとアバターは押すと原寸で開く。
- * 他人の lud16 は押すとプロフィール Zap。
+ * フォロー中の件数と「フォロワーを確認」・自己紹介・lud16・website・使用リレー。バナーとアバターは押すと原寸で開く。
+ * 他人の lud16 は押すとプロフィール Zap。ミュート中なら名前の横に「ミュート中」。
  */
 export function ProfileHeaderCard({
   pubkey,
@@ -75,6 +76,7 @@ export function ProfileHeaderCard({
   followsMe,
   followingCount,
   onShowFollowing,
+  onShowFollowers,
 }: {
   pubkey: string;
   isMe: boolean;
@@ -83,6 +85,7 @@ export function ProfileHeaderCard({
   followsMe: boolean;
   followingCount: number;
   onShowFollowing: () => void;
+  onShowFollowers: () => void;
 }) {
   const navigate = useNavigate();
   const profile = useProfile(pubkey);
@@ -96,6 +99,7 @@ export function ProfileHeaderCard({
   const lud16 = textOf(profile?.lud16);
   const website = useMemo(() => rawWebsite(profileEvent), [profileEvent]);
   const npub = useMemo(() => npubEncode(pubkey), [pubkey]);
+  const muted = useMuteMatcher().users.has(pubkey);
   // kind:0 のイベントが手元に来るまでは about を出さない（カスタム絵文字は kind:0 のタグから引く）
   const aboutRoot = useMemo(
     () => (profileEvent && about ? parseAbout(profileEvent, about) : null),
@@ -141,7 +145,7 @@ export function ProfileHeaderCard({
           </div>
         )}
         <div className={styles.actions}>
-          <ProfileMenu pubkey={pubkey} onCopied={showStatus} />
+          <ProfileMenu pubkey={pubkey} me={isMe ? null : me} muted={muted} onCopied={showStatus} />
           {isMe ? (
             <button
               type="button"
@@ -164,6 +168,7 @@ export function ProfileHeaderCard({
         <div className={styles.nameRow}>
           <h2 className={styles.name}>{name}</h2>
           {followsMe && <span className={styles.badge}>フォローされています</span>}
+          {muted && <span className={styles.badge}>ミュート中</span>}
         </div>
         {nip05 && (
           <div className={styles.line}>
@@ -190,6 +195,9 @@ export function ProfileHeaderCard({
           <button type="button" className={styles.count} onClick={onShowFollowing}>
             <span className={styles.countNum}>{followingCount}</span>
             <span className={styles.hint}>フォロー中</span>
+          </button>
+          <button type="button" className={styles.followers} onClick={onShowFollowers}>
+            フォロワーを確認
           </button>
         </div>
         {aboutRoot && (

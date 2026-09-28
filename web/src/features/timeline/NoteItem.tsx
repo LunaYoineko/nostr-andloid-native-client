@@ -216,9 +216,9 @@ function RelativeTime({ createdAt, client }: { createdAt: number; client: string
 
 /**
  * md = 38px（タイムライン）、sm = 16px（リポストヘッダ）、xs = 20px（リアクションした人の列）、
- * lg = 40px（ユーザー一覧）、xxl = 72px（プロフィール）
+ * lg = 40px（ユーザー一覧）、xl = 60px（PROFILE カラムの上部カード）、xxl = 72px（プロフィール）
  */
-export type AvatarSize = "md" | "sm" | "xs" | "lg" | "xxl";
+export type AvatarSize = "md" | "sm" | "xs" | "lg" | "xl" | "xxl";
 
 /** プロキシ幅。xxl だけネイティブの Avatar と同じ 256 */
 const AVATAR_PROXY: Record<AvatarSize, number> = {
@@ -226,6 +226,7 @@ const AVATAR_PROXY: Record<AvatarSize, number> = {
   sm: AVATAR_PROXY_WIDTH,
   xs: AVATAR_PROXY_WIDTH,
   lg: AVATAR_PROXY_WIDTH,
+  xl: AVATAR_PROXY_WIDTH,
   xxl: 256,
 };
 
@@ -234,6 +235,7 @@ const AVATAR_CLASS: Record<AvatarSize, string> = {
   sm: styles.avatarSm,
   xs: styles.avatarXs,
   lg: styles.avatarLg,
+  xl: styles.avatarXl,
   xxl: styles.avatarXxl,
 };
 

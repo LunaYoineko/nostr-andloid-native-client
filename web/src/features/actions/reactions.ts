@@ -132,6 +132,15 @@ export async function reportNote(event: NostrEvent, type: string): Promise<void>
   });
 }
 
+/** ユーザーの通報（NIP-56 kind:1984。ネイティブ reportUser）。e タグは付けない（投稿ではなく人への通報） */
+export async function reportUser(pubkey: string, type: string): Promise<void> {
+  await publishEvent({
+    kind: 1984,
+    content: "",
+    tags: [["p", pubkey, type]],
+  });
+}
+
 // ---- 押下状態（ストアにある自分の kind:7 / kind:6 から。ベストエフォート） ----
 
 const reactionIndexes = new Map<string, Observable<ReadonlyMap<string, NostrEvent[]>>>();

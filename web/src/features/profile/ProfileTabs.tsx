@@ -1,14 +1,15 @@
 import styles from "./ProfileTabs.module.css";
 
-export type ProfileTab = "posts" | "media";
+export type ProfileTab = "posts" | "media" | "lists";
 
 const TABS: readonly { key: ProfileTab; label: string }[] = [
   { key: "posts", label: "投稿" },
   { key: "media", label: "メディア" },
+  { key: "lists", label: "リスト" },
 ];
 
 /**
- * プロフィールのタブ（ネイティブ ProfileTabs）。投稿（返信込み）/ メディア。記事・リストは M2。
+ * プロフィールのタブ（ネイティブ ProfileTabs）。投稿（返信込み）/ メディア / リスト（NIP-51 セット）。記事は #534。
  * sticky = スクロールで上端に張り付く（Compact）。
  */
 export function ProfileTabs({
