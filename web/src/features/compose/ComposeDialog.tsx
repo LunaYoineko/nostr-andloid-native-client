@@ -16,12 +16,34 @@ import { PublishError, publishEvent } from "../../nostr/publish";
 import { eventStore } from "../../nostr/store";
 import { currentSigner, useSession } from "../../signer/session";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
-import { CloseIcon, ImageIcon, PlayArrowIcon, ReplyIcon, VisibilityOffIcon } from "../../ui/icons";
+import {
+  CloseIcon,
+  ImageIcon,
+  PlayArrowIcon,
+  PlaylistAddIcon,
+  ReplyIcon,
+  VisibilityOffIcon,
+} from "../../ui/icons";
+import { showToast } from "../../ui/toast";
 import { EmojiInsertButton } from "../actions/EmojiInsertButton";
 import { NoteContent } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
-import { type Attachment, createAttachment, humanSize, uploadAttachments } from "./attachments";
-import { buildNote, buildQuote, buildReply, type PostContext, type PostMedia } from "./buildPost";
+import {
+  type Attachment,
+  createAttachment,
+  humanSize,
+  reprocessImages,
+  uploadAttachments,
+} from "./attachments";
+import {
+  buildNote,
+  buildQuote,
+  buildReply,
+  buildThread,
+  type PostContext,
+  type PostMedia,
+  threadStepSources,
+} from "./buildPost";
 import styles from "./ComposeDialog.module.css";
 import {
   activeEmoji,
@@ -36,17 +58,22 @@ import {
 } from "./completion";
 import { type ComposeRequest, closeCompose } from "./composeStore";
 import { type CustomEmoji, useCustomEmojis } from "./customEmojis";
+import { type ImageResolution, maxDimFor, useImageCompression } from "./imageCompression";
 import { uploadServers, useMediaServer } from "./mediaServer";
 import { ProfileAvatar } from "./ProfileAvatar";
 import { storeRelayHints } from "./relayHints";
 import { type ProfileHit, searchProfiles } from "./searchProfiles";
 import {
   clearDraft,
+  clearThreadDraft,
   loadDraft,
+  loadThreadDraft,
   loadUsedHashtags,
   recentHashtagChips,
   recordHashtags,
   saveDraft,
+  saveThreadDraft,
+  type ThreadDraft,
   tagSuggestions,
   usePinnedHashtags,
 } from "./storage";
@@ -58,6 +85,13 @@ const SEND_FAILED = "投稿に失敗しました。添付はそのままなの�
 const MENTION_DELAY_MS = 120;
 /** 絵文字候補の件数（ネイティブと同じ） */
 const EMOJI_SUGGEST_MAX = 12;
+/** 解像度プリセットの表示順（ネイティブ ImageResolution.entries） */
+const RESOLUTIONS: readonly [ImageResolution, string][] = [
+  ["low", "低"],
+  ["mid", "中"],
+  ["high", "高"],
+];
+const EMPTY_THREAD_DRAFT: ThreadDraft = { segs: [], edit: 0 };
 
 /** 候補のボタンを押しても本文のフォーカス（= ソフトキーボード）を外さない */
 function keepFocus(e: MouseEvent) {
@@ -109,6 +143,53 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
   const mediaServer = useMediaServer((s) => s.server);
   /** まだ revoke していないプレビューの blob: URL（閉じたときにまとめて revoke する） */
   const previews = useRef(new Set<string>());
+  // 添付の解像度（新規投稿のみ。ネイティブ ResolutionSelector の既定と同じ「中」）
+  const [resolution, setResolution] = useState<ImageResolution>("mid");
+  const compressionPrefs = useImageCompression((s) => s.prefs);
+  // 直前の attachments を読むための ref（解像度を変えたときの再圧縮で、依存配列に attachments を入れて
+  // ループさせないため）
+  const attachmentsRef = useRef(attachments);
+  useLayoutEffect(() => {
+    attachmentsRef.current = attachments;
+  });
+  // 解像度（または圧縮設定）を変えたら、添付済みの画像を圧縮し直す（動画・GIF 等は対象外）
+  useEffect(() => {
+    const maxDim = maxDimFor(resolution, compressionPrefs);
+    const list = attachmentsRef.current;
+    if (!list.some((a) => a.kind === "image")) return;
+    const next = reprocessImages(list, maxDim, compressionPrefs.quality);
+    setAttachments(next);
+    setProcessedSizes((sizes) => {
+      const cleared = new Map(sizes);
+      for (const a of next) if (a.kind === "image") cleared.delete(a.id);
+      return cleared;
+    });
+    for (const a of next) {
+      if (a.kind !== "image") continue;
+      void a.processed.then((p) => setProcessedSizes((sizes) => new Map(sizes).set(a.id, p.blob.size)));
+    }
+  }, [resolution, compressionPrefs]);
+
+  // 連投（新規投稿のみ）。積んだ段落 + 本文がスレッドの何番目か。下書きは閉じたときに保存する（本文の下書きとは
+  // 違い、キー入力のたびには保存しない。ネイティブ ComposeSheet の onDispose と同じ）
+  const [thread, setThread] = useState<ThreadDraft>(() =>
+    mode === "new" ? (loadThreadDraft() ?? EMPTY_THREAD_DRAFT) : EMPTY_THREAD_DRAFT,
+  );
+  const threadSegments = thread.segs;
+  const editIdx = thread.edit;
+  /** 送信できた・破棄した（この 2 つのときだけ、閉じても連投の下書きを保存しない） */
+  const sentOk = useRef(false);
+  const discardedThread = useRef(false);
+  const latestThread = useRef(thread);
+  useLayoutEffect(() => {
+    latestThread.current = thread;
+  });
+  useEffect(() => {
+    return () => {
+      if (mode !== "new" || sentOk.current || discardedThread.current) return;
+      saveThreadDraft(latestThread.current.segs, latestThread.current.edit);
+    };
+  }, [mode]);
 
   /** 本文を変える（新規投稿は入力のたびに下書きへ保存） */
   function update(next: TextState, fromCode: boolean) {
@@ -238,8 +319,59 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
     );
   }
 
+  // ---- 連投（新規投稿のみ。ネイティブ ComposeSheet の threadParts / onEdit / onDelete） ----
+  // 一覧に出すスレッド全体（積んだぶん + いま書いている本文）。空の本文はまだ書いていないだけなので並びに入れない
+  const threadParts: string[] =
+    value.text.trim() !== ""
+      ? [...threadSegments.slice(0, editIdx), value.text, ...threadSegments.slice(editIdx)]
+      : threadSegments;
+  const bodyRow = value.text.trim() !== "" ? editIdx : -1;
+  /** 一覧の行 index → threadSegments の index（本文が並びに居るかで 1 つずれる） */
+  function toSegmentIndex(i: number): number {
+    return bodyRow >= 0 && i > bodyRow ? i - 1 : i;
+  }
+
+  /** 積んだ段落を本文へ戻し、いま書いていた本文はその段落が居た位置へ積む（並び順は変わらない） */
+  function editThreadSegment(i: number) {
+    const si = toSegmentIndex(i);
+    const picked = threadSegments[si];
+    const rest = [...threadSegments.slice(0, si), ...threadSegments.slice(si + 1)];
+    if (value.text.trim() !== "") {
+      const insertAt = si < editIdx ? editIdx - 1 : editIdx;
+      setThread({
+        segs: [...rest.slice(0, insertAt), value.text.trimEnd(), ...rest.slice(insertAt)],
+        edit: i,
+      });
+    } else {
+      setThread({ segs: rest, edit: i > editIdx ? i - 1 : i });
+    }
+    update({ text: picked, cursor: picked.length }, true);
+  }
+
+  /** ✗ でその段落を取り消す */
+  function deleteThreadSegment(i: number) {
+    const si = toSegmentIndex(i);
+    setThread((t) => ({
+      segs: [...t.segs.slice(0, si), ...t.segs.slice(si + 1)],
+      edit: si < t.edit ? t.edit - 1 : t.edit,
+    }));
+  }
+
+  /** 「連投に追加」: いま書いている位置へ本文を積み、入力欄を空にする */
+  function addToThread() {
+    if (value.text.trim() === "") return;
+    setThread((t) => ({
+      segs: [...t.segs.slice(0, t.edit), value.text.trimEnd(), ...t.segs.slice(t.edit)],
+      edit: t.edit + 1,
+    }));
+    update({ text: "", cursor: 0 }, true);
+  }
+
   // ---- 送信 ----
-  const canSend = !sending && (value.text.trim() !== "" || attachments.length > 0 || mode === "quote");
+  const canSend =
+    !sending &&
+    (value.text.trim() !== "" || attachments.length > 0 || mode === "quote" || threadSegments.length > 0);
+  const sendLabel = mode === "new" && threadSegments.length > 0 ? "連投" : SEND_LABELS[mode];
 
   async function send() {
     if (!canSend) return;
@@ -256,14 +388,20 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
       lookup: (id) => eventStore.getEvent(id),
     };
     const list = attachments;
+    const isThread = threadSegments.length > 0;
+    // 積んだ段落 + いま書いている本文（editIdx の位置）。連投でなければ空
+    const raw = isThread
+      ? [...threadSegments.slice(0, editIdx), content, ...threadSegments.slice(editIdx)]
+      : [];
     const ac = new AbortController();
     controller.current = ac;
     setSending(true);
     setSendError(null);
     setUploadDone(0);
+    let media: PostMedia[] = [];
+    let sentCount = 0;
     try {
       // 添付は先にアップロードする（1 件でも失敗したら投稿しない）
-      let media: PostMedia[] = [];
       if (list.length > 0) {
         const signer = currentSigner();
         if (!signer) throw new Error("no signer");
@@ -276,21 +414,59 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
           },
         });
       }
-      const draft =
-        request.mode === "reply"
-          ? buildReply(request.target, content, cw, ctx, media)
-          : request.mode === "quote"
-            ? buildQuote(request.target, content, cw, ctx, media)
-            : buildNote(content, cw, ctx, media);
-      const signed = await publishEvent(draft, { signal: ac.signal });
+      if (isThread) {
+        // [#533] 連投: 先頭から順に発行し、前の段落の id が決まってから次を署名する（自己スレッド化）。
+        const steps = buildThread(raw, cw, ctx, media, editIdx);
+        let rootId: string | null = null;
+        let prevId: string | null = null;
+        for (const step of steps) {
+          const prior = rootId !== null && prevId !== null ? { rootId, prevId } : null;
+          const signed = await publishEvent(step.build(prior), { signal: ac.signal });
+          recordHashtags(step.content, signed.created_at);
+          rootId = rootId ?? signed.id;
+          prevId = signed.id;
+          sentCount += 1;
+        }
+      } else {
+        const draft =
+          request.mode === "reply"
+            ? buildReply(request.target, content, cw, ctx, media)
+            : request.mode === "quote"
+              ? buildQuote(request.target, content, cw, ctx, media)
+              : buildNote(content, cw, ctx, media);
+        const signed = await publishEvent(draft, { signal: ac.signal });
+        recordHashtags(content, signed.created_at);
+      }
       // ネイティブと同じく、返信・引用の送信でも新規投稿の下書きを消す
+      sentOk.current = true;
       clearDraft();
-      recordHashtags(content, signed.created_at);
+      clearThreadDraft();
       closeCompose();
     } catch (e) {
       // キャンセル済み（もう編集に戻っている）
       if (ac.signal.aborted || (e instanceof PublishError && e.reason === "aborted")) return;
-      setSendError(SEND_FAILED);
+      if (isThread && sentCount > 0) {
+        // [#533] 送れた段落はもう二度と送らない（送り直すと二重投稿になる）ので下書きから外し、
+        // 失敗した段落から先だけを新しい連投の下書きに残す（root/reply は次に送るときに新しく組み直す）。
+        const sources = threadStepSources(raw, media, editIdx);
+        const pending = sources.slice(sentCount);
+        // 添付はもともと editIdx の段落に付けていた。まだ送れていなければ次に引き継ぎ、送れていれば
+        // 別の段落へ誤って付かないよう外す。
+        const mediaPending = media.length > 0 && editIdx >= sentCount;
+        const currentPos = mediaPending ? editIdx - sentCount : 0;
+        const newBody = pending[currentPos];
+        setThread({ segs: [...pending.slice(0, currentPos), ...pending.slice(currentPos + 1)], edit: 0 });
+        update({ text: newBody, cursor: newBody.length }, true);
+        if (media.length > 0 && !mediaPending) {
+          for (const a of list) URL.revokeObjectURL(a.preview);
+          previews.current.clear();
+          setAttachments([]);
+          setProcessedSizes(new Map());
+        }
+        showToast(`${sentCount}件目までは送信済み。残りは新しい連投として下書きに残しました`);
+      } else {
+        setSendError(SEND_FAILED);
+      }
       setSending(false);
     } finally {
       if (controller.current === ac) controller.current = null;
@@ -346,6 +522,14 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
             </button>
           </div>
           <div className={styles.scroll}>
+            {threadSegments.length > 0 && (
+              <ThreadSegmentList
+                parts={threadParts}
+                editIndex={bodyRow}
+                onEdit={editThreadSegment}
+                onDelete={deleteThreadSegment}
+              />
+            )}
             <textarea
               ref={textarea}
               className={styles.body}
@@ -447,6 +631,24 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                 onRemove={removeAttachment}
               />
             )}
+            {attachments.some((a) => a.kind === "image") && (
+              <fieldset className={styles.resolutionRow}>
+                <legend className={styles.hint}>解像度</legend>
+                <div className={styles.resolutionGroup}>
+                  {RESOLUTIONS.map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={styles.resolutionButton}
+                      aria-pressed={resolution === value}
+                      onClick={() => setResolution(value)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
           </div>
           {request.mode !== "new" && (
             <div className={styles.context}>
@@ -522,9 +724,25 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                   >
                     <VisibilityOffIcon className={styles.toolIcon} />
                   </button>
+                  {mode === "new" && (
+                    <>
+                      <button
+                        type="button"
+                        className={styles.tool}
+                        aria-label="連投に追加"
+                        disabled={value.text.trim() === ""}
+                        onClick={addToThread}
+                      >
+                        <PlaylistAddIcon className={styles.toolIcon} />
+                      </button>
+                      {threadSegments.length > 0 && (
+                        <span className={styles.threadCount}>{`連投 ${editIdx + 1}`}</span>
+                      )}
+                    </>
+                  )}
                 </div>
                 <button type="button" className={styles.send} disabled={!canSend} onClick={() => void send()}>
-                  {SEND_LABELS[mode]}
+                  {sendLabel}
                 </button>
               </>
             )}
@@ -539,7 +757,11 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
           destructive
           onConfirm={() => {
             // 返信・引用の破棄では新規投稿の下書きを消さない（ネイティブの onDispose と同じ）
-            if (mode === "new") clearDraft();
+            if (mode === "new") {
+              clearDraft();
+              discardedThread.current = true;
+              clearThreadDraft();
+            }
             closeCompose();
           }}
           onDismiss={() => setConfirmDiscard(false)}
@@ -608,6 +830,56 @@ function AttachmentList({
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * 連投で積んだ段落の一覧（ネイティブ ThreadSegmentList: 番号・3 行まで・編集中の行は背景で示す）。
+ * いま書いている本文もこの並びに入れて出す（editIndex がその行。負ならどの行も編集中ではない）。
+ */
+function ThreadSegmentList({
+  parts,
+  editIndex,
+  onEdit,
+  onDelete,
+}: {
+  parts: readonly string[];
+  editIndex: number;
+  onEdit(i: number): void;
+  onDelete(i: number): void;
+}) {
+  return (
+    <ol className={styles.threadList} aria-label="連投">
+      {parts.map((part, i) => {
+        const editing = i === editIndex;
+        const rowClass = editing ? `${styles.threadRow} ${styles.threadRowEditing}` : styles.threadRow;
+        return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: 段落はただの文字列で並び順そのものが意味を持つ（同じ内容の段落もあり得る）
+          <li key={i} className={rowClass}>
+            <span className={styles.threadNum}>{i + 1}</span>
+            {editing ? (
+              <span className={styles.threadText}>{part}</span>
+            ) : (
+              <button type="button" className={styles.threadTextButton} onClick={() => onEdit(i)}>
+                {part}
+              </button>
+            )}
+            {editing ? (
+              <span className={styles.threadEditing}>編集中</span>
+            ) : (
+              <button
+                type="button"
+                className={styles.threadRemove}
+                aria-label="この段落を取り消す"
+                onClick={() => onDelete(i)}
+              >
+                <CloseIcon className={styles.threadRemoveIcon} />
+              </button>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

@@ -29,7 +29,8 @@ export function FollowingList({ pubkeys, onBack }: { pubkeys: readonly string[];
   );
 }
 
-function UserRow({ pubkey }: { pubkey: string }) {
+/** ユーザー一覧の 1 行（アバター・名前・NIP-05。押すとプロフィール）。フォロワー一覧・リストタブでも使う */
+export function UserRow({ pubkey }: { pubkey: string }) {
   const profile = useProfile(pubkey);
   const picture = pictureOf(profile);
   const name = displayName(profile, pubkey);

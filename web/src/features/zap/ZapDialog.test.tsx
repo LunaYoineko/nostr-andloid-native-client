@@ -189,26 +189,85 @@ describe("失敗", () => {
   });
 });
 
-it("payWithWallet（#537 の口）があれば WebLN より先にそれで払う", async () => {
-  const user = userEvent.setup();
-  const webln = installWebln();
-  const payWithWallet = vi.fn(async () => {});
-  const onClose = vi.fn();
-  render(
-    <ZapDialog
-      recipient={RECIPIENT}
-      recipientName="アリス"
-      lud16="alice@example.com"
-      payWithWallet={payWithWallet}
-      onClose={onClose}
-    />,
-  );
+describe("payWithWallet（#537 の口）", () => {
+  function renderWithWallet(payWithWallet = vi.fn(async () => {})) {
+    const onClose = vi.fn();
+    render(
+      <ZapDialog
+        recipient={RECIPIENT}
+        recipientName="アリス"
+        lud16="alice@example.com"
+        payWithWallet={payWithWallet}
+        onClose={onClose}
+      />,
+    );
+    return { onClose, payWithWallet };
+  }
 
-  await user.click(screen.getByRole("button", { name: "⚡ 100" }));
+  it("WebLN より先に、確認ダイアログを経てから払う", async () => {
+    const user = userEvent.setup();
+    const webln = installWebln();
+    const { onClose, payWithWallet } = renderWithWallet();
 
-  await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-  expect(payWithWallet).toHaveBeenCalledWith(PR);
-  expect(webln.sendPayment).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "⚡ 100" }));
+    expect(payWithWallet).not.toHaveBeenCalled();
+    const confirm = await screen.findByRole("dialog", { name: "ウォレットから送金" });
+    expect(confirm).toHaveTextContent("アリス に ⚡ 100 sats を送金します。よろしいですか？");
+
+    await user.click(within(confirm).getByRole("button", { name: "送金する" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(payWithWallet).toHaveBeenCalledWith(PR);
+    expect(webln.sendPayment).not.toHaveBeenCalled();
+    expect(useToast.getState().queue).toEqual([ZAP_PAID]);
+  });
+
+  it("確認をキャンセルすれば払わない。もう一度送れる", async () => {
+    const user = userEvent.setup();
+    const { onClose, payWithWallet } = renderWithWallet();
+
+    await user.click(screen.getByRole("button", { name: "⚡ 100" }));
+    const confirm = await screen.findByRole("dialog", { name: "ウォレットから送金" });
+    await user.click(within(confirm).getByRole("button", { name: "キャンセル" }));
+
+    expect(payWithWallet).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "⚡ 100" })).toBeEnabled();
+  });
+
+  it("送金に失敗したら外部ウォレットへ逃がす", async () => {
+    const user = userEvent.setup();
+    const payWithWallet = vi.fn(async () => {
+      throw new Error("wallet error [PAYMENT_FAILED] insufficient balance");
+    });
+    const onClose = vi.fn();
+    render(
+      <ZapDialog
+        recipient={RECIPIENT}
+        recipientName="アリス"
+        lud16="alice@example.com"
+        payWithWallet={payWithWallet}
+        onClose={onClose}
+      />,
+    );
+    const dialog = screen.getByRole("dialog", { name: "⚡ Zap" });
+
+    await user.click(within(dialog).getByRole("button", { name: "⚡ 100" }));
+    const confirm = await screen.findByRole("dialog", { name: "ウォレットから送金" });
+    await user.click(within(confirm).getByRole("button", { name: "送金する" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "送金に失敗しました: wallet error [PAYMENT_FAILED] insufficient balance",
+    );
+    expect(within(dialog).getByRole("img", { name: "Zap の invoice（100 sats）" })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(useToast.getState().queue).toEqual([]);
+  });
+
+  it("接続済みの案内（nwc_via）を出す", async () => {
+    renderWithWallet();
+    expect(screen.getByText("接続済みウォレットからアプリ内で送金します（毎回確認）。")).toBeInTheDocument();
+  });
 });
 
 it("キャンセル・Esc で閉じる", async () => {

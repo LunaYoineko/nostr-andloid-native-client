@@ -57,6 +57,17 @@
   object-fit: cover;
 }
 
+/* PROFILE カラムの上部カード（ネイティブ ProfileColumn の ProfileHeaderCard、60dp） */
+.avatarXl {
+  display: block;
+  flex: none;
+  width: 60px;
+  height: 60px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
 /* プロフィールのヘッダ（ネイティブ ProfileHeaderCard の 72dp） */
 .avatarXxl {
   display: block;

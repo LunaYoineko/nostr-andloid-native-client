@@ -104,6 +104,25 @@ describe("processImage", () => {
     expect((await processImage(still)).blob).not.toBe(still);
   });
 
+  it("解像度「低」は長辺 640px へ縮める", async () => {
+    stubBitmap(2000, 1000);
+    const low = await processImage(file(["x"], "a.png", "image/png"), 640, 85);
+    expect(canvases).toContainEqual({ width: 640, height: 320 });
+    expect(low).toMatchObject({ mime: "image/webp", name: "a.webp", dim: { w: 640, h: 320 } });
+  });
+
+  it("解像度「高」（maxDim=null）は縮小しないが、EXIF を落とすため再エンコードする（プラポリ 4.4）", async () => {
+    stubBitmap(2000, 1000);
+    const src = file(["x"], "b.jpg", "image/jpeg");
+    const high = await processImage(src, null, 85);
+    // 寸法は元のまま。ただし別の Blob に再エンコードされる（元ファイルをそのまま返さない）
+    expect(canvases).toContainEqual({ width: 2000, height: 1000 });
+    expect(toBlobCalls[0]).toEqual({ type: "image/webp", quality: 0.85 });
+    expect(high.blob).not.toBe(src);
+    expect(high).toMatchObject({ mime: "image/webp", name: "b.webp", dim: { w: 2000, h: 1000 } });
+    expect(isBlurhashValid(high.blurhash ?? "").result).toBe(true);
+  });
+
   it("読めない画像は元のまま（寸法・blurhash なし）", async () => {
     vi.stubGlobal(
       "createImageBitmap",

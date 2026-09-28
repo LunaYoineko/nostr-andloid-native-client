@@ -27,6 +27,7 @@ import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
 import { followsFromContacts } from "../profile/contacts";
 import { FollowError, toggleFollow } from "../profile/follow";
 import { useDeveloperMode } from "../settings/devMode";
+import { payInvoiceWithNwc, useNwc } from "../wallet/nwcManager";
 import { useZapSats } from "../zap/useZapReceipts";
 import { ZapDialog } from "../zap/ZapDialog";
 import { formatSats } from "../zap/zapTotals";
@@ -197,6 +198,8 @@ function ZapAction({ event }: { event: NostrEvent }) {
   const lud16 = typeof author?.lud16 === "string" ? author.lud16.trim() : "";
   const sats = useZapSats(event.id);
   const [open, setOpen] = useState(false);
+  // [#537] ウォレット接続（NWC）済みなら Zap ダイアログの受け口へアプリ内送金を渡す
+  const walletConnected = useNwc((s) => s.connection !== null);
   if (lud16 === "" && sats === 0) return null;
   const label = sats > 0 ? `Zap ${formatSats(sats)} sats` : "Zap";
   const className = sats > 0 ? `${styles.zap} ${styles.zapped}` : styles.zap;
@@ -233,6 +236,7 @@ function ZapAction({ event }: { event: NostrEvent }) {
           lud16={lud16}
           eventId={event.id}
           targetKind={event.kind}
+          payWithWallet={walletConnected ? payInvoiceWithNwc : undefined}
           onClose={() => setOpen(false)}
         />
       )}

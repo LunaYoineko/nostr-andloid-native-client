@@ -83,13 +83,17 @@ function blurhashOf(bitmap: ImageBitmap): string | undefined {
 
 /**
  * 画像を長辺 maxDim px 以下へ縮めて品質 quality% で再エンコードする（ネイティブ processImage）。
+ * maxDim が null（解像度「高」）でも縮小しないだけで、再エンコードして EXIF（位置情報等）は必ず取り除く
+ * （プラポリ 4.4「画像は送信前に端末内で縮小・再圧縮し、EXIF を取り除く」。ネイティブ Android の HIGH は
+ * 無加工で元バイトを返すが、Web はここを優先してこの関数では常に再エンコードする）。
  * EXIF の向きは画素へ焼き込む（createImageBitmap の imageOrientation: "from-image"。再エンコードで EXIF は消える）。
- * GIF・アニメーション WebP は圧縮しない。読めない形式（ブラウザが対応していない HEIC 等）や失敗時は元のまま返す。
- * 寸法・blurhash は読めた画像なら付ける（imeta 用）。
+ * GIF・アニメーション WebP は圧縮しない（再エンコードで動きが消えるため。EXIF は元々持たない形式）。
+ * 読めない形式（ブラウザが対応していない HEIC 等）や失敗時は元のまま返す。
+ * 寸法・blurhash は読めた画像なら付ける（imeta 用。maxDim が null でも付ける）。
  */
 export async function processImage(
   file: File,
-  maxDim = IMAGE_MAX_DIM,
+  maxDim: number | null = IMAGE_MAX_DIM,
   quality = IMAGE_QUALITY,
 ): Promise<ProcessedMedia> {
   const original: ProcessedMedia = {
@@ -109,7 +113,7 @@ export async function processImage(
     const withMeta: ProcessedMedia = { ...original, dim, blurhash };
     if (dim.w <= 0 || dim.h <= 0 || (await keepOriginal(file))) return withMeta;
 
-    const scale = Math.min(1, maxDim / Math.max(dim.w, dim.h));
+    const scale = maxDim === null ? 1 : Math.min(1, maxDim / Math.max(dim.w, dim.h));
     const w = Math.max(1, Math.round(dim.w * scale));
     const h = Math.max(1, Math.round(dim.h * scale));
     const canvas = canvasOf(w, h);

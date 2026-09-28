@@ -1,0 +1,64 @@
+/* PROFILE カラムの上部カード（ネイティブ ProfileColumn.kt の ProfileHeaderCard。余白 Lg） */
+.card {
+  flex: none;
+  padding: var(--sp-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.avatarButton {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.texts {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-title);
+  font-weight: var(--w-name);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.npub {
+  display: block;
+  margin-top: var(--sp-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--type-label);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* 固定投稿（#531）。カードの余白 Lg を打ち消して、行を NoteItem と同じ端いっぱいの幅にする */
+.pinned {
+  margin: var(--sp-3) calc(var(--sp-4) * -1) calc(var(--sp-4) * -1);
+  border-top: 1px solid var(--border);
+}
+
+/* 「📌 固定された投稿」見出し（ProfilePostList の pinnedLabel と同じ） */
+.pinnedLabel {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--w-strong);
+}
