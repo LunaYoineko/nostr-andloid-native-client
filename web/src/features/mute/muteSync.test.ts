@@ -17,6 +17,7 @@ import {
   muteUser,
   OWN_MUTELIST_REFETCH_MS,
   removeMuteEntry,
+  saveMuteList,
   unmuteUser,
 } from "./muteSync";
 
@@ -117,9 +118,16 @@ describe("発行しない（データ保護）", () => {
     const fromShown = await addMuteWord(me, "c", shown.id).catch((e: unknown) => e);
     // kind:10000 を読み込む前（null）に編集していた場合も止める
     const fromNothing = await removeMuteEntry(me, "word", "b", null).catch((e: unknown) => e);
+    // 設定画面の保存も同じ規則
+    const fromSave = await saveMuteList(
+      me,
+      [{ category: "word", value: "c", isPublic: true, isPrivate: false }],
+      shown.id,
+    ).catch((e: unknown) => e);
 
     expect(fromShown).toMatchObject({ name: "MuteListError", reason: "stale" });
     expect(fromNothing).toMatchObject({ name: "MuteListError", reason: "stale" });
+    expect(fromSave).toMatchObject({ name: "MuteListError", reason: "stale" });
     expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
   });
 
@@ -167,6 +175,20 @@ describe("暗号を使えない署名者", () => {
 
     await expect(muteUser(me, BOB)).rejects.toMatchObject({ reason: "no-cipher" });
     await expect(addMuteWord(me, "spoiler", null)).rejects.toMatchObject({ reason: "no-cipher" });
+    expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
+  });
+
+  it("設定画面の保存: 新たに非公開を立てていたら no-cipher（公開に黙って倒さない）", async () => {
+    const latest = muteList([["t", "nsfw"]], 1_000);
+    refetchReturns(latest);
+    const plain = createCipherSigner().signer;
+    plain.nip44 = undefined;
+    plain.nip04 = undefined;
+    vi.mocked(currentSigner).mockReturnValue(plain);
+
+    await expect(
+      saveMuteList(me, [{ category: "t", value: "nsfw", isPublic: true, isPrivate: true }], latest.id),
+    ).rejects.toMatchObject({ reason: "no-cipher" });
     expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
   });
 });
@@ -269,6 +291,60 @@ describe("取り直した最新版を保って発行する", () => {
     refetchReturns(null);
     vi.mocked(publishEvent).mockRejectedValueOnce(new PublishError("sign-failed"));
     await expect(muteUser(me, BOB)).rejects.toMatchObject({ name: "MuteListError", reason: "sign-failed" });
+  });
+
+  it("設定画面の保存: 下書きをまとめて 1 回の発行にし、公開・非公開の変更を反映する", async () => {
+    const latest = muteList([["t", "nsfw"]], 2_000, encrypt44([["p", BOB]]));
+    refetchReturns(latest);
+
+    // nsfw を非公開にも、BOB を公開にも
+    const result = await saveMuteList(
+      me,
+      [
+        { category: "t", value: "nsfw", isPublic: true, isPrivate: true },
+        { category: "p", value: BOB, isPublic: true, isPrivate: true },
+      ],
+      latest.id,
+    );
+
+    expect(result).toBe("done");
+    const draft = published();
+    expect(draft.tags).toEqual([
+      ["t", "nsfw"],
+      ["p", BOB],
+    ]);
+    expect(decrypt44(draft.content)).toEqual([
+      ["p", BOB],
+      ["t", "nsfw"],
+    ]);
+  });
+
+  it("設定画面の保存: 両方のチェックを外した項目は解除される", async () => {
+    const latest = muteList(
+      [
+        ["p", ALICE],
+        ["t", "nsfw"],
+      ],
+      2_000,
+      encrypt44([["word", "spam"]]),
+    );
+    refetchReturns(latest);
+
+    const result = await saveMuteList(
+      me,
+      [
+        // ALICE は両方 false（解除）。nsfw と word:spam はそのまま
+        { category: "p", value: ALICE, isPublic: false, isPrivate: false },
+        { category: "t", value: "nsfw", isPublic: true, isPrivate: false },
+        { category: "word", value: "spam", isPublic: false, isPrivate: true },
+      ],
+      latest.id,
+    );
+
+    expect(result).toBe("done");
+    const draft = published();
+    expect(draft.tags).toEqual([["t", "nsfw"]]);
+    expect(decrypt44(draft.content)).toEqual([["word", "spam"]]);
   });
 });
 

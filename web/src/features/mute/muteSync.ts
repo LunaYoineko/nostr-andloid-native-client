@@ -4,6 +4,7 @@ import { INDEXER_RELAYS, LOADING_TIMEOUT_MS } from "../../lib/columnRequest";
 import { unixNow } from "../../lib/time";
 import { readRelays, requestOnce, subscribe, writeRelays } from "../../nostr/pool";
 import { PublishError, type PublishFailure, publishEvent } from "../../nostr/publish";
+import type { Signer } from "../../nostr/signer";
 import { eventStore } from "../../nostr/store";
 import { currentSigner, useSession } from "../../signer/session";
 import {
@@ -42,6 +43,14 @@ export class MuteListError extends Error {
     this.name = "MuteListError";
     this.reason = reason;
   }
+}
+
+/**
+ * 署名者が非公開のミュート（NIP-44 / NIP-04）に使う暗号化に対応しているか。
+ * 対応していなければ設定画面は非公開のチェックを無効にし、案内を出す（公開に黙って倒さない）。
+ */
+export function signerCanPrivateMute(signer: Signer | null): boolean {
+  return signer != null && (signer.nip44 != null || signer.nip04 != null);
 }
 
 // ---- 読む（ネイティブ subscribeMuteList + updateMuteList） ----
@@ -223,6 +232,31 @@ export function addMuteWord(me: string, word: string, basedOnId: string | null):
       if (entries.some((e) => e.category === "word" && e.value.toLowerCase() === lower)) return null;
       if (!canPrivate) throw new MuteListError("no-cipher");
       return [...entries, { category: "word", value: w, isPublic: false, isPrivate: true }];
+    },
+    basedOnId,
+  );
+}
+
+/**
+ * 設定画面の保存（行ごとの公開 / 非公開チェックの下書きを 1 回の発行にまとめる。ネイティブ publishMuteList）。
+ * draft は表示していた全項目（両方 false の項目も含む）。両方 false の項目は含めずに発行する（＝解除）。
+ * basedOnId は編集を始めた時点の版の id。署名者が暗号を使えないのに非公開を新たに立てていたら
+ * MuteListError("no-cipher")（画面は非公開のチェックを無効にして事前に防ぐが、念のため）。
+ */
+export function saveMuteList(
+  me: string,
+  draft: readonly MuteEntry[],
+  basedOnId: string | null,
+): Promise<"done" | "noop"> {
+  return editMuteList(
+    me,
+    (entries, canPrivate) => {
+      if (!canPrivate) {
+        const wasPrivate = (target: MuteEntry) =>
+          entries.some((e) => e.category === target.category && e.value === target.value && e.isPrivate);
+        if (draft.some((e) => e.isPrivate && !wasPrivate(e))) throw new MuteListError("no-cipher");
+      }
+      return draft.filter((e) => e.isPublic || e.isPrivate);
     },
     basedOnId,
   );
