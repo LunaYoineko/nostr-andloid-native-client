@@ -428,6 +428,32 @@ export function roomColumnFor(channel: { id: string; name: string; about: string
   };
 }
 
+/** リストカラムに載せる著者数の上限（ネイティブの LIST_COLUMN_AUTHOR_CAP と同じ 500） */
+export const LIST_COLUMN_AUTHOR_CAP = 500;
+
+/**
+ * NIP-51 フォローセット（kind:30000）のメンバーのタイムラインを 1 カラムにする（ネイティブの buildListColumn）。
+ * 投稿 + リポストをそのメンバーの authors で集める既存のカラム機構にそのまま載せる。
+ * 一時カラムとして開く（pinned: false。ヘッダの📌で固定できる）。著者数は LIST_COLUMN_AUTHOR_CAP で頭打ち
+ * （重複は除き、先に見えた順を保つ）。
+ */
+export function buildListColumn(title: string, members: readonly string[], nowSec: number): ColumnSpec {
+  return {
+    id: `col_list_${nowSec}`,
+    title: title.trim() === "" ? "リスト" : title,
+    subtitle: "list",
+    kind: "LIST",
+    renderer: "FEED",
+    filter: {
+      ...defaultFilter(),
+      kinds: [1, 6, 16],
+      authors: [...new Set(members)].slice(0, LIST_COLUMN_AUTHOR_CAP),
+    },
+    pinned: false,
+    order: 0,
+  };
+}
+
 /** 「フィルターを編集」に使うテンプレ（設定を持たないカラムは null） */
 export function editTemplate(spec: ColumnSpec): TemplateId | null {
   switch (spec.kind) {

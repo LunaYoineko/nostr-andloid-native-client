@@ -35,6 +35,7 @@ import { Timeline } from "../timeline/Timeline";
 import { useZapReceipts, zapTargetIds } from "../zap/useZapReceipts";
 import styles from "./DeckColumn.module.css";
 import type { FeedRow } from "./followingMix";
+import { ProfileColumnHeader } from "./ProfileColumnHeader";
 import { useColumnFeed } from "./useColumnFeed";
 
 /** Web 版でまだ描けない種別（REQ も張らない） */
@@ -149,9 +150,12 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
   const { loading, events, rows, loadingOlder, loadOlder, refresh } = useColumnFeed(spec);
   // 表示中の投稿への Zap 受領（アクション行の ⚡ の合計）
   useZapReceipts(zapTargetIds(events));
+  // PROFILE カラムの上部カード（ネイティブ ProfileColumn と同じ。投稿一覧の上、カラムヘッダの下に固定で出す）
+  const profilePubkey = spec.kind === "PROFILE" ? spec.filter.authors[0] : undefined;
   return (
     <section className={styles.column} aria-label={spec.title} aria-busy={loading}>
       {showHeader && <ColumnHeader spec={spec} onRefresh={refresh} />}
+      {profilePubkey && <ProfileColumnHeader pubkey={profilePubkey} />}
       <div className={styles.body}>
         {loading && <div className={styles.progress} role="progressbar" aria-label="読み込み中" />}
         {spec.kind === "FAVS" ? (
