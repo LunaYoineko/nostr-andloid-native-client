@@ -1,9 +1,15 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, beforeAll, expect, it } from "vitest";
+import { useSession } from "../../signer/session";
+import { installDialogPolyfill } from "../../test/dialog";
 import { DEFAULT_CUSTOM_COLORS } from "./customPalette";
 import { ThemeSettings } from "./ThemeSettings";
 import { DEFAULT_THEME_PREFS, initTheme, THEME_KEY, useThemePrefs, useThemeUndo } from "./themePrefs";
+
+beforeAll(() => {
+  installDialogPolyfill();
+});
 
 let dispose: (() => void) | null = null;
 
@@ -13,6 +19,7 @@ afterEach(() => {
   localStorage.clear();
   useThemePrefs.setState(DEFAULT_THEME_PREFS);
   useThemeUndo.setState(null);
+  useSession.setState({ status: "out", method: null, pubkey: null });
   const root = document.documentElement;
   root.removeAttribute("data-theme");
   root.removeAttribute("data-bold");
@@ -125,4 +132,22 @@ it("「既定に戻す」でカスタム配色を Midnight へ戻す", async () 
   await user.click(screen.getByRole("button", { name: "既定に戻す" }));
 
   expect(useThemePrefs.getState().custom).toEqual(DEFAULT_CUSTOM_COLORS);
+});
+
+it("テーマストアへの公開（#539）: ログインしていないと出ない。ログインしていれば名前を聞くダイアログを開く", async () => {
+  const user = userEvent.setup();
+  render(<ThemeSettings />);
+  await user.click(screen.getByRole("radio", { name: "カスタム" }));
+  expect(screen.queryByRole("button", { name: "テーマストアに公開" })).toBeNull();
+
+  act(() => useSession.setState({ status: "in", method: "nip07", pubkey: "a".repeat(64) }));
+  await user.click(screen.getByRole("button", { name: "テーマストアに公開" }));
+
+  const dialog = screen.getByRole("dialog", { name: "テーマストアに公開" });
+  expect(within(dialog).getByRole("button", { name: "公開" })).toBeDisabled();
+  await user.type(within(dialog).getByPlaceholderText("テーマ名"), "Sakura");
+  expect(within(dialog).getByRole("button", { name: "公開" })).toBeEnabled();
+
+  await user.click(within(dialog).getByRole("button", { name: "キャンセル" }));
+  expect(screen.queryByRole("dialog", { name: "テーマストアに公開" })).toBeNull();
 });

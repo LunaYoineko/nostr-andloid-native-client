@@ -25,6 +25,7 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
       { id: "emoji", label: "カスタム絵文字", ready: true },
       { id: "hashtags", label: "ハッシュタグ", ready: true },
       { id: "display", label: "表示", ready: true },
+      { id: "theme-store", label: "テーマストア", ready: true },
     ],
   },
   {
