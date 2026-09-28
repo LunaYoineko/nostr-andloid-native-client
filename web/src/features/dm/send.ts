@@ -27,9 +27,15 @@ function readRelaysOf(pubkey: string): string[] {
 
 /**
  * 相手へ DM を送る（ネイティブ sendDm）。NIP-17 を優先し、相手が kind:10050 を公開しておらず
- * NIP-04 の DM しか送ってきていないときだけ NIP-04（kind:4）で送る。本文・鍵はログに出さない
+ * NIP-04 の DM しか送ってきていないときだけ NIP-04（kind:4）で送る。本文・鍵はログに出さない。
+ * [replyTo] があれば kind:14 の rumor に NIP-10 の reply マーカー付き #e を添える（#589。NIP-04 の
+ * kind:4 は rumor ではないため対象外）
  */
-export async function sendDm(peer: string, text: string): Promise<DmSendResult> {
+export async function sendDm(
+  peer: string,
+  text: string,
+  replyTo: NostrEvent | null = null,
+): Promise<DmSendResult> {
   const me = useSession.getState().pubkey;
   const signer = currentSigner();
   if (me === null || signer === null || text.trim() === "") return "failed";
@@ -43,7 +49,7 @@ export async function sendDm(peer: string, text: string): Promise<DmSendResult> 
   if (peerRelays.length === 0 && isNip04OnlyPeer(Object.values(useDm.getState().messages), peer)) {
     return sendNip04(me, signer, peer, text);
   }
-  return sendNip17(me, signer, peer, text, peerRelays);
+  return sendNip17(me, signer, peer, text, peerRelays, replyTo);
 }
 
 async function sendNip04(me: string, signer: Signer, peer: string, text: string): Promise<DmSendResult> {
@@ -80,9 +86,10 @@ async function sendNip17(
   peer: string,
   text: string,
   peerRelays: string[],
+  replyTo: NostrEvent | null,
 ): Promise<DmSendResult> {
   if (!signer.nip44) return "no-nip44";
-  const rumor = buildRumor(me, peer, text, unixNow());
+  const rumor = buildRumor(me, peer, text, unixNow(), replyTo);
   let shown = false;
   let toPeer: NostrEvent;
   let toSelf: NostrEvent | null;
