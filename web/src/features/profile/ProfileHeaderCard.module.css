@@ -152,8 +152,10 @@ button.ring {
   cursor: pointer;
 }
 
-.menuItem:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .menuItem:hover {
+    background: var(--surface-3);
+  }
 }
 
 /* 「ユーザーを通報」（ネイティブ DeckColors.Warn） */
@@ -288,8 +290,10 @@ button.lud16 {
   cursor: pointer;
 }
 
-button.lud16:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  button.lud16:hover {
+    text-decoration: underline;
+  }
 }
 
 .website {
@@ -303,8 +307,10 @@ button.lud16:hover {
   text-decoration: none;
 }
 
-a.website:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  a.website:hover {
+    text-decoration: underline;
+  }
 }
 
 .status {

@@ -75,8 +75,10 @@
   cursor: pointer;
 }
 
-.close:hover:not(:disabled) {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .close:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
 }
 
 .close:disabled {
@@ -147,8 +149,10 @@
   cursor: pointer;
 }
 
-.chip:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .chip:hover {
+    background: var(--surface-3);
+  }
 }
 
 /* タグチップの長押し / 右クリックのメニュー（#536。位置は TagMenu が left / top で決める） */
@@ -181,8 +185,10 @@
   cursor: pointer;
 }
 
-.tagMenuItem:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .tagMenuItem:hover {
+    background: var(--surface-3);
+  }
 }
 
 .emoji {
@@ -211,8 +217,10 @@
   cursor: pointer;
 }
 
-.mention:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .mention:hover {
+    background: var(--surface-2);
+  }
 }
 
 .mentionText {
@@ -295,8 +303,10 @@
   cursor: pointer;
 }
 
-.threadTextButton:hover {
-  color: var(--text);
+@media (hover: hover) {
+  .threadTextButton:hover {
+    color: var(--text);
+  }
 }
 
 .threadEditing {
@@ -320,8 +330,10 @@
   cursor: pointer;
 }
 
-.threadRemove:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .threadRemove:hover {
+    background: var(--surface-3);
+  }
 }
 
 .threadRemoveIcon {
@@ -658,6 +670,8 @@
   cursor: pointer;
 }
 
-.cancel:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .cancel:hover {
+    background: var(--surface-3);
+  }
 }

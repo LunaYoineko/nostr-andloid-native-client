@@ -48,6 +48,8 @@
   color: var(--text-2);
 }
 
-.close:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .close:hover {
+    background: var(--surface-3);
+  }
 }

@@ -191,8 +191,10 @@
   text-decoration: none;
 }
 
-.name:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .name:hover {
+    text-decoration: underline;
+  }
 }
 
 .handle {
@@ -219,8 +221,10 @@
   text-decoration: none;
 }
 
-.timeLink:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .timeLink:hover {
+    text-decoration: underline;
+  }
 }
 
 .missing {

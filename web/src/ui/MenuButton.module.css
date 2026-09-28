@@ -41,8 +41,10 @@
   cursor: pointer;
 }
 
-.item:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .item:hover {
+    background: var(--surface-3);
+  }
 }
 
 .danger {

@@ -204,8 +204,10 @@
   cursor: pointer;
 }
 
-.action:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .action:hover {
+    background: var(--surface-2);
+  }
 }
 
 .action[aria-pressed="true"][data-shape="heart"] {
@@ -290,8 +292,10 @@
   cursor: pointer;
 }
 
-.write:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .write:hover {
+    background: var(--surface-2);
+  }
 }
 
 /* 投稿モーダル（ComposeDialog と同じく画面上端寄せのカード） */
