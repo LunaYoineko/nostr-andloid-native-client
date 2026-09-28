@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { neventEncode } from "nostr-tools/nip19";
-import { finalizeEvent, generateSecretKey, type NostrEvent } from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { VirtuosoMockContext } from "react-virtuoso";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,10 +9,13 @@ import { type ColumnSpec, DEFAULT_COLUMNS } from "../../lib/columns";
 import { unixNow } from "../../lib/time";
 import { useDeck } from "../../store/deck";
 import { installDialogPolyfill } from "../../test/dialog";
+import { OTHER_PUBKEY } from "../../test/fakeNostr";
 import { clearViewport, mockViewport } from "../../test/viewport";
 import { reactWithDefault } from "../actions/reactions";
 import { useCompose } from "../compose/composeStore";
+import type { FeedRow } from "../deck/followingMix";
 import type { ColumnFeed } from "../deck/useColumnFeed";
+import { type NotificationItem, toNotification } from "../notifications/notificationModel";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { INITIAL_KEYBOARD_STATE, useKeyboard } from "./kbStore";
 
@@ -31,6 +34,7 @@ const { FEEDS, EMPTY_FEED } = vi.hoisted(() => {
     mode: "column",
     loading: false,
     events: [],
+    rows: null,
     loadingOlder: false,
     loadOlder: () => {},
     refresh: () => {},
@@ -195,6 +199,81 @@ describe("選択と移動", () => {
     expect(press("j", { isComposing: true })).toBe(false);
     expect(press("r", { ctrlKey: true })).toBe(false);
     expect(selectedRow("c_following")).toBeNull();
+  });
+});
+
+/** フォロー中カラムの混在行: 投稿 → 自分へのリアクション → 自分のリアクション → 未読 DM → 投稿 */
+function mixedFeed(): { feed: ColumnFeed; mix: NostrEvent[] } {
+  const mix = posts("混在", 2);
+  const reaction = finalizeEvent(
+    {
+      kind: 7,
+      created_at: NOW - 10,
+      tags: [
+        ["e", mix[0].id],
+        ["p", getPublicKey(KEY)],
+      ],
+      content: "+",
+    },
+    generateSecretKey(),
+  );
+  const notice = toNotification(reaction);
+  if (!notice) throw new Error("通知にならない");
+  const myReaction = finalizeEvent(
+    { kind: 7, created_at: NOW - 20, tags: [["e", "a".repeat(64)]], content: "+" },
+    KEY,
+  );
+  const dm: NotificationItem = {
+    id: `dm_${OTHER_PUBKEY}`,
+    kind: "dm",
+    event: null,
+    actor: OTHER_PUBKEY,
+    createdAt: NOW - 30,
+    target: null,
+    reaction: null,
+    zapSats: null,
+    dmUnread: 1,
+  };
+  const rows: FeedRow[] = [
+    { type: "post", id: mix[0].id, at: mix[0].created_at, event: mix[0] },
+    { type: "notice", id: notice.id, at: notice.createdAt, item: notice },
+    { type: "myReaction", id: myReaction.id, at: myReaction.created_at, reaction: myReaction },
+    { type: "notice", id: dm.id, at: dm.createdAt, item: dm },
+    { type: "post", id: mix[1].id, at: mix[1].created_at, event: mix[1] },
+  ];
+  return { feed: { ...EMPTY_FEED, mode: "following", events: mix, rows }, mix };
+}
+
+describe("フォロー中カラムの混在行", () => {
+  it("j / k は投稿の行だけを選び、通知・リアクション・DM の行は飛ばす。Enter はその投稿へ", () => {
+    const { feed, mix } = mixedFeed();
+    const original = FEEDS.get("c_following");
+    FEEDS.set("c_following", feed);
+    try {
+      const router = renderDeck();
+      press("j");
+      expect(selectedRow("c_following")).toBe(0);
+      press("j");
+      expect(selectedRow("c_following")).toBe(4);
+      // 末尾の投稿より先へは行かない
+      press("j");
+      expect(selectedRow("c_following")).toBe(4);
+      press("k");
+      expect(selectedRow("c_following")).toBe(0);
+      press("G", { shiftKey: true });
+      expect(selectedRow("c_following")).toBe(4);
+
+      press("r");
+      expect(useCompose.getState().request).toEqual({ mode: "reply", target: mix[1] });
+      act(() => useCompose.setState({ request: null }));
+
+      press("Enter");
+      expect(router.state.location.pathname).toBe(
+        `/e/${neventEncode({ id: mix[1].id, author: mix[1].pubkey })}`,
+      );
+    } finally {
+      if (original) FEEDS.set("c_following", original);
+    }
   });
 });
 

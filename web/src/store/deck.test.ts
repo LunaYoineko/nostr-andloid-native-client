@@ -170,6 +170,31 @@ it("setRevealMuted: カラムごとに保存し、カラムを消すと設定も
   expect(loadRevealMuted()).toEqual(["c_a"]);
 });
 
+it("setFeedCatHidden: カラムごとに保存し、空になったカラムはキーごと消す。カラムを消すと設定も消す。壊れた保存値は空", async () => {
+  const { useDeck, FEED_CAT_HIDDEN_KEY, feedCatHiddenOf, loadFeedCatHidden } = await freshDeck();
+  expect(feedCatHiddenOf(useDeck.getState(), "c_following")).toEqual([]);
+
+  useDeck.getState().setFeedCatHidden("c_following", "DMS", true);
+  useDeck.getState().setFeedCatHidden("c_following", "REACTIONS", true);
+  useDeck.getState().setFeedCatHidden("c_following", "REACTIONS", true);
+  expect(feedCatHiddenOf(useDeck.getState(), "c_following")).toEqual(["REACTIONS", "DMS"]);
+  expect(localStorage.getItem(FEED_CAT_HIDDEN_KEY)).toBe('{"c_following":["REACTIONS","DMS"]}');
+
+  useDeck.getState().setFeedCatHidden("c_following", "REACTIONS", false);
+  useDeck.getState().setFeedCatHidden("c_following", "DMS", false);
+  expect(localStorage.getItem(FEED_CAT_HIDDEN_KEY)).toBe("{}");
+
+  useDeck.getState().setFeedCatHidden("c_following", "MY_REACTIONS", true);
+  useDeck.getState().removeColumn("c_following");
+  expect(useDeck.getState().feedCatHidden).toEqual({});
+  expect(localStorage.getItem(FEED_CAT_HIDDEN_KEY)).toBe("{}");
+
+  localStorage.setItem(FEED_CAT_HIDDEN_KEY, "{broken");
+  expect(loadFeedCatHidden()).toEqual({});
+  localStorage.setItem(FEED_CAT_HIDDEN_KEY, '{"c_a":["DMS","ZAPS",1],"c_b":[],"c_c":"DMS"}');
+  expect(loadFeedCatHidden()).toEqual({ c_a: ["DMS"] });
+});
+
 it("applyPinnedColumns: 固定カラムを置き換え、開いている一時カラムは残す", async () => {
   const { useDeck, COLUMNS_KEY } = await freshDeck();
   const transient = hashtagColumn("bitcoin", 100);

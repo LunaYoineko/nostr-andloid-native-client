@@ -34,7 +34,7 @@ afterEach(() => {
 function renderList(events: NostrEvent[], loading = false) {
   return renderWithRouter(
     <VirtuosoMockContext.Provider value={{ viewportHeight: 2000, itemHeight: 100 }}>
-      <NotificationList events={events} loading={loading} />
+      <NotificationList events={events} loading={loading} columnId="c_notif" />
     </VirtuosoMockContext.Provider>,
   );
 }

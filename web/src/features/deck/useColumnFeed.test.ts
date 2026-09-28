@@ -8,7 +8,10 @@ import { requestOnce, subscribe, subscribeTo } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
+import { useDmSeen } from "../dm/dmSeen";
+import { useDm } from "../dm/dmStore";
 import { EMPTY_MUTE_LIST, setMuteList } from "../mute/muteList";
+import type { FeedRow } from "./followingMix";
 import { useColumnFeed } from "./useColumnFeed";
 
 // リレーには繋がず、REQ ごとに Subject を返す（EOSE・過去読みの完了はテストから流す）
@@ -70,14 +73,21 @@ it("フォロー中: kind:3 が無い間はリレー新着、届いたらフォ�
   expect(result.current.mode).toBe("global");
   expect(vi.mocked(subscribe)).toHaveBeenCalledWith({ kinds: [3], authors: [me] });
   expect(lastRequest().relays).toEqual(RELAYS);
-  expect(lastRequest().filters).toEqual([{ kinds: [1], limit: 100 }]);
+  const mix = [
+    { kinds: [1, 6, 16, 7, 9735, 1111], "#p": [me], limit: 200 },
+    { kinds: [7], authors: [me], limit: 100 },
+  ];
+  expect(lastRequest().filters).toEqual([{ kinds: [1], limit: 100 }, ...mix]);
 
   act(() => {
     eventStore.add(signed(3, meKey, [["p", follow]]));
   });
 
   expect(result.current.mode).toBe("following");
-  expect(lastRequest().filters).toEqual([{ kinds: [1, 6, 16, 5, 1111], authors: [follow, me], limit: 100 }]);
+  expect(lastRequest().filters).toEqual([
+    { kinds: [1, 6, 16, 5, 1111], authors: [follow, me], limit: 100 },
+    ...mix,
+  ]);
 
   const followed = signed(1, followKey, [], "フォロー先の投稿");
   act(() => {
@@ -237,4 +247,123 @@ it("ミュート: 通知は相手で判定する（本文のワードでは隠�
 
   const { result } = renderHook(() => useColumnFeed(NOTIFICATIONS));
   expect(result.current.events).toEqual([withWord]);
+});
+
+/** 行の中身（投稿・通知は通知の種別と相手・自分のリアクションは id） */
+function describeRows(rows: FeedRow[] | null) {
+  return rows?.map((row) =>
+    row.type === "notice" ? `${row.item.kind}:${row.item.actor}` : `${row.type}:${row.id}`,
+  );
+}
+
+it("フォロー中: 自分への反応・自分のリアクション・未読 DM を混ぜ、ミュート対象は「ミュートを表示」中だけ出す（#522）", () => {
+  const followKey = generateSecretKey();
+  const follow = getPublicKey(followKey);
+  const mutedKey = generateSecretKey();
+  const muted = getPublicKey(mutedKey);
+  const friend = getPublicKey(generateSecretKey());
+  const myPost = signed(1, meKey, [], "自分の投稿", 1_000);
+  const mutedPost = signed(1, mutedKey, [], "ミュートした人の投稿", 1_100);
+  const post = signed(1, followKey, [], "フォロー先の投稿", 1_500);
+  const toMe = [
+    ["e", myPost.id],
+    ["p", me],
+  ];
+  const fromFriend = signed(7, generateSecretKey(), toMe, "+", 1_400);
+  const fromMuted = signed(7, mutedKey, toMe, "+", 1_300);
+  const myReactionToMuted = signed(
+    7,
+    meKey,
+    [
+      ["e", mutedPost.id],
+      ["p", muted],
+    ],
+    "+",
+    1_200,
+  );
+  act(() => {
+    for (const e of [signed(3, meKey, [["p", follow]]), myPost, mutedPost, post, fromFriend, fromMuted]) {
+      eventStore.add(e);
+    }
+    eventStore.add(myReactionToMuted);
+    useDm.getState().reset(me);
+    useDmSeen.setState({ me, first: 0, peers: {} });
+    useDm.getState().upsertMessages(
+      [friend, muted].map((peer, i) => ({
+        owner: me,
+        id: `dm_msg_${i}`,
+        peer,
+        sender: peer,
+        content: "本文",
+        tags: [],
+        createdAt: 1_250 + i,
+        proto: "nip17" as const,
+      })),
+    );
+    setMuteList({
+      ...EMPTY_MUTE_LIST,
+      entries: [{ category: "p", value: muted, isPublic: true, isPrivate: false }],
+    });
+  });
+
+  try {
+    const { result } = renderHook(() => useColumnFeed(FOLLOWING));
+    expect(result.current.events).toEqual([post, myPost]);
+    const hidden = [`post:${post.id}`, `reaction:${fromFriend.pubkey}`, `dm:${friend}`, `post:${myPost.id}`];
+    expect(describeRows(result.current.rows)).toEqual(hidden);
+
+    act(() => useDeck.getState().setRevealMuted(FOLLOWING.id, true));
+    expect(describeRows(result.current.rows)).toEqual([
+      `post:${post.id}`,
+      `reaction:${fromFriend.pubkey}`,
+      `reaction:${muted}`,
+      `dm:${muted}`,
+      `dm:${friend}`,
+      `myReaction:${myReactionToMuted.id}`,
+      `post:${myPost.id}`,
+    ]);
+
+    act(() => useDeck.getState().setRevealMuted(FOLLOWING.id, false));
+    expect(describeRows(result.current.rows)).toEqual(hidden);
+
+    // ⋯ で隠した種別は除く
+    act(() => useDeck.getState().setFeedCatHidden(FOLLOWING.id, "REACTIONS", true));
+    expect(describeRows(result.current.rows)).toEqual([
+      `post:${post.id}`,
+      `dm:${friend}`,
+      `post:${myPost.id}`,
+    ]);
+  } finally {
+    act(() => {
+      useDeck.getState().setFeedCatHidden(FOLLOWING.id, "REACTIONS", false);
+      useDm.getState().reset(null);
+      useDmSeen.setState({ me: null, first: 0, peers: {} });
+    });
+  }
+});
+
+it("フォロー中の loadOlder: 投稿の最古を until にして、通知・自分のリアクションも同じ until で取る（#522）", () => {
+  const followKey = generateSecretKey();
+  const follow = getPublicKey(followKey);
+  act(() => {
+    eventStore.add(signed(3, meKey, [["p", follow]]));
+    eventStore.add(signed(1, followKey, [], "new", 2_000));
+    eventStore.add(signed(1, followKey, [], "old", 900));
+  });
+  const { result } = renderHook(() => useColumnFeed(FOLLOWING));
+  act(() => result.current.loadOlder());
+  expect(vi.mocked(requestOnce)).toHaveBeenCalledWith(
+    RELAYS,
+    [
+      { kinds: [1, 6, 16, 5, 1111], authors: [follow, me], limit: 100, until: 900 },
+      { kinds: [1, 6, 16, 7, 9735, 1111], "#p": [me], limit: 200, until: 900 },
+      { kinds: [7], authors: [me], limit: 100, until: 900 },
+    ],
+    6_000,
+  );
+});
+
+it("フォロー中以外のカラムは混ぜた行を持たない", () => {
+  const { result } = renderHook(() => useColumnFeed(HASHTAG));
+  expect(result.current.rows).toBeNull();
 });

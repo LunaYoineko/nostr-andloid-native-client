@@ -33,7 +33,7 @@ export function NotificationsScreen() {
       />
       <hr className={styles.divider} />
       <div className={styles.body}>
-        <NotificationList events={events} loading={loading} />
+        <NotificationList events={events} loading={loading} columnId={NOTIFICATIONS_SCREEN_SPEC.id} />
       </div>
     </SingleColumnPane>
   );

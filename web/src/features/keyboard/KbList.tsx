@@ -14,7 +14,8 @@ export function KbColumn({ id, children }: { id: string; children: ReactNode }) 
 
 /**
  * カラムの一覧（仮想リスト）をキー操作に登録する。選んだ行は list の scrollIntoView で見える位置へ寄せる。
- * postAt は r / t / f の対象（投稿の行だけ。省略 = どの行も投稿ではない）。デッキの外では何もしない。
+ * postAt は r / t / f の対象。渡した一覧は投稿の行だけを j / k で選べる（混在の通知・リアクション・DM の行は飛ばす）。
+ * 省略 = どの行も選べて、どれも投稿ではない（通知・ふぁぼの一覧）。デッキの外では何もしない。
  */
 export function useKbList(
   list: RefObject<VirtuosoHandle | null>,
@@ -27,6 +28,7 @@ export function useKbList(
     return registerList(columnId, {
       count,
       postAt: (index) => postAt?.(index) ?? null,
+      selectable: (index) => index >= 0 && index < count && (!postAt || postAt(index) !== undefined),
       scrollTo: (index) => list.current?.scrollIntoView({ index }),
     });
   }, [columnId, count, postAt, list]);

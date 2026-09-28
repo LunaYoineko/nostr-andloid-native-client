@@ -32,6 +32,8 @@ export type KbList = {
   count: number;
   /** index の行の投稿（r / t / f の対象）。投稿の行でなければ null */
   postAt(index: number): NostrEvent | null;
+  /** index の行を j / k で選べるか（範囲外は false） */
+  selectable(index: number): boolean;
   /** index の行を見える位置へ寄せる（見えていれば動かさない） */
   scrollTo(index: number): void;
 };
@@ -61,36 +63,67 @@ export function resolveFocusColumn(): string | null {
   return id;
 }
 
-/** 選択を delta ぶん動かす（範囲内に丸める）。行が無ければ何もしない（ネイティブ kbMoveSelection） */
+/** from の次（step = ±1 の向き）の選べる行。無ければ null */
+function nextSelectable(list: KbList, from: number, step: 1 | -1): number | null {
+  for (let i = from + step; i >= 0 && i < list.count; i += step) {
+    if (list.selectable(i)) return i;
+  }
+  return null;
+}
+
+/**
+ * 選択を delta 行ぶん動かす（選べない行は飛ばす。端で止まる）。選べる行が無ければ何もしない（ネイティブ kbMoveSelection）。
+ * 動けなければ今の行のまま（今の行が選べない・範囲外なら、逆向きで最寄りの選べる行）。
+ */
 export function moveSelection(columnId: string, delta: number): void {
-  const count = listOf(columnId)?.count ?? 0;
-  if (count === 0) return;
+  const list = listOf(columnId);
+  if (!list || list.count === 0 || delta === 0) return;
+  const step = delta > 0 ? 1 : -1;
   const { selected } = useKeyboard.getState();
-  const next = Math.min(Math.max((selected[columnId] ?? -1) + delta, 0), count - 1);
+  const current = selected[columnId] ?? -1;
+  let next: number | null = null;
+  let from = Math.min(current, list.count);
+  for (let n = 0; n < Math.abs(delta); n++) {
+    const found = nextSelectable(list, from, step);
+    if (found === null) break;
+    next = found;
+    from = found;
+  }
+  if (next === null) {
+    next = list.selectable(current)
+      ? current
+      : nextSelectable(list, step > 0 ? list.count : -1, step > 0 ? -1 : 1);
+  }
+  if (next === null) return;
   useKeyboard.setState({ selected: { ...selected, [columnId]: next }, active: true });
-  listOf(columnId)?.scrollTo(next);
+  list.scrollTo(next);
 }
 
-/** 選択を先頭 / 末尾へ（ネイティブ kbSelectEdge） */
+/** 選択を先頭 / 末尾の選べる行へ（ネイティブ kbSelectEdge） */
 export function selectEdge(columnId: string, toBottom: boolean): void {
-  const count = listOf(columnId)?.count ?? 0;
-  if (count === 0) return;
+  const list = listOf(columnId);
+  if (!list) return;
+  const next = toBottom ? nextSelectable(list, list.count, -1) : nextSelectable(list, -1, 1);
+  if (next === null) return;
   const { selected } = useKeyboard.getState();
-  const next = toBottom ? count - 1 : 0;
   useKeyboard.setState({ selected: { ...selected, [columnId]: next }, active: true });
-  listOf(columnId)?.scrollTo(next);
+  list.scrollTo(next);
 }
 
-/** position 番目のカラムへフォーカスを移してそこへスクロールする。移った先に選択が無ければ 0（ネイティブ kbFocusColumn） */
+/**
+ * position 番目のカラムへフォーカスを移してそこへスクロールする（ネイティブ kbFocusColumn）。
+ * 移った先に選択が無ければ先頭の選べる行（行が無ければ 0）
+ */
 export function focusColumn(position: number): void {
   const deck = useDeck.getState();
   if (deck.columns.length === 0) return;
   const id = deck.columns[Math.min(Math.max(position, 0), deck.columns.length - 1)].id;
+  const list = listOf(id);
   const { selected } = useKeyboard.getState();
-  const index = selected[id] ?? 0;
+  const index = selected[id] ?? (list ? nextSelectable(list, -1, 1) : null) ?? 0;
   useKeyboard.setState({ focusColumnId: id, active: true, selected: { ...selected, [id]: index } });
   deck.jumpTo(id);
-  listOf(id)?.scrollTo(index);
+  list?.scrollTo(index);
 }
 
 /** 選択中の行（フォーカス中のカラムで、選択ハイライトを出しているときだけ）。無ければ -1 */

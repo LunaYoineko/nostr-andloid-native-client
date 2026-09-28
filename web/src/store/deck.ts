@@ -16,6 +16,18 @@ export const COLUMNS_KEY = "nostrism.deck.columns";
 export const WIDTHS_KEY = "nostrism.deck.widths";
 /** ミュートを表示するカラム（id の配列。ネイティブ col_reveal_muted:<id>） */
 export const REVEAL_MUTED_KEY = "nostrism.deck.revealMuted";
+/** フォロー中カラムで隠す混在の種別（{"<id>":["REACTIONS",…]}。空のカラムは書かない。ネイティブ col_feedcat_hidden:<id>） */
+export const FEED_CAT_HIDDEN_KEY = "nostrism.deck.feedCatHidden";
+
+/** フォロー中カラムに混ぜる行の種別（ネイティブ FeedNoticeCategory。⋯ メニューの並び順） */
+export type FeedCategory = "REACTIONS" | "REPLIES" | "REPOSTS" | "MY_REACTIONS" | "DMS";
+export const FEED_CATEGORIES: readonly FeedCategory[] = [
+  "REACTIONS",
+  "REPLIES",
+  "REPOSTS",
+  "MY_REACTIONS",
+  "DMS",
+];
 
 export type DeckState = {
   /** 固定 + 一時カラム。並び順 = 表示順（order は常に 0..n-1）。デッキの SSOT */
@@ -23,6 +35,8 @@ export type DeckState = {
   widths: Record<string, ColumnWidth>;
   /** ミュートを表示する（フィルタしない）カラムの id */
   revealMuted: string[];
+  /** カラムごとに隠す混在の種別（フォロー中カラム。隠すものが無いカラムはキーを持たない） */
+  feedCatHidden: Record<string, FeedCategory[]>;
   /** ジャンプ要求のカラム id（デッキが消費して null に戻す） */
   jumpTarget: string | null;
   /** コンパクト表示で見えているカラム id */
@@ -50,6 +64,8 @@ export type DeckState = {
   setWidth(id: string, w: ColumnWidth): void;
   /** カラムでミュートを表示するか（⋯ メニューの「ミュートを表示 / 隠す」） */
   setRevealMuted(id: string, reveal: boolean): void;
+  /** フォロー中カラムに混ぜる種別を隠すか（⋯ メニューの「タイムラインに混ぜる表示」） */
+  setFeedCatHidden(id: string, category: FeedCategory, hidden: boolean): void;
   jumpTo(id: string): void;
   consumeJump(): void;
   setVisibleColumn(id: string | null): void;
@@ -133,6 +149,28 @@ export function loadRevealMuted(): string[] {
   return [];
 }
 
+export function saveFeedCatHidden(hidden: Record<string, FeedCategory[]>) {
+  writeItem(FEED_CAT_HIDDEN_KEY, JSON.stringify(hidden));
+}
+
+/** 保存済みの隠す種別（知っている種別だけを拾い、空のカラムは落とす。壊れていれば空） */
+export function loadFeedCatHidden(): Record<string, FeedCategory[]> {
+  const hidden: Record<string, FeedCategory[]> = {};
+  try {
+    const value: unknown = JSON.parse(readItem(FEED_CAT_HIDDEN_KEY) ?? "{}");
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      for (const [id, list] of Object.entries(value)) {
+        if (!Array.isArray(list)) continue;
+        const categories = FEED_CATEGORIES.filter((c) => list.includes(c));
+        if (categories.length > 0) hidden[id] = categories;
+      }
+    }
+  } catch {
+    // 壊れた保存値は既定（すべて表示）へ
+  }
+  return hidden;
+}
+
 // (一時カラム id, 開いた元のカラム id) の戻りスタック。back() の戻り先に使う
 const originStack: [string, string | null][] = [];
 
@@ -160,6 +198,7 @@ export const useDeck = create<DeckState>()((set, get) => {
     columns: loadColumns(),
     widths: loadWidths(),
     revealMuted: loadRevealMuted(),
+    feedCatHidden: loadFeedCatHidden(),
     jumpTarget: null,
     visibleColumnId: null,
     editingColumnId: null,
@@ -214,7 +253,7 @@ export const useDeck = create<DeckState>()((set, get) => {
     },
 
     removeColumn(id) {
-      const { columns, widths, revealMuted } = get();
+      const { columns, widths, revealMuted, feedCatHidden } = get();
       const wasPinned = columns.some((c) => c.id === id && c.pinned);
       commit(
         columns.filter((c) => c.id !== id),
@@ -227,6 +266,11 @@ export const useDeck = create<DeckState>()((set, get) => {
         saveWidths(rest);
       }
       if (revealMuted.includes(id)) get().setRevealMuted(id, false);
+      if (Object.hasOwn(feedCatHidden, id)) {
+        const { [id]: _removed, ...rest } = feedCatHidden;
+        set({ feedCatHidden: rest });
+        saveFeedCatHidden(rest);
+      }
     },
 
     moveColumn(id, delta) {
@@ -261,6 +305,16 @@ export const useDeck = create<DeckState>()((set, get) => {
       const revealMuted = reveal ? [...rest, id] : rest;
       set({ revealMuted });
       saveRevealMuted(revealMuted);
+    },
+
+    setFeedCatHidden(id, category, hidden) {
+      const current = get().feedCatHidden[id] ?? [];
+      const next = FEED_CATEGORIES.filter((c) => (c === category ? hidden : current.includes(c)));
+      const { [id]: _old, ...rest } = get().feedCatHidden;
+      // 空になったカラムはキーごと消す
+      const feedCatHidden = next.length > 0 ? { ...rest, [id]: next } : rest;
+      set({ feedCatHidden });
+      saveFeedCatHidden(feedCatHidden);
     },
 
     jumpTo(id) {
@@ -336,4 +390,11 @@ export function widthOf(s: DeckState, id: string): ColumnWidth {
 /** このカラムでミュートを表示するか */
 export function isMutedRevealed(s: DeckState, id: string): boolean {
   return s.revealMuted.includes(id);
+}
+
+const NO_CATEGORIES: readonly FeedCategory[] = [];
+
+/** このカラムで隠す混在の種別（無ければ同じ空配列） */
+export function feedCatHiddenOf(s: DeckState, id: string): readonly FeedCategory[] {
+  return s.feedCatHidden[id] ?? NO_CATEGORIES;
 }

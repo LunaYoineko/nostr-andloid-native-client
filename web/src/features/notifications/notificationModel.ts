@@ -1,17 +1,19 @@
 import type { EventPointer } from "applesauce-core/helpers/pointers";
+import { npubEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { hrefForEvent, oneLine } from "../../lib/content/labels";
 import { articleTitleOf } from "../../lib/content/tags";
 import { zapAmountSats, zapSenderOf } from "../../lib/nip57";
 import { plainTextOf } from "../actions/noteLinks";
+import type { DmConversation } from "../dm/dmStore";
 import { normalizeReaction } from "../thread/engagement";
 
 /**
  * 通知の 1 件（ネイティブの EventRepository.kt toNotification / Nostr.sq notificationsFor の写し）。
- * 同じ投稿への反応も束ねない（1 件 = 1 行）。
+ * 同じ投稿への反応も束ねない（1 件 = 1 行）。未読のある DM は会話ごとに 1 行（dmNotices）。
  */
 
-export type NotificationKind = "reply" | "mention" | "reaction" | "repost" | "zap";
+export type NotificationKind = "reply" | "mention" | "reaction" | "repost" | "zap" | "dm";
 
 /** 表示する件数の上限（ネイティブ notificationsFor の LIMIT） */
 export const NOTIFICATIONS_MAX = 200;
@@ -21,14 +23,17 @@ export const SNIPPET_MAX = 80;
 export type NotificationItem = {
   id: string;
   kind: NotificationKind;
-  event: NostrEvent;
-  /** 相手（Zap は送った人） */
+  /** 通知のイベント（DM は本文を出さないので null） */
+  event: NostrEvent | null;
+  /** 相手（Zap は送った人、DM は会話の相手） */
   actor: string;
   createdAt: number;
   /** 対象（自分の投稿）= 最後の e タグ */
   target: EventPointer | null;
   reaction: { display: string; imageUrl: string | null } | null;
   zapSats: number | null;
+  /** DM の未読の数（DM 以外は null） */
+  dmUnread: number | null;
 };
 
 const HEX64 = /^[0-9a-f]{64}$/i;
@@ -56,6 +61,7 @@ export function toNotification(event: NostrEvent): NotificationItem | null {
     target: targetPointerOf(event),
     reaction: null,
     zapSats: null,
+    dmUnread: null,
   };
   switch (event.kind) {
     case 9735:
@@ -92,13 +98,43 @@ export function notificationsFrom(events: readonly NostrEvent[], me: string | nu
   return items.sort((a, b) => b.createdAt - a.createdAt).slice(0, NOTIFICATIONS_MAX);
 }
 
+/**
+ * 未読のある DM 会話を 1 会話 1 行の通知にする（ネイティブ DmNotices.kt dmNotices）。本文は載せない。
+ * id は会話ごとに固定（dm_<相手>）、時刻は相手の最新の発言
+ */
+export function dmNotices(conversations: readonly DmConversation[]): NotificationItem[] {
+  return conversations
+    .filter((c) => c.unread > 0)
+    .map((c) => ({
+      id: `dm_${c.peer}`,
+      kind: "dm",
+      event: null,
+      actor: c.peer,
+      createdAt: c.lastIncomingAt,
+      target: null,
+      reaction: null,
+      zapSats: null,
+      dmUnread: c.unread,
+    }));
+}
+
+/** 通知と DM の行を新しい順（同時刻は通知が先）に並べる（ネイティブ buildNotificationsFeed） */
+export function withDmNotices(
+  items: readonly NotificationItem[],
+  dms: readonly NotificationItem[],
+): NotificationItem[] {
+  if (dms.length === 0) return [...items];
+  return [...items, ...dms].sort((a, b) => b.createdAt - a.createdAt);
+}
+
 /** 対象の 1 行の抜粋（記事はタイトル、他はメディアの URL を除いた本文の先頭 80 文字） */
 export function notificationSnippet(target: NostrEvent): string {
   return oneLine([...(articleTitleOf(target) ?? plainTextOf(target))].slice(0, SNIPPET_MAX).join(""));
 }
 
-/** 行を押したときに開くスレッド（対象があれば対象、無ければ通知そのもの） */
+/** 行を押したときに開くスレッド（対象があれば対象、無ければ通知そのもの）。DM は相手との会話 */
 export function notificationHref(item: NotificationItem): string {
+  if (item.kind === "dm") return `/messages/${npubEncode(item.actor)}`;
   return hrefForEvent(item.target ?? { id: item.id });
 }
 
@@ -108,4 +144,5 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   reaction: "リアクション",
   repost: "リポスト",
   zap: "Zap",
+  dm: "メッセージ",
 };

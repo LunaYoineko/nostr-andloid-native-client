@@ -20,8 +20,10 @@ const POST = finalizeEvent(
   generateSecretKey(),
 );
 
-function fakeList(count: number): KbList {
-  return { count, postAt: () => POST, scrollTo: vi.fn() };
+/** posts = 投稿の行（選べる行）の index。省略 = すべて */
+function fakeList(count: number, posts?: readonly number[]): KbList {
+  const isPost = (i: number) => i >= 0 && i < count && (posts === undefined || posts.includes(i));
+  return { count, postAt: (i) => (isPost(i) ? POST : null), selectable: isPost, scrollTo: vi.fn() };
 }
 
 beforeEach(() => {
@@ -54,6 +56,29 @@ it("選択を動かすと範囲内に丸め、ハイライトを出し、その�
   useKeyboard.setState({ ...INITIAL_KEYBOARD_STATE });
   moveSelection("c_following", 1);
   expect(useKeyboard.getState()).toMatchObject({ active: false, selected: {} });
+});
+
+it("選べない行（混在の通知など）は飛ばし、端で止まる。先頭 / 末尾も選べる行", () => {
+  const list = fakeList(6, [1, 2, 5]);
+  const unregister = registerList("c_following", list);
+  moveSelection("c_following", 1);
+  expect(useKeyboard.getState().selected.c_following).toBe(1);
+  moveSelection("c_following", 1);
+  moveSelection("c_following", 1);
+  expect(useKeyboard.getState().selected.c_following).toBe(5);
+  moveSelection("c_following", 1);
+  expect(useKeyboard.getState().selected.c_following).toBe(5);
+  moveSelection("c_following", -1);
+  expect(useKeyboard.getState().selected.c_following).toBe(2);
+  selectEdge("c_following", false);
+  expect(useKeyboard.getState().selected.c_following).toBe(1);
+  selectEdge("c_following", true);
+  expect(useKeyboard.getState().selected.c_following).toBe(5);
+  // 移った先に選択が無ければ先頭の選べる行
+  useKeyboard.setState({ selected: {} });
+  focusColumn(0);
+  expect(useKeyboard.getState().selected.c_following).toBe(1);
+  unregister();
 });
 
 it("登録を外しても、後から同じカラムに登録したものは残す", () => {

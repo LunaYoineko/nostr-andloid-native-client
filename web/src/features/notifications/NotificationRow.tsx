@@ -4,7 +4,7 @@ import { hrefForProfile } from "../../lib/content/labels";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { relativeTime } from "../../lib/time";
 import { displayName, pictureOf, useEventByPointer, useProfile } from "../../nostr/loaders";
-import { AlternateEmailIcon, BoltIcon, RepeatIcon, ReplyIcon } from "../../ui/icons";
+import { AlternateEmailIcon, BoltIcon, MailOutlineIcon, RepeatIcon, ReplyIcon } from "../../ui/icons";
 import { Avatar, NoteItem } from "../timeline/NoteItem";
 import { QuoteCard } from "../timeline/QuoteCard";
 import { useNow } from "../timeline/useNow";
@@ -24,13 +24,15 @@ const KIND_ICON: Record<Exclude<NotificationKind, "reaction">, typeof ReplyIcon>
   mention: AlternateEmailIcon,
   repost: RepeatIcon,
   zap: BoltIcon,
+  dm: MailOutlineIcon,
 };
 
 /**
  * 通知の 1 行（ネイティブの NotificationsScreen.kt NoticeRow）。左に種別マーク、右に見出し行と本体。
  * 返信・メンション = 見出しは対象（自分の投稿）の抜粋、本体は相手の投稿そのもの（返信先の 1 行は出さない）。
  * リアクション・リポスト・Zap = 見出しは相手と時刻（Zap は金額）、本体は対象の引用カード（リポスト以外はメディア無し）。
- * 行を押すと対象のスレッド（対象が無ければ通知そのもの）を開く。
+ * DM = 見出しは相手と時刻、本体は未読の数の 1 行（本文は出さない）。
+ * 行を押すと対象のスレッド（対象が無ければ通知そのもの。DM は相手との会話）を開く。
  */
 export const NotificationRow = memo(function NotificationRow({ item }: { item: NotificationItem }) {
   const isReply = item.kind === "reply" || item.kind === "mention";
@@ -53,7 +55,7 @@ export const NotificationRow = memo(function NotificationRow({ item }: { item: N
           {snippet}
         </Link>
       ) : null;
-    body = <NoteItem event={item.event} openable={false} embedded />;
+    body = item.event ? <NoteItem event={item.event} openable={false} embedded /> : null;
   } else {
     const profileHref = hrefForProfile(item.actor);
     const date = new Date(item.createdAt * 1000);
@@ -74,9 +76,12 @@ export const NotificationRow = memo(function NotificationRow({ item }: { item: N
         </Link>
       </div>
     );
-    body = item.target ? (
-      <QuoteCard pointer={item.target} encoded={null} compact={item.kind !== "repost"} />
-    ) : null;
+    body =
+      item.kind === "dm" ? (
+        <p className={styles.dmText}>{dmReceivedText(item.dmUnread ?? 0)}</p>
+      ) : item.target ? (
+        <QuoteCard pointer={item.target} encoded={null} compact={item.kind !== "repost"} />
+      ) : null;
   }
 
   return (
@@ -91,6 +96,11 @@ export const NotificationRow = memo(function NotificationRow({ item }: { item: N
     </article>
   );
 });
+
+/** DM の行の本文（ネイティブ notif_dm_received / notif_dm_received_n） */
+function dmReceivedText(unread: number): string {
+  return unread > 1 ? `${unread}件のメッセージが届いています` : "メッセージが届きました";
+}
 
 /** 左端の種別マーク。リアクションは絵文字そのもの（カスタム絵文字は画像）、他はアイコン */
 function KindMark({ item }: { item: NotificationItem }) {

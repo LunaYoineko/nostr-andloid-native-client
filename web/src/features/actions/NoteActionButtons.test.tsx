@@ -218,6 +218,67 @@ it("「絵文字でリアクション」→ ピッカーで 😄 → kind:7", as
   expect(screen.queryByRole("dialog", { name: "リアクション" })).toBeNull();
 });
 
+describe("⚡ Zap", () => {
+  /** 作者の kind:0（lud16 は任意）をストアに入れる */
+  function addProfile(key: Uint8Array, lud16?: string) {
+    const content = JSON.stringify(lud16 ? { name: "作者", lud16 } : { name: "作者" });
+    act(() => {
+      eventStore.add(finalizeEvent({ kind: 0, created_at: unixNow(), tags: [], content }, key));
+    });
+  }
+
+  /** target への Zap 受領（金額は bolt11） */
+  function addZap(target: NostrEvent, bolt11: string) {
+    act(() => {
+      eventStore.add(
+        finalizeEvent(
+          {
+            kind: 9735,
+            created_at: unixNow(),
+            tags: [
+              ["e", target.id],
+              ["p", target.pubkey],
+              ["bolt11", bolt11],
+            ],
+            content: "",
+          },
+          generateSecretKey(),
+        ),
+      );
+    });
+  }
+
+  it("作者に lud16 が無く受領も 0 なら ⚡ を出さない", () => {
+    const key = generateSecretKey();
+    addProfile(key);
+    renderRow(post(key));
+    expect(screen.queryByRole("img", { name: /Zap/ })).toBeNull();
+  });
+
+  it("lud16 があり受領 0 なら灰色の ⚡ だけ（金額なし・押せない）", () => {
+    const key = generateSecretKey();
+    addProfile(key, "alice@getalby.com");
+    renderRow(post(key));
+    const zap = screen.getByRole("img", { name: "Zap" });
+    expect(zap).toHaveClass(styles.zap);
+    expect(zap).not.toHaveClass(styles.zapped);
+    expect(zap).toHaveTextContent(/^$/);
+    expect(screen.queryByRole("button", { name: /Zap/ })).toBeNull();
+  });
+
+  it("受領があれば lud16 が無くても ⚡ と合計（formatSats）を --zap の色で出す", () => {
+    const key = generateSecretKey();
+    addProfile(key);
+    const event = post(key);
+    renderRow(event);
+    addZap(event, "lnbc10u1pxxxxxx");
+    addZap(event, "lnbc2340n1pxxxxxx");
+    const zap = screen.getByRole("img", { name: "Zap 1.2k sats" });
+    expect(zap).toHaveClass(styles.zapped);
+    expect(zap).toHaveTextContent("1.2k");
+  });
+});
+
 describe("⋯ メニュー", () => {
   it("他人の投稿: client の見出し。自分の kind:3 が無ければフォロー項目なし、あれば「フォロー解除」→ 確認", async () => {
     const user = userEvent.setup();
