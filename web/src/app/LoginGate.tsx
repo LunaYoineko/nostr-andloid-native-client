@@ -7,6 +7,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { QrCode } from "../ui/QrCode";
 import { Loading } from "./Loading";
 import styles from "./LoginGate.module.css";
+import { UpdateToast } from "./UpdateToast";
 
 type ExtensionState = "checking" | "found" | "missing";
 /** 処理中のログイン方法（どれかの処理中は他も押せない） */
@@ -76,6 +77,8 @@ export function LoginGate() {
 
   return (
     <main className={styles.gate}>
+      {/* AppShell を通らないので、SW の更新通知はここでも出す（#595） */}
+      <UpdateToast />
       <h1 className={styles.title}>Nostrism へようこそ</h1>
       <p className={styles.lead}>
         ログイン方法を選んでください。秘密鍵を勝手に生成することはありません。アカウントをお持ちでない場合は、下の「新規生成」から新しい鍵を作れます。

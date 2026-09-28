@@ -2,7 +2,6 @@ import { createBrowserRouter, RouterProvider } from "react-router";
 import { APP_BASENAME, synthesizeBaseEntry } from "./history";
 import { Nip46AuthPrompt } from "./Nip46AuthPrompt";
 import { routes } from "./routes";
-import { UpdateToast } from "./UpdateToast";
 
 // 詳細（/e /p /t）を直接開いたら、Router を作る前に下へデッキ（/app/）を敷く
 synthesizeBaseEntry(window);
@@ -14,7 +13,6 @@ export function App() {
   return (
     <>
       <RouterProvider router={router} />
-      <UpdateToast />
       <Nip46AuthPrompt />
     </>
   );

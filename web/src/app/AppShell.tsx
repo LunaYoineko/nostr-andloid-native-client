@@ -33,6 +33,7 @@ import {
 import { ProfileOverlay } from "./overlays/ProfileOverlay";
 import { ThreadOverlay } from "./overlays/ThreadOverlay";
 import { NotFoundScreen } from "./screens/NotFoundScreen";
+import { UpdateToast } from "./UpdateToast";
 import { useNavActions } from "./useNavActions";
 
 function DestScreen({ dest }: { dest: Dest }) {
@@ -147,6 +148,7 @@ export function AppShell() {
         <ComposeHost showFab={dest === "home" && overlay === null} />
         <KeyboardShortcuts enabled={dest === "home"} hasDetail={overlay !== null} />
         <ConnectionPill />
+        <UpdateToast />
       </main>
       {railLayout === "compact" && <BottomNav selected={selected} badges={badges} onSelect={open} />}
       <Outlet />
