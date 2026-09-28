@@ -110,6 +110,21 @@ it("記事（kind:30023）は新しい順。同じ d タグは最新版だけに
   expect(result.current.articles.map((e) => e.content)).toEqual(["新しい版", "別の記事"]);
 });
 
+it("refresh: 前の購読をやめて REQ を張り直す（#601）", () => {
+  const { result } = renderHook(() => useProfileFeed(pubkey, []));
+  const before = last<"EOSE">(subscribeTo);
+  act(() => before.next("EOSE"));
+  expect(result.current.loading).toBe(false);
+  expect(before.observed).toBe(true);
+
+  act(() => result.current.refresh());
+  expect(before.observed).toBe(false);
+  expect(vi.mocked(subscribeTo)).toHaveBeenCalledTimes(2);
+  expect(last<"EOSE">(subscribeTo)).not.toBe(before);
+  expect(last<"EOSE">(subscribeTo).observed).toBe(true);
+  expect(result.current.loading).toBe(true);
+});
+
 it("メディアは画像を含む kind 1 と、元投稿（画像あり）が手元にあるリポストだけ", () => {
   const otherKey = generateSecretKey();
   const originalWithImage = note(otherKey, "見て https://example.com/a.jpg", 900);

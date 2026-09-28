@@ -23,7 +23,7 @@ export const NOTIFICATIONS_SCREEN_SPEC: ColumnSpec = {
 
 /** 通知画面（/notifications。ネイティブの NotificationsScreen）。通知カラムと同じ一覧を 1 カラムで */
 export function NotificationsScreen() {
-  const { events, loading } = useColumnFeed(NOTIFICATIONS_SCREEN_SPEC);
+  const { events, loading, refresh } = useColumnFeed(NOTIFICATIONS_SCREEN_SPEC);
   return (
     <SingleColumnPane>
       <ScreenHeader
@@ -33,7 +33,12 @@ export function NotificationsScreen() {
       />
       <hr className={styles.divider} />
       <div className={styles.body}>
-        <NotificationList events={events} loading={loading} columnId={NOTIFICATIONS_SCREEN_SPEC.id} />
+        <NotificationList
+          events={events}
+          loading={loading}
+          columnId={NOTIFICATIONS_SCREEN_SPEC.id}
+          onRefresh={refresh}
+        />
       </div>
     </SingleColumnPane>
   );

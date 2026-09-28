@@ -1,8 +1,10 @@
 import { type UIEvent, useEffect, useRef, useState } from "react";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { useSession } from "../../signer/session";
+import { PullToRefreshIndicator } from "../../ui/PullToRefreshIndicator";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { useLayoutMode } from "../../ui/useLayoutMode";
+import { usePullToRefresh } from "../../ui/usePullToRefresh";
 import { useFollows } from "../deck/useFollows";
 import { FollowersList } from "./FollowersList";
 import { FollowingList } from "./FollowingList";
@@ -70,7 +72,7 @@ export function ProfileScreen({
   const followingList = (isMe ? myFollows : theirFollows) ?? NO_PUBKEYS;
   const following = myFollows?.includes(pubkey) ?? false;
   const followsMe = !isMe && me !== null && (theirFollows?.includes(me) ?? false);
-  const { loading, posts, media, articles } = useProfileFeed(pubkey, relayHints);
+  const { loading, posts, media, articles, refresh } = useProfileFeed(pubkey, relayHints);
   const pinnedPosts = usePinnedPosts(pubkey);
   const followers = useFollowers(pubkey);
   const [initialPosition] = useState(readProfilePosition);
@@ -79,6 +81,12 @@ export function ProfileScreen({
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const scrollYRef = useRef(initialPosition.scrollY);
   const scrollFrame = useRef<number | null>(null);
+  // 引っ張って更新（#601）。Compact の .scroll だけ（Expanded は Virtuoso が別にスクロールする）
+  const {
+    ref: pullRef,
+    progress: pullProgress,
+    refreshing: pullRefreshing,
+  } = usePullToRefresh(mode === "compact" ? refresh : undefined);
 
   function setTab(t: ProfileTab) {
     setTabState(t);
@@ -150,7 +158,15 @@ export function ProfileScreen({
     return (
       <div className={styles.screen} data-layout="compact">
         <ScreenHeader title={displayName(profile, pubkey)} onBack={onBack} />
-        <div className={styles.scroll} ref={setScrollEl} onScroll={onScroll}>
+        <div
+          className={styles.scroll}
+          ref={(el) => {
+            setScrollEl(el);
+            pullRef(el);
+          }}
+          onScroll={onScroll}
+        >
+          <PullToRefreshIndicator progress={pullProgress} refreshing={pullRefreshing} />
           {header}
           <ProfileTabs tab={tab} onChange={setTab} sticky />
           {tab === "lists" ? tabPanel() : scrollEl && tabPanel(scrollEl)}

@@ -168,7 +168,7 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             loadingOlder={loadingOlder}
           />
         ) : spec.kind === "NOTIFICATIONS" ? (
-          <NotificationList events={events} loading={loading} columnId={spec.id} />
+          <NotificationList events={events} loading={loading} columnId={spec.id} onRefresh={refresh} />
         ) : rows ? (
           // フォロー中カラム: 投稿に自分への反応・自分のリアクション・未読 DM を混ぜた行
           <Timeline
@@ -180,6 +180,7 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             renderItem={renderFeedRow}
             postOf={feedRowPost}
             emptyText={emptyText}
+            onRefresh={refresh}
           />
         ) : (
           <Timeline
@@ -191,6 +192,7 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             loadingOlder={loadingOlder}
             emptyText={emptyText}
             header={profileHeader}
+            onRefresh={refresh}
           />
         )}
       </div>
