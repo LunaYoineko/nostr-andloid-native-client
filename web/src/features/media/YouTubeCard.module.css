@@ -4,7 +4,20 @@
   display: block;
   overflow: hidden;
   width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  background: #000;
   aspect-ratio: 16 / 9;
+  cursor: pointer;
+}
+
+/* youtube-nocookie の埋め込み（データセーバー中は押すまで置かない） */
+.frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
   border-radius: var(--r-md);
   background: #000;
 }

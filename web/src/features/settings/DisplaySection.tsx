@@ -1,12 +1,14 @@
+import type { ChangeEvent } from "react";
 import { useId, useState } from "react";
 import { isDataSaver, proxied, setDataSaver } from "../../lib/imageProxy";
 import { FavoriteIcon, MoodIcon, StarIcon } from "../../ui/icons";
 import { ReactionPickerDialog } from "../actions/ReactionPickerDialog";
 import { setDefaultReaction, useDefaultReaction } from "../actions/reactionPrefs";
+import { type EmbedPrefs, setEmbedPref, useEmbedPrefs } from "../linkcard/embedPrefs";
 import { ThemeSettings } from "../theme/ThemeSettings";
 import styles from "./SettingsSections.module.css";
 
-/** 表示（テーマ・文字サイズ・太字（#464）、既定リアクション、データセーバー） */
+/** 表示（テーマ・文字サイズ・太字（#464）、既定リアクション、埋め込み表示、データセーバー） */
 export function DisplaySection() {
   return (
     <>
@@ -14,6 +16,7 @@ export function DisplaySection() {
         <ThemeSettings />
       </div>
       <DefaultReactionBlock />
+      <EmbedPrefsBlock />
       <DataSaverBlock />
     </>
   );
@@ -84,6 +87,67 @@ function DefaultReactionBlock() {
           onClose={() => setPicking(false)}
         />
       )}
+    </div>
+  );
+}
+
+/** トグル 1 行分（ネイティブの EmbedSettingSwitch） */
+function EmbedToggle({
+  label,
+  checked,
+  disabled = false,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className={styles.check}>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.checked)}
+      />
+      {label}
+    </label>
+  );
+}
+
+/**
+ * リンクの埋め込み表示（ネイティブ SettingsScreen.kt 1411–1431・nostr-core Embed.kt EmbedPrefs）。
+ * 6 項目、既定はすべて ON。ogp が OFF の間は ogpImages を無効にする（ON にしても効かないため）。
+ */
+function EmbedPrefsBlock() {
+  const prefs = useEmbedPrefs();
+  const set =
+    <K extends keyof EmbedPrefs>(key: K) =>
+    (value: EmbedPrefs[K]) =>
+      setEmbedPref(key, value);
+
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>リンクの埋め込み表示</h3>
+      <p className={styles.desc}>
+        本文中のリンクをカードやサムネイルで表示します。通信量が気になる場合はオフにできます。
+      </p>
+      <EmbedToggle label="動画（mp4 等）をインライン再生" checked={prefs.video} onChange={set("video")} />
+      <EmbedToggle label="YouTube のサムネイルを表示" checked={prefs.youtube} onChange={set("youtube")} />
+      <EmbedToggle label="Spotify のカードを表示" checked={prefs.spotify} onChange={set("spotify")} />
+      <EmbedToggle label="その他リンクの OGP カードを表示" checked={prefs.ogp} onChange={set("ogp")} />
+      <EmbedToggle
+        label="OGP カードの画像を読み込む"
+        checked={prefs.ogpImages}
+        disabled={!prefs.ogp}
+        onChange={set("ogpImages")}
+      />
+      <EmbedToggle
+        label="カードを出したリンクのURLを本文から隠す"
+        checked={prefs.hideCardedUrls}
+        onChange={set("hideCardedUrls")}
+      />
     </div>
   );
 }

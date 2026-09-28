@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { proxied } from "../../lib/imageProxy";
+import { useEmbedPrefs } from "./embedPrefs";
 import styles from "./LinkCard.module.css";
 import type { OgpData } from "./ogpParser";
 import type { LinkCardState } from "./useLinkCards";
@@ -20,10 +21,22 @@ function hostOf(url: string): string {
  * OGP のリンクカード（ネイティブ LinkEmbeds.kt OgpEmbed）。左に 88px のサムネ、右にサイト名（無ければドメイン）・
  * タイトル 2 行・説明 2 行・URL 1 行。全体が新しいタブで開く外部リンク。サムネが読めなければ出さない。
  * OGP の各項目は文字として描く（HTML として解釈しない）。
+ * kind が "spotify" なら、設定の ogpImages に関係なく画像を読む（ネイティブ LinkEmbeds.kt 75 と同じ）。
  */
-export function LinkCard({ url, ogp }: { url: string; ogp: OgpData }) {
+export function LinkCard({
+  url,
+  ogp,
+  kind = "ogp",
+  ogpImages = true,
+}: {
+  url: string;
+  ogp: OgpData;
+  kind?: "ogp" | "spotify";
+  ogpImages?: boolean;
+}) {
   const [imageFailed, setImageFailed] = useState(false);
-  const image = ogp.image && !imageFailed ? proxied(ogp.image, THUMB_PROXY_WIDTH) : null;
+  const showImage = kind === "spotify" || ogpImages;
+  const image = showImage && ogp.image && !imageFailed ? proxied(ogp.image, THUMB_PROXY_WIDTH) : null;
   return (
     <a className={styles.card} href={url} target="_blank" rel="noopener noreferrer nofollow ugc">
       {image && (
@@ -63,12 +76,17 @@ function LinkCardPlaceholder({ url }: { url: string }) {
  * （本文のリンクがそのまま残る）。出すものが無ければ何も描かない。
  */
 export function LinkCards({ cards }: { cards: LinkCardState[] }) {
+  const ogpImages = useEmbedPrefs((s) => s.ogpImages);
   const visible = cards.filter((card) => card.ogp !== null);
   if (visible.length === 0) return null;
   return (
     <div className={styles.cards}>
-      {visible.map(({ url, ogp }) =>
-        ogp ? <LinkCard key={url} url={url} ogp={ogp} /> : <LinkCardPlaceholder key={url} url={url} />,
+      {visible.map(({ url, kind, ogp }) =>
+        ogp ? (
+          <LinkCard key={url} url={url} ogp={ogp} kind={kind} ogpImages={ogpImages} />
+        ) : (
+          <LinkCardPlaceholder key={url} url={url} />
+        ),
       )}
     </div>
   );
