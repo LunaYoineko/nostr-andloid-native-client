@@ -278,6 +278,16 @@ export function ImageIcon(props: MaterialIconProps) {
   );
 }
 
+/** DM の動画添付ボタン（ネイティブ Icons.Outlined.Videocam） */
+export function VideocamIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"
+    />
+  );
+}
+
 /** 連投に追加（ネイティブ Icons.AutoMirrored.Outlined.PlaylistAdd） */
 export function PlaylistAddIcon(props: MaterialIconProps) {
   return (
