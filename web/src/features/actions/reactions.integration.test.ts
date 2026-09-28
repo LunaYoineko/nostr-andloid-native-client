@@ -1,12 +1,13 @@
+import { EventStore } from "applesauce-core/event-store";
 import type { PublishResponse } from "applesauce-relay/types";
-import { finalizeEvent, generateSecretKey, type NostrEvent } from "nostr-tools/pure";
+import { finalizeEvent, generateSecretKey, type NostrEvent, verifyEvent } from "nostr-tools/pure";
 import { Subject } from "rxjs";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { unixNow } from "../../lib/time";
 import { pool } from "../../nostr/pool";
 import { resetPublishQueueForTest } from "../../nostr/publish";
 import type { Signer } from "../../nostr/signer";
-import { eventStore } from "../../nostr/store";
+import { addVerifiedTo, eventStore, resetDeletionMemoryForTest } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { createTestSigner } from "../../test/fakeSigner";
 import { publishReaction, reportNote, requestDelete } from "./reactions";
@@ -36,6 +37,7 @@ beforeEach(() => {
 
 afterEach(() => {
   resetPublishQueueForTest();
+  resetDeletionMemoryForTest();
   vi.restoreAllMocks();
   current.signer = null;
   useSession.setState({ status: "loading", method: null, pubkey: null });
@@ -54,6 +56,17 @@ it("requestDelete は kind:5 を送り、手元のストアから消す（client
     ["e", own.id],
     ["k", "1"],
   ]);
+});
+
+it("requestDelete（#579）で消した id は、再読み込み相当（新しい EventStore）でも入らない", async () => {
+  const own = finalizeEvent({ kind: 1, created_at: unixNow(), tags: [], content: "消す投稿" }, meKey);
+  eventStore.add(own);
+
+  expect(await requestDelete(own)).toBe(true);
+
+  // ページ再読み込み相当: DeleteManager を持たない新しい EventStore（削除の記憶はモジュール側に残る）
+  const reloaded = new EventStore({ verifyEvent });
+  expect(addVerifiedTo(reloaded, own)).toBeNull();
 });
 
 it("リアクションには client タグが末尾に付き、通報には付かない", async () => {

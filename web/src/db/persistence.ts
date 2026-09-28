@@ -1,7 +1,7 @@
 import type { EventStore } from "applesauce-core/event-store";
 import type { NostrEvent } from "nostr-tools/pure";
 import { bufferTime, filter } from "rxjs";
-import { addVerifiedTo } from "../nostr/store";
+import { addVerifiedTo, deletionRecorded$, loadDeletionMemory } from "../nostr/store";
 import { EVENTS_TRIM_TO, fromRow, hydratedSymbol, PERSIST_KINDS, toRow, trimEvents } from "./events";
 import type { NostrismDb } from "./schema";
 
@@ -91,4 +91,30 @@ export async function hydrate(eventStore: EventStore, db: NostrismDb): Promise<n
     if (added % HYDRATE_CHUNK === 0) await new Promise((r) => setTimeout(r));
   }
   return added;
+}
+
+/**
+ * 削除の記録（deletedEvents / deletedAddrs。#579）を DB からメモリへ読み込む。
+ * イベントの hydrate より先に呼ぶこと（先に呼ばないと、記録済みの行がストアへ戻ってしまう）。
+ */
+export async function hydrateDeletionMemory(db: NostrismDb): Promise<void> {
+  const [events, addrs] = await Promise.all([db.deletedEvents.toArray(), db.deletedAddrs.toArray()]);
+  loadDeletionMemory(events, addrs);
+}
+
+/**
+ * 新しく確定した削除の記録を deletedEvents / deletedAddrs へ書く（#579）。
+ * @returns 購読を解除する関数
+ */
+export function attachDeletionPersistence(db: NostrismDb): () => void {
+  const subscription = deletionRecorded$.subscribe((record) => {
+    const put =
+      record.type === "event"
+        ? db.deletedEvents.put({ id: record.id, deletedAt: record.deletedAt })
+        : db.deletedAddrs.put({ coord: record.coord, deletedAt: record.deletedAt });
+    put.catch((e: unknown) => {
+      console.warn("[db] 削除記録の保存に失敗", e);
+    });
+  });
+  return () => subscription.unsubscribe();
 }

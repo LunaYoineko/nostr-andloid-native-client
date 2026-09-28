@@ -2,7 +2,7 @@ import Dexie from "dexie";
 import { eventStore } from "../nostr/store";
 import { SESSION_KEY } from "../signer/session";
 import { evictOnOpen } from "./events";
-import { attachPersistence, hydrate } from "./persistence";
+import { attachDeletionPersistence, attachPersistence, hydrate, hydrateDeletionMemory } from "./persistence";
 import { createDatabase, DB_NAME, type NostrismDb } from "./schema";
 
 /** 開いた DB。開けなかったら null（メモリのみで動く） */
@@ -75,11 +75,22 @@ export async function startPersistence(): Promise<void> {
   } catch (e) {
     console.warn("[db] 起動時の掃除に失敗", e);
   }
+  // 削除記録（#579）はイベントの hydrate より先に読み込む（先に読まないと記録済みの行が戻ってしまう）
+  try {
+    await hydrateDeletionMemory(db);
+  } catch (e) {
+    console.warn("[db] 削除記録の復元に失敗", e);
+  }
   // hydrate より先に張る（hydrate 分は hydratedSymbol で書き戻し対象外）
   try {
     attachPersistence(eventStore, db, me);
   } catch (e) {
     console.warn("[db] 書き込みの購読に失敗", e);
+  }
+  try {
+    attachDeletionPersistence(db);
+  } catch (e) {
+    console.warn("[db] 削除記録の購読に失敗", e);
   }
   try {
     await hydrate(eventStore, db);

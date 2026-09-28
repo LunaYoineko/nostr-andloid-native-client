@@ -2,7 +2,7 @@ import Dexie, { type Table } from "dexie";
 import type { NostrEvent } from "nostr-tools/pure";
 
 export const DB_NAME = "nostrism";
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 /**
  * 保存するイベント（NIP-01 の 7 列）。t/e/p/q/E/A/d はタグ値の配列列で、ネイティブの `event_tag` の代わりに
@@ -72,7 +72,19 @@ export type DmMessageRow = {
 export type DmProcessedRow = { owner: string; eventId: string; ok: boolean };
 
 /**
- * IndexedDB（Dexie）。件数が増えるもの（イベント・未送信・OGP・鍵・DM）だけを置く。
+ * 削除済みイベント（版 3。NIP-09 kind:5）。リレーは削除を尊重しないことがあり、消したはずのものが
+ * 再取得や復元で戻ってくるのを防ぐため、id を覚えておく。ネイティブの `deleted_event` と同じ意味
+ */
+export type DeletedEventRow = { id: string; deletedAt: number };
+
+/**
+ * 削除済み addressable の座標（版 3）。coord = "<kind>:<pubkey>:<d>"。addressable(30000-39999) は
+ * id ではなく座標で消えるため別に持つ。ネイティブの `deleted_addr` と同じ意味
+ */
+export type DeletedAddrRow = { coord: string; deletedAt: number };
+
+/**
+ * IndexedDB（Dexie）。件数が増えるもの（イベント・未送信・OGP・鍵・DM・削除記録）だけを置く。
  * 起動時に同期で読みたい小さな設定（セッション・リレー一覧・カラム構成）は localStorage（`nostrism.` 接頭辞）。
  */
 export class NostrismDb extends Dexie {
@@ -82,6 +94,8 @@ export class NostrismDb extends Dexie {
   ogpCache!: Table<OgpCacheRow, string>;
   dmMessages!: Table<DmMessageRow, [string, string]>;
   dmProcessed!: Table<DmProcessedRow, [string, string]>;
+  deletedEvents!: Table<DeletedEventRow, string>;
+  deletedAddrs!: Table<DeletedAddrRow, string>;
 
   constructor(name: string, options: { indexedDB?: IDBFactory; IDBKeyRange?: typeof IDBKeyRange }) {
     super(name, options);
@@ -92,6 +106,8 @@ export class NostrismDb extends Dexie {
       ogpCache: "url, fetchedAt",
       dmMessages: "[owner+id], owner, [owner+peer]",
       dmProcessed: "[owner+eventId], owner",
+      deletedEvents: "id, deletedAt",
+      deletedAddrs: "coord, deletedAt",
     });
   }
 }

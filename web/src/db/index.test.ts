@@ -15,19 +15,21 @@ function testDeps() {
   return { name: `index-${crypto.randomUUID()}`, indexedDB: new IDBFactory(), IDBKeyRange };
 }
 
-it("新しい版の同名 DB があっても 6 テーブルの v2 で開く", async () => {
+it("新しい版の同名 DB があっても 8 テーブルの v3 で開く", async () => {
   // Dexie 4 は版が下がるとき VersionError を自分で拾い、既存の版に足りないテーブルを足して開く（警告を出す）
   vi.spyOn(console, "warn").mockImplementation(() => {});
   const deps = testDeps();
   const newer = new Dexie(deps.name, { indexedDB: deps.indexedDB, IDBKeyRange });
-  newer.version(3).stores({ x: "id" });
+  newer.version(4).stores({ x: "id" });
   await newer.open();
   newer.close();
 
   const db = await openDatabase(() => createDatabase(deps));
 
-  expect(db?.verno).toBe(2);
+  expect(db?.verno).toBe(3);
   expect(db?.tables.map((t) => t.name).sort()).toEqual([
+    "deletedAddrs",
+    "deletedEvents",
     "dmMessages",
     "dmProcessed",
     "events",
@@ -53,7 +55,7 @@ it("開けなければ DB を消して 1 度だけ作り直し、それでも駄
   const db = await openDatabase(create);
   expect(deleteDb).toHaveBeenCalledWith(DB_NAME);
   expect(create).toHaveBeenCalledTimes(2);
-  expect(db?.verno).toBe(2);
+  expect(db?.verno).toBe(3);
   db?.close();
 
   expect(await openDatabase(broken)).toBeNull();
