@@ -53,7 +53,7 @@ describe("Compact", () => {
   it("一覧 → 項目 →「←」で一覧へ戻る。M1 に無い項目は準備中", async () => {
     const router = renderAt("/settings", 400);
     expect(screen.getByRole("heading", { level: 1, name: "設定" })).toBeInTheDocument();
-    expect(within(items()).getByRole("button", { name: "ブックマーク準備中" })).toBeInTheDocument();
+    expect(within(items()).getByRole("button", { name: "カスタム絵文字準備中" })).toBeInTheDocument();
     expect(within(items()).getByRole("button", { name: "ミュート" })).toBeInTheDocument();
     expect(within(items()).getByRole("button", { name: "リレー" })).toBeInTheDocument();
 
@@ -66,7 +66,7 @@ describe("Compact", () => {
     expect(router.state.location.pathname).toBe("/settings");
     expect(items()).toBeInTheDocument();
 
-    await userEvent.click(within(items()).getByRole("button", { name: "ブックマーク準備中" }));
+    await userEvent.click(within(items()).getByRole("button", { name: "カスタム絵文字準備中" }));
     expect(screen.getByText("この項目は準備中です")).toBeInTheDocument();
   });
 

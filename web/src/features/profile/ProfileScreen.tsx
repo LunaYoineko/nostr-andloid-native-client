@@ -9,6 +9,7 @@ import { ProfileHeaderCard } from "./ProfileHeaderCard";
 import { ProfilePostList } from "./ProfilePostList";
 import styles from "./ProfileScreen.module.css";
 import { type ProfileTab, ProfileTabs } from "./ProfileTabs";
+import { usePinnedPosts } from "./pinnedPosts";
 import { useContactsOf } from "./useContactsOf";
 import { useProfileFeed } from "./useProfileFeed";
 
@@ -39,6 +40,7 @@ export function ProfileScreen({
   const following = myFollows?.includes(pubkey) ?? false;
   const followsMe = !isMe && me !== null && (theirFollows?.includes(me) ?? false);
   const { loading, posts, media } = useProfileFeed(pubkey, relayHints);
+  const pinnedPosts = usePinnedPosts(pubkey);
   const [tab, setTab] = useState<ProfileTab>("posts");
   const [view, setView] = useState<"profile" | "following">("profile");
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
@@ -60,6 +62,8 @@ export function ProfileScreen({
     />
   );
   const events = tab === "posts" ? posts : media;
+  // 固定投稿は投稿タブの先頭だけ（ネイティブ pinnedForTab。メディアタブには出さない）
+  const pinned = tab === "posts" ? pinnedPosts : undefined;
 
   if (mode === "compact") {
     return (
@@ -68,7 +72,9 @@ export function ProfileScreen({
         <div className={styles.scroll} ref={setScrollEl}>
           {header}
           <ProfileTabs tab={tab} onChange={setTab} sticky />
-          {scrollEl && <ProfilePostList events={events} loading={loading} scrollParent={scrollEl} />}
+          {scrollEl && (
+            <ProfilePostList events={events} loading={loading} pinned={pinned} scrollParent={scrollEl} />
+          )}
         </div>
       </div>
     );
@@ -83,7 +89,7 @@ export function ProfileScreen({
       </aside>
       <div className={styles.main}>
         <ProfileTabs tab={tab} onChange={setTab} />
-        <ProfilePostList events={events} loading={loading} />
+        <ProfilePostList events={events} loading={loading} pinned={pinned} />
       </div>
     </div>
   );

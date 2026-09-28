@@ -15,7 +15,7 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
       { id: "profile", label: "プロフィール", ready: true },
       { id: "dm", label: "DM", ready: true },
       { id: "favs", label: "ふぁぼ", ready: true },
-      { id: "bookmarks", label: "ブックマーク", ready: false },
+      { id: "bookmarks", label: "ブックマーク", ready: true },
       { id: "mute", label: "ミュート", ready: true },
     ],
   },

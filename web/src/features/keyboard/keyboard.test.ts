@@ -70,7 +70,7 @@ describe("何もしない", () => {
   });
 
   it("割り当ての無いキーは null", () => {
-    for (const k of ["a", "b", " ", "Tab", "Home", "End", "PageDown"])
+    for (const k of ["a", " ", "Tab", "Home", "End", "PageDown"])
       expect(keyToAction(key(k), CONTEXT)).toBeNull();
   });
 });
@@ -91,6 +91,7 @@ describe("割り当て（ネイティブ handleDeckKey と同じ）", () => {
     ["r", { type: "reply" }],
     ["t", { type: "quote" }],
     ["f", { type: "react" }],
+    ["b", { type: "bookmark" }],
     ["n", { type: "compose" }],
     ["/", { type: "search" }],
   ])("%s", (k, action) => {

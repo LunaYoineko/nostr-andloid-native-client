@@ -17,6 +17,8 @@ export type KeyAction =
   | { type: "quote" }
   /** 既定リアクションのトグル（f） */
   | { type: "react" }
+  /** ブックマークのトグル（b。#531） */
+  | { type: "bookmark" }
   /** 新規投稿（n） */
   | { type: "compose" }
   /** 検索画面へ移って検索欄にフォーカス（/） */
@@ -107,6 +109,8 @@ export function keyToAction(event: KeyInput, context: KeyContext): KeyAction | n
       return { type: "quote" };
     case "f":
       return { type: "react" };
+    case "b":
+      return { type: "bookmark" };
     case "n":
       return { type: "compose" };
     case "/":

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import { startPersistence } from "./db";
 import { startDm } from "./features/dm/dmService";
+import { startOwnLists } from "./features/lists/ownLists";
 import { startMuteList } from "./features/mute/muteSync";
 import { initTheme } from "./features/theme/themePrefs";
 import { startBackgroundPause } from "./nostr/backgroundPause";
@@ -31,6 +32,8 @@ void startPersistence().then(() => {
 startOwnRelayList();
 // ログイン中は自分の kind:10000（ミュート）を購読して表示から除く
 startMuteList();
+// ログイン中は自分の kind:10003（ブックマーク）・kind:10001（固定投稿）を購読する
+startOwnLists();
 // リレーの AUTH（NIP-42）に設定のポリシーで応答する
 startRelayAuth();
 // タブの非表示が 5 分続いたらリレーを一時停止し、表示に戻ったら張り直す
