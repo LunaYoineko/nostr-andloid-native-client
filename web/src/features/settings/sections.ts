@@ -5,7 +5,6 @@ export type SettingsGroup = { title: string; sections: readonly SettingsSection[
 
 /**
  * 一覧の並び（ネイティブ SettingsScreen の paletteFav / paletteGroups と同じ順）。
- * ネイティブの「リアクション」は「表示」の既定リアクションにまとめた。
  * 「プロフィール」「DM」は設定の中では描かず、自分のプロフィール・DM の画面を開く（ネイティブ profile_view / dm_view）。
  */
 export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
@@ -22,10 +21,10 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   {
     title: "カスタマイズ",
     sections: [
+      { id: "reaction", label: "リアクション", ready: true },
       { id: "emoji", label: "カスタム絵文字", ready: true },
       { id: "hashtags", label: "ハッシュタグ", ready: true },
       { id: "display", label: "表示", ready: true },
-      { id: "theme-store", label: "テーマストア", ready: true },
     ],
   },
   {
@@ -51,8 +50,11 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
 /** Expanded で項目を選んでいないときに右へ出す項目 */
 export const DEFAULT_SECTION_ID = "account";
 
-/** 改名した項目の古い id → 今の id */
-const RENAMED_SECTIONS: ReadonlyMap<string, string> = new Map([["developer", "data"]]);
+/** 改名した項目の古い id → 今の id。「テーマストア」は「表示」の導線行に統合した（#587） */
+const RENAMED_SECTIONS: ReadonlyMap<string, string> = new Map([
+  ["developer", "data"],
+  ["theme-store", "display"],
+]);
 
 /** 改名した項目の古い id なら今の id（古い URL は今の項目へ置き換える）。それ以外は undefined */
 export function renamedSectionId(id: string | undefined): string | undefined {

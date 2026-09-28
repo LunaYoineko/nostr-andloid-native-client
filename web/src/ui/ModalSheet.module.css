@@ -1,0 +1,86 @@
+/* [#587] 設定系の上寄せモーダル（ネイティブ AppModalSheet）の器。ReactionPickerDialog から
+   抜き出した「画面全体を覆う透明な dialog の上端にカードを置く」作りをそのまま使う。
+   投稿の中に置くこともあるので、投稿の cursor: pointer などを引き継がないよう戻す */
+.dialog {
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: calc(env(safe-area-inset-top, 0px) + var(--sp-3)) var(--sp-4)
+    calc(env(safe-area-inset-bottom, 0px) + var(--sp-3));
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  cursor: default;
+  overflow: hidden;
+}
+
+/* #453 のスクリムと同じ */
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* 560px = ネイティブのカード最大幅（560dp）。高さは画面いっぱいまで、内容が短ければそれに合わせる（#595） */
+.card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(
+    100dvh -
+    env(safe-area-inset-top, 0px) -
+    env(safe-area-inset-bottom, 0px) -
+    var(--sp-3) *
+    2
+  );
+  margin: 0 auto;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: var(--sp-2) 0;
+  font-size: var(--type-title);
+  font-weight: var(--w-strong);
+}
+
+.close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--surface-3);
+}
+
+.closeIcon {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}

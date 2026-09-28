@@ -120,14 +120,35 @@ describe("Expanded", () => {
     expect(screen.queryByRole("region", { name: "アカウント" })).not.toBeInTheDocument();
   });
 
-  it("表示: 既定リアクションをスターにする", async () => {
+  it("リアクション: 既定リアクションをスターにする（#587 で独立セクションに戻した）", async () => {
     setDefaultReaction("+", null);
-    renderAt("/settings/display", 1000);
+    renderAt("/settings/reaction", 1000);
+    expect(screen.getByRole("region", { name: "リアクション" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ハート" })).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(screen.getByRole("button", { name: "スター" }));
     expect(useDefaultReaction.getState()).toEqual({ content: "⭐", image: null });
     expect(screen.getByRole("button", { name: "スター" })).toHaveAttribute("aria-pressed", "true");
     setDefaultReaction("+", null);
+  });
+
+  it("カスタマイズの並びはネイティブと同じ: リアクション → カスタム絵文字 → ハッシュタグ → 表示。テーマストアは独立セクションではない（#587）", () => {
+    renderAt("/settings", 1000);
+    const heading = screen.getByRole("heading", { level: 2, name: "カスタマイズ" });
+    const section = heading.closest("section");
+    if (!section) throw new Error("section not found");
+    expect(
+      within(section)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["リアクション", "カスタム絵文字", "ハッシュタグ", "表示"]);
+    expect(screen.queryByRole("button", { name: "テーマストア" })).toBeNull();
+  });
+
+  it("/settings/theme-store は /settings/display（表示。テーマストアから取得の導線行）に置き換える", async () => {
+    const router = renderAt("/settings/theme-store", 1000);
+    expect(router.state.location.pathname).toBe("/settings/display");
+    expect(router.state.historyAction).toBe("REPLACE");
+    expect(screen.getByRole("region", { name: "表示" })).toBeInTheDocument();
   });
 
   it("/settings/developer は /settings/data（データ・キャッシュ）に置き換える", async () => {

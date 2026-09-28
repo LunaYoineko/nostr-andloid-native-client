@@ -69,3 +69,23 @@ it("OGP カードを表示 が OFF の間は OGP カードの画像を読み込�
 
   expect(ogpImages).toBeDisabled();
 });
+
+it("項目の順序はネイティブと同じ: テーマ → 種別の視覚表示 → 表示サイズ → 文字サイズ → 文字を太くする → にゃにゃにゃ → 埋め込み表示。データセーバーは末尾のまま（Web 追加。#587）", () => {
+  const { container } = render(<DisplaySection />);
+  const text = container.textContent ?? "";
+  const labels = [
+    "テーマ",
+    "種別の視覚表示",
+    "表示サイズ",
+    "文字サイズ",
+    "文字を太くする",
+    "にゃにゃにゃウイルス",
+    "リンクの埋め込み表示",
+    "データセーバー",
+  ];
+  const positions = labels.map((label) => text.indexOf(label));
+  expect(positions.every((p) => p >= 0)).toBe(true);
+  expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  // 「デフォルトのリアクション」は #587 で独立セクション（ReactionSection）へ戻したので、ここには無い
+  expect(screen.queryByText("デフォルトのリアクション")).toBeNull();
+});

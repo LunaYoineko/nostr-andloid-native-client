@@ -8,10 +8,10 @@ import { showToast } from "../../ui/toast";
 import { followsFromContacts } from "../profile/contacts";
 import settingsStyles from "../settings/SettingsSections.module.css";
 import type { CustomColors } from "./customPalette";
-import { ThemeSwatch, ThemeUndoBar } from "./ThemeSettings";
+import { ThemeSwatch } from "./ThemeSettings";
 import styles from "./ThemeStoreSection.module.css";
 import { decodeThemeCode, encodeThemeCode, type ThemeEntry } from "./themeEntry";
-import { applyCustomColors, useThemePrefs } from "./themePrefs";
+import { useThemePrefs } from "./themePrefs";
 import {
   filterThemeEntries,
   requestDeleteTheme,
@@ -38,14 +38,23 @@ function sameColors(a: CustomColors, b: CustomColors): boolean {
 }
 
 /**
- * テーマストア（#539。設定「テーマストア」）。他の人が公開したテーマ（NIP-78 kind:30078 +
- * t=nostrism-theme）を検索・プレビュー無しでそのまま適用でき、共有コードのコピー・取り込みもできる。
- * 適用は #464 の applyCustomColors（取り消しバー付き）をそのまま使う。
+ * テーマストア（#539。#587 でテーマ編集モーダルの「ストア」タブへ）。他の人が公開したテーマ
+ * （NIP-78 kind:30078 + t=nostrism-theme）を検索し、共有コードのコピー・取り込みもできる。
+ * 行タップ・コード取り込みは呼び出し元（ThemeEditModal）の下書き（プレビュー）へ反映するだけで、
+ * 適用は #464 の applyCustomColors（取り消しバー付き）をモーダルの「適用」ボタンが行う。
  */
-export function ThemeStoreSection() {
+export function ThemeStoreSection({
+  draft,
+  onSelect,
+}: {
+  /** 現在の下書き（プレビュー中の配色）。共有コードのコピーはこれを書き出す */
+  draft: CustomColors;
+  /** 行タップ・コード取り込みで下書きへ反映する */
+  onSelect(colors: CustomColors, name: string | null): void;
+}) {
   const me = useSession((s) => s.pubkey);
   const { loading, entries } = useThemeStoreEntries();
-  const custom = useThemePrefs((s) => s.custom);
+  const current = useThemePrefs((s) => s.custom);
   const contacts = use$(() => (me ? eventStore.replaceable({ kind: 3, pubkey: me }) : undefined), [me]);
   const follows = useMemo(() => new Set(followsFromContacts(contacts)), [contacts]);
 
@@ -71,7 +80,7 @@ export function ThemeStoreSection() {
   }
 
   async function copyCode() {
-    const code = encodeThemeCode({ name: "MyTheme", colors: custom });
+    const code = encodeThemeCode({ name: "MyTheme", colors: draft });
     try {
       await navigator.clipboard.writeText(code);
     } catch {
@@ -96,15 +105,14 @@ export function ThemeStoreSection() {
       showToast("共有コードの形式が正しくありません。");
       return;
     }
-    applyCustomColors(decoded.colors, decoded.name);
+    onSelect(decoded.colors, decoded.name);
     setCode("");
   }
 
   return (
     <div className={settingsStyles.block}>
-      <ThemeUndoBar />
       <p className={settingsStyles.desc}>
-        他の人が公開したテーマ（NIP-78）。タップで適用します（すぐに反映し、取り消しバーで元に戻せます）。
+        他の人が公開したテーマ（NIP-78）。タップでプレビューし、「適用」で反映します。新しいアプリ版向けのテーマには印が付きますが、適用は可能です。
       </p>
       <label className="srOnly" htmlFor="theme-store-search">
         テーマ名・作者名で検索
@@ -157,7 +165,7 @@ export function ThemeStoreSection() {
         <p className={settingsStyles.desc}>
           {loading
             ? "テーマを取得中…"
-            : "まだテーマが見つかりません。「テーマ」の「テーマストアに公開」から自分のテーマを公開するか、下の共有コードから取り込めます。"}
+            : "まだテーマが見つかりません。「カスタマイズ」タブから自分のテーマを公開するか、下の共有コードから取り込めます。"}
         </p>
       ) : shown.length === 0 ? (
         <p className={settingsStyles.desc}>条件に合うテーマがありません。</p>
@@ -167,8 +175,9 @@ export function ThemeStoreSection() {
             <ThemeStoreRow
               key={`${entry.author}:${entry.dTag}`}
               entry={entry}
-              applied={sameColors(entry.colors, custom)}
-              onApply={() => applyCustomColors(entry.colors, entry.name)}
+              applied={sameColors(entry.colors, current)}
+              selected={sameColors(entry.colors, draft)}
+              onSelect={() => onSelect(entry.colors, entry.name)}
               onDelete={me && entry.author === me ? () => setDeleteTarget(entry) : null}
             />
           ))}
@@ -218,29 +227,38 @@ export function ThemeStoreSection() {
   );
 }
 
-/** ストア一覧の1行。ミニカード（ThemeSwatch）+ 名前・作者。タップで適用、自分のテーマは削除できる */
+/**
+ * ストア一覧の1行。ミニカード（ThemeSwatch）+ 名前・作者。[#587] タップは下書きへの取り込み（プレビュー）。
+ * 適用中・プレビュー中を右端に表示する（ネイティブ ThemeStoreRow と同じ）。自分のテーマは削除できる
+ */
 function ThemeStoreRow({
   entry,
   applied,
-  onApply,
+  selected,
+  onSelect,
   onDelete,
 }: {
   entry: ThemeEntry;
   applied: boolean;
-  onApply(): void;
+  selected: boolean;
+  onSelect(): void;
   onDelete: (() => void) | null;
 }) {
   const profile = useProfile(entry.author);
   const author = displayName(profile, entry.author, "npub");
   return (
     <li className={styles.row}>
-      <button type="button" className={styles.rowButton} onClick={onApply}>
+      <button type="button" className={styles.rowButton} onClick={onSelect}>
         <ThemeSwatch colors={entry.colors} />
         <span className={styles.info}>
           <span className={styles.name}>{entry.name}</span>
           <span className={settingsStyles.relayMeta}>{author}</span>
         </span>
-        {applied && <span className={styles.badge}>適用中</span>}
+        {applied ? (
+          <span className={styles.badge}>適用中</span>
+        ) : selected ? (
+          <span className={styles.badge}>プレビュー中</span>
+        ) : null}
       </button>
       {onDelete && (
         <button type="button" className={settingsStyles.textButton} onClick={onDelete}>

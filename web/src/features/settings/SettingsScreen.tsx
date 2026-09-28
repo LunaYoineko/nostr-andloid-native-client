@@ -4,7 +4,6 @@ import { hrefForProfile } from "../../lib/content/labels";
 import { useSession } from "../../signer/session";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { useLayoutMode } from "../../ui/useLayoutMode";
-import { ThemeStoreSection } from "../theme/ThemeStoreSection";
 import { WalletSection } from "../wallet/WalletSection";
 import { AccountSection, AccountSummary } from "./AccountSection";
 import { BookmarksSection } from "./BookmarksSection";
@@ -17,6 +16,7 @@ import { HashtagSection } from "./HashtagSection";
 import { MediaSection } from "./MediaSection";
 import { MuteSection } from "./MuteSection";
 import { ProfileEditSection } from "./ProfileEditSection";
+import { ReactionSection } from "./ReactionSection";
 import { RelaySection } from "./RelaySection";
 import styles from "./SettingsScreen.module.css";
 import {
@@ -153,6 +153,8 @@ function SectionPane({ section, onBack }: { section: SettingsSection; onBack?: (
 
 function SectionBody({ id }: { id: string }) {
   switch (id) {
+    case "reaction":
+      return <ReactionSection />;
     case "favs":
       return <FavsSection />;
     case "bookmarks":
@@ -177,8 +179,6 @@ function SectionBody({ id }: { id: string }) {
       return <WalletSection />;
     case "display":
       return <DisplaySection />;
-    case "theme-store":
-      return <ThemeStoreSection />;
     case "data":
       return <DataSection />;
     default:
