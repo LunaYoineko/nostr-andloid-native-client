@@ -2,9 +2,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   applyRelayPrefs,
   applySinceForResend,
+  connectedRelayUrls,
   defaultRelaysFor,
   FUTURE_SKEW_SEC,
   initialRelaySet,
+  needsAuthForPublish,
+  pool,
   RELAYS_KEY,
   recordReceived,
   relayListFrom,
@@ -137,5 +140,23 @@ describe("リレー集合", () => {
       write: ["wss://nip65/"],
       source: "nip65",
     });
+  });
+});
+
+// 実際には繋がない（Relay のソケットは req/event を subscribe するまで開かない）。#582
+describe("connectedRelayUrls / needsAuthForPublish", () => {
+  afterEach(() => pool.close());
+
+  it("connected$ が立っているリレーだけを返す。AUTH 要求も認証済みも無ければ false", () => {
+    const relay = pool.relay("wss://relay.example");
+    expect(connectedRelayUrls()).toEqual([]);
+    expect(needsAuthForPublish("wss://relay.example")).toBe(false);
+
+    relay.connected$.next(true);
+    expect(connectedRelayUrls()).toEqual(["wss://relay.example/"]);
+  });
+
+  it("プールに無いリレーは false", () => {
+    expect(needsAuthForPublish("wss://not-in-pool.example")).toBe(false);
   });
 });

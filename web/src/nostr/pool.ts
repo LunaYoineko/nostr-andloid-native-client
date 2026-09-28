@@ -170,6 +170,30 @@ export const readRelays$: Observable<string[]> = new Observable<readonly string[
 export const pool = new RelayPool();
 
 /**
+ * いま WebSocket が開いている全リレーの URL（read/write 問わず。検索リレーや一時接続も含む）。
+ * 発行先の既定（write ∪ 接続中、#582）に使う。
+ */
+export function connectedRelayUrls(): string[] {
+  return [...pool.relays.values()].filter((relay) => relay.connected).map((relay) => relay.url);
+}
+
+/**
+ * そのリレーが発行に AUTH を要求していて、まだ認証できていないか（方針で応答しなかった・失敗した）。
+ * 発行先の既定から除く判定に使う（#582。プールに無ければ false）。
+ */
+export function needsAuthForPublish(url: string): boolean {
+  const relay = pool.relays.get(normalizeURL(url));
+  if (!relay || relay.authenticated) return false;
+  let required = false;
+  relay.authRequiredForPublish$
+    .subscribe((value) => {
+      required = value;
+    })
+    .unsubscribe();
+  return required;
+}
+
+/**
  * 購読の再接続設定。applesauce の既定は 3 回で諦めるため、回線が戻るまで繰り返す
  * （間隔は 1 秒ずつ延ばし 30 秒で頭打ち。つながれば回数はリセット）。
  */

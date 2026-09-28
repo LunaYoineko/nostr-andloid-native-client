@@ -1,12 +1,14 @@
 import { getSeenRelays } from "applesauce-core/helpers/relays";
+import { normalizeURL } from "applesauce-core/helpers/url";
 import { use$ } from "applesauce-react/hooks/use-$";
 import { type EventTemplate, type NostrEvent, verifyEvent } from "nostr-tools/pure";
 import { BehaviorSubject, merge, type Observable, Subject, type Subscription } from "rxjs";
 import { db } from "../db";
 import type { NostrismDb, PublishQueueRow } from "../db/schema";
+import { SEARCH_RELAYS } from "../lib/columnRequest";
 import { unixNow } from "../lib/time";
 import { currentSigner, useSession } from "../signer/session";
-import { connections$, pool, writeRelays } from "./pool";
+import { connectedRelayUrls, connections$, needsAuthForPublish, pool, writeRelays } from "./pool";
 import type { Signer } from "./signer";
 import { addVerified, eventStore } from "./store";
 
@@ -27,7 +29,7 @@ export const UNCONFIRMED_MESSAGE = "送信を確認できませんでした。�
 export type EventDraft = { kind: number; content: string; tags: string[][]; created_at?: number };
 
 export type PublishOptions = {
-  /** 送り先（省けば write リレー） */
+  /** 送り先（省けば write リレー ∪ 接続中のリレー。#582） */
   relays?: readonly string[];
   /** 署名を待っている間に中止する（署名後に中止されていれば積まずに PublishError("aborted")） */
   signal?: AbortSignal;
@@ -97,6 +99,23 @@ function refreshUnsent(): void {
 
 function warn(message: string, e: unknown): void {
   console.warn(`[publish] ${message}`, e);
+}
+
+/**
+ * 既定の発行先: write リレー ∪ 接続中の全リレー（ネイティブ EventRepository.publishTo と同じ規則、#582）。
+ * 検索専用リレーと、AUTH を要求していてまだ認証できていないリレーは除く。重複は除く。
+ */
+function defaultPublishTargets(): string[] {
+  const excluded = new Set(SEARCH_RELAYS.map(normalizeURL));
+  const seen = new Set<string>();
+  const targets: string[] = [];
+  for (const url of [...writeRelays(), ...connectedRelayUrls()]) {
+    const key = normalizeURL(url);
+    if (excluded.has(key) || seen.has(key) || needsAuthForPublish(url)) continue;
+    seen.add(key);
+    targets.push(url);
+  }
+  return targets;
 }
 
 /**
@@ -213,7 +232,7 @@ function send(row: PublishQueueRow, notify: boolean): void {
   cancels.add(cancel);
   waiters.set(id, onAccepted);
 
-  subscription = pool.event(row.relays ?? [...writeRelays()], row.payload).subscribe({
+  subscription = pool.event(row.relays ?? defaultPublishTargets(), row.payload).subscribe({
     next: (response) => {
       if (isAccepted(response.ok, response.message)) accept(id);
     },
