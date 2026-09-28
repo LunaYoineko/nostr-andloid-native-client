@@ -42,6 +42,40 @@
   }
 }
 
+/* ⚡ Zap（ネイティブ ZapAction）。押せないのでボタンの hover は付けない。未受領は --text-3 */
+.zap {
+  display: flex;
+  align-items: center;
+  flex: none;
+  color: var(--text-3);
+}
+
+/* 受領あり: --zap、左右に 4px（ネイティブ DeckSpace.Xs） */
+.zapped {
+  padding: 0 var(--sp-1);
+  color: var(--zap);
+}
+
+/* アイコンの枠はアクションボタンのタッチ箱と同じ */
+.zapIcon {
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+}
+
+.zapIcon svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+/* 金額はアイコン側へ 4px 寄せる（ネイティブ offset(x = -Xs)） */
+.zapAmount {
+  position: relative;
+  left: calc(var(--sp-1) * -1);
+  font-size: var(--type-label);
+}
+
 /* ⋯ を右端へ寄せる */
 .spacer {
   flex: 1;
