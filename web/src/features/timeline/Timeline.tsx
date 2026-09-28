@@ -1,5 +1,5 @@
 import type { NostrEvent } from "nostr-tools/pure";
-import { useCallback, useRef, useState } from "react";
+import { type ReactNode, useCallback, useRef, useState } from "react";
 import { type ListRange, Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { NoteItem } from "./NoteItem";
 import styles from "./Timeline.module.css";
@@ -11,8 +11,8 @@ const AT_TOP_THRESHOLD = 40;
 // 先頭に見えている投稿がこの位置以降なら、新着が無くても「最新へ戻る」を出す（ネイティブの rememberScrolledAway と同じ 3）
 const SCROLLED_AWAY_INDEX = 3;
 
-/** 投稿の位置 = それより上にある件数（見つからなければ 0） */
-function positionOf(events: NostrEvent[], id: string | undefined): number {
+/** 行の位置 = それより上にある件数（見つからなければ 0） */
+function positionOf(events: readonly { id: string }[], id: string | undefined): number {
   const index = events.findIndex((e) => e.id === id);
   return index < 0 ? 0 : index;
 }
@@ -34,25 +34,33 @@ function OlderFooter({ context }: { context?: FooterContext }) {
 
 const COMPONENTS = { Footer: OlderFooter };
 
+const renderNote = (event: NostrEvent) => <NoteItem event={event} />;
+
 /**
  * 新しい順のタイムライン（仮想リスト）。
  * 先頭付近にいれば新着はそのまま上から流れ、読み進めている間は位置を保って「↑ N 件の新着」を出す。
  * 新着が無くても 3 件目以降まで下りていれば「↑ 最新へ戻る」を出す（ネイティブの FeedTopPill。ピルは 1 つにまとめる）。
  * 末尾まで来たら onEndReached（過去読み）を呼ぶ。
+ * 行は既定で投稿（NoteItem）。renderItem を渡すと投稿以外の行（フォロー中カラムの混在）も並べられる（id で数える）。
  */
-export function Timeline({
+export function Timeline<T extends { id: string } = NostrEvent>({
   events,
   loading,
   onEndReached,
   loadingOlder = false,
   emptyText = "まだ投稿がありません",
+  renderItem,
 }: {
-  events: NostrEvent[];
+  events: T[];
   loading: boolean;
   onEndReached?: () => void;
   loadingOlder?: boolean;
   emptyText?: string;
+  /** 省略時は T = NostrEvent として NoteItem で描く */
+  renderItem?: (item: T) => ReactNode;
 }) {
+  // renderItem を省くのは投稿の一覧だけ（T = NostrEvent）
+  const render = renderItem ?? (renderNote as unknown as (item: T) => ReactNode);
   const list = useRef<VirtuosoHandle>(null);
   const [atTop, setAtTop] = useState(true);
   const topId = events[0]?.id;
@@ -109,14 +117,14 @@ export function Timeline({
         className={styles.list}
         data={events}
         firstItemIndex={anchor.firstItemIndex}
-        computeItemKey={(_, event) => event.id}
+        computeItemKey={(_, item) => item.id}
         atTopThreshold={AT_TOP_THRESHOLD}
         atTopStateChange={onAtTopChange}
         rangeChanged={onRangeChanged}
         endReached={onEndReached}
         components={COMPONENTS}
         context={{ loadingOlder }}
-        itemContent={(_, event) => <NoteItem event={event} />}
+        itemContent={(_, item) => render(item)}
       />
     </div>
   );

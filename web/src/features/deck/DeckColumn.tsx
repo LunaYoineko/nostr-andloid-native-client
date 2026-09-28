@@ -11,14 +11,24 @@ import {
   editTemplate,
   encodeReqFilter,
 } from "../../lib/columns";
-import { isMutedRevealed, useDeck, widthOf } from "../../store/deck";
+import {
+  FEED_CATEGORIES,
+  type FeedCategory,
+  feedCatHiddenOf,
+  isMutedRevealed,
+  useDeck,
+  widthOf,
+} from "../../store/deck";
 import { columnIcon, Icon } from "../../ui/icons";
 import { MyReactionRow } from "../actions/MyReactionRow";
 import { ConversationList } from "../dm/ConversationList";
 import { startDecrypting } from "../dm/dmService";
 import { NotificationList } from "../notifications/NotificationList";
+import { NotificationRow } from "../notifications/NotificationRow";
+import { NoteItem } from "../timeline/NoteItem";
 import { Timeline } from "../timeline/Timeline";
 import styles from "./DeckColumn.module.css";
+import type { FeedRow } from "./followingMix";
 import { useColumnFeed } from "./useColumnFeed";
 
 /** Web 版でまだ描けない種別（REQ も張らない） */
@@ -29,6 +39,15 @@ const WIDTHS: readonly { width: ColumnWidth; label: string }[] = [
   { width: "M", label: "標準" },
   { width: "L", label: "広" },
 ];
+
+/** ⋯ の「タイムラインに混ぜる表示」の項目名（ネイティブ cat_*） */
+const CATEGORY_LABEL: Record<FeedCategory, string> = {
+  REACTIONS: "自分へのリアクション",
+  REPLIES: "自分への返信・メンション",
+  REPOSTS: "自分へのリポスト",
+  MY_REACTIONS: "自分がしたリアクション",
+  DMS: "未読のメッセージ",
+};
 
 /** デッキの 1 カラム。showHeader = カラムヘッダ（アイコン・タイトル・⋯）を出す */
 export function DeckColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
@@ -73,7 +92,7 @@ function DmColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean 
 }
 
 function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
-  const { loading, events, loadingOlder, loadOlder, refresh } = useColumnFeed(spec);
+  const { loading, events, rows, loadingOlder, loadOlder, refresh } = useColumnFeed(spec);
   return (
     <section className={styles.column} aria-label={spec.title} aria-busy={loading}>
       {showHeader && <ColumnHeader spec={spec} onRefresh={refresh} />}
@@ -87,7 +106,17 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             loadingOlder={loadingOlder}
           />
         ) : spec.kind === "NOTIFICATIONS" ? (
-          <NotificationList events={events} loading={loading} />
+          <NotificationList events={events} loading={loading} columnId={spec.id} />
+        ) : rows ? (
+          // フォロー中カラム: 投稿に自分への反応・自分のリアクション・未読 DM を混ぜた行
+          <Timeline
+            key={encodeReqFilter(spec.filter)}
+            events={rows}
+            loading={loading}
+            onEndReached={loadOlder}
+            loadingOlder={loadingOlder}
+            renderItem={renderFeedRow}
+          />
         ) : (
           <Timeline
             // フィルターを変えたら中身が入れ替わるので、位置も先頭から
@@ -117,6 +146,18 @@ function ColumnHeader({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: () =>
       <ColumnMenu spec={spec} onRefresh={onRefresh} />
     </header>
   );
+}
+
+/** フォロー中カラムの 1 行。通知は通知画面の行、自分のリアクションはふぁぼ欄の行と同じ */
+function renderFeedRow(row: FeedRow) {
+  switch (row.type) {
+    case "post":
+      return <NoteItem event={row.event} />;
+    case "notice":
+      return <NotificationRow item={row.item} />;
+    case "myReaction":
+      return <MyReactionRow reaction={row.reaction} />;
+  }
 }
 
 type FooterContext = { loadingOlder: boolean };
@@ -161,8 +202,9 @@ function FavItem({ reaction }: { reaction: NostrEvent }) {
 
 /**
  * カラムの ⋯ メニュー（ネイティブの ColumnMenuButton）。移動 ◀ ▶ / フィルターを編集 / ミュートを表示・隠す /
- * 更新 / 固定する / カラム幅 / カラムを削除。外側のクリックと Escape で閉じる。onRefresh が無ければ「更新」を出さない。
- * 「ミュートを表示」は Web で描けるカラムだけ（描けない種別はミュートを当てていない）。
+ * 更新 / 固定する / タイムラインに混ぜる表示 / カラム幅 / カラムを削除。外側のクリックと Escape で閉じる。
+ * onRefresh が無ければ「更新」を出さない。「ミュートを表示」は Web で描けるカラムだけ（描けない種別はミュートを当てていない）。
+ * 「タイムラインに混ぜる表示」はフォロー中カラムだけ。
  */
 export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: () => void }) {
   const [open, setOpen] = useState(false);
@@ -172,6 +214,7 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
   const count = useDeck((s) => s.columns.length);
   const width = useDeck((s) => widthOf(s, spec.id));
   const mutedRevealed = useDeck((s) => isMutedRevealed(s, spec.id));
+  const hiddenCategories = useDeck((s) => feedCatHiddenOf(s, spec.id));
 
   useEffect(() => {
     if (!open) return;
@@ -275,6 +318,28 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
               <Icon name="pushPin" size="md" />
               固定する
             </button>
+          )}
+          {spec.kind === "FOLLOWING" && (
+            // 種別のトグルはメニューを閉じない（続けて切り替えられるように。ネイティブと同じ）
+            <fieldset aria-label="タイムラインに混ぜる表示" className={styles.menuGroup}>
+              <span className={styles.menuHeading}>タイムラインに混ぜる表示</span>
+              {FEED_CATEGORIES.map((category) => {
+                const shown = !hiddenCategories.includes(category);
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={shown}
+                    className={styles.menuItem}
+                    onClick={() => deck().setFeedCatHidden(spec.id, category, shown)}
+                  >
+                    <Icon name={shown ? "checkBox" : "checkBoxOutlineBlank"} size="md" />
+                    {CATEGORY_LABEL[category]}
+                  </button>
+                );
+              })}
+            </fieldset>
           )}
           <fieldset aria-label="カラム幅" className={styles.menuRow}>
             <span className={styles.menuLabel}>カラム幅</span>

@@ -4,6 +4,7 @@ import {
   type Ctx,
   INDEXER_RELAYS,
   matchesSearch,
+  mixViewsFor,
   outboxAuthorsFor,
   requestFor,
   SEARCH_RELAYS,
@@ -33,16 +34,38 @@ function note(overrides: Partial<NostrEvent>): NostrEvent {
 const [following, hashtag, notif] = DEFAULT_COLUMNS;
 
 describe("requestFor", () => {
-  it("フォロー中: kind:3 が未取得・空ならリレー新着、取得後はフォロー + 自分", () => {
-    expect(requestFor(following, ctx())).toEqual({ relays: RELAYS, filters: [{ kinds: [1], limit: 100 }] });
+  it("フォロー中: kind:3 が未取得・空ならリレー新着、取得後はフォロー + 自分。通知・自分のリアクションも一緒に取る（#522）", () => {
+    const mix = [
+      { kinds: [1, 6, 16, 7, 9735, 1111], "#p": [ME], limit: 200 },
+      { kinds: [7], authors: [ME], limit: 100 },
+    ];
+    expect(requestFor(following, ctx())).toEqual({
+      relays: RELAYS,
+      filters: [{ kinds: [1], limit: 100 }, ...mix],
+    });
     expect(requestFor(following, ctx({ follows: [] }))).toEqual({
       relays: RELAYS,
-      filters: [{ kinds: [1], limit: 100 }],
+      filters: [{ kinds: [1], limit: 100 }, ...mix],
     });
     expect(requestFor(following, ctx({ follows: [FOLLOW, ME] }))).toEqual({
       relays: RELAYS,
-      filters: [{ kinds: [1, 6, 16, 5, 1111], authors: [FOLLOW, ME], limit: 100 }],
+      filters: [{ kinds: [1, 6, 16, 5, 1111], authors: [FOLLOW, ME], limit: 100 }, ...mix],
     });
+    // 未ログインは投稿だけ
+    expect(requestFor(following, ctx({ me: null, follows: [FOLLOW] }))).toEqual({
+      relays: RELAYS,
+      filters: [{ kinds: [1, 6, 16, 5, 1111], authors: [FOLLOW], limit: 100 }],
+    });
+  });
+
+  it("mixViewsFor: フォロー中カラムだけ、通知（自分の発行は除く）と自分のリアクションを読む。未ログインは null", () => {
+    const views = mixViewsFor("FOLLOWING", ME);
+    expect(views?.notifications.filters).toEqual([{ kinds: [1, 6, 16, 7, 9735, 1111], "#p": [ME] }]);
+    expect(views?.notifications.predicate?.(note({ pubkey: ME }))).toBe(false);
+    expect(views?.notifications.predicate?.(note({ pubkey: FOLLOW }))).toBe(true);
+    expect(views?.myReactions.filters).toEqual([{ kinds: [7], authors: [ME] }]);
+    expect(mixViewsFor("FOLLOWING", null)).toBeNull();
+    expect(mixViewsFor("NOTIFICATIONS", ME)).toBeNull();
   });
 
   it("通知: 自分宛て（#p）の 6 種を 200 件。未ログインなら張らない", () => {

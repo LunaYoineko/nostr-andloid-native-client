@@ -1,6 +1,6 @@
 import type { Filter } from "applesauce-core/helpers/filter";
 import type { NostrEvent } from "nostr-tools/pure";
-import type { ColumnSpec, ReqFilter } from "./columns";
+import type { ColumnKind, ColumnSpec, ReqFilter } from "./columns";
 
 /**
  * カラム → REQ（どのリレーへ何を投げるか）と、EventStore から読む条件。
@@ -57,30 +57,53 @@ function followAuthors(follows: readonly string[], me: string | null): string[] 
   return [...new Set(me ? [...follows, me] : follows)];
 }
 
+/** 自分宛ての通知の REQ（通知カラム。フォロー中カラムも混ぜるために取る） */
+function notificationsFilter(me: string): Filter {
+  return { kinds: NOTIF_REQ_KINDS, "#p": [me], limit: NOTIF_FETCH_LIMIT };
+}
+
+/** 自分のリアクションの REQ（ふぁぼ欄。フォロー中カラムも混ぜるために取る） */
+function myReactionsFilter(me: string): Filter {
+  return { kinds: [7], authors: [me], limit: COLUMN_LIMIT };
+}
+
+/** フォロー中カラムに混ぜる通知・自分のリアクションの REQ（未ログインなら無し） */
+function mixFilters(me: string | null): Filter[] {
+  return me ? [notificationsFilter(me), myReactionsFilter(me)] : [];
+}
+
+/** 通知の表示（自分の発行は除く） */
+function notificationsView(me: string): ViewPlan {
+  return { filters: [{ kinds: NOTIF_REQ_KINDS, "#p": [me] }], predicate: (e) => e.pubkey !== me };
+}
+
+function myReactionsView(me: string): ViewPlan {
+  return { filters: [{ kinds: [7], authors: [me] }] };
+}
+
 /** カラムの REQ。null = REQ を張らない（未ログイン・Web で未対応の種別） */
 export function requestFor(spec: ColumnSpec, ctx: Ctx): RequestPlan {
   const f = spec.filter;
   switch (spec.kind) {
     case "FOLLOWING":
+      // 投稿に、自分宛ての通知と自分のリアクション（混ぜて出す。mixViewsFor）を足す
       if (!ctx.follows || ctx.follows.length === 0) {
-        return { relays: ctx.relays, filters: [{ kinds: [1], limit: COLUMN_LIMIT }] };
+        return { relays: ctx.relays, filters: [{ kinds: [1], limit: COLUMN_LIMIT }, ...mixFilters(ctx.me)] };
       }
       return {
         relays: ctx.relays,
         filters: [
           { kinds: FOLLOWING_KINDS, authors: followAuthors(ctx.follows, ctx.me), limit: COLUMN_LIMIT },
+          ...mixFilters(ctx.me),
         ],
       };
     case "NOTIFICATIONS":
       // カラムの filter.kinds は REQ にも表示（viewFor）にも使わない（ネイティブと同じ）
       if (!ctx.me) return null;
-      return {
-        relays: ctx.relays,
-        filters: [{ kinds: NOTIF_REQ_KINDS, "#p": [ctx.me], limit: NOTIF_FETCH_LIMIT }],
-      };
+      return { relays: ctx.relays, filters: [notificationsFilter(ctx.me)] };
     case "FAVS":
       if (!ctx.me) return null;
-      return { relays: ctx.relays, filters: [{ kinds: [7], authors: [ctx.me], limit: COLUMN_LIMIT }] };
+      return { relays: ctx.relays, filters: [myReactionsFilter(ctx.me)] };
     case "DM":
     case "THREAD":
     case "CHANNEL_LIST":
@@ -104,15 +127,13 @@ export function viewFor(spec: ColumnSpec, ctx: Ctx): ViewPlan {
     case "FOLLOWING":
       if (!ctx.follows || ctx.follows.length === 0) return { filters: [{ kinds: [1] }] };
       return { filters: [{ kinds: FOLLOWING_VIEW_KINDS, authors: followAuthors(ctx.follows, ctx.me) }] };
-    case "NOTIFICATIONS": {
+    case "NOTIFICATIONS":
       // カラムの filter.kinds（表示する種別）は見ない。全種別を出す（ネイティブの NotificationsColumn と同じ）
-      const me = ctx.me;
-      if (!me) return { filters: [] };
-      return { filters: [{ kinds: NOTIF_REQ_KINDS, "#p": [me] }], predicate: (e) => e.pubkey !== me };
-    }
+      if (!ctx.me) return { filters: [] };
+      return notificationsView(ctx.me);
     case "FAVS":
       if (!ctx.me) return { filters: [] };
-      return { filters: [{ kinds: [7], authors: [ctx.me] }] };
+      return myReactionsView(ctx.me);
     case "HASHTAG":
       // 表示は先頭のタグを小文字にして t タグで読む（ネイティブ feedByHashtag。REQ はタグをそのまま送る）
       if (f.hashtags.length > 0) return { filters: [{ kinds: [1], "#t": [f.hashtags[0].toLowerCase()] }] };
@@ -139,6 +160,18 @@ export function viewFor(spec: ColumnSpec, ctx: Ctx): ViewPlan {
     return { filters: [filter], predicate: (e) => matchesSearch(e, search) };
   }
   return { filters: [filter] };
+}
+
+/**
+ * フォロー中カラムに混ぜるものを EventStore から読む条件（通知カラム・ふぁぼ欄と同じ）。
+ * フォロー中カラム以外・未ログインは null
+ */
+export function mixViewsFor(
+  kind: ColumnKind,
+  me: string | null,
+): { notifications: ViewPlan; myReactions: ViewPlan } | null {
+  if (kind !== "FOLLOWING" || !me) return null;
+  return { notifications: notificationsView(me), myReactions: myReactionsView(me) };
 }
 
 // NIP-50 の拡張オプション（include:spam, language:en など）

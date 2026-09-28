@@ -175,6 +175,27 @@
   color: var(--text);
 }
 
+/* タイムラインに混ぜる表示（区切り線 + 見出し + トグル。fieldset の既定の枠を消す） */
+.menuGroup {
+  min-width: 0;
+  margin: var(--sp-1) 0;
+  padding: var(--sp-1) 0;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.menuHeading {
+  display: block;
+  padding: var(--sp-1) var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.menuItem[aria-checked="false"] {
+  color: var(--text-3);
+}
+
 .menuItem {
   display: flex;
   align-items: center;
