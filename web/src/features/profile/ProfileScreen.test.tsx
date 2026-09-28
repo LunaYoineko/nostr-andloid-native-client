@@ -18,6 +18,7 @@ import type { FollowersState } from "./followers";
 import { useFollowers } from "./followers";
 import type { Nip51Set } from "./nip51";
 import { ProfileScreen } from "./ProfileScreen";
+import profileScreenStyles from "./ProfileScreen.module.css";
 import { useContactsOf } from "./useContactsOf";
 import { useProfileFeed } from "./useProfileFeed";
 import { useProfileLists } from "./useProfileLists";
@@ -126,6 +127,7 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, "clipboard");
   useSession.setState({ status: "loading", method: null, pubkey: null });
   useMute.setState({ matcher: EMPTY_MUTE_MATCHER, list: null });
+  window.history.replaceState(null, "");
 });
 
 /** them をミュート中にする（他は空のミュートリスト） */
@@ -790,5 +792,50 @@ describe("リストタブ", () => {
     expect(
       screen.getByText("このリストには非公開の項目があります（本人以外は読めません）。"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("タブ・スクロール位置の復元（#401 #540）", () => {
+  it("history state のタブから始まり、切り替えると history state に保存される", async () => {
+    const user = userEvent.setup();
+    window.history.replaceState({ usr: { profileTab: "media" } }, "");
+    alice();
+    vi.mocked(useProfileFeed).mockReturnValue({
+      loading: false,
+      posts: [],
+      media: [note(themKey, "写真 https://img.test/p.jpg", 1_000)],
+      articles: [],
+    });
+    renderScreen();
+
+    expect(screen.getByRole("tab", { name: "メディア" })).toHaveAttribute("aria-selected", "true");
+
+    await user.click(screen.getByRole("tab", { name: "記事" }));
+    const usr = (window.history.state as { usr: { profileTab: string } }).usr;
+    expect(usr.profileTab).toBe("articles");
+  });
+
+  it("壊れた・無い history state はタブ「投稿」から始まる", () => {
+    alice();
+    renderScreen();
+    expect(screen.getByRole("tab", { name: "投稿" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("スクロール位置を history state に保存し、次のマウントで復元する", () => {
+    vi.useFakeTimers();
+    alice();
+    renderScreen();
+
+    const scroller = document.body.getElementsByClassName(profileScreenStyles.scroll)[0] as HTMLElement;
+    Object.defineProperty(scroller, "scrollTop", { configurable: true, value: 240 });
+    fireEvent.scroll(scroller);
+    act(() => {
+      vi.advanceTimersToNextFrame();
+    });
+    expect((window.history.state as { usr: { profileScrollY: number } }).usr.profileScrollY).toBe(240);
+
+    renderScreen();
+    const restored = document.body.getElementsByClassName(profileScreenStyles.scroll)[1] as HTMLElement;
+    expect(restored.scrollTop).toBe(240);
   });
 });

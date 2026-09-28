@@ -55,10 +55,10 @@ export function ProfileColumnHeader({ pubkey }: { pubkey: string }) {
             aria-label="画像を表示"
             onClick={() => setZoom(true)}
           >
-            <Avatar key={picture} url={picture} size="xl" seed={name} />
+            <Avatar key={picture} url={picture} size="xl" seed={name} pubkey={pubkey} />
           </button>
         ) : (
-          <Avatar key={picture} url={picture} size="xl" seed={name} />
+          <Avatar key={picture} url={picture} size="xl" seed={name} pubkey={pubkey} />
         )}
         <div className={styles.texts}>
           <p className={styles.name}>{name}</p>

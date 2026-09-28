@@ -1,10 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
+import { renderWithRouter } from "../test/renderWithRouter";
 import { MenuButton, type MenuEntry } from "./MenuButton";
 
+// [#540] 開いている間の「戻る」を history で扱うため、Router の中で描く
 function renderMenu(entries: MenuEntry[]) {
-  render(
+  renderWithRouter(
     <>
       <MenuButton label="未送信" triggerClassName="trigger" entries={entries}>
         未送信

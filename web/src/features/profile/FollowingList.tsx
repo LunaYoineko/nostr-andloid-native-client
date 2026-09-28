@@ -38,7 +38,7 @@ export function UserRow({ pubkey }: { pubkey: string }) {
     typeof profile?.nip05 === "string" && profile.nip05.trim() !== "" ? profile.nip05.trim() : null;
   return (
     <Link to={hrefForProfile(pubkey)} className={styles.row}>
-      <Avatar key={picture} url={picture} size="lg" seed={name} />
+      <Avatar key={picture} url={picture} size="lg" seed={name} pubkey={pubkey} />
       <span className={styles.texts}>
         <span className={styles.name}>{name}</span>
         {nip05 && <span className={styles.nip05}>{nip05}</span>}

@@ -111,7 +111,13 @@ function StateView({ loading, emptyText }: { loading: boolean; emptyText: string
 function UserRow({ hit }: { hit: UserHit }) {
   return (
     <Link to={hrefForProfile(hit.pubkey)} className={styles.user}>
-      <Avatar key={hit.picture} url={hit.picture} size="lg" seed={hit.name || hit.pubkey} />
+      <Avatar
+        key={hit.picture}
+        url={hit.picture}
+        size="lg"
+        seed={hit.name || hit.pubkey}
+        pubkey={hit.pubkey}
+      />
       <span className={styles.userTexts}>
         <span className={styles.userName}>{hit.name || hit.pubkey.slice(0, 10)}</span>
         {hit.handle && <span className={styles.userHandle}>{hit.handle}</span>}

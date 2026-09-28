@@ -59,7 +59,7 @@ export function ArticleReader({
       <div className={styles.screen}>
         <h1 className={styles.title}>{title}</h1>
         <Link className={styles.author} to={hrefForProfile(article.pubkey)}>
-          <Avatar url={pictureOf(profile)} size="sm" seed={article.pubkey} />
+          <Avatar url={pictureOf(profile)} size="sm" seed={article.pubkey} pubkey={article.pubkey} />
           <span className={styles.authorName}>{displayName(profile, article.pubkey)}</span>
           <span className={styles.time}>{relativeTime(publishedAt)}</span>
         </Link>

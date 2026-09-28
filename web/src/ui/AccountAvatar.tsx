@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { avatarInitial, avatarShade } from "../lib/avatar";
-import { markProxyBlocked, originOf, proxied } from "../lib/imageProxy";
+import { isDataSaver, markProxyBlocked, originOf, proxied } from "../lib/imageProxy";
 import { displayName, pictureOf, useProfile } from "../nostr/loaders";
 import { useSession } from "../signer/session";
 import styles from "./AccountAvatar.module.css";
 
-/** プロキシに頼む幅（40px の表示を高密度画面でも粗くしない） */
-const PROXY_WIDTH = 96;
+/** [#540] プロキシに頼む幅（ネイティブの Avatar と同じ 256） */
+const PROXY_WIDTH = 256;
 
+/** [#540] q=80・アニメ保持（データセーバー中は先頭フレームだけ） */
 function avatarSrc(url: string | undefined): string | null {
   if (!url || !/^https?:\/\//i.test(url.trim())) return null;
-  return proxied(url, PROXY_WIDTH);
+  return proxied(url, PROXY_WIDTH, 80, !isDataSaver());
 }
 
 /**

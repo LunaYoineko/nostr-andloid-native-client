@@ -4,6 +4,7 @@ import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from 
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { discardUnsent, retryUnsentNow, unsent$ } from "../../nostr/publish";
 import { useSession } from "../../signer/session";
+import { renderWithRouter } from "../../test/renderWithRouter";
 import { Toaster } from "../../ui/Toaster";
 import { useToast } from "../../ui/toast";
 import { useCompose } from "./composeStore";
@@ -59,7 +60,8 @@ it("自分の未送信に「未送信」。「再送」で retryUnsentNow、「�
   const event = post(meKey, "未送信の本文");
   vi.mocked(discardUnsent).mockReturnValue(event);
   act(() => unsent$.next(new Set([event.id])));
-  render(
+  // [#540] 「未送信」の ⋯ が開いている間の「戻る」を history で扱うため、Router の中で描く
+  renderWithRouter(
     <>
       <NoteFooter event={event} />
       <Toaster />

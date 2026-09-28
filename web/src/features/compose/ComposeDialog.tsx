@@ -936,7 +936,7 @@ function ReplyTargetLine({ target }: { target: NostrEvent }) {
   return (
     <p className={styles.replyLine}>
       <ReplyIcon className={styles.replyIcon} />
-      <Avatar key={picture} url={picture} size="sm" seed={target.pubkey} />
+      <Avatar key={picture} url={picture} size="sm" seed={target.pubkey} pubkey={target.pubkey} />
       <span
         className={styles.replyText}
       >{`${displayName(profile, target.pubkey, "npub")}: ${oneLine(target.content)}`}</span>

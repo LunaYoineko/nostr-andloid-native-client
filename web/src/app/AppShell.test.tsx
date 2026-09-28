@@ -91,6 +91,29 @@ describe("骨格", () => {
     expect(screen.getByRole("main")).toBeInTheDocument();
   });
 
+  it("[#332][#540] rail (440〜599px): 内容は compact のまま、ナビだけレール（下部ナビは無い）", () => {
+    renderAt(["/"], 500);
+    expect(within(mainNav()).getByRole("img", { name: "Nostrism" })).toBeInTheDocument();
+    expect(navLabels()).toEqual([
+      "ホーム",
+      "フォロー中",
+      "#nostr",
+      "通知",
+      "カラム追加",
+      "検索",
+      "メッセージ",
+      "設定",
+    ]);
+    expect(screen.getAllByRole("navigation", { name: "メイン" })).toHaveLength(1);
+    expect(screen.getByTestId("col-c_following")).toHaveAttribute("data-header", "false");
+  });
+
+  it("[#540] 439px は下部ナビ（レールは無い）", () => {
+    renderAt(["/"], 439);
+    expect(navLabels()).toEqual(["ホーム", "検索", "メッセージ", "通知", "設定"]);
+    expect(screen.queryByRole("img", { name: "Nostrism" })).not.toBeInTheDocument();
+  });
+
   it("expanded: レールに目次 3 件。通知カラムがあれば通知ボタンは出さず、消すと出る", () => {
     renderAt(["/"], 1200);
     expect(within(mainNav()).getByRole("img", { name: "Nostrism" })).toBeInTheDocument();

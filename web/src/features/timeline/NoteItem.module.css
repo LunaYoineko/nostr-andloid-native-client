@@ -89,6 +89,25 @@
   object-fit: cover;
 }
 
+/* [#540] にゃんモード: 猫耳を重ねる枠。外形は各 .avatar* と同じサイズのまま、耳は帯にはみ出させる */
+.nyanFrame {
+  position: relative;
+  overflow: visible;
+}
+
+/* [#540] 猫耳モード時の本体（ネイティブ NYAN_CIRCLE_FRACTION と同じ 82%・下寄せ） */
+.nyanBody {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 82%;
+  height: 82%;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  object-fit: cover;
+}
+
 /* 画像が無いときの頭文字（ネイティブの Avatar.kt Initial。地の色は seed から決めて style で渡す） */
 .initial {
   display: flex;

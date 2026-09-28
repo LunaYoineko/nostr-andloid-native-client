@@ -116,7 +116,7 @@ function ConversationRow({
   return (
     <li className={styles.item}>
       <Link className={styles.avatarLink} to={hrefForProfile(peer)} aria-label={`${name} のプロフィール`}>
-        <Avatar key={picture} url={picture} size="lg" seed={name} />
+        <Avatar key={picture} url={picture} size="lg" seed={name} pubkey={peer} />
       </Link>
       <button
         type="button"

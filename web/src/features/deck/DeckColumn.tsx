@@ -3,6 +3,7 @@ import type { NostrEvent } from "nostr-tools/pure";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { useCloseMenuOnBack } from "../../app/history";
 import {
   type ColumnKind,
   type ColumnSpec,
@@ -277,7 +278,7 @@ function FavItem({ reaction }: { reaction: NostrEvent }) {
 
 /**
  * カラムの ⋯ メニュー（ネイティブの ColumnMenuButton）。移動 ◀ ▶ / フィルターを編集 / ミュートを表示・隠す /
- * 更新 / 固定する / タイムラインに混ぜる表示 / カラム幅 / カラムを削除。外側のクリックと Escape で閉じる。
+ * 更新 / 固定する / タイムラインに混ぜる表示 / カラム幅 / カラムを削除。外側のクリック・Escape・戻る（#540）で閉じる。
  * onRefresh が無ければ「更新」を出さない。「ミュートを表示」は Web で描けるカラムだけ（描けない種別はミュートを当てていない）。
  * 「タイムラインに混ぜる表示」はフォロー中カラムだけ。
  */
@@ -290,6 +291,9 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
   const width = useDeck((s) => widthOf(s, spec.id));
   const mutedRevealed = useDeck((s) => isMutedRevealed(s, spec.id));
   const hiddenCategories = useDeck((s) => feedCatHiddenOf(s, spec.id));
+
+  // [#540] 開いている間の「戻る」はメニューを閉じるだけにする
+  useCloseMenuOnBack(open, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;

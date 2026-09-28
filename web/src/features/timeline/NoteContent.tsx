@@ -24,6 +24,7 @@ import {
 import { parseNoteContent, splitTrailingPunct, withoutLinks, withoutMention } from "../../lib/content/parse";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { useProfile } from "../../nostr/loaders";
+import { nyaize, useNyanApplies } from "../../ui/nyan";
 import styles from "./NoteContent.module.css";
 
 const EXTERNAL_LINK = { target: "_blank", rel: "noopener noreferrer nofollow ugc" } as const;
@@ -31,20 +32,25 @@ const EXTERNAL_LINK = { target: "_blank", rel: "noopener noreferrer nofollow ugc
 /** "full" = タイムラインの本文、"quote" = 引用カード内（リンク・メンション・タグは装飾だけでタップしない） */
 type Variant = "full" | "quote";
 
-const NoteContentContext = createContext<Variant>("full");
+/** [#540] nyaize は投稿者への にゃんモードの適用可否（トークン化後のテキスト片だけに掛ける） */
+type ContentCtx = { variant: Variant; nyaize: boolean };
+
+const NoteContentContext = createContext<ContentCtx>({ variant: "full", nyaize: false });
 
 /** http(s) だけを <a> にする（javascript: 等は文字のまま） */
 function isWebUrl(href: string): boolean {
   return /^https?:\/\//i.test(href);
 }
 
+// [#540] にゃんモード: プレーンテキスト断片だけを nyaize する（URL・メンション・タグ・shortcode は別ノードなので影響しない）
 function TextNode({ node }: { node: Text }) {
-  return node.value;
+  const { nyaize: shouldNyaize } = useContext(NoteContentContext);
+  return shouldNyaize ? nyaize(node.value) : node.value;
 }
 
 // 末尾の句読点（"…/a." の "."）はリンクに含めず、後ろに文字として出す
 function LinkNode({ node }: { node: LinkNast }) {
-  const variant = useContext(NoteContentContext);
+  const { variant } = useContext(NoteContentContext);
   const [url, tail] = splitTrailingPunct(node.value);
   if (!isWebUrl(url)) return node.value;
   return (
@@ -63,7 +69,7 @@ function LinkNode({ node }: { node: LinkNast }) {
 
 // 連続した URL は applesauce が gallery にまとめる。画像・動画は取り除き済みなので、残ったものを 1 行ずつ出す
 function GalleryNode({ node }: { node: Gallery }) {
-  const variant = useContext(NoteContentContext);
+  const { variant } = useContext(NoteContentContext);
   return (
     <span className={styles.gallery}>
       {node.links.map((href, i) =>
@@ -84,7 +90,7 @@ function GalleryNode({ node }: { node: Gallery }) {
 }
 
 function HashtagNode({ node }: { node: Hashtag }) {
-  const variant = useContext(NoteContentContext);
+  const { variant } = useContext(NoteContentContext);
   if (variant === "quote") return <span className={styles.hashtag}>#{node.name}</span>;
   return (
     <Link className={styles.hashtag} to={hrefForTag(node.hashtag)}>
@@ -102,7 +108,7 @@ function profileName(profile: ProfileContent | undefined): string | undefined {
 }
 
 function ProfileMention({ pubkey, encoded }: { pubkey: string; encoded: string }) {
-  const variant = useContext(NoteContentContext);
+  const { variant } = useContext(NoteContentContext);
   const label = mentionLabel(encoded, profileName(useProfile(pubkey)));
   if (variant === "quote") return <span className={styles.mention}>{label}</span>;
   return (
@@ -113,7 +119,7 @@ function ProfileMention({ pubkey, encoded }: { pubkey: string; encoded: string }
 }
 
 function MentionNode({ node }: { node: Mention }) {
-  const variant = useContext(NoteContentContext);
+  const { variant } = useContext(NoteContentContext);
   const { decoded } = node;
   switch (decoded.type) {
     case "npub":
@@ -213,8 +219,9 @@ export function NoteContent({
     [event, hideMention, hideLinks],
   );
   const content = useRenderNast(root, components);
+  const nyaize = useNyanApplies(event.pubkey);
   return (
-    <NoteContentContext.Provider value={variant}>
+    <NoteContentContext.Provider value={{ variant, nyaize }}>
       <div className={variant === "quote" ? `${styles.content} ${styles.quote}` : styles.content}>
         {content}
       </div>
@@ -229,7 +236,7 @@ export function NoteContent({
 export function RichText({ root, size = "body" }: { root: Root; size?: "body" | "sub" }) {
   const content = useRenderNast(root, components);
   return (
-    <NoteContentContext.Provider value="full">
+    <NoteContentContext.Provider value={{ variant: "full", nyaize: false }}>
       <div className={size === "sub" ? `${styles.content} ${styles.sub}` : styles.content}>{content}</div>
     </NoteContentContext.Provider>
   );

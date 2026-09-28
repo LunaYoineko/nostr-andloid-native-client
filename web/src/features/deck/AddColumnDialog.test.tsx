@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, beforeEach, expect, it } from "vitest";
 import { DEFAULT_COLUMNS, decodeDeckColumns, encodeReqFilter } from "../../lib/columns";
+import { resetRelays, useRelays } from "../../nostr/pool";
 import { COLUMNS_KEY, useDeck } from "../../store/deck";
 import { AddColumnDialog } from "./AddColumnDialog";
 
@@ -23,6 +24,7 @@ beforeEach(() => {
 
 afterEach(() => {
   localStorage.clear();
+  resetRelays();
 });
 
 it("ハッシュタグ Nostr を足すと #Nostr のカラムが末尾に増えて保存され、ダイアログが閉じる", async () => {
@@ -73,4 +75,48 @@ it("指定 npub の投稿に読めない文字列を入れるとエラーを出�
   expect(screen.getByText("npub または hex を入力")).toBeInTheDocument();
   expect(useDeck.getState().columns).toHaveLength(3);
   expect(useDeck.getState().showAddColumn).toBe(true);
+});
+
+it("グローバル: 読むリレーのチェック一覧 + 任意の URL 追加。件数表示と保存内容（#540）", async () => {
+  const user = userEvent.setup();
+  useRelays.setState({
+    read: ["wss://a.example", "wss://b.example"],
+    write: ["wss://a.example"],
+    source: "nip65",
+  });
+  render(<AddColumnDialog />);
+
+  await user.click(screen.getByRole("button", { name: /^グローバル/ }));
+  expect(screen.getByText("未選択＝全リレーから取得")).toBeInTheDocument();
+  // textarea ではなくチェック一覧（読むリレー 2 件）
+  expect(screen.getByRole("checkbox", { name: "wss://a.example" })).not.toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "wss://b.example" })).not.toBeChecked();
+
+  await user.click(screen.getByRole("checkbox", { name: "wss://a.example" }));
+  expect(screen.getByText("1 件のリレーへ配信")).toBeInTheDocument();
+
+  const addRelayButton = screen.getByRole("button", { name: "配信先リレーを追加" });
+  expect(addRelayButton).toBeDisabled();
+  await user.type(screen.getByRole("textbox", { name: "配信先リレーの URL" }), "wss://c.example");
+  expect(addRelayButton).toBeEnabled();
+  await user.click(addRelayButton);
+  expect(screen.getByRole("checkbox", { name: "wss://c.example" })).toBeChecked();
+  expect(screen.getByText("2 件のリレーへ配信")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "追加" }));
+  const added = useDeck.getState().columns.at(-1);
+  expect(added).toMatchObject({ kind: "GLOBAL", title: "グローバル" });
+  expect(added && encodeReqFilter(added.filter)).toBe(
+    JSON.stringify({ relays: ["wss://a.example", "wss://c.example"] }),
+  );
+});
+
+it("グローバル: wss:// で始まらない追加入力は無視する", async () => {
+  const user = userEvent.setup();
+  useRelays.setState({ read: [], write: [], source: "nip65" });
+  render(<AddColumnDialog />);
+
+  await user.click(screen.getByRole("button", { name: /^グローバル/ }));
+  await user.type(screen.getByRole("textbox", { name: "配信先リレーの URL" }), "https://not-a-relay");
+  expect(screen.getByRole("button", { name: "配信先リレーを追加" })).toBeDisabled();
 });

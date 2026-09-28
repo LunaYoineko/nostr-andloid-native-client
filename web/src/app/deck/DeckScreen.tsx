@@ -3,12 +3,15 @@ import { ColumnMenu, DeckColumn } from "../../features/deck/DeckColumn";
 import { KbColumn } from "../../features/keyboard/KbList";
 import { useDeck } from "../../store/deck";
 import { ColumnTabs } from "../../ui/ColumnTabs";
-import { scrollBehavior, scrollToLeft, useLayoutMode } from "../../ui/useLayoutMode";
+import { prefersReducedMotion, scrollBehavior, scrollToLeft, useLayoutMode } from "../../ui/useLayoutMode";
 import styles from "./DeckScreen.module.css";
 import { leftmostVisibleIndex, pageIndexFromScroll } from "./geometry";
 
 /** タブ押下後のスクロールがユーザーの指で止められた場合に、抑止を解く時間 */
 const PROGRAMMATIC_TIMEOUT_MS = 1000;
+
+/** [#336][#540] 並べ替え FLIP のアニメ時間（ネイティブの tween(280) と同じ） */
+const FLIP_DURATION_MS = 280;
 
 /**
  * デッキ（ネイティブ ExpandedDeck / CompactPager）。
@@ -28,6 +31,9 @@ export function DeckScreen() {
   const programmaticTarget = useRef<number | null>(null);
   const programmaticTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const frame = useRef<number | null>(null);
+  /** [#336][#540] 並べ替え FLIP。前回コミット時点の並び・左端位置（次の並べ替えの「旧」として使う） */
+  const flipOrder = useRef<string[] | null>(null);
+  const flipLefts = useRef(new Map<string, number>());
 
   /** スクロール位置から visibleColumnId を決める（計算はすべてここを通す） */
   const syncVisible = useCallback(() => {
@@ -97,6 +103,43 @@ export function DeckScreen() {
     if (mode === "compact" && idx >= 0) scrollToLeft(strip, idx * strip.clientWidth, "instant");
     syncVisible();
   }, [idsKey, mode, syncVisible]);
+
+  // [#336][#540] 並べ替え FLIP（Expanded のみ。Compact はタブで切り替わるだけなので滑らせない）。
+  // 順番が変わった（＝ ⋯ の ◀ ▶ で動いた）カラムだけに、旧位置 → 新位置(0) へ 280ms の transform を掛ける。
+  // reduced-motion なら掛けない。実際の px は前回コミット時点の offsetLeft との差（スクロール位置が
+  // 変わらない前提。ネイティブと違い自動スクロール補正はしない簡易版）。
+  useLayoutEffect(() => {
+    const prevOrder = flipOrder.current;
+    const ids = idsKey === "" ? [] : idsKey.split("\n");
+    if (mode === "expanded" && prevOrder && !prefersReducedMotion()) {
+      for (const id of ids) {
+        if (prevOrder.indexOf(id) === -1 || prevOrder.indexOf(id) === ids.indexOf(id)) continue;
+        const el = slots.current.get(id);
+        if (!el) continue;
+        const before = flipLefts.current.get(id) ?? el.offsetLeft;
+        const delta = before - el.offsetLeft;
+        el.style.transition = "none";
+        el.style.transform = delta !== 0 ? `translateX(${delta}px)` : "";
+        el.classList.add(styles.flip);
+        requestAnimationFrame(() => {
+          el.style.transition = "";
+          el.style.transform = "";
+        });
+        // delta が 0（同じ位置に戻った等）だと transitionend が発火しないので、保険で必ず外す
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          el.classList.remove(styles.flip);
+          el.removeEventListener("transitionend", finish);
+        };
+        el.addEventListener("transitionend", finish);
+        setTimeout(finish, FLIP_DURATION_MS + 50);
+      }
+    }
+    flipOrder.current = mode === "expanded" ? ids : null;
+    flipLefts.current = new Map(ids.map((id) => [id, slots.current.get(id)?.offsetLeft ?? 0]));
+  }, [idsKey, mode]);
 
   // jump 要求のカラムへ寄せて消費する（見つからなくても消費）。マウント時に残っていれば同じ処理をする
   useEffect(() => {

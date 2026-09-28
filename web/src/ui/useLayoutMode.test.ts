@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { clearViewport, mockViewport, setViewportWidth } from "../test/viewport";
-import { prefersReducedMotion, scrollBehavior, useLayoutMode } from "./useLayoutMode";
+import { prefersReducedMotion, scrollBehavior, useLayoutMode, useShowNavRail } from "./useLayoutMode";
 
 afterEach(() => {
   clearViewport();
@@ -28,4 +28,27 @@ it("matchMedia が無ければ compact、視差効果の設定は false（滑ら
   expect(renderHook(() => useLayoutMode()).result.current).toBe("compact");
   expect(prefersReducedMotion()).toBe(false);
   expect(scrollBehavior()).toBe("smooth");
+});
+
+it("[#540] レールは 439px で false、440px で true（compact のまま。ネイティブ RAIL_COMPACT_MIN_WIDTH_DP）", () => {
+  mockViewport(439);
+  expect(renderHook(() => useShowNavRail()).result.current).toBe(false);
+  expect(renderHook(() => useLayoutMode()).result.current).toBe("compact");
+  mockViewport(440);
+  expect(renderHook(() => useShowNavRail()).result.current).toBe(true);
+  expect(renderHook(() => useLayoutMode()).result.current).toBe("compact");
+});
+
+it("[#540] 幅が 500 → 400 に変わると再描画でレールが消える", () => {
+  mockViewport(500);
+  const { result } = renderHook(() => useShowNavRail());
+  expect(result.current).toBe(true);
+
+  setViewportWidth(400);
+  expect(result.current).toBe(false);
+});
+
+it("[#540] matchMedia が無ければレールも false", () => {
+  clearViewport();
+  expect(renderHook(() => useShowNavRail()).result.current).toBe(false);
 });

@@ -213,7 +213,9 @@ function MessageRow({
   return (
     <article className={styles.message} data-continuation={continuation || undefined}>
       <span className={styles.avatarSlot}>
-        {!continuation && <Avatar key={picture} url={picture} size="md" seed={name} />}
+        {!continuation && (
+          <Avatar key={picture} url={picture} size="md" seed={name} pubkey={message.pubkey} />
+        )}
       </span>
       <div className={styles.main}>
         {!continuation && (
@@ -248,7 +250,7 @@ function ReplyQuote({ parent }: { parent: NostrEvent }) {
   return (
     <p className={styles.quote}>
       <ReplyIcon className={styles.quoteIcon} />
-      <Avatar key={picture} url={picture} size="sm" seed={parent.pubkey} />
+      <Avatar key={picture} url={picture} size="sm" seed={parent.pubkey} pubkey={parent.pubkey} />
       <span className={styles.quoteText}>
         {`${displayName(profile, parent.pubkey)}: ${oneLine(plainTextOf(parent))}`}
       </span>

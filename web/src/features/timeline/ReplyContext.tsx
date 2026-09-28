@@ -65,7 +65,7 @@ export function ReplyContext({ event }: { event: NostrEvent }) {
   return (
     <Link className={styles.line} to={hrefForEvent(pointer)}>
       <ReplyIcon className={styles.icon} />
-      <Avatar key={picture} url={picture} size="sm" seed={parent.pubkey} />
+      <Avatar key={picture} url={picture} size="sm" seed={parent.pubkey} pubkey={parent.pubkey} />
       <span className={styles.text}>{label}</span>
     </Link>
   );
