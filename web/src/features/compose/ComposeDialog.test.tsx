@@ -11,6 +11,8 @@ import { installDialogPolyfill } from "../../test/dialog";
 import { createTestSigner } from "../../test/fakeSigner";
 import { renderWithRouter } from "../../test/renderWithRouter";
 import { useToast } from "../../ui/toast";
+import { openHashtagManager } from "../hashtags/hashtagManagerStore";
+import { togglePinnedHashtag } from "../hashtags/pinnedHashtags";
 import { ComposeDialog } from "./ComposeDialog";
 import { type ComposeRequest, openCompose, useCompose } from "./composeStore";
 import { setMediaServer } from "./mediaServer";
@@ -27,6 +29,17 @@ vi.mock("../../signer/session", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../signer/session")>();
   return { ...actual, currentSigner: vi.fn() };
 });
+
+// 取り直し・発行は pinnedHashtags.test.ts。ここは呼び出しと画面だけ
+vi.mock("../hashtags/pinnedHashtags", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../hashtags/pinnedHashtags")>()),
+  togglePinnedHashtag: vi.fn(async () => "done" as const),
+}));
+
+vi.mock("../hashtags/hashtagManagerStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../hashtags/hashtagManagerStore")>()),
+  openHashtagManager: vi.fn(),
+}));
 
 let meKey: Uint8Array;
 let me: string;
@@ -46,6 +59,9 @@ beforeEach(() => {
       meKey,
     ),
   );
+  vi.mocked(togglePinnedHashtag).mockReset();
+  vi.mocked(togglePinnedHashtag).mockResolvedValue("done");
+  vi.mocked(openHashtagManager).mockClear();
 });
 
 afterEach(() => {
@@ -324,6 +340,63 @@ describe("入力補完", () => {
     const suggest = screen.getByText("候補").nextElementSibling as HTMLElement;
     await user.click(within(suggest).getByRole("button", { name: "#bitcoin" }));
     expect(body()).toHaveValue("#bitcoin ");
+  });
+
+  it("タグチップの長押し / 右クリックで tag_pin / tag_unpin（#536）", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(USED_HASHTAGS_KEY, JSON.stringify([{ tag: "bitcoin", lastUsed: 1 }]));
+    stored("", {
+      kind: 30015,
+      key: meKey,
+      tags: [
+        ["d", "pinned"],
+        ["t", "zap"],
+      ],
+    });
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+
+    const pinned = screen.getByText("📌 ピン留め").nextElementSibling as HTMLElement;
+    const zapChip = within(pinned).getByRole("button", { name: "#zap" });
+    fireEvent.contextMenu(zapChip);
+    await user.click(screen.getByRole("menuitem", { name: "ピン留めを解除" }));
+    expect(vi.mocked(togglePinnedHashtag)).toHaveBeenCalledWith(me, "zap", false);
+    // 長押し / 右クリックに続くクリックはタグの挿入として扱わない
+    expect(body()).toHaveValue("");
+
+    const recent = screen.getByText("最近のタグ").nextElementSibling as HTMLElement;
+    const bitcoinChip = within(recent).getByRole("button", { name: "#bitcoin" });
+    fireEvent.contextMenu(bitcoinChip);
+    await user.click(screen.getByRole("menuitem", { name: "ピン留め" }));
+    expect(vi.mocked(togglePinnedHashtag)).toHaveBeenCalledWith(me, "bitcoin", true);
+  });
+
+  it("ピン留めが15件なら発行せず案内する", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(USED_HASHTAGS_KEY, JSON.stringify([{ tag: "extra", lastUsed: 1 }]));
+    stored("", {
+      kind: 30015,
+      key: meKey,
+      tags: [["d", "pinned"], ...Array.from({ length: 15 }, (_, i) => ["t", `t${i}`])],
+    });
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+
+    const recent = screen.getByText("最近のタグ").nextElementSibling as HTMLElement;
+    fireEvent.contextMenu(within(recent).getByRole("button", { name: "#extra" }));
+    await user.click(screen.getByRole("menuitem", { name: "ピン留め" }));
+
+    expect(vi.mocked(togglePinnedHashtag)).not.toHaveBeenCalled();
+    expect(useToast.getState().queue).toEqual(["ピン留めは15件までです。整理画面で整理してください。"]);
+  });
+
+  it("「整理…」で整理画面を開く", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<Harness />);
+    open({ mode: "new" });
+
+    await user.click(screen.getByRole("button", { name: "整理…" }));
+    expect(vi.mocked(openHashtagManager)).toHaveBeenCalledTimes(1);
   });
 
   it(":ca で自分のカスタム絵文字の候補、選ぶと :cat: に置き換える", async () => {

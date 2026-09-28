@@ -251,6 +251,14 @@
   font-size: var(--type-label);
 }
 
+/* カスタム絵文字の一覧のサムネ */
+.emojiThumb {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
 .textButton {
   min-height: var(--touch-xs);
   padding: 0 var(--sp-2);
