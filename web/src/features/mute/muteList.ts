@@ -278,7 +278,8 @@ export type ResolveEvent = (id: string) => NostrEvent | undefined;
 
 const noResolve: ResolveEvent = () => undefined;
 
-function matchesWord(m: MuteMatcher, text: string): boolean {
+/** 本文がミュートワード（部分一致・/正規表現/）に当たるか */
+export function matchesWord(m: MuteMatcher, text: string): boolean {
   if (text === "") return false;
   const lower = text.toLowerCase();
   if (m.wordSubs.some((w) => w !== "" && lower.includes(w))) return true;

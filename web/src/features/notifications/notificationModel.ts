@@ -5,6 +5,7 @@ import { hrefForEvent, oneLine } from "../../lib/content/labels";
 import { articleTitleOf } from "../../lib/content/tags";
 import { zapAmountSats, zapSenderOf } from "../../lib/nip57";
 import { plainTextOf } from "../actions/noteLinks";
+import { channelHref, channelIdOf } from "../chat/chatMessage";
 import type { DmConversation } from "../dm/dmStore";
 import { normalizeReaction } from "../thread/engagement";
 
@@ -132,9 +133,14 @@ export function notificationSnippet(target: NostrEvent): string {
   return oneLine([...(articleTitleOf(target) ?? plainTextOf(target))].slice(0, SNIPPET_MAX).join(""));
 }
 
-/** 行を押したときに開くスレッド（対象があれば対象、無ければ通知そのもの）。DM は相手との会話 */
-export function notificationHref(item: NotificationItem): string {
+/**
+ * 行を押したときに開くスレッド（対象があれば対象、無ければ通知そのもの）。DM は相手との会話、
+ * 対象（取れていれば target）が kind:42 ならそのチャンネルのルーム（ネイティブ openNotificationTarget）
+ */
+export function notificationHref(item: NotificationItem, target?: NostrEvent): string {
   if (item.kind === "dm") return `/messages/${npubEncode(item.actor)}`;
+  const channelId = target && target.id === item.target?.id ? channelIdOf(target) : null;
+  if (channelId !== null) return channelHref(channelId);
   return hrefForEvent(item.target ?? { id: item.id });
 }
 
