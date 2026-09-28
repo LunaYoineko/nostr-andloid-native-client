@@ -33,7 +33,7 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
       { id: "profile-edit", label: "プロフィール編集", ready: true },
       { id: "account", label: "アカウント", ready: true },
       { id: "relays", label: "リレー", ready: true },
-      { id: "dm-relays", label: "DMリレー", ready: false },
+      { id: "dm-relays", label: "DMリレー", ready: true },
       { id: "media", label: "メディアサーバー", ready: true },
       { id: "wallet", label: "ウォレット", ready: false },
     ],
