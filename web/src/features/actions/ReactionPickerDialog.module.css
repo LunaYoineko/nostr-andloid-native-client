@@ -9,7 +9,8 @@
   max-width: none;
   max-height: none;
   margin: 0;
-  padding: calc(env(safe-area-inset-top, 0px) + var(--sp-3)) var(--sp-4) var(--sp-3);
+  padding: calc(env(safe-area-inset-top, 0px) + var(--sp-3)) var(--sp-4)
+    calc(env(safe-area-inset-bottom, 0px) + var(--sp-3));
   border: 0;
   background: transparent;
   color: var(--text);
@@ -23,14 +24,20 @@
   background: rgba(0, 0, 0, 0.55);
 }
 
-/* 560px = ネイティブのカード最大幅（560dp）。高さは画面いっぱい */
+/* 560px = ネイティブのカード最大幅（560dp）。高さは画面いっぱいまで、内容が短ければそれに合わせる（#595） */
 .card {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 560px;
-  height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--sp-3) * 2);
+  max-height: calc(
+    100dvh -
+    env(safe-area-inset-top, 0px) -
+    env(safe-area-inset-bottom, 0px) -
+    var(--sp-3) *
+    2
+  );
   margin: 0 auto;
   padding: 0 var(--sp-3);
   border-radius: var(--r-lg);

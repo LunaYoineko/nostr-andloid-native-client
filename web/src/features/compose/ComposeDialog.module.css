@@ -8,7 +8,8 @@
   max-width: none;
   max-height: none;
   margin: 0;
-  padding: calc(env(safe-area-inset-top, 0px) + var(--sp-3)) var(--sp-4) var(--sp-3);
+  padding: calc(env(safe-area-inset-top, 0px) + var(--sp-3)) var(--sp-4)
+    calc(env(safe-area-inset-bottom, 0px) + var(--sp-3));
   border: 0;
   background: transparent;
   color: var(--text);
@@ -28,7 +29,13 @@
   flex-direction: column;
   width: 100%;
   max-width: 460px;
-  max-height: calc(var(--compose-vvh, 100dvh) - env(safe-area-inset-top, 0px) - var(--sp-3) * 2);
+  max-height: calc(
+    var(--compose-vvh, 100dvh) -
+    env(safe-area-inset-top, 0px) -
+    env(safe-area-inset-bottom, 0px) -
+    var(--sp-3) *
+    2
+  );
   margin: 0 auto;
   border-radius: var(--r-lg);
   background: var(--surface);
