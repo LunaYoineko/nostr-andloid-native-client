@@ -12,11 +12,14 @@ import { startOwnRelayList } from "./nostr/outbox";
 import { startPublishQueue } from "./nostr/publish";
 import { startRelayAuth } from "./nostr/relayAuth";
 import { useSession } from "./signer/session";
+import { applyOsAttribute } from "./ui/platform";
 import "./styles/global.css";
 
 // 保存済みのテーマ・文字サイズ・太字を React の描画前に同期的に当てる（初回描画のちらつきを避ける。
 // CSP で inline script は置けないので、ここが一番早い）
 initTheme();
+// iOS 判定を <html data-os="ios"> に反映する（#598。BottomNav.module.css の下端インセット分岐で使う）
+applyOsAttribute();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root が見つからない");
