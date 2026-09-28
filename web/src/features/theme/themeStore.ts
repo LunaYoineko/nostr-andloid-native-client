@@ -120,9 +120,25 @@ export class ThemePublishError extends Error {
   }
 }
 
+/** JSON 文字列または値がオブジェクトならそれを返す（それ以外・壊れた JSON は null） */
+function parseObject(value: unknown): Record<string, unknown> | null {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+    ? (parsed as Record<string, unknown>)
+    : null;
+}
+
 /**
  * 発行する kind:30078。取り直した版（base。同じ d が無ければ null）の d/t/title 以外のタグは
- * そのまま残す（未知タグの保持）。content は名前・配色から作り直す（配色そのものが中身のため）。
+ * そのまま残す（未知タグの保持）。content も base の JSON にある Web が知らない項目（colors の中の他の色を含む）を
+ * 残し、app / schema / name / colors の 3 色だけを差し替える（#478）。minAppVersion は base にあればそれを保つ。
  */
 export function buildThemePublishTemplate(
   base: NostrEvent | null,
@@ -133,12 +149,16 @@ export function buildThemePublishTemplate(
   const dTag = themeDTag(name);
   const knownTags = new Set(["d", "t", "title"]);
   const others = (base?.tags ?? []).filter((t) => !knownTags.has(t[0]));
+  const baseContent = parseObject(base?.content);
+  const baseColors = parseObject(baseContent?.colors);
   const content = JSON.stringify({
+    ...baseContent,
     app: THEME_APP,
     schema: THEME_SCHEMA,
     name,
-    minAppVersion: DEFAULT_MIN_APP_VERSION,
-    colors,
+    minAppVersion:
+      typeof baseContent?.minAppVersion === "string" ? baseContent.minAppVersion : DEFAULT_MIN_APP_VERSION,
+    colors: { ...baseColors, ...colors },
   });
   return {
     kind: 30078,

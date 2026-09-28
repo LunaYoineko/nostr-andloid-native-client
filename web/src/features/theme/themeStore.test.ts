@@ -256,6 +256,41 @@ describe("buildThemePublishTemplate", () => {
   });
 });
 
+describe("buildThemePublishTemplate（content の保持。#478）", () => {
+  it("base の content にある未知の項目・他の色・minAppVersion は残し、名前と 3 色だけ差し替える", () => {
+    const base = finalizeEvent(
+      {
+        kind: 30078,
+        created_at: 2_000,
+        content: JSON.stringify({
+          app: "nostrism",
+          schema: 1,
+          name: "Old",
+          minAppVersion: "0.9.0",
+          description: "from native",
+          colors: { bg: "#111111", text: "#222222", accent: "#333333", surface: "#444444" },
+        }),
+        tags: [["d", "nostrism:theme:sakura"]],
+      },
+      generateSecretKey(),
+    );
+    const template = buildThemePublishTemplate(
+      base,
+      "Sakura",
+      { bg: "#000000", text: "#FFFFFF", accent: "#FF0000" },
+      3_000,
+    );
+    expect(JSON.parse(template.content)).toEqual({
+      app: "nostrism",
+      schema: 1,
+      name: "Sakura",
+      minAppVersion: "0.9.0",
+      description: "from native",
+      colors: { bg: "#000000", text: "#FFFFFF", accent: "#FF0000", surface: "#444444" },
+    });
+  });
+});
+
 describe("publishTheme（#478 の規則）", () => {
   const colors = { bg: "#000000", text: "#FFFFFF", accent: "#FF0000" };
 
