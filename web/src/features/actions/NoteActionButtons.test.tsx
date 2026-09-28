@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import { NEVER } from "rxjs";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { requestZapInvoice } from "../../lib/lnurl";
 import { unixNow } from "../../lib/time";
 import { type EventDraft, publishEvent } from "../../nostr/publish";
 import { eventStore } from "../../nostr/store";
@@ -39,6 +40,12 @@ vi.mock("../mute/muteSync", async (importOriginal) => {
     muteUser: vi.fn(async () => "done" as const),
     unmuteUser: vi.fn(async () => "done" as const),
   };
+});
+
+// Zap の invoice は取りに行かない（呼ばれ方だけ見る。LNURL は lnurl.test.ts）
+vi.mock("../../lib/lnurl", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/lnurl")>();
+  return { ...actual, requestZapInvoice: vi.fn(async () => null) };
 });
 
 // フォロー / 解除は #457 の関数を呼ぶところまで
@@ -255,18 +262,18 @@ describe("⚡ Zap", () => {
     expect(screen.queryByRole("img", { name: /Zap/ })).toBeNull();
   });
 
-  it("lud16 があり受領 0 なら灰色の ⚡ だけ（金額なし・押せない）", () => {
+  it("lud16 があり受領 0 なら灰色の ⚡ ボタン（金額なし）", () => {
     const key = generateSecretKey();
     addProfile(key, "alice@getalby.com");
     renderRow(post(key));
-    const zap = screen.getByRole("img", { name: "Zap" });
+    const zap = button("Zap");
     expect(zap).toHaveClass(styles.zap);
     expect(zap).not.toHaveClass(styles.zapped);
     expect(zap).toHaveTextContent(/^$/);
-    expect(screen.queryByRole("button", { name: /Zap/ })).toBeNull();
+    expect(screen.queryByRole("img", { name: /Zap/ })).toBeNull();
   });
 
-  it("受領があれば lud16 が無くても ⚡ と合計（formatSats）を --zap の色で出す", () => {
+  it("受領があれば lud16 が無くても ⚡ と合計（formatSats）を --zap の色で出す（押せない）", () => {
     const key = generateSecretKey();
     addProfile(key);
     const event = post(key);
@@ -276,6 +283,34 @@ describe("⚡ Zap", () => {
     const zap = screen.getByRole("img", { name: "Zap 1.2k sats" });
     expect(zap).toHaveClass(styles.zapped);
     expect(zap).toHaveTextContent("1.2k");
+    expect(screen.queryByRole("button", { name: /Zap/ })).toBeNull();
+  });
+
+  it("⚡ を押すと Zap ダイアログ（投稿への Zap: 作者・lud16・e / k）", async () => {
+    const user = userEvent.setup();
+    const key = generateSecretKey();
+    addProfile(key, " alice@getalby.com ");
+    const event = post(key);
+    renderRow(event);
+    addZap(event, "lnbc210n1pxxxxxx");
+
+    await user.click(button("Zap 21 sats"));
+    const dialog = screen.getByRole("dialog", { name: "⚡ Zap" });
+    expect(within(dialog).getByText("送信先: alice@getalby.com")).toBeInTheDocument();
+    expect(within(dialog).getByText(/^作者 へ投げ銭します/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "⚡ 100" }));
+    await waitFor(() =>
+      expect(requestZapInvoice).toHaveBeenCalledWith({
+        recipient: event.pubkey,
+        lud16: "alice@getalby.com",
+        amountSats: 100,
+        comment: "",
+        eventId: event.id,
+        targetKind: 1,
+      }),
+    );
+    await user.click(within(dialog).getByRole("button", { name: "キャンセル" }));
+    expect(screen.queryByRole("dialog", { name: "⚡ Zap" })).toBeNull();
   });
 });
 

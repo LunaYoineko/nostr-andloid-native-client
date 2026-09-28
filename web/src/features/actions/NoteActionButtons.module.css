@@ -42,11 +42,12 @@
   }
 }
 
-/* ⚡ Zap（ネイティブ ZapAction）。押せないのでボタンの hover は付けない。未受領は --text-3 */
+/* ⚡ Zap（ネイティブ ZapAction）。未受領は --text-3 */
 .zap {
   display: flex;
   align-items: center;
   flex: none;
+  padding: 0;
   color: var(--text-3);
 }
 
@@ -54,6 +55,24 @@
 .zapped {
   padding: 0 var(--sp-1);
   color: var(--zap);
+}
+
+/* 作者に lud16 があれば押せる（Zap ダイアログ）。hover・フォーカスはアクションボタンと同じ */
+.zapButton {
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.zapButton:hover {
+  background: var(--surface-2);
+}
+
+.zapButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 /* アイコンの枠はアクションボタンのタッチ箱と同じ */
