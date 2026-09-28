@@ -1,6 +1,8 @@
 import type { EventTemplate, NostrEvent } from "nostr-tools/pure";
+import { INDEXER_RELAYS } from "../../lib/columnRequest";
 import { unixNow } from "../../lib/time";
 import { OwnReplaceableUnreachableError, refetchOwnReplaceable } from "../../nostr/ownReplaceable";
+import { writeRelays } from "../../nostr/pool";
 import { PublishError, type PublishFailure, publishEvent } from "../../nostr/publish";
 
 /** 編集できる項目（kind:0 のキー。表示名は name に入れる。ネイティブ AccountSettings と同じ 7 つ） */
@@ -141,7 +143,10 @@ export async function publishProfile(
   if ((base?.id ?? null) !== basedOnId) throw new ProfileEditError("stale");
 
   try {
-    await publishEvent(buildProfileTemplate(base, changed, unixNow()));
+    // プロフィールは他の人が見つけられるよう、自分の write リレーに加えてインデクサにも送る（kind:10002 と同じ）
+    await publishEvent(buildProfileTemplate(base, changed, unixNow()), {
+      relays: [...new Set([...writeRelays(), ...INDEXER_RELAYS])],
+    });
   } catch (e) {
     if (e instanceof PublishError) throw new ProfileEditError(e.reason, { cause: e });
     throw e;

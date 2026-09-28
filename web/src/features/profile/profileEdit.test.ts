@@ -1,6 +1,7 @@
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import { EMPTY, Observable, throwError } from "rxjs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { INDEXER_RELAYS } from "../../lib/columnRequest";
 import { requestOnce, resetRelays } from "../../nostr/pool";
 import { PublishError, publishEvent } from "../../nostr/publish";
 import { addVerified } from "../../nostr/store";
@@ -71,7 +72,9 @@ function published(): {
   created_at?: number;
 } {
   expect(vi.mocked(publishEvent)).toHaveBeenCalledTimes(1);
-  const [draft] = vi.mocked(publishEvent).mock.calls[0];
+  const [draft, opts] = vi.mocked(publishEvent).mock.calls[0];
+  // 送り先は write リレー ∪ インデクサ
+  for (const url of INDEXER_RELAYS) expect(opts?.relays).toContain(url);
   return { ...draft, content: JSON.parse(draft.content) as Record<string, unknown> };
 }
 
