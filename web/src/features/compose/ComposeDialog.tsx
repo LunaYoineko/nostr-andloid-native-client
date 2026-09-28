@@ -25,6 +25,7 @@ import {
   VisibilityOffIcon,
 } from "../../ui/icons";
 import { showToast } from "../../ui/toast";
+import { useVisualViewportHeight } from "../../ui/useVisualViewportHeight";
 import { EmojiInsertButton } from "../actions/EmojiInsertButton";
 import { openHashtagManager } from "../hashtags/hashtagManagerStore";
 import { pinLimitMessage, togglePinnedHashtag } from "../hashtags/pinnedHashtags";
@@ -269,15 +270,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
   }, []);
 
   // ソフトキーボードが出たら見えている高さにカードを収める
-  useEffect(() => {
-    const vv = window.visualViewport;
-    const d = dialog.current;
-    if (!vv || !d) return;
-    const apply = () => d.style.setProperty("--compose-vvh", `${vv.height}px`);
-    apply();
-    vv.addEventListener("resize", apply);
-    return () => vv.removeEventListener("resize", apply);
-  }, []);
+  useVisualViewportHeight(dialog, "--compose-vvh");
 
   useLayoutEffect(() => {
     const el = textarea.current;
