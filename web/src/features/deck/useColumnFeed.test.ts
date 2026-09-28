@@ -113,7 +113,7 @@ it("フォロー中: kind:3 が届いてフォロー 0 件でも自分だけで�
     for (const f of call[1] as { authors?: string[]; "#p"?: string[] }[])
       expect(f.authors ?? f["#p"]).toBeDefined();
   }
-  expect(lastRequest().filters[0]).toEqual({ kinds: [1, 6, 16, 5, 1111], authors: [me], limit: 100 });
+  expect(lastRequest().filters?.[0]).toEqual({ kinds: [1, 6, 16, 5, 1111], authors: [me], limit: 100 });
   expect(result.current.events).toEqual([]);
   expect(result.current.emptyText).toBeUndefined();
 });
