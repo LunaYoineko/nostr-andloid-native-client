@@ -139,6 +139,22 @@ export function ensureChannels(): void {
   if (channels === null && !loading) void refreshChannels();
 }
 
+/**
+ * Web で作成・編集した結果をローカルの一覧へすぐ反映する（ネイティブ createChannel / updateChannel の
+ * upsertChannel と同じ。/api/nchan/channels に載るのを待たない）。無ければ先頭に足し、既にあれば
+ * その場で置き換える（並び順は変えない）。
+ */
+export function upsertLocalChannel(channel: Channel): void {
+  useChannels.setState((s) => {
+    const list = s.channels ?? [];
+    const index = list.findIndex((c) => c.id === channel.id);
+    if (index === -1) return { channels: [channel, ...list] };
+    const next = [...list];
+    next[index] = channel;
+    return { channels: next };
+  });
+}
+
 /** 一覧のチャンネル（無ければ undefined） */
 export function useChannel(id: string | null): Channel | undefined {
   return useChannels((s) => (id === null ? undefined : s.channels?.find((c) => c.id === id)));

@@ -1,9 +1,10 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type ColumnSpec, DEFAULT_COLUMNS, decodeDeckColumns } from "../../lib/columns";
+import { requestZapInvoice } from "../../lib/lnurl";
 import { readRelays, subscribeTo } from "../../nostr/pool";
 import { unsent$ } from "../../nostr/publish";
 import { addVerified, eventStore } from "../../nostr/store";
@@ -30,6 +31,11 @@ vi.mock("../../nostr/pool", async (importOriginal) => {
 });
 // DM の購読・復号はしない
 vi.mock("../dm/dmService", () => ({ startDecrypting: vi.fn(), resumeDecrypting: vi.fn() }));
+// [#538] Zap の invoice は取りに行かない（呼ばれ方だけ見る）
+vi.mock("../../lib/lnurl", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../lib/lnurl")>();
+  return { ...actual, requestZapInvoice: vi.fn(async () => null) };
+});
 
 const CH = "7f5475b40ce3350e161c24d7cea37ffd2c291c71e9118df5ec7395822c1f6302";
 const CH2 = "1c6ffe5f48bf5f0fce9c991b34dd22e96e49ce38fab9f953820f6727fe6e6b04";
@@ -39,6 +45,7 @@ const meKey = generateSecretKey();
 const aliceKey = generateSecretKey();
 const bobKey = generateSecretKey();
 const ME = getPublicKey(meKey);
+const ALICE = getPublicKey(aliceKey);
 const BOB = getPublicKey(bobKey);
 
 function message(
@@ -231,6 +238,47 @@ describe("デッキのルームカラム", () => {
     if (!firstRow) throw new Error("no row");
     await user.click(within(firstRow).getByRole("button", { name: "リプライ" }));
     expect(within(screen.getByRole("dialog")).getByText(/ に返信: こんにちは$/)).toBeInTheDocument();
+  });
+
+  it("[#538] ⚡ は発言者の kind:0 に lud16 があるときだけ。押すと ZapDialog（e=発言の id・k=42）", async () => {
+    const user = userEvent.setup();
+    useChannels.setState({ channels: CHANNELS });
+    const aliceProfile = finalizeEvent(
+      {
+        kind: 0,
+        created_at: 1,
+        tags: [],
+        content: JSON.stringify({ name: "alice", lud16: "alice@ln.example" }),
+      },
+      aliceKey,
+    );
+    addVerified(aliceProfile);
+    const [spec] = decodeDeckColumns(SYNCED) ?? [];
+    renderColumn(spec);
+
+    const bobRow = screen.getByText("ミュートされる発言").closest("article");
+    if (!bobRow) throw new Error("no row");
+    expect(within(bobRow).queryByRole("button", { name: "Zap" })).not.toBeInTheDocument();
+
+    const aliceRow = screen.getByText("こんにちは").closest("article");
+    if (!aliceRow) throw new Error("no row");
+    await user.click(within(aliceRow).getByRole("button", { name: "Zap" }));
+    const dialog = screen.getByRole("dialog", { name: "⚡ Zap" });
+    expect(within(dialog).getByText("送信先: alice@ln.example")).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "⚡ 100" }));
+    await waitFor(() =>
+      expect(requestZapInvoice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipient: ALICE,
+          lud16: "alice@ln.example",
+          eventId: first.id,
+          targetKind: 42,
+        }),
+      ),
+    );
+
+    eventStore.remove(aliceProfile.id);
   });
 });
 
