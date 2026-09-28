@@ -2,14 +2,19 @@ import type { EventPointer } from "applesauce-core/helpers/pointers";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
+import { useNoteZaps, useZapReceipts } from "../zap/useZapReceipts";
+import type { ZapItem } from "../zap/zapTotals";
 import { CommentRootCard, GenericRootCard } from "./CommentRootCard";
 import { FocusNoteStats } from "./FocusNoteStats";
 import { ReplyBox } from "./ReplyBox";
 import { ThreadRow } from "./ThreadRow";
 import styles from "./ThreadScreen.module.css";
 import { useThread } from "./useThread";
+import { ZapRow } from "./ZapRow";
 
-type HeaderContext = { focus: NostrEvent | undefined };
+type CommentedZap = ZapItem & { sender: string };
+
+type ListContext = { focus: NostrEvent | undefined; zaps: readonly CommentedZap[] };
 
 /** ツリーの先頭のカード（コメント対象 / まだ表示できない kind の案内） */
 function LeadCard({ focus }: { focus: NostrEvent | undefined }) {
@@ -21,15 +26,21 @@ function LeadCard({ focus }: { focus: NostrEvent | undefined }) {
   return null;
 }
 
-function ListHeader({ context }: { context?: HeaderContext }) {
+function ListHeader({ context }: { context?: ListContext }) {
   return <LeadCard focus={context?.focus} />;
 }
 
-const COMPONENTS = { Header: ListHeader };
+/** 返信の後のコメント付き Zap（新しい順。ネイティブ ThreadColumn と同じくコメント無しは行にしない） */
+function ListFooter({ context }: { context?: ListContext }) {
+  return context?.zaps.map((zap) => <ZapRow key={zap.id} zap={zap} />);
+}
+
+const COMPONENTS = { Header: ListHeader, Footer: ListFooter };
 
 /**
  * スレッドの本文（ネイティブの ProfileScreen.kt ThreadDetail / ThreadColumn.kt ThreadColumn）。
- * root から深さ優先で並べ、起点の下に日時と反応を出す。起点へは自動スクロールしない（ネイティブと同じ）。
+ * root から深さ優先で並べ、起点の下に日時と反応を出す。返信の後にコメント付き Zap を返信風に並べる。
+ * 起点へは自動スクロールしない（ネイティブと同じ）。
  * onReply があれば下端に返信ボックスを出す（起点、無ければ先頭の行への返信）。
  */
 export function ThreadScreen({
@@ -40,7 +51,14 @@ export function ThreadScreen({
   onReply?: (target: NostrEvent) => void;
 }) {
   const { focus, entries, engagementEvents, loading } = useThread(pointer);
-  const context = useMemo<HeaderContext>(() => ({ focus }), [focus]);
+  // 起点への Zap 受領（kind:9735）
+  useZapReceipts([pointer.id]);
+  const zaps = useNoteZaps(pointer.id);
+  const commented = useMemo(
+    () => zaps.zaps.filter((z): z is CommentedZap => z.sender !== null && z.comment.trim() !== ""),
+    [zaps],
+  );
+  const context = useMemo<ListContext>(() => ({ focus, zaps: commented }), [focus, commented]);
   const replyTarget = entries.find((e) => e.isFocused)?.event ?? entries[0]?.event;
 
   return (
@@ -63,7 +81,7 @@ export function ThreadScreen({
                 entry={entry}
                 stats={
                   entry.isFocused ? (
-                    <FocusNoteStats noteId={pointer.id} events={engagementEvents} />
+                    <FocusNoteStats noteId={pointer.id} events={engagementEvents} zaps={zaps} />
                   ) : undefined
                 }
               />

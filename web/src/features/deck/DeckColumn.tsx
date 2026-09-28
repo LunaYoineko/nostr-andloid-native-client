@@ -27,6 +27,7 @@ import { NotificationList } from "../notifications/NotificationList";
 import { NotificationRow } from "../notifications/NotificationRow";
 import { NoteItem } from "../timeline/NoteItem";
 import { Timeline } from "../timeline/Timeline";
+import { useZapReceipts, zapTargetIds } from "../zap/useZapReceipts";
 import styles from "./DeckColumn.module.css";
 import type { FeedRow } from "./followingMix";
 import { useColumnFeed } from "./useColumnFeed";
@@ -93,6 +94,8 @@ function DmColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean 
 
 function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
   const { loading, events, rows, loadingOlder, loadOlder, refresh } = useColumnFeed(spec);
+  // 表示中の投稿への Zap 受領（アクション行の ⚡ の合計）
+  useZapReceipts(zapTargetIds(events));
   return (
     <section className={styles.column} aria-label={spec.title} aria-busy={loading}>
       {showHeader && <ColumnHeader spec={spec} onRefresh={refresh} />}
