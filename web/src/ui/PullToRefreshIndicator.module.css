@@ -1,0 +1,38 @@
+/* 引っ張って更新のインジケータ（ネイティブ Material3 PullToRefreshBox 相当の円形）。
+ * 置き先（Timeline / NotificationList / ProfileScreen の .scroll）は position: relative 前提。
+ */
+.indicator {
+  position: absolute;
+  top: var(--sp-2);
+  left: 50%;
+  z-index: 1;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.ring {
+  box-sizing: border-box;
+  display: block;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  background: var(--surface-3);
+}
+
+.ring[data-spinning="true"] {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring[data-spinning="true"] {
+    animation: none;
+  }
+}

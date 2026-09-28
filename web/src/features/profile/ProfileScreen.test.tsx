@@ -33,7 +33,7 @@ vi.mock("../../nostr/pool", async (importOriginal) => {
 });
 
 vi.mock("./useProfileFeed", () => ({
-  useProfileFeed: vi.fn(() => ({ loading: false, posts: [], media: [], articles: [] })),
+  useProfileFeed: vi.fn(() => ({ loading: false, posts: [], media: [], articles: [], refresh: vi.fn() })),
 }));
 
 vi.mock("./useContactsOf", () => ({ useContactsOf: vi.fn(() => null) }));
@@ -101,7 +101,13 @@ beforeEach(() => {
   vi.mocked(toggleFollow).mockReset();
   vi.mocked(toggleFollow).mockResolvedValue("done");
   vi.mocked(useContactsOf).mockReturnValue(null);
-  vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [], articles: [] });
+  vi.mocked(useProfileFeed).mockReturnValue({
+    loading: false,
+    posts: [],
+    media: [],
+    articles: [],
+    refresh: vi.fn(),
+  });
   vi.mocked(useFollowers).mockReturnValue({
     followers: null,
     hasMore: false,
@@ -478,6 +484,7 @@ describe("タブ", () => {
       posts: [photo, repost, text],
       media: [photo],
       articles: [],
+      refresh: vi.fn(),
     });
     renderScreen();
 
@@ -527,6 +534,7 @@ describe("タブ", () => {
       posts: [],
       media: [],
       articles: [newer, older],
+      refresh: vi.fn(),
     });
     renderScreen();
 
@@ -545,7 +553,13 @@ describe("タブ", () => {
   it("記事が 0 件なら「まだ記事がありません」", async () => {
     const user = userEvent.setup();
     alice();
-    vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [], articles: [] });
+    vi.mocked(useProfileFeed).mockReturnValue({
+      loading: false,
+      posts: [],
+      media: [],
+      articles: [],
+      refresh: vi.fn(),
+    });
     renderScreen();
 
     await user.click(screen.getByRole("tab", { name: "記事" }));
@@ -554,12 +568,24 @@ describe("タブ", () => {
 
   it("空なら「まだ投稿がありません」、読み込み中は「読み込み中…」", () => {
     alice();
-    vi.mocked(useProfileFeed).mockReturnValue({ loading: true, posts: [], media: [], articles: [] });
+    vi.mocked(useProfileFeed).mockReturnValue({
+      loading: true,
+      posts: [],
+      media: [],
+      articles: [],
+      refresh: vi.fn(),
+    });
     const { unmount } = renderScreen();
     expect(screen.getByText("読み込み中…")).toBeInTheDocument();
     unmount();
 
-    vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [], articles: [] });
+    vi.mocked(useProfileFeed).mockReturnValue({
+      loading: false,
+      posts: [],
+      media: [],
+      articles: [],
+      refresh: vi.fn(),
+    });
     renderScreen();
     expect(screen.getByText("まだ投稿がありません")).toBeInTheDocument();
   });
@@ -581,6 +607,7 @@ describe("固定投稿（#531。その人の kind:10001）", () => {
       posts: [text],
       media: [photo],
       articles: [],
+      refresh: vi.fn(),
     });
     renderScreen();
 
@@ -826,6 +853,7 @@ describe("タブ・スクロール位置の復元（#401 #540）", () => {
       posts: [],
       media: [note(themKey, "写真 https://img.test/p.jpg", 1_000)],
       articles: [],
+      refresh: vi.fn(),
     });
     renderScreen();
 
