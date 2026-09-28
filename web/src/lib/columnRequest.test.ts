@@ -34,15 +34,18 @@ function note(overrides: Partial<NostrEvent>): NostrEvent {
 const [following, hashtag, notif] = DEFAULT_COLUMNS;
 
 describe("requestFor", () => {
-  it("フォロー中: kind:3 が未取得・空なら REQ を出さない（グローバルへ広げない、#583）。取得後はフォロー + 自分。通知・自分のリアクションも一緒に取る（#522）", () => {
+  it("フォロー中: authors = フォロー + 自分。kind:3 未受信・0 件でもログイン中は自分の分を取り、リレー新着へは広げない（#583）。通知・自分のリアクションも一緒に取る（#522）", () => {
     const mix = [
       { kinds: [1, 6, 16, 7, 9735, 1111], "#p": [ME], limit: 200 },
       { kinds: [7], authors: [ME], limit: 100 },
     ];
-    // kind:3 未受信（null）
-    expect(requestFor(following, ctx())).toBeNull();
-    // フォロー 0 件
-    expect(requestFor(following, ctx({ follows: [] }))).toBeNull();
+    const mineOnly = {
+      relays: RELAYS,
+      filters: [{ kinds: [1, 6, 16, 5, 1111], authors: [ME], limit: 100 }, ...mix],
+    };
+    // kind:3 未受信（null）とフォロー 0 件は、ネイティブ subscribeFollowing の withMe と同じく自分だけ
+    expect(requestFor(following, ctx())).toEqual(mineOnly);
+    expect(requestFor(following, ctx({ follows: [] }))).toEqual(mineOnly);
     expect(requestFor(following, ctx({ follows: [FOLLOW, ME] }))).toEqual({
       relays: RELAYS,
       filters: [{ kinds: [1, 6, 16, 5, 1111], authors: [FOLLOW, ME], limit: 100 }, ...mix],
@@ -133,9 +136,12 @@ describe("viewFor", () => {
     expect(viewFor(hashtag, ctx()).filters).toEqual([{ kinds: [1], "#t": ["nostr"] }]);
   });
 
-  it("フォロー中: kind:3 未受信・フォロー 0 件はストアからも読まない（#583）", () => {
-    expect(viewFor(following, ctx()).filters).toEqual([]);
-    expect(viewFor(following, ctx({ follows: [] })).filters).toEqual([]);
+  it("フォロー中: 表示も REQ と同じ authors。未ログインでフォローも無ければストアからも読まない（#583）", () => {
+    expect(viewFor(following, ctx()).filters).toEqual([{ kinds: [1, 6, 16, 1111], authors: [ME] }]);
+    expect(viewFor(following, ctx({ follows: [] })).filters).toEqual([
+      { kinds: [1, 6, 16, 1111], authors: [ME] },
+    ]);
+    expect(viewFor(following, ctx({ me: null, follows: null })).filters).toEqual([]);
   });
 
   it("ハッシュタグ: 表示は先頭のタグを小文字にして読み、REQ はタグをそのまま送る", () => {

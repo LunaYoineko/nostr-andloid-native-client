@@ -71,9 +71,6 @@ export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
   const follows = useFollows(spec.kind === "FOLLOWING" ? me : null);
   const relays = useReadRelays();
 
-  // フォロー中カラムでログイン中なのに自分の kind:3 がまだ届いていない間（#583）。REQ は張らず読み込み中を出す
-  const followingPending = spec.kind === "FOLLOWING" && me !== null && follows === null;
-
   // フィルター・フォロー・read リレーの中身が変わったときだけ張り直す（同じ中身で配列が作り直されても据え置く）
   const filterKey = encodeReqFilter(spec.filter);
   const followKey = follows?.join(",");
@@ -87,11 +84,11 @@ export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
   const outboxKey = outboxAuthorsFor(spec)?.join(",") ?? "";
 
   const [epoch, setEpoch] = useState(0);
-  const [loading, setLoading] = useState(plan !== null || followingPending);
+  const [loading, setLoading] = useState(plan !== null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: epoch は refresh() で張り直すためのキー
   useEffect(() => {
     if (plan === null) {
-      setLoading(followingPending);
+      setLoading(false);
       return;
     }
     setLoading(true);
@@ -104,7 +101,7 @@ export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
       sub.unsubscribe();
       outbox?.unsubscribe();
     };
-  }, [plan, epoch, outboxKey, followingPending]);
+  }, [plan, epoch, outboxKey]);
 
   const events =
     use$(
@@ -151,10 +148,8 @@ export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
   const refresh = useCallback(() => setEpoch((e) => e + 1), []);
 
   const mode: FeedMode = spec.kind !== "FOLLOWING" ? "column" : "following";
-  // フォロー中カラムで REQ を出していない（フォロー 0 件・未ログイン）ときだけ空表示の文言を出す。
-  // kind:3 待ち（followingPending）はそれと別に「読み込み中」を出すので文言は出さない
-  const emptyText =
-    spec.kind === "FOLLOWING" && plan === null && !followingPending ? FOLLOWING_EMPTY_TEXT : undefined;
+  // フォロー中カラムで REQ を出していない（未ログインでフォローも無い）ときだけ空表示の文言を出す（#583）
+  const emptyText = spec.kind === "FOLLOWING" && plan === null ? FOLLOWING_EMPTY_TEXT : undefined;
   return { mode, loading, emptyText, events: visible, rows, loadingOlder, loadOlder, refresh };
 }
 

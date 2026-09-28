@@ -85,17 +85,17 @@ function myReactionsView(me: string): ViewPlan {
 export function requestFor(spec: ColumnSpec, ctx: Ctx): RequestPlan {
   const f = spec.filter;
   switch (spec.kind) {
-    case "FOLLOWING":
-      // フォロー未取得・0 件ならリレー新着へ広げず REQ を出さない（#583。ネイティブと同じ authors = follows + 自分）
-      if (!ctx.follows || ctx.follows.length === 0) return null;
+    case "FOLLOWING": {
+      // authors = フォロー + 自分（ネイティブ subscribeFollowing の withMe）。空（未ログインでフォローも無い）なら
+      // リレー新着へ広げず REQ を出さない（#583）。ログイン中はフォロー 0 件・kind:3 未受信でも自分の分は取る
+      const authors = followAuthors(ctx.follows ?? [], ctx.me);
+      if (authors.length === 0) return null;
       // 投稿に、自分宛ての通知と自分のリアクション（混ぜて出す。mixViewsFor）を足す
       return {
         relays: ctx.relays,
-        filters: [
-          { kinds: FOLLOWING_KINDS, authors: followAuthors(ctx.follows, ctx.me), limit: COLUMN_LIMIT },
-          ...mixFilters(ctx.me),
-        ],
+        filters: [{ kinds: FOLLOWING_KINDS, authors, limit: COLUMN_LIMIT }, ...mixFilters(ctx.me)],
       };
+    }
     case "NOTIFICATIONS":
       // カラムの filter.kinds は REQ にも表示（viewFor）にも使わない（ネイティブと同じ）
       if (!ctx.me) return null;
@@ -123,10 +123,12 @@ export function requestFor(spec: ColumnSpec, ctx: Ctx): RequestPlan {
 export function viewFor(spec: ColumnSpec, ctx: Ctx): ViewPlan {
   const f = spec.filter;
   switch (spec.kind) {
-    case "FOLLOWING":
-      // REQ を張らない（#583）のでストアからも読まない。手元にたまたまある他人の投稿を出さない
-      if (!ctx.follows || ctx.follows.length === 0) return { filters: [] };
-      return { filters: [{ kinds: FOLLOWING_VIEW_KINDS, authors: followAuthors(ctx.follows, ctx.me) }] };
+    case "FOLLOWING": {
+      // REQ と同じ authors（#583）。空なら REQ を張らないのでストアからも読まない（手元にたまたまある他人の投稿を出さない）
+      const authors = followAuthors(ctx.follows ?? [], ctx.me);
+      if (authors.length === 0) return { filters: [] };
+      return { filters: [{ kinds: FOLLOWING_VIEW_KINDS, authors }] };
+    }
     case "NOTIFICATIONS":
       // カラムの filter.kinds（表示する種別）は見ない。全種別を出す（ネイティブの NotificationsColumn と同じ）
       if (!ctx.me) return { filters: [] };
