@@ -26,14 +26,22 @@ type Anchor = {
   seenTopId: string | undefined;
 };
 
-type FooterContext = { loadingOlder: boolean };
+type ListContext = { loadingOlder: boolean; header?: ReactNode };
 
 /** 末尾の「過去を読み込み中…」 */
-function OlderFooter({ context }: { context?: FooterContext }) {
+function OlderFooter({ context }: { context?: ListContext }) {
   return context?.loadingOlder ? <p className={styles.empty}>過去を読み込み中…</p> : null;
 }
 
-const COMPONENTS = { Footer: OlderFooter };
+/**
+ * 先頭の任意の見出し（PROFILE カラムの上部カードなど）。Virtuoso の components.Header は item の
+ * index に含まれないので、新着ピル・keyboard 操作（KbRow / postOf）の番号はずれない（スクロールには追従する）。
+ */
+function ListHeader({ context }: { context?: ListContext }) {
+  return <>{context?.header}</>;
+}
+
+const COMPONENTS = { Footer: OlderFooter, Header: ListHeader };
 
 const renderNote = (event: NostrEvent) => <NoteItem event={event} />;
 
@@ -45,6 +53,7 @@ const renderNote = (event: NostrEvent) => <NoteItem event={event} />;
  * 行は既定で投稿（NoteItem）。renderItem を渡すと投稿以外の行（フォロー中カラムの混在）も並べられる（id で数える）。
  * デッキのカラムでは postOf が投稿を返す行だけをキー操作（j / k）で選べる（r / t / f の対象）。
  * postOf の既定は、renderItem が無ければ行そのもの（すべて投稿）、あれば無し（どの行も選べて、どれも投稿ではない）。
+ * header を渡すと一覧の先頭（スクロール領域の中）に出す（PROFILE カラムの上部カードなど。渡さなければ何も変わらない）。
  */
 export function Timeline<T extends { id: string } = NostrEvent>({
   events,
@@ -54,6 +63,7 @@ export function Timeline<T extends { id: string } = NostrEvent>({
   emptyText = "まだ投稿がありません",
   renderItem,
   postOf,
+  header,
 }: {
   events: T[];
   loading: boolean;
@@ -64,6 +74,8 @@ export function Timeline<T extends { id: string } = NostrEvent>({
   renderItem?: (item: T) => ReactNode;
   /** 行の投稿（投稿の行でなければ null）。キー操作で選べる行と r / t / f の対象を決める */
   postOf?: (item: T) => NostrEvent | null;
+  /** 一覧の先頭（item の index には含まれず、キー操作・新着ピルの番号はずれない） */
+  header?: ReactNode;
 }) {
   // renderItem を省くのは投稿の一覧だけ（T = NostrEvent）
   const render = renderItem ?? (renderNote as unknown as (item: T) => ReactNode);
@@ -112,7 +124,13 @@ export function Timeline<T extends { id: string } = NostrEvent>({
   const pill = newCount > 0 ? `${newCount} 件の新着` : scrolledAway ? "最新へ戻る" : null;
 
   if (events.length === 0) {
-    return <p className={styles.empty}>{loading ? "読み込み中…" : emptyText}</p>;
+    // header（PROFILE カラムの上部カードなど）は投稿が無くても出す（ネイティブの LazyColumn と同じ）
+    return (
+      <div className={styles.timeline}>
+        {header}
+        <p className={styles.empty}>{loading ? "読み込み中…" : emptyText}</p>
+      </div>
+    );
   }
 
   return (
@@ -137,7 +155,7 @@ export function Timeline<T extends { id: string } = NostrEvent>({
         rangeChanged={onRangeChanged}
         endReached={onEndReached}
         components={COMPONENTS}
-        context={{ loadingOlder }}
+        context={{ loadingOlder, header }}
         itemContent={(index, item) => <KbRow index={index - firstItemIndex}>{render(item)}</KbRow>}
       />
     </div>

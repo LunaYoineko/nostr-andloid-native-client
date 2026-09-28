@@ -18,7 +18,8 @@ const COPIED_MS = 1_500;
  * PROFILE カラムの上部カード（ネイティブ ProfileColumn.kt の ProfileHeaderCard、105–）。
  * アバター 60px（押すとライトボックス）・名前（無ければ hex 先頭 10 文字）・NIP-05・フォローボタン・
  * npub（押すとコピー）・固定投稿（#531。その人の kind:10001。「📌 固定された投稿」付き、ProfilePostList と同じ文言）。
- * カラムヘッダの下、投稿一覧の上に固定で出す。
+ * Timeline の header として投稿一覧の先頭に渡す（スマホで画面を占有しないよう、他の投稿と同じスクロール領域を
+ * 一緒にスクロールする。ネイティブの LazyColumn の先頭項目と同じ）。
  */
 export function ProfileColumnHeader({ pubkey }: { pubkey: string }) {
   const me = useSession((s) => s.pubkey);

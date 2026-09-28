@@ -150,12 +150,12 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
   const { loading, events, rows, loadingOlder, loadOlder, refresh } = useColumnFeed(spec);
   // 表示中の投稿への Zap 受領（アクション行の ⚡ の合計）
   useZapReceipts(zapTargetIds(events));
-  // PROFILE カラムの上部カード（ネイティブ ProfileColumn と同じ。投稿一覧の上、カラムヘッダの下に固定で出す）
+  // PROFILE カラムの上部カード（ネイティブ ProfileColumn と同じ。一覧の先頭に置き、スクロールに追従させる）
   const profilePubkey = spec.kind === "PROFILE" ? spec.filter.authors[0] : undefined;
+  const profileHeader = profilePubkey ? <ProfileColumnHeader pubkey={profilePubkey} /> : undefined;
   return (
     <section className={styles.column} aria-label={spec.title} aria-busy={loading}>
       {showHeader && <ColumnHeader spec={spec} onRefresh={refresh} />}
-      {profilePubkey && <ProfileColumnHeader pubkey={profilePubkey} />}
       <div className={styles.body}>
         {loading && <div className={styles.progress} role="progressbar" aria-label="読み込み中" />}
         {spec.kind === "FAVS" ? (
@@ -186,6 +186,7 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             loading={loading}
             onEndReached={loadOlder}
             loadingOlder={loadingOlder}
+            header={profileHeader}
           />
         )}
       </div>
