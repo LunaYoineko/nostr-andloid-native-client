@@ -14,6 +14,33 @@
   background: var(--surface);
 }
 
+/* 先頭の「新しいスレッドを作成」（ネイティブ channel_create_row。ConversationList の newRow と同じ） */
+.createRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--touch);
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--type-sub);
+  font-weight: var(--w-strong);
+  text-align: left;
+  cursor: pointer;
+}
+
+.createRow:hover {
+  background: var(--surface-3);
+}
+
+.createIcon {
+  flex: none;
+}
+
 /* ネイティブ ChannelRow: 行高は固定（アバター 38 + 上下 12）、右端に 40px のピン */
 .item {
   display: flex;
@@ -95,6 +122,30 @@
   color: var(--text-2);
   font-size: var(--type-caption);
   line-height: var(--line-desc);
+}
+
+/* [#538] 自分が作成した kind:40 の行だけに出す編集ボタン（pin と同じ寸法） */
+.edit {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.edit:hover {
+  background: var(--surface-2);
+}
+
+.editIcon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .pin {
