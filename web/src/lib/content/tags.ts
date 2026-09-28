@@ -1,7 +1,12 @@
 import { getContentWarning } from "applesauce-common/helpers/content";
 import { getNip10References } from "applesauce-common/helpers/threading";
-import { type EventPointer, getEventPointerFromQTag } from "applesauce-core/helpers/pointers";
+import {
+  type EventPointer,
+  getAddressPointerFromATag,
+  getEventPointerFromQTag,
+} from "applesauce-core/helpers/pointers";
 import type { NostrEvent } from "nostr-tools/pure";
+import { eventStore } from "../../nostr/store";
 import { parseNoteContent } from "./parse";
 
 /** client タグ名の最大長（ネイティブの NoteItem.kt と同じ。超えたら切り詰めて … を付ける） */
@@ -50,8 +55,22 @@ function pointerFromCommentTag(tag: string[] | undefined): EventPointer | null {
 }
 
 /**
+ * ["a", "<kind>:<pubkey>:<d>", relay?] 形式のタグを EventPointer にする（NIP-22 の a / A）。
+ * addressable イベント自体を手元（eventStore）に持っていないと id が引けないので、無ければ null（挙動2.1）。
+ */
+function pointerFromCommentAddressTag(tag: string[] | undefined): EventPointer | null {
+  const address = tag ? getAddressPointerFromATag(tag) : null;
+  if (!address) return null;
+  const target = eventStore.getReplaceable(address.kind, address.pubkey, address.identifier);
+  if (!target) return null;
+  const pointer: EventPointer = { id: target.id, author: target.pubkey };
+  if (address.relays && address.relays.length > 0) pointer.relays = address.relays;
+  return pointer;
+}
+
+/**
  * 返信先（親）の投稿。kind:1 は NIP-10（reply → root → マーカー無しの末尾）、
- * kind:1111 は NIP-22（小文字 e → 大文字 E）。それ以外の kind は null。
+ * kind:1111 は NIP-22（小文字 e → a → 大文字 E → A）。それ以外の kind は null。
  */
 export function replyParentPointerOf(event: NostrEvent): EventPointer | null {
   if (event.kind === 1) {
@@ -61,7 +80,9 @@ export function replyParentPointerOf(event: NostrEvent): EventPointer | null {
   if (event.kind === 1111) {
     return (
       pointerFromCommentTag(event.tags.find((t) => t[0] === "e")) ??
-      pointerFromCommentTag(event.tags.find((t) => t[0] === "E"))
+      pointerFromCommentAddressTag(event.tags.find((t) => t[0] === "a")) ??
+      pointerFromCommentTag(event.tags.find((t) => t[0] === "E")) ??
+      pointerFromCommentAddressTag(event.tags.find((t) => t[0] === "A"))
     );
   }
   return null;

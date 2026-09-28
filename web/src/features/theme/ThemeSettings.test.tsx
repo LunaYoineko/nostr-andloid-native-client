@@ -81,6 +81,27 @@ it("選ぶとすぐ保存して <html> へ反映する", async () => {
   });
 });
 
+it("種別の視覚表示を選ぶと種別→色の凡例が出る。「なし」に戻すと消える（S11）", async () => {
+  const user = userEvent.setup();
+  render(<ThemeSettings />);
+  expect(screen.queryByRole("list", { name: "種別の色の凡例" })).toBeNull();
+
+  await user.click(screen.getByRole("radio", { name: "背景色" }));
+  const legend = screen.getByRole("list", { name: "種別の色の凡例" });
+  expect(legend.textContent).toContain("リポスト");
+  expect(legend.textContent).toContain("引用");
+  expect(legend.textContent).toContain("リプライ");
+  expect(legend.textContent).toContain("リアクション");
+
+  await user.click(screen.getByRole("radio", { name: "なし" }));
+  expect(screen.queryByRole("list", { name: "種別の色の凡例" })).toBeNull();
+});
+
+it("文字サイズの説明文を出す（S12）", () => {
+  render(<ThemeSettings />);
+  expect(screen.getByText("文字だけをさらに大きく。")).toBeInTheDocument();
+});
+
 it("テーマを「カスタム」にすると、色をカスタマイズ / テーマストアから取得の導線行が出る", async () => {
   const user = userEvent.setup();
   render(<ThemeSettings />);

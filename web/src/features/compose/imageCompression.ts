@@ -92,6 +92,15 @@ export function resetImageCompression(): void {
   }
 }
 
+/**
+ * 解像度プリセットの表示順（ネイティブ ImageResolution.entries）。投稿シート・チャット入力欄で共有する（CH4 / 挙動4.4）。
+ */
+export const RESOLUTIONS: readonly [ImageResolution, string][] = [
+  ["low", "低"],
+  ["mid", "中"],
+  ["high", "高"],
+];
+
 /** プリセットに対応する長辺 px（ネイティブ maxDimFor）。高は null（縮小しない。ただし EXIF は消すため再エンコードはする） */
 export function maxDimFor(resolution: ImageResolution, prefs: ImageCompressionPrefs): number | null {
   switch (resolution) {

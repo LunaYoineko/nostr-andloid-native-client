@@ -54,6 +54,18 @@ function normalized(url: string): string | null {
 }
 
 /**
+ * AUTH（NIP-42）のチャレンジを一度でも送ってきたリレー（正規化 URL）。挙動1.7: nevent / nprofile の
+ * リレーヒントから、AUTH を要求してくるリレーを除く（`relayHints.ts` の `excluded` に足す）ための集合。
+ * 応答したかどうかは問わない（チャレンジが来た時点で記録する）。
+ */
+const requestedAuth = new Set<string>();
+
+/** requestedAuth の読み取り専用ビュー */
+export function authRequestedRelays(): ReadonlySet<string> {
+  return requestedAuth;
+}
+
+/**
  * この URL の AUTH の要求に応答するか（ネイティブ shouldAuth）。dm = 自分の read / write リレーか
  * 自分の kind:10050 のリレー（正規化して比べる）
  */
@@ -138,7 +150,10 @@ function watchOne(relay: AuthRelay, context$: Observable<AuthContext>): Subscrip
   );
   subscription.add(
     combineLatest([relay.challenge$, context$]).subscribe(([challenge, context]) => {
-      if (answered || !challenge) return;
+      if (!challenge) return;
+      const key = normalized(relay.url);
+      if (key !== null) requestedAuth.add(key);
+      if (answered) return;
       if (!shouldAuth(relay.url, context.policy, context.own, context.dm)) return;
       const signer = currentSigner();
       if (!signer) return;

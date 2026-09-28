@@ -163,19 +163,23 @@ describe("Expanded", () => {
     expect(within(items()).queryByRole("button", { name: "開発者" })).toBeNull();
   });
 
-  it("データ・キャッシュ: 開発者モードの切り替えを保存する", async () => {
+  it("データ・キャッシュ: 開発者モードの切り替えを保存する。「接続と通信量」は ON のときだけ出す（S13）", async () => {
     renderAt("/settings/data", 1000);
+    expect(screen.queryByRole("button", { name: "接続と通信量を表示" })).toBeNull();
     const toggle = screen.getByRole("checkbox", { name: "開発者モードを有効にする" });
     expect(toggle).not.toBeChecked();
     await userEvent.click(toggle);
     expect(toggle).toBeChecked();
     expect(useDeveloperMode.getState().enabled).toBe(true);
     expect(localStorage.getItem(DEVELOPER_MODE_KEY)).toBe("true");
+    expect(screen.getByRole("button", { name: "接続と通信量を表示" })).toBeInTheDocument();
     await userEvent.click(toggle);
     expect(localStorage.getItem(DEVELOPER_MODE_KEY)).toBe("false");
+    expect(screen.queryByRole("button", { name: "接続と通信量を表示" })).toBeNull();
   });
 
-  it("データ・キャッシュ: 「接続と通信量を表示」で read / write リレーの状態・受信量・購読中の REQ 数", async () => {
+  it("データ・キャッシュ: 「接続と通信量を表示」で read / write リレーの状態・受信量・購読中の REQ 数（開発者モード時のみ。S13）", async () => {
+    setDeveloperMode(true);
     renderAt("/settings/data", 1000);
     await userEvent.click(screen.getByRole("button", { name: "接続と通信量を表示" }));
     const dialog = screen.getByRole("dialog", { name: "接続と通信量" });

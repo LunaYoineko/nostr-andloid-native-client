@@ -17,8 +17,8 @@ export type ContentToken =
 /** nostr 参照の接頭辞（長い順＝最長一致） */
 const ENTITY_PREFIXES = ["nprofile1", "nevent1", "naddr1", "npub1", "note1"];
 
-/** URL の末尾から外す句読点・閉じ括弧 */
-const URL_TAIL = ").,!?；。、）】」』";
+/** URL の末尾から外す句読点・閉じ括弧（media.ts の trimUrlTail と共有。挙動2.3） */
+export const URL_TAIL = ").,!?；。、）】」』";
 
 /** Kotlin の Char.isLetterOrDigit（L* か Nd）。1 コード単位ずつ見る */
 const LETTER_OR_DIGIT = /^[\p{L}\p{Nd}]$/u;

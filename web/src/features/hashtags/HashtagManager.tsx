@@ -1,6 +1,6 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { type DragEvent, type FormEvent, useId, useMemo, useState } from "react";
-import { relativeTime } from "../../lib/time";
+import { formatAbsoluteTime } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
@@ -124,11 +124,7 @@ function Manager({ me, onDismiss }: { me: string; onDismiss(): void }) {
     <>
       <ModalSheet title="ハッシュタグの整理" onDismiss={attemptDismiss}>
         <div className={ownStyles.body}>
-          <p className={styles.desc}>
-            ピン留めしたタグ（NIP-51
-            kind:30015）は投稿画面とハッシュタグカラム作成のチップに常に表示され、端末をまたいで同期されます。使ったことのあるタグはこの端末で記憶され、#
-            入力時の候補になります。
-          </p>
+          {/* hashtags_note は設定 > ハッシュタグ側だけに出す（ネイティブと同じ。H1） */}
           <section className={styles.block} aria-label="ピン留め">
             <h3 className={styles.caption}>ピン留め</h3>
             <p className={styles.desc}>
@@ -345,7 +341,7 @@ function UsedRow({
   return (
     <li className={styles.relay}>
       <span className={styles.relayUrl}>{`#${entry.tag}`}</span>
-      <span className={styles.relayMeta}>{`最終使用 ${relativeTime(entry.lastUsed)}`}</span>
+      <span className={styles.relayMeta}>{`最終使用 ${formatAbsoluteTime(entry.lastUsed)}`}</span>
       {pinned ? (
         // ネイティブ hashtags_pinned_badge
         <span className={styles.relayMeta}>ピン留め中</span>

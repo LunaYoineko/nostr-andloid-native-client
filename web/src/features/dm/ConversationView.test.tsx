@@ -333,12 +333,11 @@ describe("添付（画像・動画。#535）", () => {
     return found;
   }
 
-  it("「画像を添付」「動画を添付」でプレビューが出て、✗ で外せる", async () => {
+  it("「画像・動画を添付」でプレビューが出て、✗ で外せる（DM4: 添付ボタンは 1 つに統一）", async () => {
     renderWithRouter(<ConversationView peer={PEER} />);
-    expect(screen.getByRole("button", { name: "画像を添付" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "動画を添付" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "画像・動画を添付" })).toBeInTheDocument();
 
-    await userEvent.upload(fileInput("image/*"), png());
+    await userEvent.upload(fileInput("image/*,video/*"), png());
     expect(screen.getByRole("img", { name: "添付画像" })).toHaveAttribute("src", "blob:test/1");
     // 本文が空でも添付があれば送れる
     expect(sendButton()).toBeEnabled();
@@ -352,7 +351,7 @@ describe("添付（画像・動画。#535）", () => {
     sendResolves("sent");
     renderWithRouter(<ConversationView peer={PEER} />);
     await userEvent.type(input(), "写真");
-    await userEvent.upload(fileInput("image/*"), png());
+    await userEvent.upload(fileInput("image/*,video/*"), png());
     await userEvent.click(sendButton());
 
     await waitFor(() => expect(vi.mocked(sendDm)).toHaveBeenCalledWith(PEER, `写真\n${UPLOADED_URL}`, null));
@@ -361,7 +360,7 @@ describe("添付（画像・動画。#535）", () => {
   it("アップロードに失敗したら送らず chat_upload_failed", async () => {
     fetchMock.mockRejectedValue(new Error("network"));
     renderWithRouter(<ConversationView peer={PEER} />);
-    await userEvent.upload(fileInput("image/*"), png());
+    await userEvent.upload(fileInput("image/*,video/*"), png());
     await userEvent.click(sendButton());
 
     await waitFor(() =>

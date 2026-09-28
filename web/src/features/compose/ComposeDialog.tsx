@@ -61,7 +61,7 @@ import {
 } from "./completion";
 import { type ComposeRequest, closeCompose } from "./composeStore";
 import { type CustomEmoji, useCustomEmojis } from "./customEmojis";
-import { type ImageResolution, maxDimFor, useImageCompression } from "./imageCompression";
+import { type ImageResolution, maxDimFor, RESOLUTIONS, useImageCompression } from "./imageCompression";
 import { uploadServers, useMediaServer } from "./mediaServer";
 import { ProfileAvatar } from "./ProfileAvatar";
 import { storeRelayHints } from "./relayHints";
@@ -89,12 +89,6 @@ const SEND_FAILED = "投稿に失敗しました。添付はそのままなの�
 const MENTION_DELAY_MS = 120;
 /** 絵文字候補の件数（ネイティブと同じ） */
 const EMOJI_SUGGEST_MAX = 12;
-/** 解像度プリセットの表示順（ネイティブ ImageResolution.entries） */
-const RESOLUTIONS: readonly [ImageResolution, string][] = [
-  ["low", "低"],
-  ["mid", "中"],
-  ["high", "高"],
-];
 const EMPTY_THREAD_DRAFT: ThreadDraft = { segs: [], edit: 0 };
 
 /** 候補のボタンを押しても本文のフォーカス（= ソフトキーボード）を外さない */
@@ -613,22 +607,27 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                     </div>
                   </>
                 )}
-                {pinned.length > 0 && (
-                  <>
-                    <p className={styles.hint}>📌 ピン留め</p>
-                    <div className={styles.chips}>
-                      {pinned.map((tag) => (
-                        <TagChip
-                          key={tag}
-                          tag={tag}
-                          pinned
-                          onClick={() => insertTag(tag)}
-                          onToggle={(pin) => toggleTagPin(tag, pin)}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
+                {/* [#393] 「📌 ピン留め」は常時表示（末尾に「整理…」）→「最近のタグ」の2段（ネイティブと同じ。C3） */}
+                <p className={styles.hint}>📌 ピン留め</p>
+                <div className={styles.chips}>
+                  {pinned.map((tag) => (
+                    <TagChip
+                      key={tag}
+                      tag={tag}
+                      pinned
+                      onClick={() => insertTag(tag)}
+                      onToggle={(pin) => toggleTagPin(tag, pin)}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    className={styles.chip}
+                    onMouseDown={keepFocus}
+                    onClick={() => openHashtagManager()}
+                  >
+                    整理…
+                  </button>
+                </div>
                 {recent.length > 0 && (
                   <>
                     <p className={styles.hint}>最近のタグ</p>
@@ -645,16 +644,6 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                     </div>
                   </>
                 )}
-                <div className={styles.chips}>
-                  <button
-                    type="button"
-                    className={styles.chip}
-                    onMouseDown={keepFocus}
-                    onClick={() => openHashtagManager()}
-                  >
-                    整理…
-                  </button>
-                </div>
               </>
             )}
             {attachments.length > 0 && (

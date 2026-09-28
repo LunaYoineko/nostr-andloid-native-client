@@ -88,10 +88,10 @@ function ListSetRow({ set }: { set: Nip51Set }) {
   );
 }
 
-/** ブックマークセットの 1 件（イベント id を解決して投稿として描く。届くまでは「読み込み中」） */
+/** ブックマークセットの 1 件（イベント id を解決して投稿として描く。届くまではネイティブと同じ md_resolving。P5） */
 function BookmarkedNote({ id }: { id: string }) {
   const pointer: EventPointer = { id };
   const event = useEventByPointer(pointer);
-  if (!event) return <p className={styles.loading}>投稿を読み込み中…</p>;
+  if (!event) return <p className={styles.loading}>参照を解決中…</p>;
   return <NoteItem event={event} />;
 }

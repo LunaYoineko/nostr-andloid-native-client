@@ -24,3 +24,46 @@
   resize: vertical;
   line-height: var(--line-desc);
 }
+
+/* URL 欄のプレビュー（S16。ネイティブ ProfileImageField と同じ: アイコンは正方形、バナーは横長） */
+.preview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.previewSquare {
+  width: 72px;
+  height: 72px;
+}
+
+.previewBanner {
+  width: 100%;
+  height: 80px;
+}
+
+.previewImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview[data-state="loading"] .previewImg,
+.preview[data-state="error"] .previewImg {
+  visibility: hidden;
+}
+
+.previewHint {
+  position: absolute;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.previewError {
+  position: absolute;
+  color: var(--warn);
+  font-size: var(--type-label);
+}

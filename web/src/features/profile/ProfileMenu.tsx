@@ -136,7 +136,7 @@ export function ProfileMenu({
                   setDialog("mute");
                 }}
               >
-                {muted ? "ミュートを解除" : "このユーザーをミュート"}
+                {muted ? "ミュートを解除" : "ミュート"}
               </button>
               <button
                 type="button"
@@ -147,7 +147,7 @@ export function ProfileMenu({
                   setDialog("report");
                 }}
               >
-                ユーザーを通報
+                通報
               </button>
             </>
           )}

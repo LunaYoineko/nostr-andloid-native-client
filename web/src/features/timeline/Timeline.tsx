@@ -63,7 +63,7 @@ export function Timeline<T extends { id: string } = NostrEvent>({
   loading,
   onEndReached,
   loadingOlder = false,
-  emptyText = "まだ投稿がありません",
+  emptyText = "投稿がありません",
   renderItem,
   postOf,
   header,

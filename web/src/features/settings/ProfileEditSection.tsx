@@ -1,5 +1,6 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { proxied } from "../../lib/imageProxy";
 import { refetchOwnReplaceable } from "../../nostr/ownReplaceable";
 import { eventStore } from "../../nostr/store";
 import { currentSigner, useSession } from "../../signer/session";
@@ -159,6 +160,7 @@ function ProfileEditForm({ me }: { me: string }) {
         value={fields.picture}
         disabled={disabled}
         uploading={uploading.picture}
+        banner={false}
         onChange={(v) => edit({ picture: v })}
         onPick={(file) => void upload("picture", file)}
       />
@@ -167,6 +169,7 @@ function ProfileEditForm({ me }: { me: string }) {
         value={fields.banner}
         disabled={disabled}
         uploading={uploading.banner}
+        banner
         onChange={(v) => edit({ banner: v })}
         onPick={(file) => void upload("banner", file)}
       />
@@ -251,12 +254,17 @@ function TextField({
   );
 }
 
-/** 画像の URL 欄 +「画像を選ぶ」（選んだ画像は投稿と同じ既定で圧縮して NIP-96 でアップロードし、URL を入れる） */
+/**
+ * 画像の URL 欄 +「画像を選ぶ」（選んだ画像は投稿と同じ既定で圧縮して NIP-96 でアップロードし、URL を入れる）。
+ * URL があれば下にプレビュー（読み込み中/失敗/成功。banner=true は横長、false は正方形。ネイティブ
+ * ProfileImageField と同じ。S16）。
+ */
 function ImageUrlField({
   label,
   value,
   disabled,
   uploading,
+  banner,
   onChange,
   onPick,
 }: {
@@ -264,6 +272,7 @@ function ImageUrlField({
   value: string;
   disabled: boolean;
   uploading: boolean;
+  banner: boolean;
   onChange(value: string): void;
   onPick(file: File): void;
 }) {
@@ -312,6 +321,29 @@ function ImageUrlField({
           }}
         />
       </div>
+      {value.trim() !== "" && <ImagePreview key={value} url={value} banner={banner} label={label} />}
+    </div>
+  );
+}
+
+/** URL 欄のプレビュー（読み込み中/失敗/成功。S16）。呼び出し側で key={url} を付け、URL が変わったら作り直す */
+function ImagePreview({ url, banner, label }: { url: string; banner: boolean; label: string }) {
+  const [state, setState] = useState<"loading" | "loaded" | "error">("loading");
+  const src = proxied(url, banner ? 800 : 256, 80);
+  return (
+    <div
+      className={`${styles.preview} ${banner ? styles.previewBanner : styles.previewSquare}`}
+      data-state={state}
+    >
+      <img
+        className={styles.previewImg}
+        src={src}
+        alt={label}
+        onLoad={() => setState("loaded")}
+        onError={() => setState("error")}
+      />
+      {state === "loading" && <span className={styles.previewHint}>読み込み中…</span>}
+      {state === "error" && <span className={styles.previewError}>画像を読み込めません</span>}
     </div>
   );
 }
