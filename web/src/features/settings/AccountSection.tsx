@@ -1,12 +1,29 @@
 import { npubEncode } from "nostr-tools/nip19";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LogoutButton } from "../../app/LogoutButton";
 import { shortNpub } from "../../lib/npub";
 import { displayName, useProfile } from "../../nostr/loaders";
+import { getPasskeyVault, isPasskeySupported } from "../../signer/passkeyVault";
 import { type SessionMethod, useSession } from "../../signer/session";
 import { AccountAvatar } from "../../ui/AccountAvatar";
+import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { showToast } from "../../ui/toast";
 import styles from "./SettingsSections.module.css";
+
+// [#543] composeApp/src/commonMain/composeResources/values-ja/strings.xml の nosskey_* と同じ文言
+const NOSSKEY_TITLE = "パスキーで保護（Nosskey）";
+const NOSSKEY_DESC = "秘密鍵をパスキー(生体認証)の PRF で暗号化して保護します（WebAuthn PRF）。";
+const NOSSKEY_PROTECTED_UNLOCKED = "● パスキーで保護中（解錠済み）";
+const NOSSKEY_UNPROTECT_LOCAL = "保護を解除（ローカル鍵に戻す）";
+const NOSSKEY_PROTECTED_LOCKED = "● パスキーで保護中（未解錠）";
+const NOSSKEY_UNLOCKING = "解錠中…";
+const NOSSKEY_UNLOCK = "パスキーで解錠";
+const NOSSKEY_UNLOCK_FAILED = "解錠に失敗しました";
+const NOSSKEY_UNPROTECT = "保護を解除";
+const NOSSKEY_ENROLLING = "登録中…";
+const NOSSKEY_ENROLL = "パスキーで保護する";
+const NOSSKEY_ENROLL_FAILED = "登録に失敗しました（PRF 非対応/キャンセル/ドメイン未関連付け）";
+const NOSSKEY_LOCAL_ONLY = "ローカル鍵のときにパスキー保護を設定できます。";
 
 const METHOD_LABEL: Record<SessionMethod, string> = {
   nip07: "拡張機能（NIP-07）",
@@ -30,10 +47,164 @@ export function AccountSection() {
         <h3 className={styles.caption}>ログイン方式</h3>
         <p className={styles.value}>{method ? METHOD_LABEL[method] : "未ログイン"}</p>
       </div>
+      <NosskeyBlock />
       <div className={styles.block}>
         <LogoutButton className={`${styles.ghost} ${styles.alignStart}`} />
       </div>
     </>
+  );
+}
+
+/**
+ * [#543] パスキー(WebAuthn PRF)で nsec を保護する（ネイティブ SettingsScreen.kt の NosskeyLogin）。
+ *  - ローカル鍵のとき「パスキーで保護する」で登録（確認ダイアログを経由）。
+ *  - 登録済み未解錠のとき「パスキーで解錠」。解錠済みは保護解除のみ。
+ * PRF に対応していない・判定できない環境では項目自体を出さない。
+ */
+function NosskeyBlock() {
+  const method = useSession((s) => s.method);
+  const [supported, setSupported] = useState<boolean | null>(null);
+  const [tick, setTick] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    void isPasskeySupported().then((ok) => {
+      if (alive) setSupported(ok);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const vault = getPasskeyVault();
+  // 開いた時点の保護状態を読み直す（restore() が済んでいれば結果は変わらないが、念のため）
+  useEffect(() => {
+    let alive = true;
+    void vault.storedPubkey().then(() => {
+      if (alive) setTick((t) => t + 1);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [vault]);
+
+  // tick を読むことで enroll/unlock/unprotect の後に再評価する（isProtected/isUnlocked は毎回読み直す）
+  void tick;
+  const isProtected = vault.isProtected();
+  const unlocked = isProtected && vault.isUnlocked();
+
+  // 保護中でなく、対応の判定がまだ・非対応なら項目を出さない
+  if (!isProtected && supported !== true) return null;
+
+  async function enroll() {
+    setBusy(true);
+    setError(null);
+    try {
+      const pubkey = await vault.enroll();
+      if (pubkey) setTick((t) => t + 1);
+      else setError(NOSSKEY_ENROLL_FAILED);
+    } catch {
+      setError(NOSSKEY_ENROLL_FAILED);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unlock() {
+    setBusy(true);
+    setError(null);
+    try {
+      const pubkey = await vault.unlock();
+      if (pubkey) setTick((t) => t + 1);
+      else setError(NOSSKEY_UNLOCK_FAILED);
+    } catch {
+      setError(NOSSKEY_UNLOCK_FAILED);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function unprotect() {
+    setBusy(true);
+    setError(null);
+    try {
+      const ok = await vault.unprotect();
+      if (ok) setTick((t) => t + 1);
+      else setError(NOSSKEY_UNLOCK_FAILED);
+    } catch {
+      setError(NOSSKEY_UNLOCK_FAILED);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>{NOSSKEY_TITLE}</h3>
+      <p className={styles.desc}>{NOSSKEY_DESC}</p>
+      {unlocked ? (
+        <>
+          <p className={styles.value}>{NOSSKEY_PROTECTED_UNLOCKED}</p>
+          <button
+            type="button"
+            className={`${styles.ghost} ${styles.alignStart}`}
+            disabled={busy}
+            onClick={() => void unprotect()}
+          >
+            {NOSSKEY_UNPROTECT_LOCAL}
+          </button>
+        </>
+      ) : isProtected ? (
+        <>
+          <p className={styles.value}>{NOSSKEY_PROTECTED_LOCKED}</p>
+          <button
+            type="button"
+            className={`${styles.primary} ${styles.alignStart}`}
+            disabled={busy}
+            onClick={() => void unlock()}
+          >
+            {busy ? NOSSKEY_UNLOCKING : NOSSKEY_UNLOCK}
+          </button>
+          <button
+            type="button"
+            className={`${styles.ghost} ${styles.alignStart}`}
+            disabled={busy}
+            onClick={() => void unprotect()}
+          >
+            {NOSSKEY_UNPROTECT}
+          </button>
+        </>
+      ) : method === "local" ? (
+        <>
+          <button
+            type="button"
+            className={`${styles.primary} ${styles.alignStart}`}
+            disabled={busy}
+            onClick={() => setConfirming(true)}
+          >
+            {busy ? NOSSKEY_ENROLLING : NOSSKEY_ENROLL}
+          </button>
+          {confirming && (
+            <ConfirmDialog
+              title={NOSSKEY_TITLE}
+              text={`${NOSSKEY_DESC} nsec を控えてから保護してください。`}
+              confirmLabel={NOSSKEY_ENROLL}
+              onConfirm={() => {
+                setConfirming(false);
+                void enroll();
+              }}
+              onDismiss={() => setConfirming(false)}
+            />
+          )}
+        </>
+      ) : (
+        <p className={styles.desc}>{NOSSKEY_LOCAL_ONLY}</p>
+      )}
+      {error && <p className={styles.error}>{error}</p>}
+    </div>
   );
 }
 

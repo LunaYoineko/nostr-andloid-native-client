@@ -3,6 +3,7 @@ import { getPublicKey } from "nostr-tools/pure";
 import { create } from "zustand";
 import { requestPersistentStorage } from "../db";
 import { createNip07Signer, type Signer } from "../nostr/signer";
+import { showToast } from "../ui/toast";
 import { createLocalSigner } from "./localSigner";
 import { waitForNostr } from "./nip07";
 import {
@@ -15,6 +16,7 @@ import {
 } from "./nip46";
 import { parseNsec } from "./nsec";
 import { getNwcStore } from "./nwcStore";
+import { getPasskeyVault } from "./passkeyVault";
 import { getKeyVault } from "./webKeyVault";
 
 /** 保存するセッション（{"method":"nip07" | "local" | "nip46","pubkey":"<hex>"}）。秘密鍵は入れない */
@@ -120,8 +122,9 @@ export const useSession = create<SessionState>()((set) => ({
     }
     writeSaved({ method: "nip07", pubkey });
     set({ status: "in", method: "nip07", pubkey });
-    // 前のローカル鍵・リモート署名の接続の消し残しを掃除する
+    // 前のローカル鍵・パスキー保護・リモート署名の接続の消し残しを掃除する
     void getKeyVault().clear();
+    void getPasskeyVault().clear();
     void disconnectNip46();
   },
 
@@ -188,6 +191,8 @@ export const useSession = create<SessionState>()((set) => ({
     clearSaved();
     set(signedOut);
     void getKeyVault().clear();
+    // [#543] パスキー保護中の nsec もログアウトで消す（今の local 行と同じ扱い）
+    void getPasskeyVault().clear();
     void disconnectNip46();
     // [#537] Web は共用 PC のブラウザを想定し、ウォレットを動かせる接続情報を残さない
     void getNwcStore().clear();
@@ -203,9 +208,19 @@ export const useSession = create<SessionState>()((set) => ({
         set({ status: "in", method: "local", pubkey: saved.pubkey });
         return;
       }
+      // [#543] local 行が無ければ、パスキーで保護された行(passkey)に切り替わっていないか確認する。
+      // 見つかっても未解錠のまま開く（署名・復号はパスキーで解錠するまで拒否する）
+      const passkeyPubkey = await getPasskeyVault()
+        .storedPubkey()
+        .catch(() => null);
+      if (passkeyPubkey === saved.pubkey) {
+        set({ status: "in", method: "local", pubkey: saved.pubkey });
+        return;
+      }
       clearSaved();
       // 別の鍵が残っていれば消す（null = 無い・壊れていて消した・保管先が使えない、のどれかなので触らない）
       if (stored !== null) void getKeyVault().clear();
+      if (passkeyPubkey !== null) void getPasskeyVault().clear();
       set(signedOut);
       return;
     }
@@ -242,6 +257,8 @@ function signInLocal(pubkey: string) {
   useSession.setState({ status: "in", method: "local", pubkey });
   // リモート署名の接続の消し残しを掃除する
   void disconnectNip46();
+  // [#543] "local" 行は fixed id で 1 端末 1 アカウントなので、別アカウントのパスキー保護は残っていても使えない
+  void getPasskeyVault().clear();
   // ログイン直後に保存領域を消さないよう頼む（鍵の DB も同じオリジンの保存領域）
   void requestPersistentStorage();
 }
@@ -250,8 +267,9 @@ function signInLocal(pubkey: string) {
 function signInNip46(pubkey: string) {
   writeSaved({ method: "nip46", pubkey });
   useSession.setState({ status: "in", method: "nip46", pubkey });
-  // 前のローカル鍵の消し残しを掃除する
+  // 前のローカル鍵・パスキー保護の消し残しを掃除する
   void getKeyVault().clear();
+  void getPasskeyVault().clear();
   void requestPersistentStorage();
 }
 
@@ -260,12 +278,29 @@ function nip46LoginError(e: unknown): LoginError {
   return new LoginError(e instanceof Nip46Error ? e.reason : "rejected", { cause: e });
 }
 
-/** いまのセッションの署名者。未ログインなら null。署名者の解決はここ 1 か所 */
+/** パスキーで解錠するまで署名・復号を拒否するときのトースト（ネイティブの NosskeyLockedException に相当） */
+const PASSKEY_LOCKED_MESSAGE = "パスキーで解錠してください";
+
+/**
+ * いまのセッションの署名者。未ログインなら null。署名者の解決はここ 1 か所。
+ * [#543] local 行がパスキー(WebAuthn PRF)で保護されていて未解錠のときも、既存の「署名者が無い」経路と
+ * 同じように null を返して失敗させる（呼び出し側はどこも signer が無い扱いで進む）
+ */
 export function currentSigner(): Signer | null {
   const { status, method, pubkey } = useSession.getState();
   if (status !== "in" || !pubkey) return null;
   if (method === "nip07") return createNip07Signer();
-  if (method === "local") return createLocalSigner(pubkey);
+  if (method === "local") {
+    const passkey = getPasskeyVault();
+    if (passkey.isProtected()) {
+      if (!passkey.isUnlocked()) {
+        showToast(PASSKEY_LOCKED_MESSAGE);
+        return null;
+      }
+      return createLocalSigner(pubkey, passkey.asKeyVault());
+    }
+    return createLocalSigner(pubkey);
+  }
   if (method === "nip46") return nip46Signer();
   return null;
 }

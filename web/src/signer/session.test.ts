@@ -3,15 +3,18 @@ import { generateSecretKey, getPublicKey, verifyEvent } from "nostr-tools/pure";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeBunker } from "../test/fakeBunker";
 import { installFakeNostr, installTestVault, OTHER_PUBKEY, PUBKEY, resetSession } from "../test/fakeNostr";
+import { useToast } from "../ui/toast";
 import { resetNip46ForTest, setNip46PoolForTest } from "./nip46";
 import { getNip46Store, NIP46_ROW_ID } from "./nip46Store";
 import { createNwcStore, getNwcStore, NWC_ROW_ID, setNwcStoreForTest } from "./nwcStore";
+import { createPasskeyVault, getPasskeyVault, PASSKEY_ROW_ID, setPasskeyVaultForTest } from "./passkeyVault";
 import { currentSigner, LoginError, SESSION_FLAG_KEY, SESSION_KEY, useSession } from "./session";
-import { VAULT_ROW_ID } from "./webKeyVault";
+import { createKeyVault, type KeyVaultDb, VAULT_ROW_ID } from "./webKeyVault";
 
 afterEach(() => {
   vi.useRealTimers();
   resetSession();
+  useToast.setState({ queue: [] });
   delete (navigator as { storage?: unknown }).storage;
 });
 
@@ -471,5 +474,140 @@ describe("NIP-46", () => {
     expect(localStorage.length).toBe(0);
     expect(useSession.getState().status).toBe("loading");
     expect(bunker.openSubscriptions).toBe(0);
+  });
+});
+
+describe("パスキー保護(#543)", () => {
+  /** navigator.credentials の最小限のフェイク。create/get とも同じ credentialId・PRF を返す(同じパスキー) */
+  function fakePasskeyCredentials() {
+    const prf: Uint8Array<ArrayBuffer> = crypto.getRandomValues(new Uint8Array(32));
+    const rawId: Uint8Array<ArrayBuffer> = new Uint8Array([1, 2, 3, 4]);
+    return {
+      async create() {
+        return { rawId: rawId.buffer, getClientExtensionResults: () => ({}) };
+      },
+      async get() {
+        return {
+          rawId: rawId.buffer,
+          getClientExtensionResults: () => ({ prf: { results: { first: prf.buffer } } }),
+        };
+      },
+    };
+  }
+
+  /**
+   * ローカル鍵を登録してから、起動し直した想定の未解錠インスタンスに差し替える
+   * （enroll 直後は解錠済みになるので、そのままでは「起動時は未解錠」を検証できない）
+   */
+  async function enrollPasskeyAndRestart(db: KeyVaultDb, sk: Uint8Array): Promise<string> {
+    const creds = fakePasskeyCredentials();
+    const localVault = createKeyVault({ database: async () => db });
+    await localVault.importPrivateKey(sk);
+    const enrollVault = createPasskeyVault({
+      database: async () => db,
+      localVault: () => localVault,
+      credentials: () => creds,
+      rpId: () => "test.example",
+    });
+    const pubkey = await enrollVault.enroll();
+    if (!pubkey) throw new Error("enroll failed in test setup");
+    setPasskeyVaultForTest(
+      createPasskeyVault({ database: async () => db, credentials: () => creds, rpId: () => "test.example" }),
+    );
+    return pubkey;
+  }
+
+  it("restore: passkey 行があれば未解錠のまま in になる（local 行は無くてよい）", async () => {
+    const db = await installTestVault();
+    const sk = generateSecretKey();
+    const pubkey = await enrollPasskeyAndRestart(db, sk);
+    saveSession(pubkey, "local");
+    useSession.setState({ status: "loading", method: null, pubkey: null });
+
+    await useSession.getState().restore();
+
+    expect(useSession.getState()).toMatchObject({ status: "in", method: "local", pubkey });
+    expect(getPasskeyVault().isProtected()).toBe(true);
+    expect(getPasskeyVault().isUnlocked()).toBe(false);
+  });
+
+  it("[条件C] 未解錠だと currentSigner は null で、パスキーで解錠してくださいのトーストを出す", async () => {
+    const db = await installTestVault();
+    const sk = generateSecretKey();
+    const pubkey = await enrollPasskeyAndRestart(db, sk);
+    // restore() を経由する（isProtected の判定は storedPubkey の読み直しで決まる。起動シーケンスと同じ）
+    saveSession(pubkey, "local");
+    await useSession.getState().restore();
+
+    const signer = currentSigner();
+
+    expect(signer).toBeNull();
+    expect(useToast.getState().queue).toContain("パスキーで解錠してください");
+  });
+
+  it("[条件D] 解錠すればローカル鍵と同じ Signer で署名できる", async () => {
+    const db = await installTestVault();
+    const sk = generateSecretKey();
+    const pubkey = await enrollPasskeyAndRestart(db, sk);
+    saveSession(pubkey, "local");
+    await useSession.getState().restore();
+    expect(await getPasskeyVault().unlock()).toBe(pubkey);
+
+    const signer = currentSigner();
+    expect(signer).not.toBeNull();
+    expect([...(signer?.caps ?? [])].sort()).toEqual(["nip04", "nip44", "sign"]);
+    const signed = await signer?.signEvent({ kind: 1, content: "x", tags: [], created_at: 1 });
+    expect(signed && verifyEvent(signed)).toBe(true);
+    expect(signed?.pubkey).toBe(pubkey);
+  });
+
+  it("保護の解除で local 行に戻り、通常のローカル鍵として署名できる", async () => {
+    const db = await installTestVault();
+    const sk = generateSecretKey();
+    const pubkey = await enrollPasskeyAndRestart(db, sk);
+    useSession.setState({ status: "in", method: "local", pubkey });
+    await getPasskeyVault().unlock();
+
+    expect(await getPasskeyVault().unprotect()).toBe(true);
+
+    expect(await db.vault.get(PASSKEY_ROW_ID)).toBeUndefined();
+    expect(await db.vault.get(VAULT_ROW_ID)).toBeDefined();
+    const signer = currentSigner();
+    expect(signer).not.toBeNull();
+    const signed = await signer?.signEvent({ kind: 1, content: "x", tags: [], created_at: 1 });
+    expect(signed && verifyEvent(signed)).toBe(true);
+    expect(signed?.pubkey).toBe(pubkey);
+  });
+
+  it("logout で passkey 行も消え、isProtected が false に戻る", async () => {
+    const db = await installTestVault();
+    const sk = generateSecretKey();
+    const pubkey = await enrollPasskeyAndRestart(db, sk);
+    useSession.setState({ status: "in", method: "local", pubkey });
+
+    useSession.getState().logout();
+
+    expect(useSession.getState().status).toBe("out");
+    await vi.waitFor(async () => expect(await db.vault.get(PASSKEY_ROW_ID)).toBeUndefined());
+    expect(getPasskeyVault().isProtected()).toBe(false);
+  });
+
+  it("別の nsec でログインし直すと、残っていた passkey 行を消す", async () => {
+    const db = await installTestVault();
+    await enrollPasskeyAndRestart(db, generateSecretKey());
+
+    await useSession.getState().loginWithNsec(nsecEncode(generateSecretKey()));
+
+    await vi.waitFor(async () => expect(await db.vault.get(PASSKEY_ROW_ID)).toBeUndefined());
+  });
+
+  it("NIP-07 でログインし直すと、残っていた passkey 行を消す", async () => {
+    const db = await installTestVault();
+    await enrollPasskeyAndRestart(db, generateSecretKey());
+    installFakeNostr();
+
+    await useSession.getState().login();
+
+    await vi.waitFor(async () => expect(await db.vault.get(PASSKEY_ROW_ID)).toBeUndefined());
   });
 });
