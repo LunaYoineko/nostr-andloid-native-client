@@ -81,7 +81,8 @@ async function save() {
 it("wss:// だけ追加でき、削除・Read / Write の切り替えをして保存すると kind:10002 を発行する", async () => {
   vi.mocked(requestOnce).mockReturnValue(EMPTY);
   renderWithRouter(<RelaySection />);
-  expect(rows()).toEqual(["relay.damus.io", "nos.lol"]);
+  // 一覧は既定 → 手動 → NIP-65、URL 昇順（ネイティブ allRelays と同じ）
+  expect(rows()).toEqual(["nos.lol", "relay.damus.io"]);
 
   await addRelay("https://not-a-relay.example");
   expect(screen.getByRole("alert")).toHaveTextContent("wss:// で始まるリレーの URL を入力してください");
@@ -89,7 +90,7 @@ it("wss:// だけ追加でき、削除・Read / Write の切り替えをして�
   expect(screen.getByRole("alert")).toHaveTextContent("このリレーは追加済みです");
   await addRelay("wss://new.example");
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  expect(rows()).toEqual(["relay.damus.io", "nos.lol", "new.example"]);
+  expect(rows()).toEqual(["nos.lol", "relay.damus.io", "new.example"]);
   // 保存の前から接続先（リレー表）へ即反映している（#585）
   expect(relayRows()).toContainEqual({
     url: "wss://new.example/",
@@ -153,7 +154,7 @@ it("保存の直前の取り直しでどのリレーからも応答が無けれ�
     "最新のリレーリストを取得できなかったため、公開しませんでした。接続を確認してもう一度お試しください",
   ]);
   // 追加は保存の可否に関わらず既に反映済みなので残る
-  expect(rows()).toEqual(["relay.damus.io", "nos.lol", "new.example"]);
+  expect(rows()).toEqual(["nos.lol", "relay.damus.io", "new.example"]);
 });
 
 it("Read も Write も無ければ保存できない", async () => {
@@ -216,7 +217,7 @@ describe("候補から追加（おすすめ）", () => {
     expect(screen.getByText("フォロー中でよく使われているリレー")).toBeInTheDocument();
 
     await userEvent.click(within(recs).getByRole("button", { name: "second.example を追加（2人）" }));
-    expect(rows()).toEqual(["relay.damus.io", "nos.lol", "second.example"]);
+    expect(rows()).toEqual(["nos.lol", "relay.damus.io", "second.example"]);
     expect(screen.getByRole("checkbox", { name: "second.example の Read" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "second.example の Write" })).toBeChecked();
     // 接続先へ即反映する（保存前）
@@ -251,7 +252,7 @@ describe("候補から追加（おすすめ）", () => {
     expect(screen.getByRole("button", { name: "nostr.wine を追加（有料）" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "yabu.me を追加" }));
-    expect(rows()).toEqual(["relay.damus.io", "nos.lol", "yabu.me"]);
+    expect(rows()).toEqual(["nos.lol", "relay.damus.io", "yabu.me"]);
     expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
   });
 });
