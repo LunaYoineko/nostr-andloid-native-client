@@ -7,7 +7,6 @@ import { getPasskeyVault, isPasskeySupported } from "../../signer/passkeyVault";
 import { type SessionMethod, useSession } from "../../signer/session";
 import { AccountAvatar } from "../../ui/AccountAvatar";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
-import { showToast } from "../../ui/toast";
 import styles from "./SettingsSections.module.css";
 
 // [#543] composeApp/src/commonMain/composeResources/values-ja/strings.xml の nosskey_* と同じ文言
@@ -25,13 +24,26 @@ const NOSSKEY_ENROLL = "パスキーで保護する";
 const NOSSKEY_ENROLL_FAILED = "登録に失敗しました（PRF 非対応/キャンセル/ドメイン未関連付け）";
 const NOSSKEY_LOCAL_ONLY = "ローカル鍵のときにパスキー保護を設定できます。";
 
+// [#588] composeApp/src/commonMain/composeResources/values-ja/strings.xml の account_* / relogin_* と同じ文言
+const ACCOUNT_LOGIN_METHOD_LABEL = "ログイン方法: ";
+const ACCOUNT_ACTIVE = "● 有効";
+const ACCOUNT_SWITCH_SECTION = "別のアカウントを使う";
+const ACCOUNT_RELOGIN_ROW = "別のアカウントでログインし直す";
+const RELOGIN_TITLE = "ログインし直しますか？";
+const RELOGIN_TEXT =
+  "現在のログインを切り替える操作です。続行すると、端末内に保存しているキャッシュ（タイムライン履歴・プロフィール等）を消去します。ローカル鍵はバックアップ（nsec）が無いと復元できません。";
+const RELOGIN_CONFIRM = "続行する";
+
 const METHOD_LABEL: Record<SessionMethod, string> = {
   nip07: "拡張機能（NIP-07）",
   local: "このブラウザに保管した秘密鍵（nsec）",
   nip46: "リモート署名（NIP-46）",
 };
 
-/** アカウント（npub のコピー・ログイン方式・ログアウト） */
+/**
+ * アカウント（① 現在のログインカード、② パスキー保護、③ 別のアカウントを使う、④ ログアウト）。
+ * ネイティブ SettingsScreen.kt の SignerSettings と同じ構成・順序（#588）。nsec の表示は Web では出さない。
+ */
 export function AccountSection() {
   const me = useSession((s) => s.pubkey);
   const method = useSession((s) => s.method);
@@ -39,19 +51,76 @@ export function AccountSection() {
   if (!me) return null;
   return (
     <>
-      <div className={styles.block}>
-        <h3 className={styles.caption}>公開鍵（npub）</h3>
-        <NpubField me={me} />
-      </div>
-      <div className={styles.block}>
-        <h3 className={styles.caption}>ログイン方式</h3>
-        <p className={styles.value}>{method ? METHOD_LABEL[method] : "未ログイン"}</p>
-      </div>
+      <AccountCard me={me} method={method} />
       <NosskeyBlock />
+      <ReloginBlock />
       <div className={styles.block}>
         <LogoutButton className={`${styles.ghost} ${styles.alignStart}`} />
       </div>
     </>
+  );
+}
+
+/**
+ * [#588] ① 現在のログインカード（ネイティブ SignerSettings 冒頭と同じ）。
+ * アバター・名前・npub（先頭16 + … + 末尾6）・ログイン方法・有効バッジを 1 枚のカードにまとめる。
+ */
+function AccountCard({ me, method }: { me: string; method: SessionMethod | null }) {
+  const profile = useProfile(me);
+  const npub = useMemo(() => npubEncode(me), [me]);
+  return (
+    <div className={styles.card}>
+      <div className={styles.cardHead}>
+        <AccountAvatar size={40} />
+        <span className={styles.names}>
+          <span className={styles.name}>{displayName(profile, me)}</span>
+          <span className={styles.shortNpub}>
+            {npub.slice(0, 16)}…{npub.slice(-6)}
+          </span>
+        </span>
+      </div>
+      <div className={styles.cardDivider} />
+      <div className={styles.cardMethod}>
+        <span className={styles.cardMethodLabel}>{ACCOUNT_LOGIN_METHOD_LABEL}</span>
+        <span className={styles.cardMethodValue}>{method ? METHOD_LABEL[method] : "未ログイン"}</span>
+        <span className={styles.active}>{ACCOUNT_ACTIVE}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * [#588] ③ 別のアカウントを使う（ネイティブの account_switch_section / account_relogin_row）。
+ * 誤タップでアカウントが切り替わる事故を防ぐため、警告ダイアログ（relogin_*）を経由してから
+ * logout() する。ログイン方式を選び直す画面は Web では既に /login にあるので、そこは
+ * RequireSession が status: "out" を見て自動で送る。
+ */
+function ReloginBlock() {
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>{ACCOUNT_SWITCH_SECTION}</h3>
+      <button
+        type="button"
+        className={`${styles.ghost} ${styles.alignStart}`}
+        onClick={() => setConfirming(true)}
+      >
+        {ACCOUNT_RELOGIN_ROW}
+      </button>
+      {confirming && (
+        <ConfirmDialog
+          title={RELOGIN_TITLE}
+          text={RELOGIN_TEXT}
+          confirmLabel={RELOGIN_CONFIRM}
+          destructive
+          onConfirm={() => {
+            setConfirming(false);
+            useSession.getState().logout();
+          }}
+          onDismiss={() => setConfirming(false)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -221,26 +290,5 @@ export function AccountSummary({ onOpen }: { onOpen(): void }) {
         <span className={styles.shortNpub}>{shortNpub(me)}</span>
       </span>
     </button>
-  );
-}
-
-function NpubField({ me }: { me: string }) {
-  const npub = useMemo(() => npubEncode(me), [me]);
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(npub);
-    } catch {
-      showToast("コピーできませんでした");
-      return;
-    }
-    showToast("npub をコピーしました");
-  }
-  return (
-    <>
-      <p className={styles.mono}>{npub}</p>
-      <button type="button" className={`${styles.ghost} ${styles.alignStart}`} onClick={() => void copy()}>
-        npub をコピー
-      </button>
-    </>
   );
 }

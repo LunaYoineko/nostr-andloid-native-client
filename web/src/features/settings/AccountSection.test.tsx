@@ -1,7 +1,12 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
+import { npubEncode } from "nostr-tools/nip19";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
+import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeAll, expect, it } from "vitest";
+import { RequireSession } from "../../app/RequireSession";
+import { unixNow } from "../../lib/time";
+import { eventStore } from "../../nostr/store";
 import { createPasskeyVault, getPasskeyVault, setPasskeyVaultForTest } from "../../signer/passkeyVault";
 import { useSession } from "../../signer/session";
 import { createKeyVault } from "../../signer/webKeyVault";
@@ -48,7 +53,7 @@ it("PRF 非対応(getClientCapabilities が false)なら項目自体を出さな
   };
   render(<AccountSection />);
 
-  expect(await screen.findByText("公開鍵（npub）")).toBeInTheDocument();
+  expect(await screen.findByText("● 有効")).toBeInTheDocument();
   expect(screen.queryByText("パスキーで保護（Nosskey）")).not.toBeInTheDocument();
 });
 
@@ -119,4 +124,76 @@ it("保護中(未解錠)は「パスキーで解錠」を押すと解錠済み�
   await user.click(screen.getByRole("button", { name: "パスキーで解錠" }));
 
   expect(await screen.findByText("● パスキーで保護中（解錠済み）")).toBeInTheDocument();
+});
+
+// [#588] ① 現在のログインカード・③ 別のアカウントでログインし直す
+
+it("[#588] ① 現在のログインカードに名前・npub・ログイン方式・有効バッジが出る", async () => {
+  await installTestVault();
+  const key = generateSecretKey();
+  const pubkey = getPublicKey(key);
+  eventStore.add(
+    finalizeEvent(
+      { kind: 0, created_at: unixNow(), tags: [], content: JSON.stringify({ name: "carol" }) },
+      key,
+    ),
+  );
+  useSession.setState({ status: "in", method: "nip46", pubkey });
+
+  render(<AccountSection />);
+
+  const npub = npubEncode(pubkey);
+  expect(await screen.findByText("carol")).toBeInTheDocument();
+  expect(screen.getByText(`${npub.slice(0, 16)}…${npub.slice(-6)}`)).toBeInTheDocument();
+  expect(screen.getByText("リモート署名（NIP-46）")).toBeInTheDocument();
+  expect(screen.getByText("● 有効")).toBeInTheDocument();
+});
+
+it("[#588] ③ 別のアカウントでログインし直す: 警告を確認するとログアウトして /login へ", async () => {
+  await installTestVault();
+  useSession.setState({
+    status: "in",
+    method: "nip07",
+    pubkey: getPublicKey(generateSecretKey()),
+  });
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/settings/account",
+        element: (
+          <RequireSession>
+            <AccountSection />
+          </RequireSession>
+        ),
+      },
+      { path: "/login", element: <p>ログイン画面</p> },
+    ],
+    { initialEntries: ["/settings/account"] },
+  );
+  const user = userEvent.setup();
+  render(<RouterProvider router={router} />);
+
+  await user.click(await screen.findByRole("button", { name: "別のアカウントでログインし直す" }));
+  const dialog = screen.getByRole("dialog", { name: "ログインし直しますか？" });
+  expect(dialog).toHaveTextContent("端末内に保存しているキャッシュ");
+  await user.click(within(dialog).getByRole("button", { name: "続行する" }));
+
+  expect(useSession.getState().status).toBe("out");
+  expect(router.state.location.pathname).toBe("/login");
+});
+
+it("[#588] ③ 別のアカウントでログインし直す: キャンセルすればログインしたまま", async () => {
+  await installTestVault();
+  const pubkey = getPublicKey(generateSecretKey());
+  useSession.setState({ status: "in", method: "nip07", pubkey });
+  const user = userEvent.setup();
+  render(<AccountSection />);
+
+  await user.click(await screen.findByRole("button", { name: "別のアカウントでログインし直す" }));
+  const dialog = screen.getByRole("dialog", { name: "ログインし直しますか？" });
+  await user.click(within(dialog).getByRole("button", { name: "キャンセル" }));
+
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(useSession.getState().status).toBe("in");
+  expect(useSession.getState().pubkey).toBe(pubkey);
 });
