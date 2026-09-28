@@ -1,0 +1,80 @@
+.card {
+  display: block;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  text-decoration: none;
+  color: inherit;
+  overflow: hidden;
+}
+
+.body {
+  display: flex;
+  align-items: stretch;
+}
+
+.image {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  background: var(--surface);
+}
+
+.texts {
+  flex: 1;
+  min-width: 0;
+  padding: var(--sp-2) var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+
+.label {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-caption);
+  font-weight: var(--w-name);
+}
+
+.title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: var(--w-strong);
+  line-height: var(--line-desc);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.excerpt {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-caption);
+  line-height: var(--line-desc);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pending {
+  margin: 0;
+  padding: var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}
+
+.embeds {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+/* プロフィールの記事タブの 1 行（ProfileArticleList）。カード同士の間隔だけ持つ */
+.row {
+  padding: var(--sp-2) var(--sp-3);
+}

@@ -73,7 +73,7 @@ it("URL 末尾の句読点はリンクに含めず、後ろに文字として出
   expect(container).toHaveTextContent(/^見て https:\/\/x\.co\/a\.$/);
 });
 
-it("note は ↗ + 先頭 12 文字のアプリ内リンク、naddr は <a> にしない", () => {
+it("note / naddr は ↗ + 先頭 12 文字のアプリ内リンク（naddr も /e/:ref が受ける。#534）", () => {
   const encodedNote = noteEncode(ID);
   const naddr = naddrEncode({
     kind: 30023,
@@ -82,8 +82,20 @@ it("note は ↗ + 先頭 12 文字のアプリ内リンク、naddr は <a> に�
   });
   renderWithRouter(<NoteContent event={note(`nostr:${encodedNote} と nostr:${naddr}`)} />);
 
-  const link = screen.getByRole("link", { name: `↗${encodedNote.slice(0, 12)}…` });
-  expect(link).toHaveAttribute("href", `/e/${encodedNote}`);
+  const noteLink = screen.getByRole("link", { name: `↗${encodedNote.slice(0, 12)}…` });
+  expect(noteLink).toHaveAttribute("href", `/e/${encodedNote}`);
+  const articleLink = screen.getByRole("link", { name: `↗${naddr.slice(0, 12)}…` });
+  expect(articleLink).toHaveAttribute("href", `/e/${naddr}`);
+});
+
+it("quote バリアントでは note / naddr の装飾だけでリンクにしない", () => {
+  const naddr = naddrEncode({
+    kind: 30023,
+    pubkey: getPublicKey(generateSecretKey()),
+    identifier: "article",
+  });
+  renderWithRouter(<NoteContent event={note(`nostr:${naddr}`)} variant="quote" />);
+
   const article = screen.getByText(`↗${naddr.slice(0, 12)}…`);
   expect(article.tagName).toBe("SPAN");
   expect(article.closest("a")).toBeNull();

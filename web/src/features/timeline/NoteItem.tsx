@@ -11,6 +11,7 @@ import { extractMedia } from "../../lib/media";
 import { relativeTime } from "../../lib/time";
 import { displayName, pictureOf, useEventByPointer, useProfile, useRepostedEvent } from "../../nostr/loaders";
 import { NoteActionButtons } from "../actions/NoteActionButtons";
+import { ArticleCards } from "../article/ArticleCard";
 import { NoteFooter } from "../compose/NoteFooter";
 import { LinkCards } from "../linkcard/LinkCard";
 import { useLinkCards } from "../linkcard/useLinkCards";
@@ -230,6 +231,7 @@ function NoteBody({
               {quote && <QuoteCard pointer={quote.pointer} encoded={quote.encoded} />}
               {hasMedia && <NoteMedia media={media} />}
               <LinkCards cards={linkCards.cards} />
+              <ArticleCards content={event.content} />
             </>
           )}
           <NoteFooter event={event}>

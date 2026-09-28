@@ -122,15 +122,14 @@ function MentionNode({ node }: { node: Mention }) {
       return <ProfileMention pubkey={decoded.data.pubkey} encoded={node.encoded} />;
     case "note":
     case "nevent":
+    case "naddr":
+      // [#534] naddr（記事 kind:30023 等）も note/nevent と同じくアプリ内リンクにする（/e/:ref が受ける）
       if (variant === "quote") return <span className={styles.mention}>{mentionLabel(node.encoded)}</span>;
       return (
         <Link className={styles.mention} to={hrefForEvent(node.encoded)}>
           {mentionLabel(node.encoded)}
         </Link>
       );
-    case "naddr":
-      // 記事のルートはまだ無いので装飾だけ
-      return <span className={styles.mention}>{mentionLabel(node.encoded)}</span>;
     default:
       return node.encoded;
   }

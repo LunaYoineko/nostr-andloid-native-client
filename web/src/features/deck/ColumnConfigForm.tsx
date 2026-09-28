@@ -1,7 +1,9 @@
 import { type FormEvent, useId, useState } from "react";
 import { buildColumn, type ColumnSpec, type ColumnTemplate, NOTIF_KINDS } from "../../lib/columns";
 import { unixNow } from "../../lib/time";
+import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
+import { loadUsedHashtags, recentHashtagChips, usePinnedHashtags } from "../compose/storage";
 import styles from "./ColumnDialog.module.css";
 
 /** textarea の 1 行 1 リレー。wss:// で始まらない行は無視する */
@@ -10,6 +12,14 @@ function parseRelays(text: string): string[] {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.startsWith("wss://"));
+}
+
+/** SEARCH の入力へ #tag を足す（スペース区切り。既にあれば足さない） */
+function appendSearchTag(text: string, tag: string): string {
+  const token = `#${tag}`;
+  if (text.trim() === "") return token;
+  if (text.split(/\s+/).includes(token)) return text;
+  return `${text.trimEnd()} ${token}`;
 }
 
 /**
@@ -36,6 +46,10 @@ export function ColumnConfigForm({
   onCancel: () => void;
   onSubmit: (spec: ColumnSpec) => void;
 }) {
+  const me = useSession((s) => s.pubkey);
+  const pinnedTags = usePinnedHashtags(me);
+  const [usedTags] = useState(loadUsedHashtags);
+  const recentTags = recentHashtagChips(usedTags, pinnedTags);
   const [text, setText] = useState(initialText);
   const [relays, setRelays] = useState(initialRelays.join("\n"));
   const [kinds, setKinds] = useState<ReadonlySet<number>>(
@@ -98,6 +112,25 @@ export function ColumnConfigForm({
               npub または hex を入力
             </p>
           )}
+          {(template.template === "HASHTAG" || template.template === "SEARCH") &&
+            (pinnedTags.length > 0 || recentTags.length > 0) && (
+              <ul className={styles.chips} aria-label="ピン留め・最近使ったタグ">
+                {[...pinnedTags, ...recentTags].map((tag) => (
+                  <li key={tag}>
+                    <button
+                      type="button"
+                      className={styles.chip}
+                      onClick={() => {
+                        setText(template.template === "HASHTAG" ? tag : appendSearchTag(text, tag));
+                        setInvalid(false);
+                      }}
+                    >
+                      #{tag}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
         </div>
       )}
       {template.config === "NOTIF_FILTER" && (
