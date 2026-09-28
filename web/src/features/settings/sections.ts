@@ -29,7 +29,7 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   {
     title: "接続・アカウント",
     sections: [
-      { id: "profile-edit", label: "プロフィール編集", ready: false },
+      { id: "profile-edit", label: "プロフィール編集", ready: true },
       { id: "account", label: "アカウント", ready: true },
       { id: "relays", label: "リレー", ready: true },
       { id: "dm-relays", label: "DMリレー", ready: false },
