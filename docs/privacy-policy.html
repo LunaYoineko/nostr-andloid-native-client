@@ -90,7 +90,7 @@
   <li><strong>リレー</strong>：設定したリレーのほか、プロフィールやリレー一覧の取得用のリレー、キーワード検索用のリレー（検索語を送信します）、相手が投稿に使っているリレー、DM の宛先のリレー、リモート署名（NIP-46）の接続に使うリレー。</li>
   <li><strong>NIP-05 の確認</strong>：プロフィールの NIP-05 アドレスを確かめるため、そのアドレスのドメインのサーバーへ問い合わせます。</li>
   <li><strong>画像・動画</strong>：画像は 3. の画像プロキシを経由して読み込みます。動画は再生を押したときに配信元から直接読み込みます。YouTube のサムネイルは <code>img.youtube.com</code> から直接読み込みます。</li>
-  <li><strong>画像・動画の添付</strong>：投稿に添付した画像・動画は、ブラウザからアップロード先のサーバー（NIP-96）へ直接送信されます。既定のアップロード先は <code>nostr.build</code>（失敗した場合は <code>nostrcheck.me</code>）で、設定で変更できます。画像は送信前に端末内で縮小・再圧縮し、その際に位置情報などの EXIF 情報を取り除きます。ただし、GIF・アニメーション WebP・ブラウザが読み込めない形式の画像と、動画は、元のファイルのまま送信します。アップロード先での取り扱いは、それぞれのサーバーの方針に従います。</li>
+  <li><strong>画像・動画の添付</strong>：投稿に添付した画像・動画は、ブラウザからアップロード先のサーバー（NIP-96）へ直接送信されます。既定のアップロード先は <code>nostr.build</code>（失敗した場合は <code>nostrcheck.me</code>）で、設定で変更できます。画像は送信前に端末内で縮小・再圧縮し、その際に位置情報などの EXIF 情報を取り除きます。ただし、GIF・アニメーション WebP・ブラウザが読み込めない形式の画像と、動画は、元のファイルのまま送信します。アップロードの認証（NIP-98）のため、利用者の公開鍵を含む署名データがアップロード先に送られます。アップロード先での取り扱いは、それぞれのサーバーの方針に従います。</li>
   <li><strong>署名の依頼</strong>：拡張機能（NIP-07）でログインした場合は、署名・暗号化の依頼（署名する内容を含む）を拡張機能へ渡します。リモート署名（NIP-46）の場合は、同じ依頼を暗号化し、リレーを通して署名アプリへ送ります。拡張機能・署名アプリでの取り扱いは、それぞれの提供者の方針に従います。</li>
 </ul>
 
@@ -180,7 +180,7 @@
   <li><strong>Relays</strong>: besides the relays you configure, relays used to fetch profiles and relay lists, relays used for keyword search (your search terms are sent), relays other users publish to, relays of DM recipients, and relays used to connect to a remote signer (NIP-46).</li>
   <li><strong>NIP-05 verification</strong>: to verify the NIP-05 address on a profile, the App queries a server on that address's domain.</li>
   <li><strong>Images and videos</strong>: images are loaded through the image proxy in section 3. Videos are loaded directly from their source when you press play. YouTube thumbnails are loaded directly from <code>img.youtube.com</code>.</li>
-  <li><strong>Attaching images and videos</strong>: images and videos you attach to a post are sent directly from your browser to the upload server (NIP-96). The default upload server is <code>nostr.build</code> (<code>nostrcheck.me</code> if that fails), and you can change it in settings. Before sending, images are resized and re-compressed on your device, which removes EXIF data such as location. However, GIFs, animated WebP images, images in formats the browser cannot read, and videos are sent as the original files. The upload server handles them under its own policy.</li>
+  <li><strong>Attaching images and videos</strong>: images and videos you attach to a post are sent directly from your browser to the upload server (NIP-96). The default upload server is <code>nostr.build</code> (<code>nostrcheck.me</code> if that fails), and you can change it in settings. Before sending, images are resized and re-compressed on your device, which removes EXIF data such as location. However, GIFs, animated WebP images, images in formats the browser cannot read, and videos are sent as the original files. For upload authentication (NIP-98), signed data including your public key is sent to the upload server. The upload server handles them under its own policy.</li>
   <li><strong>Signing requests</strong>: if you log in with an extension (NIP-07), signing and encryption requests (including the content to be signed) are passed to the extension. With a remote signer (NIP-46), the same requests are encrypted and sent to the signer app through relays. The extension or signer app handles them under its provider's own policy.</li>
 </ul>
 
