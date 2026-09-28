@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import { requestZapInvoice } from "../../lib/lnurl";
+import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { QrCode } from "../../ui/QrCode";
 import { showToast } from "../../ui/toast";
 import styles from "./ZapDialog.module.css";
@@ -24,6 +25,12 @@ const DEFAULT_AMOUNT = 100;
 export const ZAP_INVOICE_FAILED = "invoice を取得できませんでした。lud16/リレー設定を確認してください。";
 // ネイティブ nwc_paid
 export const ZAP_PAID = "Zapを送金しました ⚡";
+// ネイティブ nwc_via（#537）
+const NWC_VIA = "接続済みウォレットからアプリ内で送金します（毎回確認）。";
+// ネイティブ nwc_pay_confirm_title
+const NWC_PAY_CONFIRM_TITLE = "ウォレットから送金";
+// ネイティブ nwc_pay_confirm
+const NWC_PAY_CONFIRM = "送金する";
 
 /** カスタム額（数字だけ）。1 以上の整数ならそれ、それ以外は null（プリセットを使う） */
 function customSats(value: string): number | null {
@@ -38,9 +45,10 @@ function messageOf(e: unknown): string {
 
 /**
  * Zap ダイアログ（ネイティブ ZapSheet.kt ZapSheetImpl）。金額（プリセット / カスタム）とコメントを選び、
- * LNURL-pay で invoice を取って支払う。渡し先は payWithWallet（NWC、#537）→ window.webln → 外部ウォレット
- * （invoice の QR・`lightning:` リンク・コピーを閉じるまで出す）。eventId が無ければプロフィール Zap。
- * 処理中はスピナーで閉じない。送った後の合計は receipt の購読（#523）で増える（楽観更新はしない）。
+ * LNURL-pay で invoice を取って支払う。渡し先は payWithWallet（NWC、#537。invoice 取得後に確認ダイアログを
+ * 経てから呼ぶ）→ window.webln → 外部ウォレット（invoice の QR・`lightning:` リンク・コピーを閉じるまで出す）。
+ * eventId が無ければプロフィール Zap。処理中はスピナーで閉じない。
+ * 送った後の合計は receipt の購読（#523）で増える（楽観更新はしない）。
  */
 export function ZapDialog({
   recipient,
@@ -72,6 +80,8 @@ export function ZapDialog({
   // 外部ウォレットで払う invoice（出したら閉じるまでそのまま）
   const [invoice, setInvoice] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  // [#537] NWC の送金確認（毎回）。invoice 取得後、確定で payWithWallet を呼ぶ
+  const [confirmInvoice, setConfirmInvoice] = useState<string | null>(null);
   const effectiveAmount = customSats(custom) ?? amount;
 
   useEffect(() => {
@@ -97,22 +107,21 @@ export function ZapDialog({
       setError(ZAP_INVOICE_FAILED);
       return;
     }
+    if (payWithWallet) {
+      // [#537] ウォレット接続済みは毎回確認してから支払う（ネイティブ ZapSheetImpl と同じ）
+      setBusy(false);
+      setConfirmInvoice(pr);
+      return;
+    }
     const webln = window.webln;
-    const pay =
-      payWithWallet ??
-      (webln
-        ? async (request: string) => {
-            await webln.enable();
-            await webln.sendPayment(request);
-          }
-        : null);
-    if (pay === null) {
+    if (!webln) {
       setBusy(false);
       setInvoice(pr);
       return;
     }
     try {
-      await pay(pr);
+      await webln.enable();
+      await webln.sendPayment(pr);
     } catch (err) {
       // 拒否・失敗は外部ウォレットへ逃がす（ネイティブ nwc_pay_failed_fmt）
       setBusy(false);
@@ -120,6 +129,24 @@ export function ZapDialog({
       setInvoice(pr);
       return;
     }
+    showToast(ZAP_PAID);
+    onClose();
+  }
+
+  // [#537] NWC の送金確認の確定。成功でトーストを出して閉じ、失敗は外部ウォレットへ逃がす
+  async function confirmPay(pr: string) {
+    setConfirmInvoice(null);
+    setBusy(true);
+    setError(null);
+    try {
+      await payWithWallet?.(pr);
+    } catch (err) {
+      setBusy(false);
+      setError(`送金に失敗しました: ${messageOf(err)}`);
+      setInvoice(pr);
+      return;
+    }
+    setBusy(false);
     showToast(ZAP_PAID);
     onClose();
   }
@@ -134,111 +161,123 @@ export function ZapDialog({
   }
 
   return (
-    <dialog
-      ref={dialog}
-      className={styles.dialog}
-      aria-labelledby={titleId}
-      aria-describedby={descId}
-      aria-busy={busy}
-      // React は cancel を親へ伝えるので、外側の dialog を一緒に閉じないよう止める
-      onCancel={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!busy) onClose();
-      }}
-    >
-      <h2 id={titleId} className={styles.title}>
-        ⚡ Zap
-      </h2>
-      <p id={descId} className={styles.desc}>
-        {`${recipientName} へ投げ銭します。金額を選び、ウォレットで支払ってください。`}
-      </p>
-      {invoice === null ? (
-        <form id={formId} className={styles.form} onSubmit={send}>
-          <fieldset className={styles.presets} aria-label="金額" disabled={busy}>
-            {ZAP_PRESETS.map((sats) => {
-              const active = custom === "" && amount === sats;
-              return (
-                <button
-                  key={sats}
-                  type="button"
-                  className={active ? `${styles.preset} ${styles.active}` : styles.preset}
-                  aria-pressed={active}
-                  onClick={() => {
-                    setAmount(sats);
-                    setCustom("");
-                  }}
-                >
-                  {sats}
-                </button>
-              );
-            })}
-          </fieldset>
-          <input
-            className={styles.input}
-            type="text"
-            inputMode="numeric"
-            aria-label="カスタム額 (sats)"
-            placeholder="カスタム額 (sats)"
-            value={custom}
-            disabled={busy}
-            onChange={(e) => setCustom(e.target.value.replace(/\D/g, ""))}
-          />
-          <input
-            className={styles.input}
-            type="text"
-            aria-label="コメント（任意）"
-            placeholder="コメント（任意）"
-            value={comment}
-            disabled={busy}
-            onChange={(e) => setComment(e.target.value)}
-          />
-        </form>
-      ) : (
-        <div className={styles.invoice}>
-          <QrCode
-            value={`lightning:${invoice}`.toUpperCase()}
-            label={`Zap の invoice（${effectiveAmount} sats）`}
-          />
-          <div className={styles.invoiceActions}>
-            <a className={styles.external} href={`lightning:${invoice}`}>
-              外部ウォレットで開く
-            </a>
-            <button type="button" className={styles.textButton} onClick={() => void copyInvoice(invoice)}>
-              コピー
-            </button>
+    <>
+      <dialog
+        ref={dialog}
+        className={styles.dialog}
+        aria-labelledby={titleId}
+        aria-describedby={descId}
+        aria-busy={busy}
+        // React は cancel を親へ伝えるので、外側の dialog を一緒に閉じないよう止める
+        onCancel={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!busy) onClose();
+        }}
+      >
+        <h2 id={titleId} className={styles.title}>
+          ⚡ Zap
+        </h2>
+        <p id={descId} className={styles.desc}>
+          {`${recipientName} へ投げ銭します。金額を選び、ウォレットで支払ってください。`}
+        </p>
+        {invoice === null ? (
+          <form id={formId} className={styles.form} onSubmit={send}>
+            <fieldset className={styles.presets} aria-label="金額" disabled={busy}>
+              {ZAP_PRESETS.map((sats) => {
+                const active = custom === "" && amount === sats;
+                return (
+                  <button
+                    key={sats}
+                    type="button"
+                    className={active ? `${styles.preset} ${styles.active}` : styles.preset}
+                    aria-pressed={active}
+                    onClick={() => {
+                      setAmount(sats);
+                      setCustom("");
+                    }}
+                  >
+                    {sats}
+                  </button>
+                );
+              })}
+            </fieldset>
+            <input
+              className={styles.input}
+              type="text"
+              inputMode="numeric"
+              aria-label="カスタム額 (sats)"
+              placeholder="カスタム額 (sats)"
+              value={custom}
+              disabled={busy}
+              onChange={(e) => setCustom(e.target.value.replace(/\D/g, ""))}
+            />
+            <input
+              className={styles.input}
+              type="text"
+              aria-label="コメント（任意）"
+              placeholder="コメント（任意）"
+              value={comment}
+              disabled={busy}
+              onChange={(e) => setComment(e.target.value)}
+            />
+          </form>
+        ) : (
+          <div className={styles.invoice}>
+            <QrCode
+              value={`lightning:${invoice}`.toUpperCase()}
+              label={`Zap の invoice（${effectiveAmount} sats）`}
+            />
+            <div className={styles.invoiceActions}>
+              <a className={styles.external} href={`lightning:${invoice}`}>
+                外部ウォレットで開く
+              </a>
+              <button type="button" className={styles.textButton} onClick={() => void copyInvoice(invoice)}>
+                コピー
+              </button>
+            </div>
+            {copyStatus && (
+              <p role="status" className={styles.status}>
+                {copyStatus}
+              </p>
+            )}
           </div>
-          {copyStatus && (
-            <p role="status" className={styles.status}>
-              {copyStatus}
-            </p>
+        )}
+        {error && (
+          <p role="alert" className={styles.error}>
+            {error}
+          </p>
+        )}
+        {payWithWallet && invoice === null && <p className={styles.desc}>{NWC_VIA}</p>}
+        <div className={styles.footer}>
+          <span className={styles.to}>{`送信先: ${lud16}`}</span>
+          {busy ? (
+            <span className={styles.spinner} aria-hidden="true" />
+          ) : invoice === null ? (
+            <>
+              <button type="button" className={styles.textButton} onClick={onClose}>
+                キャンセル
+              </button>
+              <button type="submit" form={formId} className={styles.primary}>
+                {`⚡ ${effectiveAmount}`}
+              </button>
+            </>
+          ) : (
+            <button type="button" className={styles.textButton} onClick={onClose}>
+              閉じる
+            </button>
           )}
         </div>
+      </dialog>
+      {confirmInvoice !== null && (
+        <ConfirmDialog
+          title={NWC_PAY_CONFIRM_TITLE}
+          text={`${recipientName} に ⚡ ${effectiveAmount} sats を送金します。よろしいですか？`}
+          confirmLabel={NWC_PAY_CONFIRM}
+          onConfirm={() => void confirmPay(confirmInvoice)}
+          onDismiss={() => setConfirmInvoice(null)}
+        />
       )}
-      {error && (
-        <p role="alert" className={styles.error}>
-          {error}
-        </p>
-      )}
-      <div className={styles.footer}>
-        <span className={styles.to}>{`送信先: ${lud16}`}</span>
-        {busy ? (
-          <span className={styles.spinner} aria-hidden="true" />
-        ) : invoice === null ? (
-          <>
-            <button type="button" className={styles.textButton} onClick={onClose}>
-              キャンセル
-            </button>
-            <button type="submit" form={formId} className={styles.primary}>
-              {`⚡ ${effectiveAmount}`}
-            </button>
-          </>
-        ) : (
-          <button type="button" className={styles.textButton} onClick={onClose}>
-            閉じる
-          </button>
-        )}
-      </div>
-    </dialog>
+    </>
   );
 }
