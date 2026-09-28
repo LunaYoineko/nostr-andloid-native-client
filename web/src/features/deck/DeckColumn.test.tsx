@@ -9,11 +9,12 @@ import { type ColumnSpec, columnSubtitleFor, DEFAULT_COLUMNS, decodeDeckColumns 
 import { unixNow } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
-import { useDeck } from "../../store/deck";
+import { FEED_CAT_HIDDEN_KEY, loadFeedCatHidden, useDeck } from "../../store/deck";
 import { OTHER_PUBKEY, PUBKEY } from "../../test/fakeNostr";
 import { renderWithRouter } from "../../test/renderWithRouter";
 import { startDecrypting } from "../dm/dmService";
 import { useDm } from "../dm/dmStore";
+import { dmNotices, toNotification } from "../notifications/notificationModel";
 import { DeckColumn } from "./DeckColumn";
 import { useColumnFeed } from "./useColumnFeed";
 
@@ -26,6 +27,7 @@ vi.mock("./useColumnFeed", () => ({
     mode: "column",
     loading: false,
     events: [],
+    rows: null,
     loadingOlder: false,
     loadOlder: () => {},
     refresh: () => {},
@@ -159,6 +161,66 @@ it("⋯ の「ミュートを表示 / 隠す」でカラムの設定を切り替
   expect(screen.queryByRole("menuitem", { name: "ミュートを表示" })).not.toBeInTheDocument();
 });
 
+it("⋯ の「タイムラインに混ぜる表示」: フォロー中カラムだけ 5 つのトグルを出し、押してもメニューは開いたまま。保存して再描画で戻す（#522）", async () => {
+  const user = userEvent.setup();
+  const [following, hashtag, notif] = DEFAULT_COLUMNS;
+  useDeck.setState({ feedCatHidden: {} });
+  const { unmount } = render(<DeckColumn spec={following} showHeader />);
+  await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
+
+  const group = screen.getByRole("group", { name: "タイムラインに混ぜる表示" });
+  expect(group).toHaveTextContent("タイムラインに混ぜる表示");
+  const toggles = screen.getAllByRole("menuitemcheckbox");
+  expect(toggles.map((t) => t.textContent)).toEqual([
+    "自分へのリアクション",
+    "自分への返信・メンション",
+    "自分へのリポスト",
+    "自分がしたリアクション",
+    "未読のメッセージ",
+  ]);
+  // 既定は全部表示
+  for (const t of toggles) expect(t).toHaveAttribute("aria-checked", "true");
+
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "自分へのリアクション" }));
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "未読のメッセージ" }));
+  expect(screen.getByRole("menu")).toBeInTheDocument();
+  expect(screen.getByRole("menuitemcheckbox", { name: "自分へのリアクション" })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+  expect(JSON.parse(localStorage.getItem(FEED_CAT_HIDDEN_KEY) ?? "null")).toEqual({
+    c_following: ["REACTIONS", "DMS"],
+  });
+
+  // 保存値から読み直して描き直しても隠したまま
+  unmount();
+  useDeck.setState({ feedCatHidden: {} });
+  useDeck.setState({ feedCatHidden: loadFeedCatHidden() });
+  const second = render(<DeckColumn spec={following} showHeader />);
+  await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
+  const checked = (name: string) =>
+    screen.getByRole("menuitemcheckbox", { name }).getAttribute("aria-checked");
+  expect(checked("自分へのリアクション")).toBe("false");
+  expect(checked("未読のメッセージ")).toBe("false");
+  expect(checked("自分へのリポスト")).toBe("true");
+
+  // もう一度押すと表示に戻り、隠すものが無くなったカラムはキーごと消す
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "自分へのリアクション" }));
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "未読のメッセージ" }));
+  expect(JSON.parse(localStorage.getItem(FEED_CAT_HIDDEN_KEY) ?? "null")).toEqual({});
+  second.unmount();
+
+  // 他の種類のカラムには出さない
+  for (const spec of [hashtag, notif, DM]) {
+    const other = renderWithRouter(<DeckColumn spec={spec} showHeader />);
+    await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox")).not.toBeInTheDocument();
+    expect(screen.queryByText("タイムラインに混ぜる表示")).not.toBeInTheDocument();
+    other.unmount();
+  }
+});
+
 it("「カラムを削除」でカラムが消える", async () => {
   const user = userEvent.setup();
   renderWithRouter(<DeckColumn spec={DM} showHeader />);
@@ -210,6 +272,7 @@ it("ふぁぼ欄の行は「あなたがリアクション」の 1 行で、投�
     mode: "column",
     loading: false,
     events: [reaction],
+    rows: null,
     loadingOlder: false,
     loadOlder: () => {},
     refresh: () => {},
@@ -271,6 +334,7 @@ it("通知カラムは種別（filter.kinds）に関わらずリアクション�
     mode: "column",
     loading: false,
     events: [reaction, zap, repost],
+    rows: null,
     loadingOlder: false,
     loadOlder: () => {},
     refresh: () => {},
@@ -288,5 +352,106 @@ it("通知カラムは種別（filter.kinds）に関わらずリアクション�
   } finally {
     if (original) vi.mocked(useColumnFeed).mockImplementation(original);
     useSession.setState({ status: "loading", method: null, pubkey: null });
+  }
+});
+
+it("フォロー中カラムは混ぜた行を描く（投稿・通知の行・ふぁぼ欄の行・DM の行）（#522）", async () => {
+  if (typeof globalThis.ResizeObserver !== "function") {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  }
+  const meKey = generateSecretKey();
+  const me = getPublicKey(meKey);
+  const myPost = finalizeEvent(
+    { kind: 1, created_at: unixNow() - 600, tags: [], content: "自分の投稿" },
+    meKey,
+  );
+  const other = finalizeEvent(
+    { kind: 1, created_at: unixNow() - 500, tags: [], content: "ふぁぼった投稿" },
+    generateSecretKey(),
+  );
+  eventStore.add(myPost);
+  eventStore.add(other);
+  const post = finalizeEvent(
+    { kind: 1, created_at: unixNow() - 50, tags: [], content: "フォロー先の投稿" },
+    generateSecretKey(),
+  );
+  const reaction = finalizeEvent(
+    {
+      kind: 7,
+      created_at: unixNow() - 100,
+      tags: [
+        ["e", myPost.id],
+        ["p", me],
+      ],
+      content: "+",
+    },
+    generateSecretKey(),
+  );
+  const myReaction = finalizeEvent(
+    {
+      kind: 7,
+      created_at: unixNow() - 200,
+      tags: [
+        ["e", other.id],
+        ["p", other.pubkey],
+      ],
+      content: "+",
+    },
+    meKey,
+  );
+  const notice = toNotification(reaction);
+  if (!notice) throw new Error("not a notification");
+  const [dm] = dmNotices([
+    {
+      peer: OTHER_PUBKEY,
+      last: {
+        owner: me,
+        id: "m1",
+        peer: OTHER_PUBKEY,
+        sender: OTHER_PUBKEY,
+        content: "本文",
+        tags: [],
+        createdAt: unixNow() - 300,
+        proto: "nip17",
+      },
+      unread: 1,
+      lastIncomingAt: unixNow() - 300,
+    },
+  ]);
+  const original = vi.mocked(useColumnFeed).getMockImplementation();
+  vi.mocked(useColumnFeed).mockImplementation(() => ({
+    mode: "following",
+    loading: false,
+    events: [post],
+    rows: [
+      { type: "post", id: post.id, at: post.created_at, event: post },
+      { type: "notice", id: notice.id, at: notice.createdAt, item: notice },
+      { type: "myReaction", id: myReaction.id, at: myReaction.created_at, reaction: myReaction },
+      { type: "notice", id: dm.id, at: dm.createdAt, item: dm },
+    ],
+    loadingOlder: false,
+    loadOlder: () => {},
+    refresh: () => {},
+  }));
+  try {
+    const { container } = renderWithRouter(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 2000, itemHeight: 100 }}>
+        <DeckColumn spec={DEFAULT_COLUMNS[0]} showHeader />
+      </VirtuosoMockContext.Provider>,
+    );
+    expect(await screen.findByText("フォロー先の投稿")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "リアクション ❤️" })).toBeInTheDocument();
+    expect(await screen.findByText("あなたがリアクション")).toBeInTheDocument();
+    expect(screen.getByText("メッセージが届きました")).toBeInTheDocument();
+    const kinds = [...container.querySelectorAll("article[data-kind]")].map((row) =>
+      row.getAttribute("data-kind"),
+    );
+    expect(kinds).toEqual(["reaction", "dm"]);
+  } finally {
+    if (original) vi.mocked(useColumnFeed).mockImplementation(original);
   }
 });

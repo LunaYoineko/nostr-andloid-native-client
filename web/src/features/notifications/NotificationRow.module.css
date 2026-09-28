@@ -42,6 +42,10 @@
   color: var(--zap);
 }
 
+[data-kind="dm"] .markIcon {
+  color: var(--accent);
+}
+
 .emojiText {
   font-size: var(--type-emoji-lg);
   line-height: 1;
@@ -110,4 +114,15 @@
   color: var(--text-3);
   font-size: var(--type-label);
   text-decoration: none;
+}
+
+/* DM の本体 = 未読の数の 1 行（本文は出さない） */
+.dmText {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-caption);
+  font-weight: var(--w-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
