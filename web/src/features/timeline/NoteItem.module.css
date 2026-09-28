@@ -215,3 +215,22 @@
 .hiddenRow {
   height: 1px;
 }
+
+/* ⋯「翻訳」の結果（#541。原文は残したまま本文の下に別ブロックで出す） */
+.translation {
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.translationCaption {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}
+
+.translationText {
+  margin: var(--sp-1) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}

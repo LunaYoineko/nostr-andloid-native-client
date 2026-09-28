@@ -3,7 +3,9 @@ import { AppShell } from "./AppShell";
 import { HashtagRoute } from "./HashtagRoute";
 import { LoginGate } from "./LoginGate";
 import type { RouteHandle } from "./navState";
+import { OpenNostrRoute } from "./OpenNostrRoute";
 import { RequireSession } from "./RequireSession";
+import { ShareRoute } from "./ShareRoute";
 import { RouteError } from "./screens/RouteError";
 
 // basename は "/app"（パスはそれより下の部分）。
@@ -30,6 +32,10 @@ export const routes: RouteObject[] = [
           { path: "e/:ref", handle: { overlay: "thread" } satisfies RouteHandle },
           { path: "p/:ref", handle: { overlay: "profile" } satisfies RouteHandle },
           { path: "t/:tag", handle: { dest: "home" } satisfies RouteHandle, element: <HashtagRoute /> },
+          // Share Target（#541）。本文を下書きに入れて投稿シートを開き、/ に置き換える
+          { path: "share", handle: { dest: "home" } satisfies RouteHandle, element: <ShareRoute /> },
+          // web+nostr: / nostr: の受け口（#541）。/p か /e に置き換え、読めなければ 404
+          { path: "open", handle: { dest: "home" } satisfies RouteHandle, element: <OpenNostrRoute /> },
           { path: "*", handle: { dest: "notFound" } satisfies RouteHandle },
         ],
       },

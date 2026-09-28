@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { showToast } from "../../ui/toast";
 import { RelaySyncSection } from "../sync/RelaySyncSection";
 import { ConnectionMonitorDialog } from "./ConnectionMonitorDialog";
 import { clearCacheAndReload } from "./cache";
@@ -8,7 +9,7 @@ import styles from "./SettingsSections.module.css";
 
 /**
  * データ・キャッシュ（ネイティブ DataSettings の並び: リレー同期[#468] → キャッシュの強制消去 →
- * 開発者モード → 接続と通信量）。
+ * 開発者モード → 接続と通信量 → web+nostr: リンクの登録[#541]）。
  */
 export function DataSection() {
   return (
@@ -17,6 +18,7 @@ export function DataSection() {
       <PurgeCacheBlock />
       <DeveloperModeBlock />
       <ConnectionMonitorBlock />
+      <ProtocolHandlerBlock />
     </>
   );
 }
@@ -75,6 +77,37 @@ function DeveloperModeBlock() {
         />
         開発者モードを有効にする
       </label>
+    </div>
+  );
+}
+
+/**
+ * web+nostr: リンクをこのアプリで開く（#541。manifest の protocol_handlers と一致する URL を登録する）。
+ * registerProtocolHandler が無いブラウザでは出さない。
+ */
+function ProtocolHandlerBlock() {
+  if (!("registerProtocolHandler" in navigator)) return null;
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>nostr: リンク</h3>
+      <p className={styles.desc}>
+        他のサイトの nostr: リンク（npub / nprofile / note / nevent /
+        naddr）をこのアプリで開けるようにします。
+      </p>
+      <button
+        type="button"
+        className={`${styles.ghost} ${styles.alignStart}`}
+        onClick={() => {
+          try {
+            navigator.registerProtocolHandler("web+nostr", "/app/open?uri=%s");
+            showToast("登録しました");
+          } catch {
+            showToast("登録できませんでした");
+          }
+        }}
+      >
+        nostr: リンクをこのアプリで開く
+      </button>
     </div>
   );
 }

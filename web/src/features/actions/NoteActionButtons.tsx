@@ -27,13 +27,15 @@ import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
 import { followsFromContacts } from "../profile/contacts";
 import { FollowError, toggleFollow } from "../profile/follow";
 import { useDeveloperMode } from "../settings/devMode";
+import { translateAvailable } from "../translate/translate";
+import { hideTranslation, requestTranslation, useTranslation } from "../translate/translateStore";
 import { payInvoiceWithNwc, useNwc } from "../wallet/nwcManager";
 import { useZapSats } from "../zap/useZapReceipts";
 import { ZapDialog } from "../zap/ZapDialog";
 import { formatSats } from "../zap/zapTotals";
 import { moreMenuEntries } from "./moreMenu";
 import styles from "./NoteActionButtons.module.css";
-import { copyText, noteLinksOf, plainTextOf } from "./noteLinks";
+import { copyText, hasBodyText, noteLinksOf, plainTextOf } from "./noteLinks";
 import { ReactionPickerDialog } from "./ReactionPickerDialog";
 import { ReportDialog } from "./ReportDialog";
 import { useDefaultReaction } from "./reactionPrefs";
@@ -277,6 +279,8 @@ function MoreMenu({ event }: { event: NostrEvent }) {
   const isBookmarked = useIsBookmarked(event.id);
   const isPinned = useIsPinned(event.id);
   const developerMode = useDeveloperMode((s) => s.enabled);
+  const canTranslate = translateAvailable() && hasBodyText(event);
+  const translation = useTranslation(event.id);
   const [dialog, setDialog] = useState<"unfollow" | "mute" | "delete" | "report" | "json" | null>(null);
 
   function follow(action: "follow" | "unfollow") {
@@ -325,6 +329,7 @@ function MoreMenu({ event }: { event: NostrEvent }) {
     note1: links.note1,
     nevent: links.nevent,
     developerMode,
+    translationVisible: canTranslate ? (translation?.visible ?? false) : null,
     on: {
       follow: () => follow("follow"),
       unfollow: () => setDialog("unfollow"),
@@ -342,6 +347,12 @@ function MoreMenu({ event }: { event: NostrEvent }) {
       copyNote1: () => void copyText(links.note1),
       copyNevent: () => void copyText(links.nevent),
       viewJson: () => setDialog("json"),
+      translate: () => {
+        void requestTranslation(event.id, plainTextOf(event)).then((ok) => {
+          if (!ok) showToast("翻訳できませんでした");
+        });
+      },
+      hideTranslation: () => hideTranslation(event.id),
     },
   });
 
