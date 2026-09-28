@@ -86,3 +86,144 @@
   margin: 0;
   accent-color: var(--accent);
 }
+
+/* [#464] 適用直後の「元に戻す」（ネイティブ ThemeUndoBar） */
+.undoBar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+}
+
+.undoText {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-label);
+}
+
+.undoButton {
+  flex: none;
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-3);
+  border: none;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--type-label);
+  font-weight: var(--w-link);
+  cursor: pointer;
+}
+
+/* [#464] カスタムテーマの編集（プリセット + 3色 + 警告 + 既定に戻す） */
+.customize {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.preset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-micro);
+  cursor: pointer;
+}
+
+.preset[aria-pressed="true"] {
+  background: var(--accent-weak);
+  color: var(--text);
+}
+
+/* ネイティブ ThemeMiniCard（背景の上に文字サンプル + アクセントの小さな四角） */
+.swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  width: 56px;
+  height: 40px;
+  border-radius: var(--r-sm);
+  font-size: var(--type-label);
+}
+
+.swatchAccent {
+  width: 14px;
+  height: 5px;
+  border-radius: var(--r-full);
+}
+
+.colorField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.colorRow input[type="color"] {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: none;
+  cursor: pointer;
+}
+
+.hexInput {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-sm);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px; /* 16px 未満だと iOS Safari がフォーカス時に拡大する */
+}
+
+.warn {
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--type-label);
+}
+
+.reset {
+  align-self: flex-start;
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
