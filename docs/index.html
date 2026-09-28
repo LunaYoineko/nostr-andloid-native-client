@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nostrism — デッキ型の Nostr クライアント</title>
-<meta name="description" content="複数カラムを並べて読む Nostr クライアント。Android / iOS / macOS。テーマストア、カスタム絵文字、キーボードショートカット。">
+<meta name="description" content="複数カラムを並べて読む Nostr クライアント。Android / iOS / macOS / Web（ブラウザ）。テーマストア、カスタム絵文字、キーボードショートカット。">
 <meta property="og:title" content="Nostrism — デッキ型の Nostr クライアント">
-<meta property="og:description" content="複数カラムを並べて読む Nostr クライアント。Android / iOS / macOS。">
+<meta property="og:description" content="複数カラムを並べて読む Nostr クライアント。Android / iOS / macOS / Web（ブラウザ）。">
 <meta property="og:type" content="website">
 <link rel="icon" href="/store/icon-512.png">
 <style>
@@ -225,12 +225,34 @@
     padding: 1px 6px; color: var(--text3); align-self: flex-start;
   }
 
+  /* ---------- Web 版の導線（#467） ---------- */
+  /* <html class="signed-in"> は <head> の inline JS が付ける（Web 版にログイン済みのとき） */
+  .top .app-open { display: none; padding: 7px 14px; font-size: 12px; }
+  .signed-in .top .app-open { display: inline-block; }
+  .when-in { display: none; }
+  .signed-in .when-in { display: inline; }
+  .signed-in .when-out { display: none; }
+  @media (max-width: 620px) {
+    /* スマホ幅ではヘッダ 1 行に収めるため、ログイン済みのときはナビを隠してボタンだけにする */
+    .signed-in .top nav { display: none; }
+    .signed-in .top .app-open { margin-left: auto; }
+  }
+  /* 入手節の Web 版カードは 1 行を占有する（4 枚目が 3 列グリッドの 2 行目に 1 枚だけ落ちて空きマスが出るのを避ける） */
+  .dl-item.wide { grid-column: 1 / -1; }
+  .dl-item.wide p { max-width: 62ch; }
+
   footer { border-top: 1px solid var(--border); padding: 40px 0 60px; }
   footer .shell { display: flex; flex-wrap: wrap; gap: 20px 32px; align-items: baseline; }
   footer a { font-family: var(--mono); font-size: 12px; color: var(--text3); text-decoration: none; }
   footer a:hover { color: var(--text); }
   footer .copy { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-left: auto; letter-spacing: .05em; }
 </style>
+<script>
+  // Web 版（/app/）にログイン済みなら「アプリを開く」を出す。表示を変えるだけで自動では遷移しない（#467）
+  try {
+    if (localStorage.getItem("nostrism.session.flag") === "1") document.documentElement.classList.add("signed-in");
+  } catch (e) {}
+</script>
 </head>
 <body>
 
@@ -243,6 +265,7 @@
       <a href="#download">入手</a>
       <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client">GitHub</a>
     </nav>
+    <a class="btn primary app-open" href="/app/">アプリを開く</a>
   </div>
 </header>
 
@@ -252,9 +275,10 @@
     <p class="thesis">
       タイムライン、ハッシュタグ、通知、チャット。見たいものを横に並べたまま追える Nostr クライアント。
     </p>
-    <p class="sub">Android · iOS · macOS / オープンソース</p>
+    <p class="sub">Android · iOS · macOS · Web / オープンソース</p>
     <div class="cta">
-      <a class="btn primary" href="#download">入手する</a>
+      <a class="btn primary" href="/app/"><span class="when-out">ブラウザで使う（Web 版）</span><span class="when-in">アプリを開く</span></a>
+      <a class="btn" href="#download">入手する</a>
       <a class="btn" href="/themes.html">テーマストアを見る</a>
     </div>
   </div>
@@ -437,10 +461,11 @@
     <div class="sec-label">対応</div>
     <h2>Nostr の仕様に沿って作られている</h2>
     <p class="sec-lede">
-      鍵はあなたの端末にあり、開発者のサーバーは存在しない。外部の署名アプリ（NIP-55）にも対応しているので、アプリに秘密鍵を渡さずに使える。
+      鍵はあなたの端末にあり、アカウントやデータを特定のサーバーに預けない。既定の接続先には運営者のリレーも含まれるが、ほかのリレーと同じく接続先の一つにすぎず、設定で外せる。外部の署名アプリ（NIP-55 / NIP-46）やブラウザの拡張機能（NIP-07、Web 版）にも対応しているので、アプリに秘密鍵を渡さずに使える。
     </p>
     <div class="nips">
       <span><b>NIP-01</b> 基本</span>
+      <span><b>NIP-07</b> ブラウザ拡張</span>
       <span><b>NIP-10</b> スレッド</span>
       <span><b>NIP-17</b> DM</span>
       <span><b>NIP-18</b> リポスト</span>
@@ -450,6 +475,7 @@
       <span><b>NIP-30</b> カスタム絵文字</span>
       <span><b>NIP-36</b> 閲覧注意</span>
       <span><b>NIP-42</b> AUTH</span>
+      <span><b>NIP-46</b> リモート署名</span>
       <span><b>NIP-47</b> ウォレット接続</span>
       <span><b>NIP-50</b> 検索</span>
       <span><b>NIP-51</b> ミュート/ブックマーク</span>
@@ -466,10 +492,17 @@
     <div class="sec-label">入手</div>
     <h2>まだ開発中。テスターを募集しています</h2>
     <p class="sec-lede">
-      正式公開前のため、どの経路もテスト配布です。不具合や要望は GitHub の Issue へどうぞ。
+      正式公開前のため、どの経路もテスト版です。Web 版は登録なしですぐに使えます。不具合や要望は GitHub の Issue へどうぞ。
     </p>
 
     <div class="dl">
+      <div class="dl-item wide">
+        <div class="plat">Web</div>
+        <strong>ブラウザで使う</strong>
+        <span class="state">ベータ版</span>
+        <p>インストール不要。PC やスマートフォンのブラウザでそのまま開けます。ログインは拡張機能（NIP-07）・署名アプリ（NIP-46）・秘密鍵（nsec）から選べ、ホーム画面に追加すればアプリのように起動できます。</p>
+        <a href="/app/">Web 版を開く →</a>
+      </div>
       <div class="dl-item">
         <div class="plat">Android</div>
         <strong>Google Play</strong>

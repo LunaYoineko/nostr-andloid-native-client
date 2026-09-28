@@ -15,6 +15,7 @@
   h1 { font-size: 1.6rem; margin-bottom: .2em; }
   h2 { font-size: 1.25rem; margin-top: 2em; border-bottom: 1px solid #8884; padding-bottom: .2em; }
   h3 { font-size: 1.05rem; margin-top: 1.5em; }
+  h4 { font-size: 1rem; margin-top: 1.4em; margin-bottom: .3em; }
   .meta { color: #8a8a8a; font-size: .9rem; }
   code { background: #f0f0f0; padding: .1em .35em; border-radius: 4px; font-size: .9em; }
   hr { border: none; border-top: 1px solid #8884; margin: 2.5em 0; }
@@ -23,15 +24,15 @@
 </head>
 <body>
 <h1>プライバシーポリシー / Privacy Policy — Nostrism</h1>
-<p class="meta">最終更新 / Last updated: 2026-07-06</p>
+<p class="meta">最終更新 / Last updated: 2026-09-28</p>
 
 <hr>
 
 <h2>日本語</h2>
-<p><strong>Nostrism</strong>（以下「本アプリ」）は、分散型プロトコル <a href="https://nostr.com/">Nostr</a> のクライアントアプリです。本アプリは、開発者が運営するサーバーを持たず、利用者の個人情報を開発者側で収集・保存しません。</p>
+<p><strong>Nostrism</strong>（以下「本アプリ」）は、分散型プロトコル <a href="https://nostr.com/">Nostr</a> のクライアントアプリです。Android / iOS / macOS 向けのアプリと、ブラウザで使う Web 版（<code>https://nostrism.shino3.net/app/</code>）があり、本ポリシーはそのすべてに適用します。本アプリは利用者のアカウントを管理するサーバーを持たず、利用者の個人情報を開発者側で収集・保存しません（開発者が運営する既定のリレーと、Web 版が利用する開発者のサーバーについては 3. と 4. をご覧ください）。</p>
 
 <h3>1. 開発者が収集する情報</h3>
-<p><strong>ありません。</strong> 本アプリは解析ツール・広告・トラッキングSDKを一切使用せず、開発者のサーバーへ利用者のデータを送信しません。</p>
+<p><strong>ありません。</strong> 本アプリは解析ツール・広告・トラッキングSDKを一切使用せず、利用者を識別・追跡するための情報を開発者のサーバーへ送信しません。Web 版が配信と一部の機能のために通信する開発者のサーバー（Cloudflare 上で運用）での取り扱いは「4. Web 版での取り扱い」に記載します。</p>
 
 <h3>2. 端末内に保存される情報</h3>
 <p>以下は<strong>利用者の端末内にのみ</strong>保存されます（開発者は参照できません）。</p>
@@ -40,24 +41,76 @@
   <li>取得したイベント（投稿等）のキャッシュ</li>
   <li>アプリの設定（リレー一覧、表示設定 等）</li>
 </ul>
-<p>秘密鍵は署名・暗号化のために端末内で使用されます。アプリのデータ削除・アンインストールで消去されます。</p>
+<p>秘密鍵は署名・暗号化のために端末内で使用されます。アプリのデータ削除・アンインストールで消去されます。Web 版で保存される情報と消し方は「4. Web 版での取り扱い」をご覧ください。</p>
 
 <h3>3. 第三者へ送信される情報</h3>
 <p>Nostr は公開プロトコルです。利用者の操作により、以下が<strong>利用者が選んだ第三者</strong>へ送信されます。</p>
 <ul>
   <li><strong>リレー</strong>：投稿・リアクション・フォロー等の公開イベントは、利用者が設定したリレーへ送信され、公開されます。ダイレクトメッセージは暗号化（NIP-17/NIP-44）されますが、送受信のメタデータはリレーを経由します。</li>
+  <li><strong>開発者が運営するリレー</strong>：端末の言語が日本語の場合、既定のリレーの一つに開発者が運営する <code>relay-jp.shino3.net</code> が含まれます。他のリレーと同じく接続先の一つにすぎず、設定で外せます。本アプリはこのリレーを含め特定のサーバーに依存せず、アカウントやデータを特定のサーバーに預けません。このリレーに送られた公開イベントは、他のリレーと同じく Nostr の仕様に従って保存・公開されます。また、リレーの運用に必要な範囲で、接続の記録（IP アドレス等）が一時的に残る場合があります。</li>
   <li><strong>メディアサーバー</strong>：画像等をアップロードする場合、利用者が選んだサーバー（NIP-96/Blossom）へ送信されます。</li>
-  <li><strong>画像プロキシ（wsrv.nl）</strong>：タイムライン上の画像は、表示最適化のため公開画像プロキシ <code>wsrv.nl</code> を経由して読み込まれます。この際、画像URLと利用者のIPアドレスが当該プロキシに送信されます。設定で自前のプロキシへ変更可能です。</li>
+  <li><strong>画像プロキシ（wsrv.nl）</strong>：タイムライン上の画像は、表示最適化のため公開画像プロキシ <code>wsrv.nl</code> を経由して読み込まれます。この際、画像URLと利用者のIPアドレスが当該プロキシに送信されます。プロキシが受け付けない画像は、配信元から直接読み込みます。</li>
 </ul>
-<p>これら第三者はそれぞれ独自のプライバシーポリシーに従います。開発者はこれらのサービスを管理していません。</p>
+<p>これら第三者はそれぞれ独自のプライバシーポリシーに従います。開発者はこれらのサービスを管理していません（開発者が運営するリレーを除きます）。</p>
 
-<h3>4. 子どものプライバシー</h3>
+<h3 id="web">4. Web 版での取り扱い</h3>
+<p>Web 版は、ブラウザ上で動く本アプリです。配信と一部の機能に Cloudflare, Inc. のサービス（Cloudflare Pages）を利用しています。1〜3 に加えて、次のとおり取り扱います。</p>
+
+<h4>4.1 ブラウザ内に保存される情報</h4>
+<p>以下は利用者のブラウザ内（IndexedDB・localStorage 等）にのみ保存され、開発者のサーバーへは送信されません。</p>
+<ul>
+  <li><strong>ログイン情報</strong>：ログイン方式と公開鍵。秘密鍵（nsec）でログインした場合は秘密鍵を、リモート署名（NIP-46）でログインした場合は接続用の鍵と接続先を、ブラウザの暗号機能（Web Crypto API）で暗号化して保存します。暗号化に使う鍵は、ブラウザから取り出せない形で保存されます。拡張機能（NIP-07）でログインした場合、秘密鍵は拡張機能が管理し、本アプリは保存しません。</li>
+  <li><strong>キャッシュ</strong>：プロフィール、フォロー・ミュート・リレー等のリスト、設定のイベント、送信待ちの投稿、リンクカードの内容（ページのタイトル・説明・画像の URL）。タイムラインの投稿は保存しません。</li>
+  <li><strong>ダイレクトメッセージ</strong>：復号したメッセージ（本文・相手・日時）と既読の状態。この保存は暗号化していません。</li>
+  <li><strong>設定と入力の履歴</strong>：リレー一覧、カラムの構成、表示設定、既定のリアクションと最近使った絵文字、投稿の下書き、最近使ったハッシュタグ、検索の履歴。</li>
+  <li><strong>アプリ本体</strong>：オフラインでも起動できるよう、プログラムと画面の部品を保存します（Service Worker）。</li>
+</ul>
+<p>暗号化していても、ページの中で悪意のあるプログラムが動いた場合（本アプリの脆弱性を突かれた場合や、ページを読み書きできる拡張機能など）には、秘密鍵を守れません。長く使うアカウントには、拡張機能（NIP-07）または署名アプリ（NIP-46）の利用をおすすめします。</p>
+
+<h4>4.2 開発者のサーバーを経由する情報</h4>
+<p>ブラウザから直接取得できない情報は、開発者が Cloudflare 上で運用する中継機能（<code>/api/</code>）を通して取得します。</p>
+<ul>
+  <li><strong>リンクカード</strong>：投稿内のリンクをカードで表示するため、リンク先の URL をサーバーへ送り、サーバーがリンク先のページの先頭部分を取得します。</li>
+  <li><strong>YouTube の動画情報</strong>：YouTube のリンクにタイトルを表示するため、動画の ID をサーバーへ送り、サーバーが YouTube から取得します。</li>
+  <li><strong>パブリックチャットの一覧</strong>：パブリックチャット（NIP-28）の一覧を表示するとき、サーバーが <code>thread.nchan.vip</code> から取得します。</li>
+</ul>
+<p>サーバーは、ブラウザの Cookie 等を取得先へ転送しません。ただし Cloudflare の仕様により、利用者の IP アドレスがリクエストヘッダとして取得先（リンク先のサイト等）に伝わる場合があります。取得した内容は、利用者を識別しない形で Cloudflare のキャッシュに一時保存されます（リンクカードと動画情報は最長 24 時間、チャットの一覧は 60 秒）。</p>
+
+<h4>4.3 Cloudflare による記録</h4>
+<ul>
+  <li>Web 版へのアクセス（ページの読み込みと中継機能の利用）は Cloudflare を経由するため、Cloudflare が IP アドレス、リクエストされた URL（リンクカードではリンク先の URL を含みます）、ブラウザの種類等を処理します。Cloudflare での取り扱いは <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare のプライバシーポリシー</a>に従います。</li>
+  <li>開発者は、アクセスの記録を保存する設定をしていません。中継機能のプログラムも、リンク先の URL 等を記録しません。</li>
+  <li>開発者は Cloudflare の管理画面で、リクエスト数・エラー数などの集計を参照できます。また管理画面には、Cloudflare のセキュリティ分析の機能により、アクセスの記録（IP アドレス・URL 等）が一定期間表示される場合があります。不具合の調査のために、リアルタイムのログを一時的に表示することもあります（保存されません）。開発者はこれらを、運用・不正利用の防止・不具合の調査のためにだけ参照します。</li>
+  <li>Web 版は、アクセス解析ツール・広告・追跡用の Cookie を使用しません。</li>
+</ul>
+
+<h4>4.4 ブラウザから第三者へ直接送信される情報</h4>
+<p>3. に加え、Web 版はブラウザから次の相手と直接通信します。いずれの相手にも、利用者の IP アドレスとブラウザの種類等が伝わります。</p>
+<ul>
+  <li><strong>リレー</strong>：設定したリレーのほか、プロフィールやリレー一覧の取得用のリレー、キーワード検索用のリレー（検索語を送信します）、相手が投稿に使っているリレー、DM の宛先のリレー、リモート署名（NIP-46）の接続に使うリレー。</li>
+  <li><strong>NIP-05 の確認</strong>：プロフィールの NIP-05 アドレスを確かめるため、そのアドレスのドメインのサーバーへ問い合わせます。</li>
+  <li><strong>画像・動画</strong>：画像は 3. の画像プロキシを経由して読み込みます。動画は再生を押したときに配信元から直接読み込みます。YouTube のサムネイルは <code>img.youtube.com</code> から直接読み込みます。</li>
+  <li><strong>画像・動画の添付</strong>：投稿に添付した画像・動画は、ブラウザからアップロード先のサーバー（NIP-96）へ直接送信されます。既定のアップロード先は <code>nostr.build</code>（失敗した場合は <code>nostrcheck.me</code>）で、設定で変更できます。画像は送信前に端末内で縮小・再圧縮し、その際に位置情報などの EXIF 情報を取り除きます。ただし、GIF・アニメーション WebP・ブラウザが読み込めない形式の画像と、動画は、元のファイルのまま送信します。アップロード先での取り扱いは、それぞれのサーバーの方針に従います。</li>
+  <li><strong>署名の依頼</strong>：拡張機能（NIP-07）でログインした場合は、署名・暗号化の依頼（署名する内容を含む）を拡張機能へ渡します。リモート署名（NIP-46）の場合は、同じ依頼を暗号化し、リレーを通して署名アプリへ送ります。拡張機能・署名アプリでの取り扱いは、それぞれの提供者の方針に従います。</li>
+</ul>
+
+<h4>4.5 保存期間と消し方</h4>
+<ul>
+  <li><strong>ログアウト</strong>：ログイン情報（秘密鍵・リモート署名の接続情報を含む）、復号した DM と既読の状態を、このブラウザから削除します。Web 版では秘密鍵を表示・書き出しできないため、秘密鍵でログインしている場合は、控えがあることを確かめてからログアウトしてください。</li>
+  <li><strong>ログアウトしても残るもの</strong>：キャッシュ（プロフィール等・リンクカード・送信待ちの投稿）、リレー一覧・カラムの構成・表示設定、投稿の下書き、検索・ハッシュタグ・絵文字の履歴。共用の端末では、下の「サイトデータの削除」も行ってください。</li>
+  <li><strong>キャッシュの消去</strong>（設定 → 開発者 → キャッシュを消去）：キャッシュ、送信待ちの投稿、復号した DM を削除します。ログイン情報と設定は残ります。</li>
+  <li><strong>サイトデータの削除</strong>：ブラウザの設定で <code>nostrism.shino3.net</code> のサイトデータを削除すると、Web 版が保存したすべての情報（秘密鍵を含む）が消えます。ホーム画面に追加した Web 版は、ブラウザとは別に保存している場合があります。その場合はホーム画面からも削除してください。</li>
+  <li><strong>自動で消えるもの</strong>：リンクカードは 7 日（取得に失敗したものは 1 日）で取り直し、14 日を過ぎたものは次の起動時に削除します。プロフィール等のキャッシュは、件数が上限を超えると古いものから削除します。送信待ちの投稿は、送信が済むか、別のアカウントでログインしたときに削除します。</li>
+  <li>ブラウザによっては、空き容量が少ないときや長く使わなかったときに、保存した情報（秘密鍵を含む）が自動で削除されることがあります。</li>
+</ul>
+
+<h3>5. 子どものプライバシー</h3>
 <p>本アプリは13歳未満の子どもを対象としていません。</p>
 
-<h3>5. 本ポリシーの変更</h3>
+<h3>6. 本ポリシーの変更</h3>
 <p>本ポリシーは予告なく変更されることがあります。変更時は本ページの「最終更新」日を更新します。</p>
 
-<h3>6. お問い合わせ</h3>
+<h3>7. お問い合わせ</h3>
 <ul>
   <li>連絡先: <a href="mailto:tshinoharawork@gmail.com">tshinoharawork@gmail.com</a></li>
   <li>リポジトリ: <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client">github.com/ShinoharaTa/nostr-andloid-native-client</a></li>
@@ -66,10 +119,10 @@
 <hr>
 
 <h2>English</h2>
-<p><strong>Nostrism</strong> ("the App") is a client for the decentralized <a href="https://nostr.com/">Nostr</a> protocol. The App has no developer-operated backend and the developer does <strong>not</strong> collect or store your personal data.</p>
+<p><strong>Nostrism</strong> ("the App") is a client for the decentralized <a href="https://nostr.com/">Nostr</a> protocol. It is available as apps for Android, iOS and macOS, and as a web version that runs in your browser (<code>https://nostrism.shino3.net/app/</code>); this policy applies to all of them. The App has no server that manages your account, and the developer does <strong>not</strong> collect or store your personal data (see sections 3 and 4 for the default relay operated by the developer and the developer's server used by the web version).</p>
 
 <h3>1. Information collected by the developer</h3>
-<p><strong>None.</strong> The App uses no analytics, ads, or tracking SDKs, and sends no user data to any developer-operated server.</p>
+<p><strong>None.</strong> The App uses no analytics, ads, or tracking SDKs, and sends no data to developer-operated servers for the purpose of identifying or tracking you. How the developer's server used by the web version (hosted on Cloudflare) handles requests is described in section 4.</p>
 
 <h3>2. Information stored on your device</h3>
 <p>The following are stored <strong>only on your device</strong> (the developer cannot access them):</p>
@@ -78,24 +131,76 @@
   <li>Cached events (posts, etc.)</li>
   <li>App settings (relay list, display preferences, etc.)</li>
 </ul>
-<p>Your private key is used on-device for signing and encryption. It is removed when you clear the app data or uninstall.</p>
+<p>Your private key is used on-device for signing and encryption. It is removed when you clear the app data or uninstall. For what the web version stores and how to delete it, see section 4.</p>
 
 <h3>3. Information sent to third parties</h3>
 <p>Nostr is a public protocol. By your actions, data is sent to <strong>third parties you choose</strong>:</p>
 <ul>
   <li><strong>Relays</strong>: Public events (posts, reactions, follows) are published to the relays you configure. Direct messages are encrypted (NIP-17/NIP-44), but delivery metadata passes through relays.</li>
+  <li><strong>Relay operated by the developer</strong>: If your device language is Japanese, the default relays include <code>relay-jp.shino3.net</code>, which is operated by the developer. Like any other relay, it is just one of the relays the App connects to, and you can remove it in settings. The App does not depend on any particular server, including this relay, and does not entrust your account or data to any particular server. Public events sent to it are stored and published under the Nostr protocol, like on any other relay. Connection records (such as IP addresses) may be kept temporarily to the extent necessary to operate the relay.</li>
   <li><strong>Media servers</strong>: If you upload media, it is sent to the server you choose (NIP-96/Blossom).</li>
-  <li><strong>Image proxy (wsrv.nl)</strong>: Images in the timeline are loaded through the public image proxy <code>wsrv.nl</code> for optimization; the image URL and your IP address are sent to it. You can change this to your own proxy in settings.</li>
+  <li><strong>Image proxy (wsrv.nl)</strong>: Images in the timeline are loaded through the public image proxy <code>wsrv.nl</code> for optimization; the image URL and your IP address are sent to it. Images the proxy refuses are loaded directly from their source.</li>
 </ul>
-<p>These third parties operate under their own privacy policies. The developer does not control them.</p>
+<p>These third parties operate under their own privacy policies. The developer does not control them (except the relay operated by the developer).</p>
 
-<h3>4. Children's privacy</h3>
+<h3 id="web-en">4. The web version</h3>
+<p>The web version is the App running in your browser. It is served using services of Cloudflare, Inc. (Cloudflare Pages). In addition to sections 1–3, the following applies.</p>
+
+<h4>4.1 Information stored in your browser</h4>
+<p>The following are stored only in your browser (IndexedDB, localStorage, etc.) and are not sent to the developer's server:</p>
+<ul>
+  <li><strong>Login information</strong>: your login method and public key. If you log in with a private key (nsec), the key is stored encrypted with the browser's cryptography (Web Crypto API); if you log in with a remote signer (NIP-46), the connection key and connection details are stored the same way. The encryption key is stored in a form that cannot be exported from the browser. If you log in with a browser extension (NIP-07), your private key stays in the extension and the App does not store it.</li>
+  <li><strong>Cache</strong>: profiles; follow, mute, relay and other lists; settings events; posts waiting to be sent; link-card contents (page title, description, image URL). Timeline posts are not stored.</li>
+  <li><strong>Direct messages</strong>: decrypted messages (content, peer, time) and read status. This storage is not encrypted.</li>
+  <li><strong>Settings and input history</strong>: relay list, column layout, display settings, default reaction and recently used emoji, post draft, recently used hashtags, search history.</li>
+  <li><strong>The app itself</strong>: program files and UI assets are cached so the app can start offline (Service Worker).</li>
+</ul>
+<p>Encryption cannot protect your private key if malicious code runs inside the page (for example, through a vulnerability in the App, or an extension that can read and modify pages). For long-term accounts, we recommend a browser extension (NIP-07) or a remote signer (NIP-46).</p>
+
+<h4>4.2 Information sent through the developer's server</h4>
+<p>Information the browser cannot fetch directly is fetched through proxy endpoints (<code>/api/</code>) that the developer runs on Cloudflare.</p>
+<ul>
+  <li><strong>Link cards</strong>: to show a link in a post as a card, the link URL is sent to the server, which fetches the beginning of the linked page.</li>
+  <li><strong>YouTube video info</strong>: to show the title of a YouTube link, the video ID is sent to the server, which fetches the information from YouTube.</li>
+  <li><strong>Public chat list</strong>: when the list of public chats (NIP-28) is shown, the server fetches it from <code>thread.nchan.vip</code>.</li>
+</ul>
+<p>The server does not forward your browser's cookies or similar data to these destinations. However, due to how Cloudflare works, your IP address may be passed to the destination (such as the linked site) in a request header. Fetched content is cached by Cloudflare in a form that does not identify you (up to 24 hours for link cards and video info, 60 seconds for the chat list).</p>
+
+<h4>4.3 Records kept by Cloudflare</h4>
+<ul>
+  <li>Because access to the web version (loading pages and using the proxy endpoints) goes through Cloudflare, Cloudflare processes your IP address, the requested URL (for link cards, this includes the linked URL), browser type and similar data, under the <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare Privacy Policy</a>.</li>
+  <li>The developer has not configured any storage of access logs, and the proxy code does not log linked URLs or similar data.</li>
+  <li>In the Cloudflare dashboard, the developer can see aggregate figures such as request and error counts. The dashboard may also show records of access (IP address, URL, etc.) for a certain period through Cloudflare's security analytics. The developer may also view real-time logs temporarily to investigate problems (they are not stored). The developer uses this information only for operation, abuse prevention and troubleshooting.</li>
+  <li>The web version uses no analytics tools, ads, or tracking cookies.</li>
+</ul>
+
+<h4>4.4 Information sent directly from your browser to third parties</h4>
+<p>In addition to section 3, the web version connects directly from your browser to the following. Each of them receives your IP address, browser type and similar data.</p>
+<ul>
+  <li><strong>Relays</strong>: besides the relays you configure, relays used to fetch profiles and relay lists, relays used for keyword search (your search terms are sent), relays other users publish to, relays of DM recipients, and relays used to connect to a remote signer (NIP-46).</li>
+  <li><strong>NIP-05 verification</strong>: to verify the NIP-05 address on a profile, the App queries a server on that address's domain.</li>
+  <li><strong>Images and videos</strong>: images are loaded through the image proxy in section 3. Videos are loaded directly from their source when you press play. YouTube thumbnails are loaded directly from <code>img.youtube.com</code>.</li>
+  <li><strong>Attaching images and videos</strong>: images and videos you attach to a post are sent directly from your browser to the upload server (NIP-96). The default upload server is <code>nostr.build</code> (<code>nostrcheck.me</code> if that fails), and you can change it in settings. Before sending, images are resized and re-compressed on your device, which removes EXIF data such as location. However, GIFs, animated WebP images, images in formats the browser cannot read, and videos are sent as the original files. The upload server handles them under its own policy.</li>
+  <li><strong>Signing requests</strong>: if you log in with an extension (NIP-07), signing and encryption requests (including the content to be signed) are passed to the extension. With a remote signer (NIP-46), the same requests are encrypted and sent to the signer app through relays. The extension or signer app handles them under its provider's own policy.</li>
+</ul>
+
+<h4>4.5 Retention and deletion</h4>
+<ul>
+  <li><strong>Logging out</strong> removes your login information (including a stored private key or remote-signer connection), decrypted DMs and read status from this browser. The web version cannot display or export your private key, so if you logged in with one, make sure you have a backup before logging out.</li>
+  <li><strong>Kept after logout</strong>: the cache (profiles etc., link cards, posts waiting to be sent), relay list, column layout, display settings, post draft, and search, hashtag and emoji history. On a shared device, also delete the site data as described below.</li>
+  <li><strong>Clearing the cache</strong> (Settings → 開発者 (Developer) → キャッシュを消去 (Clear cache)) removes the cache, posts waiting to be sent and decrypted DMs. Login information and settings are kept.</li>
+  <li><strong>Deleting site data</strong>: deleting the site data for <code>nostrism.shino3.net</code> in your browser settings removes everything the web version stored (including your private key). A web version added to your home screen may keep its data separately from the browser; in that case, also remove it from the home screen.</li>
+  <li><strong>Automatic deletion</strong>: link cards are refreshed after 7 days (1 day if fetching failed), and those older than 14 days are deleted at the next start. Cached profiles etc. are deleted oldest first when their number exceeds a limit. Posts waiting to be sent are deleted once sent, or when you log in with a different account.</li>
+  <li>Some browsers may automatically delete stored data (including your private key) when storage is low or the site has not been used for a while.</li>
+</ul>
+
+<h3>5. Children's privacy</h3>
 <p>The App is not directed to children under 13.</p>
 
-<h3>5. Changes</h3>
+<h3>6. Changes</h3>
 <p>This policy may change; the "Last updated" date will be revised accordingly.</p>
 
-<h3>6. Contact</h3>
+<h3>7. Contact</h3>
 <ul>
   <li>Contact: <a href="mailto:tshinoharawork@gmail.com">tshinoharawork@gmail.com</a></li>
   <li>Repository: <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client">github.com/ShinoharaTa/nostr-andloid-native-client</a></li>
