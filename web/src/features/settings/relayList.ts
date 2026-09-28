@@ -2,7 +2,7 @@ import { normalizeURL } from "applesauce-core/helpers/url";
 import type { EventTemplate, NostrEvent } from "nostr-tools/pure";
 import { INDEXER_RELAYS } from "../../lib/columnRequest";
 import { unixNow } from "../../lib/time";
-import type { RelayPref } from "../../nostr/outbox";
+import { isRecognizedRelayTag, type RelayPref } from "../../nostr/outbox";
 import { applyRelayPrefs, type RelaySet, readRelays, requestOnce, writeRelays } from "../../nostr/pool";
 import { PublishError, type PublishFailure, publishEvent } from "../../nostr/publish";
 import { eventStore } from "../../nostr/store";
@@ -67,14 +67,15 @@ export function relayTagsOf(prefs: readonly RelayPref[]): string[][] {
 
 /**
  * 発行する kind:10002。取り直した版（base）の r 以外のタグ（他のクライアントが足した未知のタグ）と
- * content はそのまま残し、r タグだけを prefs で置き換える。
+ * content はそのまま残し、relayPrefsFromEvent が解釈した r タグ（wss://）だけを prefs で置き換える。
+ * 解釈できなかった r タグ（ws:// や不正な URL）は others と同様にそのまま引き継ぐ（#580）。
  */
 export function buildRelayListTemplate(
   base: NostrEvent | null,
   prefs: readonly RelayPref[],
   nowSec: number,
 ): EventTemplate {
-  const others = (base?.tags ?? []).filter((t) => t[0] !== "r");
+  const others = (base?.tags ?? []).filter((t) => !isRecognizedRelayTag(t));
   return {
     kind: 10002,
     content: base?.content ?? "",
