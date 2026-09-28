@@ -63,6 +63,11 @@ function DmPanes({ mode }: { mode: LayoutMode }) {
     else void navigate("/messages", { replace: true });
   }
 
+  // Expanded の ✕（選択解除）。一覧はそのままなので置き換えでプレースホルダへ戻す
+  function close() {
+    void navigate("/messages", { replace: true });
+  }
+
   if (mode === "compact") {
     return (
       <div className={styles.single}>
@@ -83,7 +88,7 @@ function DmPanes({ mode }: { mode: LayoutMode }) {
         {peer === undefined ? (
           <p className={styles.placeholder}>会話を選択</p>
         ) : (
-          <ConversationPane peer={peer} />
+          <ConversationPane peer={peer} onClose={close} />
         )}
       </div>
     </div>
@@ -103,7 +108,15 @@ function ListPane({ selectedPeer, onSelect }: { selectedPeer: string | null; onS
 }
 
 /** 会話。相手が読めなければその旨（Compact は「←」つき） */
-function ConversationPane({ peer, onBack }: { peer: string | null; onBack?: () => void }) {
+function ConversationPane({
+  peer,
+  onBack,
+  onClose,
+}: {
+  peer: string | null;
+  onBack?: () => void;
+  onClose?: () => void;
+}) {
   if (peer === null) {
     return (
       <div className={styles.invalid}>
@@ -113,7 +126,7 @@ function ConversationPane({ peer, onBack }: { peer: string | null; onBack?: () =
     );
   }
   // 相手が替わったら表示件数を戻す
-  return <ConversationView key={peer} peer={peer} onBack={onBack} />;
+  return <ConversationView key={peer} peer={peer} onBack={onBack} onClose={onClose} />;
 }
 
 /**
@@ -189,6 +202,11 @@ function ChannelsPanes({ mode }: { mode: LayoutMode }) {
     else void navigate(SEGMENT_PATH.chat, { replace: true });
   }
 
+  // Expanded の ✕（選択解除）。一覧はそのままなので置き換えでプレースホルダへ戻す
+  function close() {
+    void navigate(SEGMENT_PATH.chat, { replace: true });
+  }
+
   const list = (
     <div className={styles.list}>
       <ScreenHeader title="メッセージ" />
@@ -213,7 +231,7 @@ function ChannelsPanes({ mode }: { mode: LayoutMode }) {
         {channelId === undefined ? (
           <p className={styles.placeholder}>チャンネルを選択</p>
         ) : (
-          <RoomPane channelId={channelId} />
+          <RoomPane channelId={channelId} onClose={close} />
         )}
       </div>
     </div>
@@ -224,7 +242,15 @@ function ChannelsPanes({ mode }: { mode: LayoutMode }) {
  * ルーム。一覧を取っている間は「チャンネルを読み込み中…」。一覧に無いチャンネルでも（取れた・失敗した後は）ルームを開く
  * （名前は「パブリックチャット」）。
  */
-function RoomPane({ channelId, onBack }: { channelId: string | null; onBack?: () => void }) {
+function RoomPane({
+  channelId,
+  onBack,
+  onClose,
+}: {
+  channelId: string | null;
+  onBack?: () => void;
+  onClose?: () => void;
+}) {
   const channel = useChannel(channelId);
   const listLoading = useChannels((s) => s.channels === null && !s.failed);
   useEffect(() => {
@@ -255,6 +281,7 @@ function RoomPane({ channelId, onBack }: { channelId: string | null; onBack?: ()
           subtitle={about.trim() === "" ? "NIP-28 · kind:42" : about}
           picture={channel?.picture ?? null}
           onBack={onBack}
+          onClose={onClose}
         />
       }
     />

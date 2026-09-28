@@ -126,6 +126,8 @@ describe("Compact", () => {
     expect(within(conversation).getByText("やあ")).toBeInTheDocument();
     expect(within(conversation).queryByText("bob です")).not.toBeInTheDocument();
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
+    // [#600] Compact は「←」だけ。「✕」（選択解除）は Expanded だけ
+    expect(screen.queryByRole("button", { name: "選択を解除" })).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "戻る" }));
     expect(router.state.location.pathname).toBe("/messages");
@@ -183,6 +185,18 @@ describe("Expanded", () => {
     expect(within(screen.getByRole("region")).getByText("bob です")).toBeInTheDocument();
     expect(screen.queryByText("会話を選択")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "戻る" })).not.toBeInTheDocument();
+  });
+
+  it("[#600] ヘッダ右端に「✕」（選択解除）。押すと一覧はそのままプレースホルダへ戻る", async () => {
+    seed();
+    const router = renderAt(`/messages/${npubEncode(ALICE)}`, 1000);
+    expect(within(screen.getByRole("region")).getByText("こんにちは")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "選択を解除" }));
+    expect(router.state.location.pathname).toBe("/messages");
+    expect(router.state.historyAction).toBe("REPLACE");
+    expect(screen.getByText("会話を選択")).toBeInTheDocument();
+    expect(rowButtons()).toHaveLength(2);
   });
 });
 
