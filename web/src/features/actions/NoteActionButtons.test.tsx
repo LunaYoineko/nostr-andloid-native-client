@@ -13,6 +13,7 @@ import { renderWithRouter } from "../../test/renderWithRouter";
 import { useToast } from "../../ui/toast";
 import { useCompose } from "../compose/composeStore";
 import { NoteFooter } from "../compose/NoteFooter";
+import { toggleBookmark, togglePinned, useOwnLists } from "../lists/ownLists";
 import { EMPTY_MUTE_LIST, setMuteList } from "../mute/muteList";
 import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
 import { toggleFollow } from "../profile/follow";
@@ -55,6 +56,16 @@ vi.mock("../profile/follow", async (importOriginal) => {
   return { ...actual, toggleFollow: vi.fn(async () => "done" as const) };
 });
 
+// ブックマーク・固定は ownLists の関数を呼ぶところまで（取り直し・発行は ownLists.test.ts）
+vi.mock("../lists/ownLists", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lists/ownLists")>();
+  return {
+    ...actual,
+    toggleBookmark: vi.fn(async () => "done" as const),
+    togglePinned: vi.fn(async () => "done" as const),
+  };
+});
+
 let meKey: Uint8Array;
 let me: string;
 
@@ -74,6 +85,9 @@ beforeEach(() => {
     ),
   );
   vi.mocked(toggleFollow).mockClear();
+  vi.mocked(toggleBookmark).mockClear();
+  vi.mocked(togglePinned).mockClear();
+  useOwnLists.setState({ bookmarks: null, pinned: null });
 });
 
 afterEach(() => {
@@ -373,6 +387,68 @@ describe("⋯ メニュー", () => {
       ]),
     );
     act(() => setMuteList(null));
+  });
+
+  it("「ブックマーク」→「ブックマークを解除」（#531。自分の kind:10003 が未取得の間は項目を出さない）", async () => {
+    const user = userEvent.setup();
+    const event = post();
+    renderRow(event);
+    await user.click(button("その他の操作"));
+    expect(screen.queryByRole("menuitem", { name: /ブックマーク/ })).toBeNull();
+    await user.keyboard("{Escape}");
+
+    act(() =>
+      useOwnLists.setState({
+        bookmarks: { eventId: null, createdAt: 0, ids: [], otherTags: [], content: "" },
+        pinned: null,
+      }),
+    );
+    await user.click(button("その他の操作"));
+    await user.click(screen.getByRole("menuitem", { name: "ブックマーク" }));
+    expect(toggleBookmark).toHaveBeenCalledWith(me, event.id, "bookmark");
+    await waitFor(() => expect(useToast.getState().queue).toEqual(["ブックマークしました"]));
+
+    act(() =>
+      useOwnLists.setState({
+        bookmarks: { eventId: "e1", createdAt: 1, ids: [event.id], otherTags: [], content: "" },
+        pinned: null,
+      }),
+    );
+    await user.click(button("その他の操作"));
+    await user.click(screen.getByRole("menuitem", { name: "ブックマークを解除" }));
+    expect(toggleBookmark).toHaveBeenCalledWith(me, event.id, "unbookmark");
+    await waitFor(() =>
+      expect(useToast.getState().queue).toEqual(["ブックマークしました", "ブックマークを解除しました"]),
+    );
+  });
+
+  it("自分の投稿だけ「プロフィールに固定」→「固定を解除」", async () => {
+    const user = userEvent.setup();
+    const event = post(meKey);
+    act(() =>
+      useOwnLists.setState({
+        bookmarks: null,
+        pinned: { eventId: null, createdAt: 0, ids: [], otherTags: [], content: "" },
+      }),
+    );
+    renderRow(event);
+    await user.click(button("その他の操作"));
+    await user.click(screen.getByRole("menuitem", { name: "プロフィールに固定" }));
+    expect(togglePinned).toHaveBeenCalledWith(me, event.id, "pin");
+    await waitFor(() => expect(useToast.getState().queue).toEqual(["プロフィールに固定しました"]));
+
+    act(() =>
+      useOwnLists.setState({
+        bookmarks: null,
+        pinned: { eventId: "e1", createdAt: 1, ids: [event.id], otherTags: [], content: "" },
+      }),
+    );
+    await user.click(button("その他の操作"));
+    await user.click(screen.getByRole("menuitem", { name: "プロフィールの固定を解除" }));
+    expect(togglePinned).toHaveBeenCalledWith(me, event.id, "unpin");
+    await waitFor(() =>
+      expect(useToast.getState().queue).toEqual(["プロフィールに固定しました", "固定を解除しました"]),
+    );
   });
 
   it("「通報」→ 理由「スパム」で kind:1984", async () => {

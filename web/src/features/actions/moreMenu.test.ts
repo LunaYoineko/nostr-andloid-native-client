@@ -9,6 +9,10 @@ function actions(): MoreMenuActions {
   return {
     follow: vi.fn(),
     unfollow: vi.fn(),
+    bookmark: vi.fn(),
+    unbookmark: vi.fn(),
+    pin: vi.fn(),
+    unpin: vi.fn(),
     requestDelete: vi.fn(),
     mute: vi.fn(),
     unmute: vi.fn(),
@@ -42,12 +46,14 @@ const COPIES = [
   "nevent1abcde… をコピー",
 ];
 
-it("他人・client あり・フォロー中の並び", () => {
+it("他人・client あり・フォロー中・ブックマーク済みの並び", () => {
   const on = actions();
   const entries = moreMenuEntries({
     clientName: "Nostrism",
     isMine: false,
     isFollowing: true,
+    isBookmarked: true,
+    isPinned: null,
     isMuted: false,
     note1: NOTE1,
     nevent: NEVENT,
@@ -57,6 +63,7 @@ it("他人・client あり・フォロー中の並び", () => {
     "[Nostrism から投稿]",
     "---",
     "フォロー解除",
+    "ブックマークを解除",
     "このユーザーをミュート",
     "通報 (danger)",
     ...COPIES,
@@ -68,22 +75,27 @@ it("他人・client あり・フォロー中の並び", () => {
     if (entry?.type === "item") entry.onSelect();
   };
   select("フォロー解除");
+  select("ブックマークを解除");
   select("このユーザーをミュート");
   select("通報");
   select("リンクをコピー（njump）");
   select("note1abcdefg… をコピー");
   expect(on.unfollow).toHaveBeenCalledTimes(1);
+  expect(on.unbookmark).toHaveBeenCalledTimes(1);
   expect(on.mute).toHaveBeenCalledTimes(1);
   expect(on.report).toHaveBeenCalledTimes(1);
   expect(on.copyLink).toHaveBeenCalledTimes(1);
   expect(on.copyNote1).toHaveBeenCalledTimes(1);
   expect(on.follow).not.toHaveBeenCalled();
+  expect(on.bookmark).not.toHaveBeenCalled();
 });
 
 it("未フォローは「フォロー」、自分の kind:3 が未取得（null）ならフォロー項目なし", () => {
   const base = {
     clientName: null,
     isMine: false,
+    isBookmarked: null,
+    isPinned: null,
     isMuted: false,
     note1: NOTE1,
     nevent: NEVENT,
@@ -102,12 +114,38 @@ it("未フォローは「フォロー」、自分の kind:3 が未取得（null�
   ]);
 });
 
+it("未ブックマークは「ブックマーク」、自分の kind:10003 が未取得（null）ならブックマーク項目なし", () => {
+  const base = {
+    clientName: null,
+    isMine: false,
+    isFollowing: null,
+    isPinned: null,
+    isMuted: false,
+    note1: NOTE1,
+    nevent: NEVENT,
+    on: actions(),
+  };
+  expect(shape(moreMenuEntries({ ...base, isBookmarked: false }))).toEqual([
+    "ブックマーク",
+    "このユーザーをミュート",
+    "通報 (danger)",
+    ...COPIES,
+  ]);
+  expect(shape(moreMenuEntries({ ...base, isBookmarked: null }))).toEqual([
+    "このユーザーをミュート",
+    "通報 (danger)",
+    ...COPIES,
+  ]);
+});
+
 it("ミュート中の人は「ミュートを解除」", () => {
   const on = actions();
   const entries = moreMenuEntries({
     clientName: null,
     isMine: false,
     isFollowing: null,
+    isBookmarked: null,
+    isPinned: null,
     isMuted: true,
     note1: NOTE1,
     nevent: NEVENT,
@@ -120,17 +158,57 @@ it("ミュート中の人は「ミュートを解除」", () => {
   expect(on.mute).not.toHaveBeenCalled();
 });
 
-it("自分の投稿はフォロー項目なしで「削除をリクエスト」", () => {
+it("自分の投稿はフォロー項目・ミュート項目なしで「削除をリクエスト」、代わりに固定の項目", () => {
+  const on = actions();
   const entries = moreMenuEntries({
     clientName: "Nostrism",
     isMine: true,
     isFollowing: true,
+    isBookmarked: false,
+    isPinned: false,
     isMuted: false,
     note1: NOTE1,
     nevent: NEVENT,
-    on: actions(),
+    on,
   });
-  expect(shape(entries)).toEqual(["[Nostrism から投稿]", "---", "削除をリクエスト (danger)", ...COPIES]);
+  expect(shape(entries)).toEqual([
+    "[Nostrism から投稿]",
+    "---",
+    "ブックマーク",
+    "プロフィールに固定",
+    "削除をリクエスト (danger)",
+    ...COPIES,
+  ]);
+  const select = (label: string) => {
+    const entry = entries.find((e) => e.type === "item" && e.label === label);
+    if (entry?.type === "item") entry.onSelect();
+  };
+  select("プロフィールに固定");
+  expect(on.pin).toHaveBeenCalledTimes(1);
+  expect(on.unpin).not.toHaveBeenCalled();
+});
+
+it("自分の投稿で固定済みなら「プロフィールの固定を解除」、kind:10001 が未取得（null）なら固定の項目なし", () => {
+  const base = {
+    clientName: null,
+    isMine: true,
+    isFollowing: null,
+    isBookmarked: null,
+    isMuted: false,
+    note1: NOTE1,
+    nevent: NEVENT,
+  };
+  const on = actions();
+  const entries = moreMenuEntries({ ...base, isPinned: true, on });
+  expect(shape(entries)).toEqual(["プロフィールの固定を解除", "削除をリクエスト (danger)", ...COPIES]);
+  const entry = entries.find((e) => e.type === "item" && e.label === "プロフィールの固定を解除");
+  if (entry?.type === "item") entry.onSelect();
+  expect(on.unpin).toHaveBeenCalledTimes(1);
+
+  expect(shape(moreMenuEntries({ ...base, isPinned: null, on: actions() }))).toEqual([
+    "削除をリクエスト (danger)",
+    ...COPIES,
+  ]);
 });
 
 it("client タグが無ければ見出しと最初の区切りを出さない", () => {
@@ -138,6 +216,8 @@ it("client タグが無ければ見出しと最初の区切りを出さない", 
     clientName: null,
     isMine: true,
     isFollowing: null,
+    isBookmarked: null,
+    isPinned: null,
     isMuted: false,
     note1: NOTE1,
     nevent: NEVENT,
@@ -152,6 +232,8 @@ it("開発者モードの間は末尾に「イベントJSONを表示」", () => 
     clientName: null,
     isMine: true,
     isFollowing: null,
+    isBookmarked: null,
+    isPinned: null,
     isMuted: false,
     note1: NOTE1,
     nevent: NEVENT,

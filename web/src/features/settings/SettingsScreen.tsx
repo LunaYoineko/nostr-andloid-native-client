@@ -5,6 +5,7 @@ import { useSession } from "../../signer/session";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { useLayoutMode } from "../../ui/useLayoutMode";
 import { AccountSection, AccountSummary } from "./AccountSection";
+import { BookmarksSection } from "./BookmarksSection";
 import { DataSection } from "./DataSection";
 import { DisplaySection } from "./DisplaySection";
 import { FavsSection } from "./FavsSection";
@@ -149,6 +150,8 @@ function SectionBody({ id }: { id: string }) {
   switch (id) {
     case "favs":
       return <FavsSection />;
+    case "bookmarks":
+      return <BookmarksSection />;
     case "mute":
       return <MuteSection />;
     case "profile-edit":

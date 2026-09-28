@@ -21,6 +21,7 @@ import { MenuButton } from "../../ui/MenuButton";
 import { showToast } from "../../ui/toast";
 import { openCompose } from "../compose/composeStore";
 import { ACTION_BUTTON_CLASS, ActionButton } from "../compose/NoteFooter";
+import { OwnListError, toggleBookmark, togglePinned, useIsBookmarked, useIsPinned } from "../lists/ownLists";
 import { useMuteMatcher } from "../mute/muteList";
 import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
 import { followsFromContacts } from "../profile/contacts";
@@ -251,6 +252,14 @@ function muteFailureMessage(e: unknown): string {
   return "ミュートリストが変更できません（ロック中の可能性）";
 }
 
+/** ブックマーク・固定の失敗の文言（#531。#478 と同じデータ保護の理由） */
+function ownListFailureMessage(e: unknown): string {
+  if (e instanceof OwnListError && e.reason === "unreachable") {
+    return "最新の状態を取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
+  }
+  return "変更できませんでした";
+}
+
 /** ⋯ メニュー（並びは moreMenuEntries）と、そこから開く確認・通報・イベント JSON のダイアログ */
 function MoreMenu({ event }: { event: NostrEvent }) {
   const me = useSession((s) => s.pubkey);
@@ -261,6 +270,8 @@ function MoreMenu({ event }: { event: NostrEvent }) {
   const isFollowing = contacts ? followsFromContacts(contacts).includes(event.pubkey) : null;
   const links = useMemo(() => noteLinksOf(event), [event]);
   const isMuted = useMuteMatcher().users.has(event.pubkey);
+  const isBookmarked = useIsBookmarked(event.id);
+  const isPinned = useIsPinned(event.id);
   const developerMode = useDeveloperMode((s) => s.enabled);
   const [dialog, setDialog] = useState<"unfollow" | "mute" | "delete" | "report" | "json" | null>(null);
 
@@ -284,10 +295,28 @@ function MoreMenu({ event }: { event: NostrEvent }) {
     );
   }
 
+  function bookmark(action: "bookmark" | "unbookmark") {
+    if (!me) return;
+    toggleBookmark(me, event.id, action).then(
+      () => showToast(action === "bookmark" ? "ブックマークしました" : "ブックマークを解除しました"),
+      (e) => showToast(ownListFailureMessage(e)),
+    );
+  }
+
+  function pin(action: "pin" | "unpin") {
+    if (!me) return;
+    togglePinned(me, event.id, action).then(
+      () => showToast(action === "pin" ? "プロフィールに固定しました" : "固定を解除しました"),
+      (e) => showToast(ownListFailureMessage(e)),
+    );
+  }
+
   const entries = moreMenuEntries({
     clientName: clientNameOf(event),
     isMine,
     isFollowing,
+    isBookmarked,
+    isPinned,
     isMuted,
     note1: links.note1,
     nevent: links.nevent,
@@ -295,6 +324,10 @@ function MoreMenu({ event }: { event: NostrEvent }) {
     on: {
       follow: () => follow("follow"),
       unfollow: () => setDialog("unfollow"),
+      bookmark: () => bookmark("bookmark"),
+      unbookmark: () => bookmark("unbookmark"),
+      pin: () => pin("pin"),
+      unpin: () => pin("unpin"),
       requestDelete: () => setDialog("delete"),
       mute: () => setDialog("mute"),
       unmute: () => mute("unmute"),

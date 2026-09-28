@@ -3,7 +3,7 @@ import styles from "./ShortcutsHelp.module.css";
 
 /**
  * 一覧の行（ネイティブ KeyboardShortcuts.kt の SHORTCUTS。文言はそのまま）。
- * b（ブックマーク）は #531 でキーと一緒に足す。⌘/Ctrl + R はブラウザの再読み込みに任せる（同じ効果）。
+ * ⌘/Ctrl + R はブラウザの再読み込みに任せる（同じ効果）。
  */
 export const SHORTCUTS: readonly (readonly [keys: string, description: string])[] = [
   ["j / ↓", "次の投稿"],
@@ -15,6 +15,7 @@ export const SHORTCUTS: readonly (readonly [keys: string, description: string])[
   ["r", "返信"],
   ["t", "リポスト"],
   ["f", "いいね / リアクション"],
+  ["b", "ブックマーク追加/解除"],
   ["n", "新規投稿"],
   ["⌘/Ctrl + Enter", "投稿する（作成中）"],
   ["/", "検索"],

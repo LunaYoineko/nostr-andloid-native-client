@@ -7,6 +7,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { DeckScreen } from "../../app/deck/DeckScreen";
 import { type ColumnSpec, DEFAULT_COLUMNS } from "../../lib/columns";
 import { unixNow } from "../../lib/time";
+import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
 import { installDialogPolyfill } from "../../test/dialog";
 import { OTHER_PUBKEY } from "../../test/fakeNostr";
@@ -15,6 +16,7 @@ import { reactWithDefault } from "../actions/reactions";
 import { useCompose } from "../compose/composeStore";
 import type { FeedRow } from "../deck/followingMix";
 import type { ColumnFeed } from "../deck/useColumnFeed";
+import { toggleBookmark, useOwnLists } from "../lists/ownLists";
 import { type NotificationItem, toNotification } from "../notifications/notificationModel";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { INITIAL_KEYBOARD_STATE, useKeyboard } from "./kbStore";
@@ -57,6 +59,12 @@ vi.mock("../actions/reactions", async (importOriginal) => ({
   reactWithDefault: vi.fn(() => Promise.resolve()),
 }));
 
+// 発行しない（購読は startOwnLists を呼ばないのでしない）
+vi.mock("../lists/ownLists", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lists/ownLists")>()),
+  toggleBookmark: vi.fn(() => Promise.resolve("done")),
+}));
+
 beforeAll(() => {
   installDialogPolyfill();
   // jsdom に ResizeObserver が無い（Virtuoso が使う。寸法は VirtuosoMockContext が与える）
@@ -81,12 +89,15 @@ beforeEach(() => {
   });
   useKeyboard.setState({ ...INITIAL_KEYBOARD_STATE });
   useCompose.setState({ request: null });
+  useOwnLists.setState({ bookmarks: null, pinned: null });
   vi.mocked(reactWithDefault).mockClear();
+  vi.mocked(toggleBookmark).mockClear();
   mockViewport(1200);
 });
 
 afterEach(() => {
   clearViewport();
+  useSession.setState({ status: "out", method: null, pubkey: null });
 });
 
 /** デッキ + ショートカットを / に描き、/e/:ref と /search へ移れるルータ */
@@ -315,6 +326,32 @@ describe("選択中の投稿への操作", () => {
 
     press("f");
     expect(reactWithDefault).toHaveBeenCalledWith(FOLLOWING[1]);
+  });
+
+  it("b で選択中の投稿のブックマークをトグルする（押した時点の状態に合わせて向きを決める）", () => {
+    useSession.setState({ status: "in", method: "local", pubkey: getPublicKey(KEY) });
+    renderDeck();
+    press("j");
+    press("b");
+    expect(vi.mocked(toggleBookmark)).toHaveBeenCalledWith(getPublicKey(KEY), FOLLOWING[0].id, "bookmark");
+
+    useOwnLists.setState({
+      bookmarks: { eventId: "e1", createdAt: 1, ids: [FOLLOWING[0].id], otherTags: [], content: "" },
+      pinned: null,
+    });
+    press("b");
+    expect(vi.mocked(toggleBookmark)).toHaveBeenLastCalledWith(
+      getPublicKey(KEY),
+      FOLLOWING[0].id,
+      "unbookmark",
+    );
+  });
+
+  it("b は未ログインなら何もしない", () => {
+    renderDeck();
+    press("j");
+    press("b");
+    expect(vi.mocked(toggleBookmark)).not.toHaveBeenCalled();
   });
 
   it("コンポーザが開いている間は効かない", () => {

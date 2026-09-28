@@ -3,6 +3,10 @@ import type { MenuEntry } from "../../ui/MenuButton";
 export type MoreMenuActions = {
   follow(): void;
   unfollow(): void;
+  bookmark(): void;
+  unbookmark(): void;
+  pin(): void;
+  unpin(): void;
   requestDelete(): void;
   mute(): void;
   unmute(): void;
@@ -16,8 +20,10 @@ export type MoreMenuActions = {
 };
 
 /**
- * 投稿の ⋯ メニュー（ネイティブ NoteItem.kt の並び。M1 に無い項目 = ブックマーク・プロフィールに固定・
- * 翻訳は出さない）。isFollowing が null（自分の kind:3 が未取得）ならフォロー項目を出さない。
+ * 投稿の ⋯ メニュー（ネイティブ NoteItem.kt の並び。M1 に無い項目 = 翻訳は出さない）。
+ * isFollowing が null（自分の kind:3 が未取得）ならフォロー項目を出さない。
+ * isBookmarked が null（自分の kind:10003 が未取得）ならブックマーク項目を出さない（#531）。
+ * 自分の投稿は isPinned が null（自分の kind:10001 が未取得）でなければ「プロフィールに固定」。
  * 他人の投稿は「通報」の前に「このユーザーをミュート」（ミュート中なら「ミュートを解除」）。
  * 開発者モード（developerMode）の間は末尾に「イベントJSONを表示」。
  */
@@ -25,6 +31,8 @@ export function moreMenuEntries(a: {
   clientName: string | null;
   isMine: boolean;
   isFollowing: boolean | null;
+  isBookmarked: boolean | null;
+  isPinned: boolean | null;
   isMuted: boolean;
   note1: string;
   nevent: string;
@@ -42,7 +50,22 @@ export function moreMenuEntries(a: {
         : { type: "item", label: "フォロー", onSelect: a.on.follow },
     );
   }
-  if (!a.isMine) {
+  if (a.isBookmarked !== null) {
+    entries.push(
+      a.isBookmarked
+        ? { type: "item", label: "ブックマークを解除", onSelect: a.on.unbookmark }
+        : { type: "item", label: "ブックマーク", onSelect: a.on.bookmark },
+    );
+  }
+  if (a.isMine) {
+    if (a.isPinned !== null) {
+      entries.push(
+        a.isPinned
+          ? { type: "item", label: "プロフィールの固定を解除", onSelect: a.on.unpin }
+          : { type: "item", label: "プロフィールに固定", onSelect: a.on.pin },
+      );
+    }
+  } else {
     entries.push(
       a.isMuted
         ? { type: "item", label: "ミュートを解除", onSelect: a.on.unmute }

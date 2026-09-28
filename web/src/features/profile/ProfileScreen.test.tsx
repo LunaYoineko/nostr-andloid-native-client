@@ -434,3 +434,37 @@ describe("タブ", () => {
     expect(screen.getByText("まだ投稿がありません")).toBeInTheDocument();
   });
 });
+
+describe("固定投稿（#531。その人の kind:10001）", () => {
+  it("投稿タブの先頭に「📌 固定された投稿」付きで出す。メディアタブには出さない", async () => {
+    const user = userEvent.setup();
+    alice();
+    const pinned = note(themKey, "固定されたやつ", 500);
+    eventStore.add(pinned);
+    eventStore.add(
+      finalizeEvent({ kind: 10001, created_at: 2_000, tags: [["e", pinned.id]], content: "" }, themKey),
+    );
+    const text = note(themKey, "ふつうの投稿", 1_000);
+    const photo = note(themKey, "写真 https://img.test/p.jpg", 1_002);
+    vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [text], media: [photo] });
+    renderScreen();
+
+    const panel = screen.getByRole("tabpanel");
+    expect(within(panel).getByText("📌")).toBeInTheDocument();
+    expect(within(panel).getByText("固定された投稿")).toBeInTheDocument();
+    const articles = within(panel).getAllByRole("article");
+    expect(articles).toHaveLength(2);
+    expect(articles[0]).toHaveTextContent("固定されたやつ");
+    expect(articles[1]).toHaveTextContent("ふつうの投稿");
+
+    await user.click(screen.getByRole("tab", { name: "メディア" }));
+    const mediaPanel = screen.getByRole("tabpanel");
+    expect(within(mediaPanel).queryByText("固定された投稿")).toBeNull();
+  });
+
+  it("固定投稿が無ければ見出しも出さない", () => {
+    alice();
+    renderScreen();
+    expect(screen.queryByText("固定された投稿")).toBeNull();
+  });
+});

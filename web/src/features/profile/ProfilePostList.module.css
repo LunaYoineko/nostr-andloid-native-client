@@ -10,3 +10,12 @@
   font-size: var(--type-caption);
   text-align: center;
 }
+
+/* 「📌 固定された投稿」見出し（ネイティブ notesItems の pin_label） */
+.pinnedLabel {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--w-strong);
+}

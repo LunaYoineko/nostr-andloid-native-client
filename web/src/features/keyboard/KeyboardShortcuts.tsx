@@ -2,9 +2,11 @@ import type { NostrEvent } from "nostr-tools/pure";
 import { useEffect } from "react";
 import { type NavigateFunction, useNavigate } from "react-router";
 import { repostedEventNow } from "../../nostr/loaders";
+import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
 import { reactWithDefault } from "../actions/reactions";
 import { openCompose, useCompose } from "../compose/composeStore";
+import { toggleBookmark, useOwnLists } from "../lists/ownLists";
 import {
   focusColumn,
   listOf,
@@ -65,6 +67,11 @@ function warn(e: unknown) {
   console.warn("[keyboard] リアクションに失敗", e);
 }
 
+/** 発行の失敗は画面に出さない（ネイティブ KbAction.BOOKMARK と同じ。トーストも出さない） */
+function warnBookmark(e: unknown) {
+  console.warn("[keyboard] ブックマークに失敗", e);
+}
+
 function run(action: KeyAction, navigate: NavigateFunction): void {
   switch (action.type) {
     case "compose":
@@ -118,6 +125,12 @@ function run(action: KeyAction, navigate: NavigateFunction): void {
   if (!post) return;
   if (action.type === "reply") openCompose({ mode: "reply", target: post });
   else if (action.type === "quote") openCompose({ mode: "quote", target: post });
+  else if (action.type === "bookmark") {
+    const me = useSession.getState().pubkey;
+    if (!me) return;
+    const isBookmarked = useOwnLists.getState().bookmarks?.ids.includes(post.id) ?? false;
+    toggleBookmark(me, post.id, isBookmarked ? "unbookmark" : "bookmark").catch(warnBookmark);
+  }
   // 付与済みなら kind:5 で取り消す。確認は出さない（ネイティブ reactWithDefault と同じ）
   else reactWithDefault(post).catch(warn);
 }
