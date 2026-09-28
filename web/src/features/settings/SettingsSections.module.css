@@ -182,6 +182,20 @@
   outline-offset: -1px;
 }
 
+/* 画像アップロードの圧縮の各欄（ラベル + 数値入力） */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 9em;
+  color: var(--text-2);
+  font-size: var(--type-caption);
+}
+
+.field .input {
+  flex: none;
+}
+
 .check {
   display: flex;
   align-items: center;

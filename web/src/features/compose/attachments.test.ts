@@ -3,6 +3,7 @@ import { createTestSigner } from "../../test/fakeSigner";
 import {
   type Attachment,
   humanSize,
+  reprocessImages,
   toPostMedia,
   UPLOAD_CONCURRENCY,
   UploadFailedError,
@@ -37,6 +38,16 @@ describe("humanSize", () => {
     expect(humanSize(300 * 1024 + 5)).toBe("300KB");
     expect(humanSize(1024 * 1024)).toBe("1.0MB");
     expect(humanSize(Math.floor(1.59 * 1024 * 1024))).toBe("1.5MB");
+  });
+});
+
+describe("reprocessImages", () => {
+  it("画像だけ processed を作り直す（動画はそのまま）", () => {
+    const image = attachment(0, "image");
+    const video = attachment(1, "video");
+    const next = reprocessImages([image, video], 640, 85);
+    expect(next[0].processed).not.toBe(image.processed);
+    expect(next[1]).toBe(video);
   });
 });
 

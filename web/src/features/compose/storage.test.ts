@@ -2,13 +2,17 @@ import { finalizeEvent, generateSecretKey } from "nostr-tools/pure";
 import { afterEach, expect, it, vi } from "vitest";
 import { discardUnsent } from "../../nostr/publish";
 import {
+  clearThreadDraft,
   DRAFT_KEY,
   loadDraft,
+  loadThreadDraft,
   loadUsedHashtags,
   pinnedHashtagsFrom,
   recentHashtagChips,
   recordHashtags,
   saveDraft,
+  saveThreadDraft,
+  THREAD_DRAFT_KEY,
   tagSuggestions,
   USED_HASHTAGS_KEY,
   unsentToDraft,
@@ -25,6 +29,27 @@ it("下書き: 空白だけならキーを消す", () => {
   expect(loadDraft()).toBe("abc");
   saveDraft("  ");
   expect(localStorage.getItem(DRAFT_KEY)).toBeNull();
+});
+
+it("連投の下書き: 保存・復元・消去。空なら保存でキーごと消す。壊れていれば null", () => {
+  expect(loadThreadDraft()).toBeNull();
+  saveThreadDraft(["a", "b"], 1);
+  expect(loadThreadDraft()).toEqual({ segs: ["a", "b"], edit: 1 });
+
+  saveThreadDraft([], 0);
+  expect(localStorage.getItem(THREAD_DRAFT_KEY)).toBeNull();
+  expect(loadThreadDraft()).toBeNull();
+
+  saveThreadDraft(["a"], 1);
+  clearThreadDraft();
+  expect(loadThreadDraft()).toBeNull();
+
+  localStorage.setItem(THREAD_DRAFT_KEY, "{broken");
+  expect(loadThreadDraft()).toBeNull();
+
+  // edit は 0〜segs.length に丸める
+  localStorage.setItem(THREAD_DRAFT_KEY, JSON.stringify({ edit: 99, segs: ["a", "b"] }));
+  expect(loadThreadDraft()).toEqual({ segs: ["a", "b"], edit: 2 });
 });
 
 it("使用履歴: 新しい順、500 件まで、壊れていれば空", () => {
