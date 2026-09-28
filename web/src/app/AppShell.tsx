@@ -6,6 +6,8 @@ import { AddColumnDialog } from "../features/deck/AddColumnDialog";
 import { EditColumnDialog } from "../features/deck/EditColumnDialog";
 import { useDmUnreadTotal } from "../features/dm/dmStore";
 import { MessagesScreen } from "../features/dm/MessagesScreen";
+import { HashtagManager } from "../features/hashtags/HashtagManager";
+import { closeHashtagManager, useHashtagManager } from "../features/hashtags/hashtagManagerStore";
 import { KeyboardShortcuts } from "../features/keyboard/KeyboardShortcuts";
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen";
 import { SearchScreen } from "../features/search/SearchScreen";
@@ -82,6 +84,7 @@ export function AppShell() {
   const visibleColumnId = useDeck((s) => s.visibleColumnId);
   const showAddColumn = useDeck((s) => s.showAddColumn);
   const editingColumnId = useDeck((s) => s.editingColumnId);
+  const hashtagManagerOpen = useHashtagManager((s) => s.open);
   const notifColumnId = useDeck(notificationsColumnId);
   const pinned = useDeck(useShallow(pinnedColumns));
   const dmUnread = useDmUnreadTotal();
@@ -145,6 +148,7 @@ export function AppShell() {
       <Outlet />
       {showAddColumn && <AddColumnDialog />}
       {editingColumnId !== null && <EditColumnDialog />}
+      {hashtagManagerOpen && <HashtagManager onDismiss={closeHashtagManager} />}
     </div>
   );
 }

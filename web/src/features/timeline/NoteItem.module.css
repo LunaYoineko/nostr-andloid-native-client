@@ -12,6 +12,38 @@
   cursor: pointer;
 }
 
+/*
+ * [#464] ノート種別の視覚表示（設定 > 表示。既定は「なし」= クラス無し）。
+ * ライン = box-shadow（`background` を使わないので、選択中は KbList.module.css の選択バー(3px,
+ * position:absolute)がこの上に重なって前面に出る）。
+ * 背景 = 単一クラスの `background`（詳細度1）。KbList.module.css の
+ * `.row[data-kb-selected] > *`（詳細度2）の方が強いので、選択中はそちらが勝つ（選択ハイライトが前面）。
+ */
+.accentLineRepost {
+  box-shadow: inset 2px 0 0 0 var(--kind-repost);
+}
+.accentLineQuote {
+  box-shadow: inset 2px 0 0 0 var(--kind-quote);
+}
+.accentLineReply {
+  box-shadow: inset 2px 0 0 0 var(--kind-reply);
+}
+.accentLineReaction {
+  box-shadow: inset 2px 0 0 0 var(--kind-reaction);
+}
+.accentBgRepost {
+  background: var(--kind-repost-bg);
+}
+.accentBgQuote {
+  background: var(--kind-quote-bg);
+}
+.accentBgReply {
+  background: var(--kind-reply-bg);
+}
+.accentBgReaction {
+  background: var(--kind-reaction-bg);
+}
+
 .row {
   display: flex;
   gap: var(--sp-2);
@@ -201,4 +233,23 @@
 /* リポスト元が取れずに隠した行（仮想リストは高さ 0 の行を扱えない） */
 .hiddenRow {
   height: 1px;
+}
+
+/* ⋯「翻訳」の結果（#541。原文は残したまま本文の下に別ブロックで出す） */
+.translation {
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.translationCaption {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}
+
+.translationText {
+  margin: var(--sp-1) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }

@@ -26,6 +26,8 @@ import {
 } from "../../ui/icons";
 import { showToast } from "../../ui/toast";
 import { EmojiInsertButton } from "../actions/EmojiInsertButton";
+import { openHashtagManager } from "../hashtags/hashtagManagerStore";
+import { pinLimitMessage, togglePinnedHashtag } from "../hashtags/pinnedHashtags";
 import { NoteContent } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
 import {
@@ -69,6 +71,7 @@ import {
   loadDraft,
   loadThreadDraft,
   loadUsedHashtags,
+  PINNED_MAX,
   recentHashtagChips,
   recordHashtags,
   saveDraft,
@@ -317,6 +320,20 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
         : appendHashtag(value, tag),
       true,
     );
+  }
+
+  /** タグチップの長押し / 右クリックのメニュー（#536。取り直してから 1 回だけ発行する） */
+  function toggleTagPin(tag: string, pin: boolean) {
+    if (!me) return;
+    if (pin && pinned.length >= PINNED_MAX) {
+      showToast(pinLimitMessage());
+      return;
+    }
+    void togglePinnedHashtag(me, tag, pin)
+      .then((result) => {
+        if (result === "limit") showToast(pinLimitMessage());
+      })
+      .catch(() => showToast("ピン留めの変更に失敗しました"));
   }
 
   // ---- 連投（新規投稿のみ。ネイティブ ComposeSheet の threadParts / onEdit / onDelete） ----
@@ -595,7 +612,9 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                         <TagChip
                           key={tag}
                           tag={tag}
+                          pinned={pinned.includes(tag)}
                           onClick={() => update(completeHashtag(value, tag), true)}
+                          onToggle={(pin) => toggleTagPin(tag, pin)}
                         />
                       ))}
                     </div>
@@ -606,7 +625,13 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                     <p className={styles.hint}>📌 ピン留め</p>
                     <div className={styles.chips}>
                       {pinned.map((tag) => (
-                        <TagChip key={tag} tag={tag} onClick={() => insertTag(tag)} />
+                        <TagChip
+                          key={tag}
+                          tag={tag}
+                          pinned
+                          onClick={() => insertTag(tag)}
+                          onToggle={(pin) => toggleTagPin(tag, pin)}
+                        />
                       ))}
                     </div>
                   </>
@@ -616,11 +641,27 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                     <p className={styles.hint}>最近のタグ</p>
                     <div className={styles.chips}>
                       {recent.map((tag) => (
-                        <TagChip key={tag} tag={tag} onClick={() => insertTag(tag)} />
+                        <TagChip
+                          key={tag}
+                          tag={tag}
+                          pinned={false}
+                          onClick={() => insertTag(tag)}
+                          onToggle={(pin) => toggleTagPin(tag, pin)}
+                        />
                       ))}
                     </div>
                   </>
                 )}
+                <div className={styles.chips}>
+                  <button
+                    type="button"
+                    className={styles.chip}
+                    onMouseDown={keepFocus}
+                    onClick={() => openHashtagManager()}
+                  >
+                    整理…
+                  </button>
+                </div>
               </>
             )}
             {attachments.length > 0 && (
@@ -883,11 +924,125 @@ function ThreadSegmentList({
   );
 }
 
-function TagChip({ tag, onClick }: { tag: string; onClick(): void }) {
+/** 長押し（ネイティブと同じ 500ms）・右クリックでピン留め / 解除のメニューを出す */
+const TAG_LONG_PRESS_MS = 500;
+
+/** ハッシュタグのチップ（候補・ピン留め・最近のタグ共通）。長押し / 右クリックで tag_pin / tag_unpin */
+function TagChip({
+  tag,
+  pinned,
+  onClick,
+  onToggle,
+}: {
+  tag: string;
+  pinned: boolean;
+  onClick(): void;
+  onToggle(pin: boolean): void;
+}) {
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const longPressed = useRef(false);
+  const pressTimer = useRef<number | null>(null);
+
+  function cancelPress() {
+    if (pressTimer.current !== null) {
+      window.clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  }
+
+  function openMenu(x: number, y: number) {
+    longPressed.current = true;
+    setMenu({ x, y });
+  }
+
   return (
-    <button type="button" className={styles.chip} onMouseDown={keepFocus} onClick={onClick}>
-      #{tag}
-    </button>
+    <>
+      <button
+        type="button"
+        className={styles.chip}
+        onMouseDown={keepFocus}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          openMenu(e.clientX, e.clientY);
+        }}
+        onTouchStart={(e) => {
+          const touch = e.touches[0];
+          if (!touch) return;
+          const { clientX, clientY } = touch;
+          pressTimer.current = window.setTimeout(() => openMenu(clientX, clientY), TAG_LONG_PRESS_MS);
+        }}
+        onTouchEnd={cancelPress}
+        onTouchMove={cancelPress}
+        onClick={() => {
+          // 長押しで開いたメニューに続くクリック（touchend 由来）は無視する
+          if (longPressed.current) {
+            longPressed.current = false;
+            return;
+          }
+          onClick();
+        }}
+      >
+        #{tag}
+      </button>
+      {menu && (
+        <TagMenu
+          x={menu.x}
+          y={menu.y}
+          label={pinned ? "ピン留めを解除" : "ピン留め"}
+          onSelect={() => onToggle(!pinned)}
+          onDismiss={() => setMenu(null)}
+        />
+      )}
+    </>
+  );
+}
+
+/** タグチップの長押し / 右クリックで出す 1 項目のメニュー。外側の押下・Escape で閉じる */
+function TagMenu({
+  x,
+  y,
+  label,
+  onSelect,
+  onDismiss,
+}: {
+  x: number;
+  y: number;
+  label: string;
+  onSelect(): void;
+  onDismiss(): void;
+}) {
+  const menu = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (menu.current?.contains(e.target as Node)) return;
+      onDismiss();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onDismiss();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onDismiss]);
+
+  return (
+    <div ref={menu} role="menu" aria-label={label} className={styles.tagMenu} style={{ left: x, top: y }}>
+      <button
+        type="button"
+        role="menuitem"
+        className={styles.tagMenuItem}
+        onClick={() => {
+          onDismiss();
+          onSelect();
+        }}
+      >
+        {label}
+      </button>
+    </div>
   );
 }
 

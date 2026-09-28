@@ -90,7 +90,7 @@ export const USED_HASHTAGS_KEY = "nostrism.compose.usedHashtags";
 /** Web のみの上限（localStorage を守るため） */
 export const USED_HASHTAGS_MAX = 500;
 
-type UsedHashtag = { tag: string; lastUsed: number };
+export type UsedHashtag = { tag: string; lastUsed: number };
 
 function readUsed(): UsedHashtag[] {
   try {
@@ -111,6 +111,21 @@ function readUsed(): UsedHashtag[] {
 /** 使ったハッシュタグ（新しい順）。壊れていれば空 */
 export function loadUsedHashtags(): string[] {
   return readUsed().map((u) => u.tag);
+}
+
+/** 使ったハッシュタグの詳細（タグ・最終使用時刻。新しい順）。整理画面の一覧用 */
+export function loadUsedHashtagsDetailed(): UsedHashtag[] {
+  return readUsed();
+}
+
+/** 使用履歴から 1 件削除する（この端末だけ。#536 整理画面「履歴から削除」。発行はしない） */
+export function removeUsedHashtag(tag: string): void {
+  const next = readUsed().filter((u) => u.tag !== tag);
+  try {
+    localStorage.setItem(USED_HASHTAGS_KEY, JSON.stringify(next));
+  } catch {
+    // 削除できなくても他の操作には影響しない
+  }
 }
 
 /** 本文のハッシュタグを使用時刻 ts で記録し直す（新しい順・USED_HASHTAGS_MAX 件まで） */

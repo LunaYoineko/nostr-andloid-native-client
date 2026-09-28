@@ -11,6 +11,7 @@ import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import {
   AddReactionIcon,
   ArrowBackIcon,
+  BoltIcon,
   CloseIcon,
   FavoriteBorderIcon,
   FavoriteIcon,
@@ -39,6 +40,8 @@ import type { ReactionGroup } from "../thread/engagement";
 import { NoteContent } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
 import { useNow } from "../timeline/useNow";
+import { payInvoiceWithNwc, useNwc } from "../wallet/nwcManager";
+import { ZapDialog } from "../zap/ZapDialog";
 import { ChannelIcon } from "./ChannelList";
 import styles from "./ChannelRoom.module.css";
 import { ChatComposer } from "./ChatComposer";
@@ -326,16 +329,20 @@ function warn(message: string) {
 }
 
 /**
- * 吹き出しの横の常設アクション（ネイティブ MessageActions）: リプライ → 既定リアクション → 絵文字 → ⋯
- * （テキストをコピー・このユーザーをミュート・通報）。Zap は #538。
+ * 吹き出しの横の常設アクション（ネイティブ MessageActions）: リプライ → 既定リアクション → 絵文字 → ⚡ → ⋯
+ * （テキストをコピー・このユーザーをミュート・通報）。[#538] ⚡ は発言者の kind:0 に lud16 があるときだけ。
  */
 function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine: boolean; onReply(): void }) {
   const me = useSession((s) => s.pubkey);
+  const author = useProfile(message.pubkey);
+  const lud16 = typeof author?.lud16 === "string" ? author.lud16.trim() : "";
   const content = useDefaultReaction((s) => s.content);
   const isStar = content === "⭐" || content === "★";
   const reacted = useIsReacted(message.id);
   const isMuted = useMuteMatcher().users.has(message.pubkey);
-  const [dialog, setDialog] = useState<"picker" | "unreact" | "mute" | "report" | null>(null);
+  const [dialog, setDialog] = useState<"picker" | "unreact" | "mute" | "report" | "zap" | null>(null);
+  // [#537] ウォレット接続（NWC）済みなら Zap ダイアログの受け口へアプリ内送金を渡す
+  const walletConnected = useNwc((s) => s.connection !== null);
   const Glyph = isStar ? (reacted ? StarIcon : StarBorderIcon) : reacted ? FavoriteIcon : FavoriteBorderIcon;
 
   function mute(action: "mute" | "unmute") {
@@ -391,9 +398,31 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       >
         <AddReactionIcon className={styles.actionIcon} />
       </button>
+      {lud16 !== "" && (
+        <button
+          type="button"
+          className={styles.action}
+          aria-label="Zap"
+          title="Zap"
+          onClick={() => setDialog("zap")}
+        >
+          <BoltIcon className={styles.actionIcon} />
+        </button>
+      )}
       <MenuButton label="その他の操作" triggerClassName={styles.action} entries={entries}>
         <MoreHorizIcon className={styles.actionIcon} />
       </MenuButton>
+      {dialog === "zap" && (
+        <ZapDialog
+          recipient={message.pubkey}
+          recipientName={displayName(author, message.pubkey)}
+          lud16={lud16}
+          eventId={message.id}
+          targetKind={message.kind}
+          payWithWallet={walletConnected ? payInvoiceWithNwc : undefined}
+          onClose={() => setDialog(null)}
+        />
+      )}
       {dialog === "picker" && (
         <ReactionPickerDialog
           target={message}

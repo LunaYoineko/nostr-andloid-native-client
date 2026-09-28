@@ -2,13 +2,23 @@ import { type FormEvent, useId, useState } from "react";
 import { buildColumn, type ColumnSpec, type ColumnTemplate, NOTIF_KINDS } from "../../lib/columns";
 import { unixNow } from "../../lib/time";
 import { useReadRelays } from "../../nostr/pool";
+import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
+import { loadUsedHashtags, recentHashtagChips, usePinnedHashtags } from "../compose/storage";
 import styles from "./ColumnDialog.module.css";
 
 /** 任意入力の 1 件。wss:// で始まらなければ無視する（ネイティブと同じ既定リレーの体裁を保つ） */
 function normalizeCustomRelay(value: string): string | null {
   const url = value.trim();
   return url.startsWith("wss://") ? url : null;
+}
+
+/** SEARCH の入力へ #tag を足す（スペース区切り。既にあれば足さない） */
+function appendSearchTag(text: string, tag: string): string {
+  const token = `#${tag}`;
+  if (text.trim() === "") return token;
+  if (text.split(/\s+/).includes(token)) return text;
+  return `${text.trimEnd()} ${token}`;
 }
 
 /**
@@ -35,6 +45,10 @@ export function ColumnConfigForm({
   onCancel: () => void;
   onSubmit: (spec: ColumnSpec) => void;
 }) {
+  const me = useSession((s) => s.pubkey);
+  const pinnedTags = usePinnedHashtags(me);
+  const [usedTags] = useState(loadUsedHashtags);
+  const recentTags = recentHashtagChips(usedTags, pinnedTags);
   const [text, setText] = useState(initialText);
   const [relays, setRelays] = useState<readonly string[]>(initialRelays);
   const [customRelay, setCustomRelay] = useState("");
@@ -113,6 +127,25 @@ export function ColumnConfigForm({
               npub または hex を入力
             </p>
           )}
+          {(template.template === "HASHTAG" || template.template === "SEARCH") &&
+            (pinnedTags.length > 0 || recentTags.length > 0) && (
+              <ul className={styles.chips} aria-label="ピン留め・最近使ったタグ">
+                {[...pinnedTags, ...recentTags].map((tag) => (
+                  <li key={tag}>
+                    <button
+                      type="button"
+                      className={styles.chip}
+                      onClick={() => {
+                        setText(template.template === "HASHTAG" ? tag : appendSearchTag(text, tag));
+                        setInvalid(false);
+                      }}
+                    >
+                      #{tag}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
         </div>
       )}
       {template.config === "NOTIF_FILTER" && (

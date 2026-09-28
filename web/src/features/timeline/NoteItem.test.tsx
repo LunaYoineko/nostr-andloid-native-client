@@ -4,13 +4,16 @@ import { decode, naddrEncode, neventEncode } from "nostr-tools/nip19";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import type { ReactElement } from "react";
 import { useLocation } from "react-router";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { avatarShade } from "../../lib/avatar";
 import { unixNow } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { renderWithRouter } from "../../test/renderWithRouter";
+import { useToast } from "../../ui/toast";
 import linkCardStyles from "../linkcard/LinkCard.module.css";
 import gridStyles from "../media/ImageGrid.module.css";
+import { DEFAULT_THEME_PREFS, setNoteAccent, useThemePrefs } from "../theme/themePrefs";
+import { useTranslateStore } from "../translate/translateStore";
 import contentStyles from "./NoteContent.module.css";
 import { NoteItem } from "./NoteItem";
 import noteStyles from "./NoteItem.module.css";
@@ -20,6 +23,10 @@ vi.mock("../../nostr/loaders", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../nostr/loaders")>()),
   useEventByAddress: vi.fn(() => ({ event: undefined, failed: false })),
 }));
+
+afterEach(() => {
+  useThemePrefs.setState(DEFAULT_THEME_PREFS);
+});
 
 // applesauce の Tokens.link はホストにドットを要求するため、テストの URL は *.test にする
 
@@ -563,4 +570,157 @@ it("kind:6 の元投稿が 8 秒で取れなければ行ごと隠し、後から
   } finally {
     vi.useRealTimers();
   }
+});
+
+it("[#464] 種別の視覚表示は既定オフ（なし）なら通常の投稿にクラスを付けない", () => {
+  const reply = post("返信", { tags: [["e", "f".repeat(64), "", "reply"]] });
+  const { container } = renderWithRouter(<NoteItem event={reply} />);
+  const article = container.querySelector("article");
+  expect(article).not.toHaveClass(noteStyles.accentLineReply);
+  expect(article).not.toHaveClass(noteStyles.accentBgReply);
+});
+
+it("[#464] 返信は line / bg で --kind-reply のスタイルを付ける", () => {
+  const reply = post("返信", { tags: [["e", "f".repeat(64), "", "reply"]] });
+
+  setNoteAccent("line");
+  const line = renderWithRouter(<NoteItem event={reply} />);
+  expect(line.container.querySelector("article")).toHaveClass(noteStyles.accentLineReply);
+  line.unmount();
+
+  setNoteAccent("bg");
+  const bg = renderWithRouter(<NoteItem event={reply} />);
+  expect(bg.container.querySelector("article")).toHaveClass(noteStyles.accentBgReply);
+});
+
+it("[#464] 引用は返信より優先する（同じ投稿が両方でも quote になる）", () => {
+  const quoted = stored("引用元");
+  const event = post(`nostr:${neventEncode({ id: quoted.id })}`, {
+    tags: [["e", "f".repeat(64), "", "reply"]],
+  });
+  setNoteAccent("line");
+
+  const { container } = renderWithRouter(<NoteItem event={event} />);
+
+  expect(container.querySelector("article")).toHaveClass(noteStyles.accentLineQuote);
+  expect(container.querySelector("article")).not.toHaveClass(noteStyles.accentLineReply);
+});
+
+it("[#464] kind:7（リアクション）は reaction のスタイルを付ける", () => {
+  setNoteAccent("bg");
+  const reaction = post("+", { kind: 7 });
+
+  const { container } = renderWithRouter(<NoteItem event={reaction} />);
+
+  expect(container.querySelector("article")).toHaveClass(noteStyles.accentBgReaction);
+});
+
+it("[#464] kind:6（リポスト）は中身の種別に関係なく repost のスタイルを付ける", () => {
+  const original = stored("リポスト元");
+  const repost = finalizeEvent(
+    { kind: 6, created_at: unixNow(), tags: [["e", original.id]], content: "" },
+    generateSecretKey(),
+  );
+  setNoteAccent("line");
+
+  const { container } = renderWithRouter(<NoteItem event={repost} />);
+
+  expect(container.querySelector("article")).toHaveClass(noteStyles.accentLineRepost);
+});
+
+// ---- ⋯「翻訳」（#541） ----
+
+/** モックの Translator / LanguageDetector（呼ぶたびに同じ配列・結果を返す） */
+function stubTranslateApis(opts: {
+  detected: string;
+  availability?: "unavailable" | "downloadable" | "downloading" | "available";
+  translated?: string;
+}) {
+  const detect = vi.fn(async () => [{ detectedLanguage: opts.detected, confidence: 1 }]);
+  const availability = vi.fn(async () => opts.availability ?? "available");
+  const translate = vi.fn(async () => opts.translated ?? "translated");
+  vi.stubGlobal("LanguageDetector", { create: vi.fn(async () => ({ detect })) });
+  vi.stubGlobal("Translator", { availability, create: vi.fn(async () => ({ translate })) });
+  return { detect, availability, translate };
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  useTranslateStore.setState({ entries: {}, pending: new Set() });
+  useToast.setState({ queue: [] });
+});
+
+it("Translator / LanguageDetector が無ければ「翻訳」は出ない", async () => {
+  const user = userEvent.setup();
+  renderWithRouter(<NoteItem event={post("hello")} />);
+  await user.click(
+    within(screen.getByRole("group", { name: "操作" })).getByRole("button", { name: "その他の操作" }),
+  );
+  expect(screen.queryByRole("menuitem", { name: "翻訳" })).toBeNull();
+});
+
+it("本文が空（画像のみ）なら、対応ブラウザでも「翻訳」は出ない", async () => {
+  stubTranslateApis({ detected: "ja" });
+  const user = userEvent.setup();
+  renderWithRouter(<NoteItem event={post("https://a.test/x.png")} />);
+  await user.click(
+    within(screen.getByRole("group", { name: "操作" })).getByRole("button", { name: "その他の操作" }),
+  );
+  expect(screen.queryByRole("menuitem", { name: "翻訳" })).toBeNull();
+});
+
+it("判定した言語が表示言語（jsdom既定 en）と同じなら、原文をそのまま本文の下に出す", async () => {
+  const { translate } = stubTranslateApis({ detected: "en" });
+  const user = userEvent.setup();
+  renderWithRouter(<NoteItem event={post("hello world")} />);
+
+  await user.click(
+    within(screen.getByRole("group", { name: "操作" })).getByRole("button", { name: "その他の操作" }),
+  );
+  await user.click(await screen.findByRole("menuitem", { name: "翻訳" }));
+
+  expect(await screen.findByText("翻訳")).toBeInTheDocument();
+  expect(screen.getAllByText("hello world")).toHaveLength(2);
+  expect(translate).not.toHaveBeenCalled();
+});
+
+it("違う言語なら訳文を本文の下に出し、隠して再表示しても訳し直さない", async () => {
+  const { detect, translate } = stubTranslateApis({ detected: "ja", translated: "hello" });
+  const user = userEvent.setup();
+  renderWithRouter(<NoteItem event={post("こんにちは")} />);
+
+  const openMenu = () =>
+    user.click(
+      within(screen.getByRole("group", { name: "操作" })).getByRole("button", { name: "その他の操作" }),
+    );
+
+  await openMenu();
+  await user.click(await screen.findByRole("menuitem", { name: "翻訳" }));
+  expect(await screen.findByText("hello")).toBeInTheDocument();
+  expect(detect).toHaveBeenCalledTimes(1);
+  expect(translate).toHaveBeenCalledTimes(1);
+
+  await openMenu();
+  await user.click(await screen.findByRole("menuitem", { name: "翻訳を隠す" }));
+  expect(screen.queryByText("hello")).toBeNull();
+
+  await openMenu();
+  await user.click(await screen.findByRole("menuitem", { name: "翻訳" }));
+  expect(await screen.findByText("hello")).toBeInTheDocument();
+  expect(detect).toHaveBeenCalledTimes(1);
+  expect(translate).toHaveBeenCalledTimes(1);
+});
+
+it("失敗（unavailable）はトーストで知らせ、本文の下には何も出さない", async () => {
+  stubTranslateApis({ detected: "ja", availability: "unavailable" });
+  const user = userEvent.setup();
+  renderWithRouter(<NoteItem event={post("こんにちは")} />);
+
+  await user.click(
+    within(screen.getByRole("group", { name: "操作" })).getByRole("button", { name: "その他の操作" }),
+  );
+  await user.click(await screen.findByRole("menuitem", { name: "翻訳" }));
+
+  await vi.waitFor(() => expect(useToast.getState().queue).toEqual(["翻訳できませんでした"]));
+  expect(screen.queryByText("翻訳")).toBeNull();
 });
