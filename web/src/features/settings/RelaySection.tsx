@@ -3,6 +3,7 @@ import { type FormEvent, useId, useMemo, useState } from "react";
 import { map } from "rxjs";
 import { displayRelayUrl, type RelayPref, relayPrefsFromEvent } from "../../nostr/outbox";
 import { useRelays } from "../../nostr/pool";
+import { type AuthPolicy, setAuthPolicy, useAuthPolicy } from "../../nostr/relayAuth";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
@@ -106,6 +107,7 @@ export function RelaySection() {
           {saving ? "保存中…" : "保存"}
         </button>
       </div>
+      <AuthPolicyBlock />
       {confirming && (
         <ConfirmDialog
           title="リレーリストを公開しますか？"
@@ -116,6 +118,38 @@ export function RelaySection() {
         />
       )}
     </>
+  );
+}
+
+const AUTH_CHOICES: readonly { policy: AuthPolicy; label: string }[] = [
+  { policy: "dm", label: "DM/自分のリレーのみ" },
+  { policy: "always", label: "常に応答" },
+  { policy: "off", label: "無効" },
+];
+
+/** AUTH（NIP-42）の応答ポリシー（ネイティブ RelaySettings の末尾と同じ 3 択） */
+function AuthPolicyBlock() {
+  const policy = useAuthPolicy((s) => s.policy);
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>AUTH（NIP-42）への応答</h3>
+      <p className={styles.desc}>
+        AUTH必須リレーからのDM等を受け取るための認証です。応答すると自分の公開鍵をそのリレーに証明します。
+      </p>
+      <div className={styles.choices}>
+        {AUTH_CHOICES.map((choice) => (
+          <button
+            key={choice.policy}
+            type="button"
+            className={styles.choice}
+            aria-pressed={policy === choice.policy}
+            onClick={() => setAuthPolicy(choice.policy)}
+          >
+            {choice.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

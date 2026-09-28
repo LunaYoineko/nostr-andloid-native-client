@@ -5,8 +5,10 @@ import { startPersistence } from "./db";
 import { startDm } from "./features/dm/dmService";
 import { startMuteList } from "./features/mute/muteSync";
 import { initTheme } from "./features/theme/themePrefs";
+import { startBackgroundPause } from "./nostr/backgroundPause";
 import { startOwnRelayList } from "./nostr/outbox";
 import { startPublishQueue } from "./nostr/publish";
+import { startRelayAuth } from "./nostr/relayAuth";
 import { useSession } from "./signer/session";
 import "./styles/global.css";
 
@@ -28,6 +30,10 @@ void startPersistence().then(() => {
 startOwnRelayList();
 // ログイン中は自分の kind:10000（ミュート）を購読して表示から除く
 startMuteList();
+// リレーの AUTH（NIP-42）に設定のポリシーで応答する
+startRelayAuth();
+// タブの非表示が 5 分続いたらリレーを一時停止し、表示に戻ったら張り直す
+startBackgroundPause();
 
 createRoot(root).render(
   <StrictMode>

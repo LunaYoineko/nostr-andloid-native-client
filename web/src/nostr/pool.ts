@@ -2,9 +2,27 @@ import type { Filter } from "applesauce-core/helpers/filter";
 import { normalizeURL } from "applesauce-core/helpers/url";
 import { use$ } from "applesauce-react/hooks/use-$";
 import { RelayPool } from "applesauce-relay/pool";
+import type { Relay } from "applesauce-relay/relay";
+import type { GroupReqMessage, PoolRelayInput } from "applesauce-relay/types";
 import type { NostrEvent } from "nostr-tools/pure";
-import { combineLatest, distinctUntilChanged, filter, map, Observable, tap, timer } from "rxjs";
+import {
+  BehaviorSubject,
+  combineLatest,
+  defer,
+  distinctUntilChanged,
+  filter,
+  map,
+  merge,
+  NEVER,
+  Observable,
+  of,
+  skip,
+  switchMap,
+  tap,
+  timer,
+} from "rxjs";
 import { create } from "zustand";
+import { unixNow } from "../lib/time";
 import { addVerified } from "./store";
 
 /** 接続するリレー一覧（JSON の文字列配列）。無ければ自分の kind:10002、それも無ければ端末の言語で既定を選ぶ */
@@ -161,13 +179,117 @@ const RECONNECT = {
   resetOnSuccess: true,
 };
 
+// ---- 張ったままの購読（再接続時の since 差分・AUTH 後の張り直し・一時停止） ----
+
+/** 再接続時の since に引くマージン（秒）。順不同・遅延で届くイベントの取りこぼし対策（ネイティブ SINCE_MARGIN_SEC） */
+export const SINCE_MARGIN_SEC = 60;
+/** 差分の基準に採る created_at の未来側の上限（秒）。壊れた時計の投稿で since が未来にならないように（ネイティブ FUTURE_SKEW_SEC） */
+export const FUTURE_SKEW_SEC = 300;
+
+/**
+ * 再接続で張り直す REQ のフィルタ（ネイティブ applySinceForResend）。受信記録があれば、since / until を
+ * 明示していないフィルタに since = 最終受信 − marginSec（0 未満にしない）を入れる。limit は安全上限として残す。
+ * 受信記録が無ければそのまま（全量）。kind:1059 を含むフィルタは付けない（gift wrap の created_at は
+ * 最大 2 日過去にずらされるので差分だと取りこぼす。毎回全量を取り直し、再復号は処理済み id の表で防ぐ）
+ */
+export function applySinceForResend(
+  filters: Filter[],
+  lastEventAt: number | undefined,
+  marginSec = SINCE_MARGIN_SEC,
+): Filter[] {
+  if (lastEventAt === undefined) return filters;
+  const since = Math.max(0, lastEventAt - marginSec);
+  return filters.map((f) =>
+    f.since !== undefined || f.until !== undefined || f.kinds?.includes(1059) ? f : { ...f, since },
+  );
+}
+
+/** リレーごとの最終受信（created_at の最大）を更新する。今より FUTURE_SKEW_SEC を超えて未来のものは基準にしない */
+export function recordReceived(
+  lastAt: Map<string, number>,
+  relay: string,
+  createdAt: number,
+  now = unixNow(),
+): void {
+  if (createdAt > now + FUTURE_SKEW_SEC) return;
+  const prev = lastAt.get(relay);
+  if (prev === undefined || createdAt > prev) lastAt.set(relay, createdAt);
+}
+
+/** true の間は張ったままの購読をすべて閉じている（非表示が続いたとき。backgroundPause.ts） */
+const paused$ = new BehaviorSubject(false);
+/** 一時停止の前の keepAlive（一時停止中は 0 にして、購読をやめた接続をすぐ閉じる） */
+const keepAliveBeforePause = new Map<Relay, number>();
+
+/** 全リレーを一時停止する: 張ったままの購読を閉じ（定義は残す）、使っていない接続を閉じる */
+export function pauseRelays(): void {
+  if (paused$.value) return;
+  // 購読をやめた接続は keepAlive（既定 30 秒）の後に閉じるので、一時停止中は 0 にしてすぐ閉じる
+  for (const relay of pool.relays.values()) {
+    keepAliveBeforePause.set(relay, relay.keepAlive);
+    relay.keepAlive = 0;
+  }
+  paused$.next(true);
+}
+
+/** 一時停止をやめて購読を張り直す（受信記録があれば since 差分）。一時停止していなければ何もせず false */
+export function resumeRelays(): boolean {
+  if (!paused$.value) return false;
+  for (const [relay, keepAlive] of keepAliveBeforePause) relay.keepAlive = keepAlive;
+  keepAliveBeforePause.clear();
+  paused$.next(false);
+  return true;
+}
+
+/**
+ * リレーごとの REQ のフィルタ。購読し直すたび（applesauce の再接続・一時停止からの再開）に、そのリレーの
+ * 最終受信から since を付け直す。AUTH が成立したら受信記録を捨てて since 無しで送り直す
+ * （同じ id の REQ で置き換わる。制限で届いていなかった kind:1059 などを取り直す。ネイティブ resendSubscriptions）
+ */
+function resendFilters(relay: Relay, filters: Filter[], lastAt: Map<string, number>): Observable<Filter[]> {
+  return merge(
+    defer(() => of(applySinceForResend(filters, lastAt.get(relay.url)))),
+    relay.authenticated$.pipe(
+      distinctUntilChanged(),
+      // 購読した時点の状態は数えない（成立した瞬間だけ）
+      skip(1),
+      filter((authenticated) => authenticated),
+      map(() => {
+        lastAt.delete(relay.url);
+        return filters;
+      }),
+    ),
+  );
+}
+
+/**
+ * 張ったままの REQ（subscribe / subscribeTo / subscribeUnstored の共通）。再接続・再開では since 差分で、
+ * AUTH の成立後は since 無しで張り直す。一時停止中は閉じる。受信記録は購読ごと・リレーごと
+ */
+function liveReq(relays: PoolRelayInput, filters: Filter[]): Observable<GroupReqMessage> {
+  return defer(() => {
+    const lastAt = new Map<string, number>();
+    return paused$.pipe(
+      distinctUntilChanged(),
+      switchMap((paused) =>
+        paused
+          ? NEVER
+          : pool.req(relays, (relay) => resendFilters(relay, filters, lastAt), { reconnect: RECONNECT }),
+      ),
+      tap((message) => {
+        if (message.type === "EVENT") recordReceived(lastAt, message.from, message.event.created_at);
+      }),
+    );
+  });
+}
+
 /**
  * read リレーすべてへ REQ を張ったままにし、受けたイベントを EventStore へ入れる。
  * read リレーが変わったら、増えたリレーへ張り、外れたリレーは CLOSE する（残ったリレーは張ったまま）。
  * 戻り値はリレーごとの EOSE を流す（購読をやめると CLOSE を送る）。
  */
 export function subscribe(filters: Filter | Filter[]): Observable<"EOSE"> {
-  return pool.req(readRelays$, filters, { reconnect: RECONNECT }).pipe(
+  return liveReq(readRelays$, Array.isArray(filters) ? filters : [filters]).pipe(
     tap((message) => {
       if (message.type === "EVENT") addVerified(message.event, message.from);
     }),
@@ -181,7 +303,7 @@ export function subscribe(filters: Filter | Filter[]): Observable<"EOSE"> {
  * 戻り値はリレーごとの EOSE を流す（購読をやめると CLOSE を送る）。
  */
 export function subscribeTo(relays: readonly string[], filters: Filter[]): Observable<"EOSE"> {
-  return pool.req([...relays], filters, { reconnect: RECONNECT }).pipe(
+  return liveReq([...relays], filters).pipe(
     tap((message) => {
       if (message.type === "EVENT") addVerified(message.event, message.from);
     }),
@@ -199,7 +321,7 @@ export function subscribeUnstored(
   relays: Observable<string[]>,
   filters: Filter[],
 ): Observable<NostrEvent | "EOSE"> {
-  return pool.req(relays, filters, { reconnect: RECONNECT }).pipe(
+  return liveReq(relays, filters).pipe(
     filter((message) => message.type === "EVENT" || message.type === "EOSE"),
     map((message) => (message.type === "EVENT" ? message.event : ("EOSE" as const))),
   );
