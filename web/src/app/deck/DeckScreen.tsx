@@ -3,7 +3,13 @@ import { ColumnMenu, DeckColumn } from "../../features/deck/DeckColumn";
 import { KbColumn } from "../../features/keyboard/KbList";
 import { useDeck } from "../../store/deck";
 import { ColumnTabs } from "../../ui/ColumnTabs";
-import { prefersReducedMotion, scrollBehavior, scrollToLeft, useLayoutMode } from "../../ui/useLayoutMode";
+import {
+  prefersReducedMotion,
+  scrollBehavior,
+  scrollToLeft,
+  useLayoutMode,
+  useShowNavRail,
+} from "../../ui/useLayoutMode";
 import styles from "./DeckScreen.module.css";
 import { leftmostVisibleIndex, pageIndexFromScroll } from "./geometry";
 
@@ -24,6 +30,7 @@ export function DeckScreen() {
   const jumpTarget = useDeck((s) => s.jumpTarget);
   const visibleColumnId = useDeck((s) => s.visibleColumnId);
   const mode = useLayoutMode();
+  const showRail = useShowNavRail();
 
   const stripRef = useRef<HTMLDivElement>(null);
   const slots = useRef(new Map<string, HTMLElement>());
@@ -179,6 +186,7 @@ export function DeckScreen() {
           onSelect={(id) => useDeck.getState().jumpTo(id)}
           onAdd={openAddColumn}
           menu={active ? <ColumnMenu spec={active} /> : null}
+          showRelay={!showRail}
         />
       )}
       <div ref={stripRef} className={styles.strip} onScroll={onScroll}>
