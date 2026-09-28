@@ -14,6 +14,7 @@ import {
   startNostrConnect,
 } from "./nip46";
 import { parseNsec } from "./nsec";
+import { getNwcStore } from "./nwcStore";
 import { getKeyVault } from "./webKeyVault";
 
 /** 保存するセッション（{"method":"nip07" | "local" | "nip46","pubkey":"<hex>"}）。秘密鍵は入れない */
@@ -89,7 +90,10 @@ type SessionState = {
   loginWithBunker(input: string, signal?: AbortSignal): Promise<void>;
   /** nostrconnect:// で署名アプリ（NIP-46）からの接続を待ってログインする */
   startNostrConnectLogin(): NostrConnectLogin;
-  /** ログアウトする。保管した秘密鍵・リモート署名の接続情報も消す（方式に関係なく） */
+  /**
+   * ログアウトする。保管した秘密鍵・リモート署名の接続情報も消す（方式に関係なく）。
+   * [#537] ウォレット接続（NWC）も消す（共用 PC のブラウザを想定。ネイティブは「接続を解除」でだけ消す）
+   */
   logout(): void;
   /** 起動時に保存済みセッションを復元する。拡張・保管庫の公開鍵と一致しなければ未ログインへ戻す */
   restore(): Promise<void>;
@@ -185,6 +189,8 @@ export const useSession = create<SessionState>()((set) => ({
     set(signedOut);
     void getKeyVault().clear();
     void disconnectNip46();
+    // [#537] Web は共用 PC のブラウザを想定し、ウォレットを動かせる接続情報を残さない
+    void getNwcStore().clear();
   },
 
   async restore() {
