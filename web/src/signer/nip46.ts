@@ -21,10 +21,10 @@ export const NIP46_LOGOUT_TIMEOUT_MS = 3_000;
 const TIMEOUT_TOAST_INTERVAL_MS = 30_000;
 const TIMEOUT_TOAST = "署名アプリから応答がありません。アプリを開いてからもう一度お試しください";
 
-/** 接続で求める権限（Web が署名する種類 + DM と #468 の同期の分） */
+/** 接続で求める権限（Web が署名する種類 + DM と #468 の同期の分 + リレーの AUTH（kind:22242）） */
 export const NIP46_PERMISSIONS = [
   ...NostrConnectSigner.buildSigningPermissions([
-    1, 3, 4, 5, 6, 7, 13, 16, 1111, 1984, 10000, 10002, 10050, 30078,
+    1, 3, 4, 5, 6, 7, 13, 16, 1111, 1984, 10000, 10002, 10050, 22242, 30078,
   ]),
   "nip44_encrypt",
   "nip44_decrypt",

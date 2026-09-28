@@ -1,14 +1,69 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   applyRelayPrefs,
+  applySinceForResend,
   defaultRelaysFor,
+  FUTURE_SKEW_SEC,
   initialRelaySet,
   RELAYS_KEY,
+  recordReceived,
   relayListFrom,
   relaySetFromPrefs,
   resetRelays,
   useRelays,
 } from "./pool";
+
+// ネイティブ ApplySinceForResendTest.kt の移植
+describe("再接続時の since 差分（applySinceForResend）", () => {
+  const stream = { kinds: [1], limit: 100 };
+
+  it("受信済みがあれば since をマージン付きで差し込む（limit は残す）", () => {
+    expect(applySinceForResend([stream], 1_000_000, 60)).toEqual([
+      { kinds: [1], limit: 100, since: 999_940 },
+    ]);
+    // 既定のマージンは 60 秒
+    expect(applySinceForResend([stream], 1_000_000)).toEqual([{ kinds: [1], limit: 100, since: 999_940 }]);
+  });
+
+  it("受信記録が無ければ従来どおり全量", () => {
+    const filters = [stream];
+    expect(applySinceForResend(filters, undefined)).toBe(filters);
+  });
+
+  it("明示された since / until は上書きしない", () => {
+    const pinned = { kinds: [1], since: 123 };
+    const ranged = { kinds: [1], until: 456 };
+    const out = applySinceForResend([pinned, ranged, stream], 1_000_000, 60);
+    expect(out[0]).toEqual({ kinds: [1], since: 123 });
+    expect(out[1]).toEqual({ kinds: [1], until: 456 });
+    expect(out[2].since).toBe(999_940);
+  });
+
+  it("kind:1059 を含むフィルタには since を付けない（ほかのフィルタには付ける）", () => {
+    const giftWrap = { kinds: [1059], "#p": ["me"] };
+    const mixed = { kinds: [4, 1059], "#p": ["me"] };
+    const out = applySinceForResend([giftWrap, mixed, stream], 1_000_000, 60);
+    expect(out[0]).toEqual({ kinds: [1059], "#p": ["me"] });
+    expect(out[1]).toEqual({ kinds: [4, 1059], "#p": ["me"] });
+    expect(out[2]).toEqual({ kinds: [1], limit: 100, since: 999_940 });
+  });
+
+  it("マージンが受信時刻を上回っても負にならない", () => {
+    expect(applySinceForResend([stream], 30, 60)[0].since).toBe(0);
+  });
+
+  it("最終受信は最大の created_at。今より FUTURE_SKEW_SEC を超えて未来のものは基準にしない", () => {
+    const now = 1_000_000;
+    const lastAt = new Map<string, number>();
+    recordReceived(lastAt, "wss://a/", now - 10, now);
+    recordReceived(lastAt, "wss://a/", now - 50, now);
+    recordReceived(lastAt, "wss://a/", now + FUTURE_SKEW_SEC + 1, now);
+    expect(lastAt.get("wss://a/")).toBe(now - 10);
+    recordReceived(lastAt, "wss://a/", now + FUTURE_SKEW_SEC, now);
+    expect(lastAt.get("wss://a/")).toBe(now + FUTURE_SKEW_SEC);
+    expect(lastAt.has("wss://b/")).toBe(false);
+  });
+});
 
 it("既定リレーは ja 系なら日本向けを含む 4 つ、それ以外は damus / nos.lol（DefaultRelays.kt と同じ）", () => {
   const ja = ["wss://relay-jp.shino3.net", "wss://yabu.me", "wss://relay.damus.io", "wss://nos.lol"];
