@@ -1,6 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { setDataSaver } from "../../lib/imageProxy";
 import { YouTubeCard } from "./YouTubeCard";
 import styles from "./YouTubeCard.module.css";
 
@@ -14,21 +13,9 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.unstubAllGlobals();
-  setDataSaver(false);
 });
 
-it("通常は最初から iframe を置き、referrerpolicy が付く", () => {
-  const { container } = render(<YouTubeCard id={ID} />);
-
-  const frame = container.querySelector("iframe");
-  expect(frame).not.toBeNull();
-  expect(frame).toHaveAttribute("src", `https://www.youtube-nocookie.com/embed/${ID}`);
-  expect(frame).toHaveAttribute("referrerpolicy", "strict-origin-when-cross-origin");
-  expect(container.querySelector(`.${styles.card}`)).toBeNull();
-});
-
-it("データセーバー中はサムネ + 再生ボタンを出し、iframe は置かない", () => {
-  setDataSaver(true);
+it("押すまではサムネ + 再生ボタンを出し、iframe は置かない（データセーバーに関係なく常に）", () => {
   const { container } = render(<YouTubeCard id={ID} />);
 
   expect(container.querySelector("iframe")).toBeNull();
@@ -39,8 +26,7 @@ it("データセーバー中はサムネ + 再生ボタンを出し、iframe は
   expect(screen.getByText("YouTube")).toBeInTheDocument();
 });
 
-it("データセーバー中に押すと iframe（autoplay=1）に差し替わる", async () => {
-  setDataSaver(true);
+it("押すと iframe（autoplay=1）に差し替わり、referrerpolicy が付く", async () => {
   const { container } = render(<YouTubeCard id={ID} />);
 
   fireEvent.click(screen.getByRole("button", { name: "YouTube を再生" }));
@@ -52,7 +38,6 @@ it("データセーバー中に押すと iframe（autoplay=1）に差し替わ�
 });
 
 it("サムネが読めなければ隠して黒地のまま", () => {
-  setDataSaver(true);
   const { container } = render(<YouTubeCard id={ID} />);
   const img = container.querySelector("img") as HTMLImageElement;
 
@@ -62,8 +47,7 @@ it("サムネが読めなければ隠して黒地のまま", () => {
   expect(screen.getByRole("button", { name: "YouTube を再生" })).toBeInTheDocument();
 });
 
-it("oEmbed が取れたらサムネの上端にタイトルとチャンネル名の帯を出す（データセーバー中のみ）", async () => {
-  setDataSaver(true);
+it("oEmbed が取れたらサムネの上端にタイトルとチャンネル名の帯を出す", async () => {
   const id = "aaaaaaaaaa1";
   fetchMock.mockImplementation(async () =>
     Response.json({ title: "動画のタイトル", author_name: "チャンネル名" }),
@@ -77,7 +61,6 @@ it("oEmbed が取れたらサムネの上端にタイトルとチャンネル名
 });
 
 it("oEmbed が取れなければ帯を出さない", async () => {
-  setDataSaver(true);
   const id = "aaaaaaaaaa2";
   const { container } = render(<YouTubeCard id={id} />);
   await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());

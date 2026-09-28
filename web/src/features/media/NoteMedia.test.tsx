@@ -41,15 +41,14 @@ it("画像 → 動画 → YouTube の順に出す", () => {
   expect(blocks).toHaveLength(3);
   expect(blocks[0]).toHaveClass(gridStyles.grid, gridStyles.cols3);
   expect(blocks[1]).toBe(screen.getByRole("button", { name: "動画を再生" }));
-  expect(blocks[2].tagName).toBe("IFRAME");
+  // YouTube は押すまでサムネ（iframe は出さない。データセーバーに関係なく常に）
+  expect(blocks[2]).toBe(screen.getByRole("button", { name: "YouTube を再生" }));
 });
 
 it("動画と YouTube は動画を先に数えて合計 4 件まで（画像は数えない）", () => {
-  const { container, unmount } = render(
-    <NoteMedia media={media({ videos: items(3, "v"), youtube: youtube(3) })} />,
-  );
+  const { unmount } = render(<NoteMedia media={media({ videos: items(3, "v"), youtube: youtube(3) })} />);
   expect(screen.getAllByRole("button", { name: "動画を再生" })).toHaveLength(3);
-  expect(container.querySelectorAll("iframe")).toHaveLength(1);
+  expect(screen.getAllByRole("button", { name: "YouTube を再生" })).toHaveLength(1);
   unmount();
 
   render(<NoteMedia media={media({ images: items(12, "i"), videos: items(5, "v") })} />);
@@ -59,17 +58,17 @@ it("動画と YouTube は動画を先に数えて合計 4 件まで（画像は�
 
 it("embed_video が OFF なら動画を出さない。空いた枠は YouTube に回さない（#532）", () => {
   setEmbedPref("video", false);
-  const { container } = render(<NoteMedia media={media({ videos: items(3, "v"), youtube: youtube(3) })} />);
+  render(<NoteMedia media={media({ videos: items(3, "v"), youtube: youtube(3) })} />);
   expect(screen.queryByRole("button", { name: "動画を再生" })).toBeNull();
   // 動画 3 本が枠 3 つを占めたまま OFF になっているので、YouTube は残り 1 枠のまま
-  expect(container.querySelectorAll("iframe")).toHaveLength(1);
+  expect(screen.getAllByRole("button", { name: "YouTube を再生" })).toHaveLength(1);
 });
 
 it("embed_youtube が OFF なら YouTube を出さない", () => {
   setEmbedPref("youtube", false);
-  const { container } = render(<NoteMedia media={media({ videos: items(1, "v"), youtube: youtube(1) })} />);
+  render(<NoteMedia media={media({ videos: items(1, "v"), youtube: youtube(1) })} />);
   expect(screen.getAllByRole("button", { name: "動画を再生" })).toHaveLength(1);
-  expect(container.querySelectorAll("iframe")).toHaveLength(0);
+  expect(screen.queryByRole("button", { name: "YouTube を再生" })).toBeNull();
 });
 
 it("何も無ければ何も描かない", () => {
