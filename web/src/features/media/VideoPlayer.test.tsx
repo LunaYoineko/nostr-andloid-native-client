@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { resetVideoPositions } from "./playback";
 import { VideoPlayer } from "./VideoPlayer";
 
 const BLURHASH = "LEHV6nWB2yk8pyo0adR*.7kCMdnj";
@@ -20,6 +21,7 @@ afterEach(() => {
   HTMLMediaElement.prototype.play = originalPlay;
   HTMLMediaElement.prototype.pause = originalPause;
   vi.restoreAllMocks();
+  resetVideoPositions();
 });
 
 it("最初はポスター（thumb を 800px 幅のプロキシで）+ ▶ + 「動画」だけで、<video> を作らない", () => {
@@ -103,4 +105,57 @@ it("https でない動画は押しても <video> を出さない", async () => {
   await userEvent.click(screen.getByRole("button", { name: "動画を再生" }));
 
   expect(container.querySelector("video")).toBeNull();
+});
+
+// ---- [#141][#540] 仮想リストから外れて戻ってきた動画の再生位置 ----
+
+it("仮想リストから外れて戻ってきた（再マウント）動画は、ポスターに戻さず前の位置で一時停止のまま", () => {
+  const url = "https://v.test/resume.mp4";
+  const { container, unmount } = render(<VideoPlayer item={{ url }} />);
+  fireEvent.click(screen.getByRole("button", { name: "動画を再生" }));
+  const video = container.querySelector("video") as HTMLVideoElement;
+  expect(video).toHaveAttribute("autoplay");
+
+  Object.defineProperty(video, "currentTime", { configurable: true, value: 12.5 });
+  fireEvent.timeUpdate(video);
+  unmount();
+
+  // 戻ってきた（新しいマウント）: 押さなくても最初から <video> で、続きの位置・自動再生はしない
+  const { container: second } = render(<VideoPlayer item={{ url }} />);
+  expect(screen.queryByRole("button", { name: "動画を再生" })).toBeNull();
+  const resumed = second.querySelector("video") as HTMLVideoElement;
+  expect(resumed).not.toBeNull();
+  expect(resumed).not.toHaveAttribute("autoplay");
+  expect(resumed.currentTime).toBe(12.5);
+});
+
+it("一度も再生していない URL・別の URL はポスターのまま（位置は URL ごと）", () => {
+  const { unmount } = render(<VideoPlayer item={{ url: "https://v.test/untouched.mp4" }} />);
+  expect(screen.getByRole("button", { name: "動画を再生" })).toBeInTheDocument();
+  unmount();
+
+  const url = "https://v.test/played.mp4";
+  const { container } = render(<VideoPlayer item={{ url }} />);
+  fireEvent.click(screen.getByRole("button", { name: "動画を再生" }));
+  const video = container.querySelector("video") as HTMLVideoElement;
+  Object.defineProperty(video, "currentTime", { configurable: true, value: 3 });
+  fireEvent.timeUpdate(video);
+  unmount();
+
+  render(<VideoPlayer item={{ url: "https://v.test/other.mp4" }} />);
+  expect(screen.getByRole("button", { name: "動画を再生" })).toBeInTheDocument();
+});
+
+it("片付け時（アンマウント）にもその時点の位置を覚える", () => {
+  const url = "https://v.test/unmount-save.mp4";
+  const { container, unmount } = render(<VideoPlayer item={{ url }} />);
+  fireEvent.click(screen.getByRole("button", { name: "動画を再生" }));
+  const video = container.querySelector("video") as HTMLVideoElement;
+  Object.defineProperty(video, "currentTime", { configurable: true, value: 7 });
+  // timeupdate を送らず、アンマウントだけで位置が残ることを確認する
+  unmount();
+
+  const { container: second } = render(<VideoPlayer item={{ url }} />);
+  const resumed = second.querySelector("video") as HTMLVideoElement;
+  expect(resumed.currentTime).toBe(7);
 });

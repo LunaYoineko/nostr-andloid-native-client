@@ -42,7 +42,7 @@ function QuotedNote({ quoted, compact }: { quoted: NostrEvent; compact: boolean 
   return (
     <>
       <span className={styles.header}>
-        <Avatar key={picture} url={picture} size="sm" seed={quoted.pubkey} />
+        <Avatar key={picture} url={picture} size="sm" seed={quoted.pubkey} pubkey={quoted.pubkey} />
         <span className={styles.name}>{displayName(profile, quoted.pubkey)}</span>
       </span>
       {contentWarningOf(quoted) !== null ? (

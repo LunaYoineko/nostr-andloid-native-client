@@ -89,7 +89,7 @@ export function ConversationView({ peer, onBack }: { peer: string; onBack?: () =
           </button>
         )}
         <Link className={styles.peer} to={hrefForProfile(peer)}>
-          <Avatar key={picture} url={picture} size="lg" seed={name} />
+          <Avatar key={picture} url={picture} size="lg" seed={name} pubkey={peer} />
           <span className={styles.peerTexts}>
             <h2 className={styles.peerName}>{name}</h2>
             <span className={styles.peerNpub}>{shortNpub(peer)}</span>
@@ -480,7 +480,7 @@ function SenderAvatar({ pubkey }: { pubkey: string }) {
   const picture = pictureOf(profile);
   return (
     <span className={styles.avatar}>
-      <Avatar key={picture} url={picture} size="md" seed={displayName(profile, pubkey)} />
+      <Avatar key={picture} url={picture} size="md" seed={displayName(profile, pubkey)} pubkey={pubkey} />
     </span>
   );
 }

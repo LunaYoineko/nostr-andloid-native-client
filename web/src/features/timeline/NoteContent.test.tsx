@@ -1,9 +1,11 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { naddrEncode, neventEncode, noteEncode, npubEncode } from "nostr-tools/nip19";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
-import { expect, it } from "vitest";
+import { afterEach, expect, it } from "vitest";
 import { eventStore } from "../../nostr/store";
+import { useSession } from "../../signer/session";
 import { renderWithRouter } from "../../test/renderWithRouter";
+import { useNyanMode } from "../../ui/nyan";
 import { NoteContent } from "./NoteContent";
 
 function note(content: string, tags: string[][] = []): NostrEvent {
@@ -11,6 +13,11 @@ function note(content: string, tags: string[][] = []): NostrEvent {
 }
 
 const ID = "a".repeat(64);
+
+afterEach(() => {
+  useNyanMode.setState({ mode: "off" });
+  useSession.setState({ status: "loading", method: null, pubkey: null });
+});
 
 it("テキスト・リンク・#タグ・メンション（名前解決）を要素にする", async () => {
   const aliceKey = generateSecretKey();
@@ -144,4 +151,64 @@ it("hideMention に一致する参照を描かず、直後の改行も消す", (
 
   expect(screen.queryByText(`↗${nevent.slice(0, 12)}…`)).toBeNull();
   expect(container.textContent).toBe("見て\n続き");
+});
+
+// ---- [#540] にゃんモード ----
+
+it("全員モードでは本文のプレーンテキストだけ nyaize し、URL・メンション・タグ・shortcode は変わらない", async () => {
+  useNyanMode.setState({ mode: "all" });
+  const aliceKey = generateSecretKey();
+  const alice = getPublicKey(aliceKey);
+  eventStore.add(
+    finalizeEvent(
+      { kind: 0, created_at: 1_800_000_000, tags: [], content: JSON.stringify({ name: "なな" }) },
+      aliceKey,
+    ),
+  );
+
+  const { container } = renderWithRouter(
+    <NoteContent
+      event={note(`みんな見て https://na-example.com/a #nanika nostr:${npubEncode(alice)} :nabe:`, [
+        ["emoji", "nabe", "https://e/nabe.png"],
+      ])}
+    />,
+  );
+
+  expect(await screen.findByRole("link", { name: "@なな" })).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "https://na-example.com/a" })).toHaveAttribute(
+    "href",
+    "https://na-example.com/a",
+  );
+  expect(screen.getByRole("link", { name: "#nanika" })).toBeInTheDocument();
+  expect(container.querySelector("img")).toHaveAttribute("alt", ":nabe:");
+  expect(container).toHaveTextContent(/^みんにゃ見て https:\/\/na-example\.com\/a #nanika @なな$/);
+});
+
+it("自分のみモードでは他人の投稿は変わらない", () => {
+  useNyanMode.setState({ mode: "self" });
+  useSession.setState({ status: "in", method: "nip07", pubkey: getPublicKey(generateSecretKey()) });
+
+  const { container } = renderWithRouter(<NoteContent event={note("みんな元気かな")} />);
+
+  expect(container).toHaveTextContent("みんな元気かな");
+});
+
+it("自分のみモードでは自分の投稿は nyaize される", () => {
+  const key = generateSecretKey();
+  const me = getPublicKey(key);
+  useNyanMode.setState({ mode: "self" });
+  useSession.setState({ status: "in", method: "nip07", pubkey: me });
+
+  const { container } = renderWithRouter(
+    <NoteContent
+      event={finalizeEvent({ kind: 1, created_at: 1_800_000_000, tags: [], content: "みんな元気かな" }, key)}
+    />,
+  );
+
+  expect(container).toHaveTextContent("みんにゃ元気かにゃ");
+});
+
+it("オフでは nyaize しない", () => {
+  const { container } = renderWithRouter(<NoteContent event={note("みんな元気かな")} />);
+  expect(container).toHaveTextContent("みんな元気かな");
 });

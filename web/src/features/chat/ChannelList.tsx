@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { avatarInitial, avatarShade } from "../../lib/avatar";
-import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
+import { isDataSaver, markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { useSession } from "../../signer/session";
 import { EditIcon, Icon } from "../../ui/icons";
 import { ChannelEditDialog } from "./ChannelEditDialog";
@@ -149,9 +149,14 @@ function ChannelRow({
   );
 }
 
-/** チャンネルの画像（角丸の四角。ネイティブ AvatarSquare）。無い・読めなければ名前の頭文字 */
+/**
+ * チャンネルの画像（角丸の四角。ネイティブ AvatarSquare）。無い・読めなければ名前の頭文字
+ * [#540] w=128・q=80・アニメ保持（データセーバー中は先頭フレームだけ）
+ */
 export function ChannelIcon({ name, url }: { name: string; url: string | null }) {
-  const [src, setSrc] = useState(() => (url && /^https?:\/\//i.test(url.trim()) ? proxied(url, 128) : null));
+  const [src, setSrc] = useState(() =>
+    url && /^https?:\/\//i.test(url.trim()) ? proxied(url, 128, 80, !isDataSaver()) : null,
+  );
   if (!src) {
     return (
       <span

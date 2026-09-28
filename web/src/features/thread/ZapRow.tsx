@@ -20,7 +20,7 @@ export function ZapRow({ zap }: { zap: ZapItem & { sender: string } }) {
       <span className={styles.avatarBox}>
         {/* 名前と同じリンク先なので、読み上げ・タブ移動は名前の方だけにする */}
         <Link className={styles.avatarLink} to={profileHref} tabIndex={-1} aria-hidden="true">
-          <Avatar key={picture} url={picture} size="md" seed={name} />
+          <Avatar key={picture} url={picture} size="md" seed={name} pubkey={zap.sender} />
         </Link>
         <BoltIcon className={styles.badge} title="Zap" />
       </span>

@@ -2,23 +2,56 @@ import type { ChangeEvent } from "react";
 import { useId, useState } from "react";
 import { isDataSaver, proxied, setDataSaver } from "../../lib/imageProxy";
 import { FavoriteIcon, MoodIcon, StarIcon } from "../../ui/icons";
+import { type NyanMode, setNyanMode, useNyanMode } from "../../ui/nyan";
 import { ReactionPickerDialog } from "../actions/ReactionPickerDialog";
 import { setDefaultReaction, useDefaultReaction } from "../actions/reactionPrefs";
 import { type EmbedPrefs, setEmbedPref, useEmbedPrefs } from "../linkcard/embedPrefs";
 import { ThemeSettings } from "../theme/ThemeSettings";
 import styles from "./SettingsSections.module.css";
 
-/** 表示（テーマ・文字サイズ・太字（#464）、既定リアクション、埋め込み表示、データセーバー） */
+/** 表示（テーマ・文字サイズ・太字（#464）、にゃんモード、既定リアクション、埋め込み表示、データセーバー） */
 export function DisplaySection() {
   return (
     <>
       <div className={styles.block}>
         <ThemeSettings />
       </div>
+      <NyanModeBlock />
       <DefaultReactionBlock />
       <EmbedPrefsBlock />
       <DataSaverBlock />
     </>
+  );
+}
+
+/**
+ * [#540] にゃにゃにゃウイルス（ネイティブ SettingsScreen.kt の NyanModeSetting）。
+ * 表示だけの猫化モード。localStorage のみで NIP-78 の同期には入れない。
+ */
+function NyanModeBlock() {
+  const mode = useNyanMode((s) => s.mode);
+  const choice = (value: NyanMode, label: string) => (
+    <button
+      type="button"
+      className={styles.choice}
+      aria-pressed={mode === value}
+      onClick={() => setNyanMode(value)}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>にゃにゃにゃウイルス</h3>
+      <p className={styles.desc}>
+        お遊びの猫化モード。アバターに猫耳が生え、本文の「な」が「にゃ」に化けます。この端末の表示だけの演出で、実際の投稿内容は変わりません。
+      </p>
+      <div className={styles.choices}>
+        {choice("off", "オフ")}
+        {choice("self", "自分のみ")}
+        {choice("all", "全員")}
+      </div>
+    </div>
   );
 }
 

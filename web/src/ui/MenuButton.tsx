@@ -1,4 +1,5 @@
 import { type KeyboardEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCloseMenuOnBack } from "../app/history";
 import styles from "./MenuButton.module.css";
 
 export type MenuEntry =
@@ -43,6 +44,9 @@ export function MenuButton({
   const menu = useRef<HTMLDivElement>(null);
   // 開いている間にトリガを押すと、先にブラウザの light dismiss で閉じる。その押下で開き直さないよう覚えておく
   const openAtPointerDown = useRef(false);
+
+  // [#540] 開いている間の「戻る」はメニューを閉じるだけにする
+  useCloseMenuOnBack(open, () => setOpen(false));
 
   useLayoutEffect(() => {
     const el = menu.current;

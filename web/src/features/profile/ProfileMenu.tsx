@@ -1,5 +1,6 @@
 import { nprofileEncode } from "nostr-tools/nip19";
 import { useEffect, useRef, useState } from "react";
+import { useCloseMenuOnBack } from "../../app/history";
 import { relayHintsOf } from "../../nostr/outbox";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { Icon } from "../../ui/icons";
@@ -22,7 +23,7 @@ function muteFailureMessage(e: unknown): string {
 
 /**
  * プロフィールの ⋯ メニュー。nprofile（相手の kind:10002 の先頭 3 件をリレーヒントに）と njump のリンクをコピーする。
- * 開閉は ColumnMenu と同じ（外側のクリックと Escape で閉じる）。
+ * 開閉は ColumnMenu と同じ（外側のクリック・Escape・戻るで閉じる。#540）。
  * me が非 null（他人のプロフィール）なら、ミュート / 解除（確認ダイアログ）とユーザーの通報も出す。
  */
 export function ProfileMenu({
@@ -41,6 +42,9 @@ export function ProfileMenu({
   const [dialog, setDialog] = useState<"mute" | "report" | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+
+  // [#540] 開いている間の「戻る」はメニューを閉じるだけにする
+  useCloseMenuOnBack(open, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;

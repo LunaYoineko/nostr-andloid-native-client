@@ -17,7 +17,7 @@ import { BottomNav } from "../ui/BottomNav";
 import { ConnectionPill } from "../ui/ConnectionPill";
 import { DetailOverlay } from "../ui/DetailOverlay";
 import { NavRail } from "../ui/NavRail";
-import { useLayoutMode } from "../ui/useLayoutMode";
+import { useLayoutMode, useShowNavRail } from "../ui/useLayoutMode";
 import styles from "./AppShell.module.css";
 import { DeckScreen } from "./deck/DeckScreen";
 import { useCloseOverlay, useTransientHistory } from "./history";
@@ -55,11 +55,15 @@ function DestScreen({ dest }: { dest: Dest }) {
 
 /**
  * ログイン後の骨格（ネイティブ AppScaffold）。Compact = 内容 + 下部ナビ、Expanded = レール + 内容。
+ * [#332][#540] 440〜599px は内容は Compact のまま（各画面は useLayoutMode を見る）、ナビだけ
+ * 下部ナビの代わりに左レールにする（railLayout。Fold のカバー画面など幅広スマホ向け）。
  * 宛先（URL のパス）の画面を内容領域に描き、詳細（/e /p）はその上に重ねる（背後は最後の宛先を描いたまま）。
  * 子の並び順は固定（条件付きの要素も同じ位置）= モードを切り替えても内容を作り直さない。
  */
 export function AppShell() {
   const mode = useLayoutMode();
+  const showRail = useShowNavRail();
+  const railLayout = mode === "expanded" ? "expanded" : showRail ? "rail" : "compact";
   const handle = routeHandleOf(useMatches());
   const params = useParams();
   const navigate = useNavigate();
@@ -106,8 +110,8 @@ export function AppShell() {
   const pinnedIds = useMemo(() => pinned.map((c) => c.id), [pinned]);
 
   return (
-    <div className={styles.shell} data-layout={mode}>
-      {mode === "expanded" && (
+    <div className={styles.shell} data-layout={railLayout}>
+      {railLayout !== "compact" && (
         <NavRail
           selected={selected}
           badges={badges}
@@ -140,7 +144,7 @@ export function AppShell() {
         <KeyboardShortcuts enabled={dest === "home"} hasDetail={overlay !== null} />
         <ConnectionPill />
       </main>
-      {mode === "compact" && <BottomNav selected={selected} badges={badges} onSelect={open} />}
+      {railLayout === "compact" && <BottomNav selected={selected} badges={badges} onSelect={open} />}
       <Outlet />
       {showAddColumn && <AddColumnDialog />}
       {editingColumnId !== null && <EditColumnDialog />}

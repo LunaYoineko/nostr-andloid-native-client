@@ -126,10 +126,10 @@
   gap: var(--sp-2);
 }
 
-.input,
-.textarea {
+.input {
   box-sizing: border-box;
   width: 100%;
+  min-height: var(--touch-sm);
   padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
@@ -140,18 +140,7 @@
   font-size: 16px;
 }
 
-.input {
-  min-height: var(--touch-sm);
-}
-
-.textarea {
-  resize: vertical;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: var(--type-sub);
-}
-
-.input:focus-visible,
-.textarea:focus-visible {
+.input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
@@ -223,6 +212,44 @@
   height: var(--icon-md);
   margin: 0;
   accent-color: var(--accent);
+}
+
+/* グローバルカラムの配信先リレー（ネイティブ RelaySetEditor） */
+.relaySet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.relaySet .caption {
+  padding: 0;
+}
+
+.relayList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.relayUrl {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.relayAdd {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.relayAdd .input {
+  flex: 1;
+  min-width: 0;
 }
 
 .actions {

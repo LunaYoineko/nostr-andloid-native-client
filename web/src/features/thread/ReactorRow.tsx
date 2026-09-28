@@ -42,7 +42,7 @@ function ReactorAvatar({ pubkey }: { pubkey: string }) {
   const name = displayName(profile, pubkey, "npub");
   return (
     <Link className={styles.avatarLink} to={hrefForProfile(pubkey)} aria-label={name} title={name}>
-      <Avatar key={picture} url={picture} size="xs" seed={pubkey} />
+      <Avatar key={picture} url={picture} size="xs" seed={pubkey} pubkey={pubkey} />
     </Link>
   );
 }

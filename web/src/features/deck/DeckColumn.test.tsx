@@ -72,7 +72,7 @@ afterEach(() => {
 
 it("ヘッダにタイトルとサブタイトルを出す", () => {
   const [, hashtag] = DEFAULT_COLUMNS;
-  render(<DeckColumn spec={hashtag} showHeader />);
+  renderWithRouter(<DeckColumn spec={hashtag} showHeader />);
   expect(screen.getByRole("heading", { name: "#nostr" })).toBeInTheDocument();
   expect(screen.getByText(columnSubtitleFor(hashtag))).toBeInTheDocument();
   expect(screen.getByText("まだ投稿がありません")).toBeInTheDocument();
@@ -80,7 +80,7 @@ it("ヘッダにタイトルとサブタイトルを出す", () => {
 
 it("左端のカラムのメニューでは「左へ移動」が押せない", async () => {
   const user = userEvent.setup();
-  render(<DeckColumn spec={DEFAULT_COLUMNS[0]} showHeader />);
+  renderWithRouter(<DeckColumn spec={DEFAULT_COLUMNS[0]} showHeader />);
   await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
 
   expect(screen.getByRole("menu")).toBeInTheDocument();
@@ -157,7 +157,7 @@ it("⋯ の「ミュートを表示 / 隠す」でカラムの設定を切り替
   const user = userEvent.setup();
   const [, hashtag] = DEFAULT_COLUMNS;
   useDeck.setState({ revealMuted: [] });
-  const { unmount } = render(<DeckColumn spec={hashtag} showHeader />);
+  const { unmount } = renderWithRouter(<DeckColumn spec={hashtag} showHeader />);
 
   await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
   await user.click(screen.getByRole("menuitem", { name: "ミュートを表示" }));
@@ -169,7 +169,7 @@ it("⋯ の「ミュートを表示 / 隠す」でカラムの設定を切り替
   expect(useDeck.getState().revealMuted).toEqual([]);
   unmount();
 
-  render(<DeckColumn spec={THREAD} showHeader />);
+  renderWithRouter(<DeckColumn spec={THREAD} showHeader />);
   await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
   expect(screen.queryByRole("menuitem", { name: "ミュートを表示" })).not.toBeInTheDocument();
 });
@@ -178,7 +178,7 @@ it("⋯ の「タイムラインに混ぜる表示」: フォロー中カラム�
   const user = userEvent.setup();
   const [following, hashtag, notif] = DEFAULT_COLUMNS;
   useDeck.setState({ feedCatHidden: {} });
-  const { unmount } = render(<DeckColumn spec={following} showHeader />);
+  const { unmount } = renderWithRouter(<DeckColumn spec={following} showHeader />);
   await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
 
   const group = screen.getByRole("group", { name: "タイムラインに混ぜる表示" });
@@ -209,7 +209,7 @@ it("⋯ の「タイムラインに混ぜる表示」: フォロー中カラム�
   unmount();
   useDeck.setState({ feedCatHidden: {} });
   useDeck.setState({ feedCatHidden: loadFeedCatHidden() });
-  const second = render(<DeckColumn spec={following} showHeader />);
+  const second = renderWithRouter(<DeckColumn spec={following} showHeader />);
   await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
   const checked = (name: string) =>
     screen.getByRole("menuitemcheckbox", { name }).getAttribute("aria-checked");
@@ -483,7 +483,7 @@ it("PROFILE カラムは上部にカード（アバター・名前・npub・フ�
   const spec = buildColumn("PROFILE", { text: target }, new Set(), unixNow());
   if (!spec) throw new Error("buildColumn returned null");
   try {
-    render(
+    renderWithRouter(
       <VirtuosoMockContext.Provider value={{ viewportHeight: 2000, itemHeight: 100 }}>
         <DeckColumn spec={spec} showHeader />
       </VirtuosoMockContext.Provider>,

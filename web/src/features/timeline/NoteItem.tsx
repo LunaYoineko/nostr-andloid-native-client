@@ -6,10 +6,12 @@ import { avatarInitial, avatarShade } from "../../lib/avatar";
 import { hrefForEvent, hrefForProfile } from "../../lib/content/labels";
 import { isBlankContent, parseNoteContent, withoutLinks, withoutMention } from "../../lib/content/parse";
 import { clientNameOf, contentWarningOf, quotePointerOf, replyParentPointerOf } from "../../lib/content/tags";
-import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
+import { isDataSaver, markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { extractMedia } from "../../lib/media";
 import { relativeTime } from "../../lib/time";
 import { displayName, pictureOf, useEventByPointer, useProfile, useRepostedEvent } from "../../nostr/loaders";
+import { CatEars } from "../../ui/CatEars";
+import { useNyanApplies } from "../../ui/nyan";
 import { NoteActionButtons } from "../actions/NoteActionButtons";
 import { ArticleCards } from "../article/ArticleCard";
 import { NoteFooter } from "../compose/NoteFooter";
@@ -29,8 +31,8 @@ import { RepostHeader } from "./RepostHeader";
 import { useNow } from "./useNow";
 import { useOpenOnClick } from "./useOpenOnClick";
 
-/** アバターのプロキシ幅（表示 38px の約 2.5 倍。リポストヘッダの 16px でも同じ URL を使いキャッシュを共有する） */
-const AVATAR_PROXY_WIDTH = 96;
+/** [#540] アバターのプロキシ幅（ネイティブの Avatar.kt と同じ 256。アニメはデータセーバー中だけ止める） */
+const AVATAR_PROXY_WIDTH = 256;
 
 /**
  * リポスト元を待つ時間。過ぎても取れなければ行ごと隠す
@@ -202,7 +204,7 @@ function NoteBody({
       <div className={styles.row}>
         {/* 名前と同じリンク先なので、読み上げ・タブ移動は名前の方だけにする */}
         <Link className={styles.avatarLink} to={profileHref} tabIndex={-1} aria-hidden="true">
-          <Avatar key={picture} url={picture} size="md" seed={name} />
+          <Avatar key={picture} url={picture} size="md" seed={name} pubkey={event.pubkey} />
         </Link>
         <div className={styles.main}>
           <div className={styles.meta}>
@@ -284,14 +286,14 @@ function RelativeTime({ createdAt, client }: { createdAt: number; client: string
  */
 export type AvatarSize = "md" | "sm" | "xs" | "lg" | "xl" | "xxl";
 
-/** プロキシ幅。xxl だけネイティブの Avatar と同じ 256 */
+/** [#540] プロキシ幅。ネイティブの Avatar は表示サイズに関わらずすべて 256 */
 const AVATAR_PROXY: Record<AvatarSize, number> = {
   md: AVATAR_PROXY_WIDTH,
   sm: AVATAR_PROXY_WIDTH,
   xs: AVATAR_PROXY_WIDTH,
   lg: AVATAR_PROXY_WIDTH,
   xl: AVATAR_PROXY_WIDTH,
-  xxl: 256,
+  xxl: AVATAR_PROXY_WIDTH,
 };
 
 const AVATAR_CLASS: Record<AvatarSize, string> = {
@@ -303,31 +305,35 @@ const AVATAR_CLASS: Record<AvatarSize, string> = {
   xxl: styles.avatarXxl,
 };
 
-/** wsrv.nl を通した画像 URL。http(s) 以外は出さない */
+/**
+ * wsrv.nl を通した画像 URL。http(s) 以外は出さない。
+ * [#540] q=80・n=-1（アニメ保持）。データセーバー中は今まで通り先頭フレームだけにする。
+ */
 function avatarSrc(url: string | undefined, width: number): string | null {
   if (!url || !/^https?:\/\//i.test(url.trim())) return null;
-  return proxied(url, width);
+  return proxied(url, width, 80, !isDataSaver());
 }
 
 /**
  * アバター。プロキシが読めなければ元 URL（https のみ）で 1 度だけ取り直し、そのホストを拒否として学習する。
  * 画像が無い・読めないときは seed（ネイティブと同じく名前か pubkey）の頭文字をグレーの丸に出す。
  * url が変わったら呼び出し側の key で作り直す。
+ * [#540] pubkey（hex。分かる呼び出し元だけが渡す）でにゃんモードの対象なら猫耳を重ねる。
  */
-export function Avatar({ url, size, seed }: { url: string | undefined; size: AvatarSize; seed: string }) {
+export function Avatar({
+  url,
+  size,
+  seed,
+  pubkey,
+}: {
+  url: string | undefined;
+  size: AvatarSize;
+  seed: string;
+  pubkey?: string;
+}) {
   const [src, setSrc] = useState(() => avatarSrc(url, AVATAR_PROXY[size]));
   const className = AVATAR_CLASS[size];
-  if (!src) {
-    return (
-      <span
-        className={`${className} ${styles.initial}`}
-        style={{ background: avatarShade(seed) }}
-        aria-hidden="true"
-      >
-        {avatarInitial(seed)}
-      </span>
-    );
-  }
+  const nyan = useNyanApplies(pubkey);
 
   function onError() {
     const origin = originOf(src);
@@ -339,9 +345,17 @@ export function Avatar({ url, size, seed }: { url: string | undefined; size: Ava
     }
   }
 
-  return (
+  const body = !src ? (
+    <span
+      className={nyan ? `${styles.nyanBody} ${styles.initial}` : `${className} ${styles.initial}`}
+      style={{ background: avatarShade(seed) }}
+      aria-hidden="true"
+    >
+      {avatarInitial(seed)}
+    </span>
+  ) : (
     <img
-      className={className}
+      className={nyan ? styles.nyanBody : className}
       src={src}
       alt=""
       loading="lazy"
@@ -349,5 +363,13 @@ export function Avatar({ url, size, seed }: { url: string | undefined; size: Ava
       referrerPolicy="no-referrer"
       onError={onError}
     />
+  );
+
+  if (!nyan) return body;
+  return (
+    <span className={`${className} ${styles.nyanFrame}`}>
+      <CatEars />
+      {body}
+    </span>
   );
 }

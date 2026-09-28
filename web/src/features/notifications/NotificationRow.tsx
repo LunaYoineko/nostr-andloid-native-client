@@ -67,7 +67,13 @@ export const NotificationRow = memo(function NotificationRow({ item }: { item: N
       <div className={styles.head}>
         {/* 名前と同じリンク先なので、読み上げ・タブ移動は名前の方だけにする */}
         <Link to={profileHref} className={styles.avatarLink} tabIndex={-1} aria-hidden="true">
-          <Avatar key={picture} url={picture} size="xs" seed={displayName(profile, item.actor)} />
+          <Avatar
+            key={picture}
+            url={picture}
+            size="xs"
+            seed={displayName(profile, item.actor)}
+            pubkey={item.actor}
+          />
         </Link>
         <Link to={profileHref} className={styles.name}>
           {displayName(profile, item.actor)}

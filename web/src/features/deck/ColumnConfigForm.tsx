@@ -1,17 +1,16 @@
 import { type FormEvent, useId, useState } from "react";
 import { buildColumn, type ColumnSpec, type ColumnTemplate, NOTIF_KINDS } from "../../lib/columns";
 import { unixNow } from "../../lib/time";
+import { useReadRelays } from "../../nostr/pool";
 import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
 import { loadUsedHashtags, recentHashtagChips, usePinnedHashtags } from "../compose/storage";
 import styles from "./ColumnDialog.module.css";
 
-/** textarea の 1 行 1 リレー。wss:// で始まらない行は無視する */
-function parseRelays(text: string): string[] {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("wss://"));
+/** 任意入力の 1 件。wss:// で始まらなければ無視する（ネイティブと同じ既定リレーの体裁を保つ） */
+function normalizeCustomRelay(value: string): string | null {
+  const url = value.trim();
+  return url.startsWith("wss://") ? url : null;
 }
 
 /** SEARCH の入力へ #tag を足す（スペース区切り。既にあれば足さない） */
@@ -51,13 +50,19 @@ export function ColumnConfigForm({
   const [usedTags] = useState(loadUsedHashtags);
   const recentTags = recentHashtagChips(usedTags, pinnedTags);
   const [text, setText] = useState(initialText);
-  const [relays, setRelays] = useState(initialRelays.join("\n"));
+  const [relays, setRelays] = useState<readonly string[]>(initialRelays);
+  const [customRelay, setCustomRelay] = useState("");
   const [kinds, setKinds] = useState<ReadonlySet<number>>(
     () => new Set(initialKinds ?? NOTIF_KINDS.map((k) => k.kind)),
   );
   const [invalid, setInvalid] = useState(false);
   const errorId = useId();
   const canSubmit = template.config !== "TEXT" || text.trim() !== "";
+  // 購読中の読むリレー（候補）+ 選択済みだが候補に無い URL（カスタム追加分）。ネイティブと同じ並び
+  const readRelays = useReadRelays();
+  const relayRows = [...readRelays, ...relays.filter((r) => !readRelays.includes(r))].filter(
+    (r, i, all) => all.indexOf(r) === i,
+  );
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -68,7 +73,7 @@ export function ColumnConfigForm({
       {
         text,
         notifKinds: NOTIF_KINDS.filter((k) => kinds.has(k.kind)).map((k) => k.kind),
-        relays: parseRelays(relays),
+        relays: [...relays],
       },
       existing,
       unixNow(),
@@ -87,6 +92,16 @@ export function ColumnConfigForm({
       else next.delete(kind);
       return next;
     });
+  };
+
+  const toggleRelay = (url: string, checked: boolean) => {
+    setRelays((prev) => (checked ? [...prev, url] : prev.filter((r) => r !== url)));
+  };
+
+  const addCustomRelay = () => {
+    const url = normalizeCustomRelay(customRelay);
+    if (url && !relays.includes(url)) setRelays((prev) => [...prev, url]);
+    setCustomRelay("");
   };
 
   return (
@@ -149,18 +164,44 @@ export function ColumnConfigForm({
         </fieldset>
       )}
       {template.config === "RELAY_SET" && (
-        <label className={styles.field}>
-          <span className={styles.caption}>{template.hint}</span>
-          <textarea
-            className={styles.textarea}
-            value={relays}
-            rows={4}
-            placeholder="wss://"
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(e) => setRelays(e.target.value)}
-          />
-        </label>
+        <fieldset className={styles.relaySet}>
+          <legend className={styles.caption}>
+            {relays.length === 0 ? "未選択＝全リレーから取得" : `${relays.length} 件のリレーへ配信`}
+          </legend>
+          <div className={styles.relayList}>
+            {relayRows.map((url) => (
+              <label key={url} className={styles.check}>
+                <input
+                  type="checkbox"
+                  checked={relays.includes(url)}
+                  onChange={(e) => toggleRelay(url, e.target.checked)}
+                />
+                <span className={styles.relayUrl}>{url}</span>
+              </label>
+            ))}
+          </div>
+          <div className={styles.relayAdd}>
+            <input
+              type="text"
+              className={styles.input}
+              value={customRelay}
+              placeholder="wss://…（任意で追加）"
+              aria-label="配信先リレーの URL"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setCustomRelay(e.target.value)}
+            />
+            <button
+              type="button"
+              className={styles.ghost}
+              aria-label="配信先リレーを追加"
+              disabled={normalizeCustomRelay(customRelay) === null}
+              onClick={addCustomRelay}
+            >
+              追加
+            </button>
+          </div>
+        </fieldset>
       )}
       <div className={styles.actions}>
         <button type="button" className={styles.ghost} onClick={onCancel}>

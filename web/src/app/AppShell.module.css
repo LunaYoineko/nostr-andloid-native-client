@@ -11,7 +11,9 @@
   flex-direction: column;
 }
 
-.shell[data-layout="expanded"] {
+/* [#540] rail は 440〜599px（内容は Compact のまま、ナビだけレール）。下部ナビが無いのは expanded と同じ */
+.shell[data-layout="expanded"],
+.shell[data-layout="rail"] {
   flex-direction: row;
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }

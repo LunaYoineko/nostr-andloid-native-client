@@ -36,7 +36,7 @@ function ResolvedRow({ reaction, target }: { reaction: NostrEvent; target: Nostr
       <span className={styles.body}>
         <span className={styles.label}>あなたがリアクション</span>
         <span className={styles.line}>
-          <Avatar key={picture} url={picture} size="sm" seed={target.pubkey} />
+          <Avatar key={picture} url={picture} size="sm" seed={target.pubkey} pubkey={target.pubkey} />
           <span className={styles.summary}>
             {`${displayName(profile, target.pubkey)}: ${oneLine(plainTextOf(target))}`}
           </span>

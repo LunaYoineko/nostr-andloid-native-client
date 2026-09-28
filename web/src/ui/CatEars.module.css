@@ -1,0 +1,16 @@
+.ears {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.outer {
+  fill: var(--border-strong);
+}
+
+/* 内耳。外耳の明暗に関わらず視認できる固定の淡いピンク */
+.inner {
+  fill: #d17b93;
+}

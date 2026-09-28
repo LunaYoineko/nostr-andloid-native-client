@@ -140,11 +140,11 @@ export function ProfileHeaderCard({
             aria-label="画像を表示"
             onClick={() => setZoom(zoomablePicture)}
           >
-            <Avatar key={picture} url={picture} size="xxl" seed={name} />
+            <Avatar key={picture} url={picture} size="xxl" seed={name} pubkey={pubkey} />
           </button>
         ) : (
           <div className={styles.ring}>
-            <Avatar key={picture} url={picture} size="xxl" seed={name} />
+            <Avatar key={picture} url={picture} size="xxl" seed={name} pubkey={pubkey} />
           </div>
         )}
         <div className={styles.actions}>

@@ -56,6 +56,11 @@
   width: var(--column-w-l);
 }
 
+/* [#336][#540] 並べ替え FLIP。JS が transform を入れてから外し、ここの transition で 280ms 滑らせる */
+.flip {
+  transition: transform 280ms ease;
+}
+
 .addSlot {
   flex: none;
   display: flex;

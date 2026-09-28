@@ -5,6 +5,21 @@ import { DEFAULT_COLUMNS } from "../../lib/columns";
 import { useDeck } from "../../store/deck";
 import { clearViewport, mockViewport, setBox, setViewportWidth } from "../../test/viewport";
 import { DeckScreen } from "./DeckScreen";
+import deckStyles from "./DeckScreen.module.css";
+
+/** `(prefers-reduced-motion: reduce)` だけ差し替える。他のクエリは mockViewport の判定のまま */
+function mockReducedMotion(reduce: boolean) {
+  const original = window.matchMedia;
+  window.matchMedia = ((query: string) =>
+    query.includes("prefers-reduced-motion")
+      ? ({
+          matches: reduce,
+          media: query,
+          addEventListener() {},
+          removeEventListener() {},
+        } as unknown as MediaQueryList)
+      : original(query)) as typeof window.matchMedia;
+}
 
 const { mounts } = vi.hoisted(() => ({ mounts: new Map<string, number>() }));
 
@@ -150,6 +165,35 @@ describe("expanded", () => {
     });
     expect(el.scrollLeft).toBe(696);
     expect(useDeck.getState().jumpTarget).toBeNull();
+  });
+
+  it("[#336][#540] ◀ ▶ で動いたカラムだけに flip クラスが付き、時間で外れる", () => {
+    render(<DeckScreen />);
+
+    act(() => {
+      useDeck.getState().moveColumn("c_hashtag", 1);
+    });
+    // following(index 不変) には付かず、入れ替わった hashtag/notif には付く
+    expect(screen.getByRole("region", { name: "フォロー中" })).not.toHaveClass(deckStyles.flip);
+    expect(screen.getByRole("region", { name: "#nostr" })).toHaveClass(deckStyles.flip);
+    expect(screen.getByRole("region", { name: "通知" })).toHaveClass(deckStyles.flip);
+
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+    expect(screen.getByRole("region", { name: "#nostr" })).not.toHaveClass(deckStyles.flip);
+    expect(screen.getByRole("region", { name: "通知" })).not.toHaveClass(deckStyles.flip);
+  });
+
+  it("[#540] reduced-motion なら flip クラスを付けない", () => {
+    mockReducedMotion(true);
+    render(<DeckScreen />);
+
+    act(() => {
+      useDeck.getState().moveColumn("c_hashtag", 1);
+    });
+    expect(screen.getByRole("region", { name: "#nostr" })).not.toHaveClass(deckStyles.flip);
+    expect(screen.getByRole("region", { name: "通知" })).not.toHaveClass(deckStyles.flip);
   });
 });
 
