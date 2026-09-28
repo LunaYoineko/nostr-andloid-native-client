@@ -255,7 +255,7 @@ describe("logout", () => {
     const db = await installTestVault();
     setNwcStoreForTest(createNwcStore({ database: async () => db }));
     await getNwcStore().save(
-      "nostr+walletconnect://" + "a".repeat(64) + "?relay=wss://r&secret=" + "b".repeat(64),
+      `nostr+walletconnect://${"a".repeat(64)}?relay=wss://r&secret=${"b".repeat(64)}`,
     );
     try {
       installFakeNostr();

@@ -21,8 +21,7 @@ async function openDb(): Promise<KeyVaultDb> {
   return database;
 }
 
-const URI =
-  "nostr+walletconnect://" + "a".repeat(64) + "?relay=wss%3A%2F%2Frelay.example.com&secret=" + "b".repeat(64);
+const URI = `nostr+walletconnect://${"a".repeat(64)}?relay=wss%3A%2F%2Frelay.example.com&secret=${"b".repeat(64)}`;
 
 async function rowOf(db: KeyVaultDb): Promise<NwcVaultRow> {
   const row = await db.vault.get(NWC_ROW_ID);
