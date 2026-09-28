@@ -448,18 +448,18 @@
   color: var(--text-3);
 }
 
-/* ComposeDialog の「投稿」と同じ */
+/* 丸い送信ボタン（ChatComposer の .send と同じ。DM4） */
 .send {
   flex: none;
-  min-height: var(--touch-sm);
-  padding: 0 var(--sp-4);
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
   border: 0;
   border-radius: var(--r-full);
-  background: var(--text);
+  background: var(--accent);
   color: var(--bg);
-  font: inherit;
-  font-size: var(--type-body);
-  font-weight: var(--w-strong);
   cursor: pointer;
 }
 
@@ -467,6 +467,66 @@
   background: var(--surface-3);
   color: var(--text-3);
   cursor: default;
+}
+
+.sendIcon {
+  width: 18px;
+  height: 18px;
+}
+
+.spinner {
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--text-3);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: sendSpin 1s linear infinite;
+}
+
+@keyframes sendSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 画像添付があるときだけの解像度チップ（ComposeDialog / ChatComposer と同じ。DM4 / 挙動4.4） */
+.resolutionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0 var(--sp-3);
+  border: 0;
+}
+
+.resolutionLegend {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.resolutionGroup {
+  display: flex;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.resolutionButton {
+  padding: var(--sp-1) var(--sp-3);
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
+
+.resolutionButton[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: var(--w-strong);
 }
 
 .cannotSend {

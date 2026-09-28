@@ -8,7 +8,12 @@ import { CloseIcon, ImageIcon, PlayArrowIcon, ReplyIcon, SendIcon } from "../../
 import { showToast } from "../../ui/toast";
 import { EmojiInsertButton } from "../actions/EmojiInsertButton";
 import { plainTextOf } from "../actions/noteLinks";
-import { type Attachment, createAttachment, uploadAttachments } from "../compose/attachments";
+import {
+  type Attachment,
+  createAttachment,
+  reprocessImages,
+  uploadAttachments,
+} from "../compose/attachments";
 import {
   activeEmoji,
   activeMention,
@@ -18,6 +23,12 @@ import {
   type TextState,
 } from "../compose/completion";
 import { useCustomEmojis } from "../compose/customEmojis";
+import {
+  type ImageResolution,
+  maxDimFor,
+  RESOLUTIONS,
+  useImageCompression,
+} from "../compose/imageCompression";
 import { uploadServers, useMediaServer } from "../compose/mediaServer";
 import { ProfileAvatar } from "../compose/ProfileAvatar";
 import { type ProfileHit, searchProfiles } from "../compose/searchProfiles";
@@ -44,6 +55,7 @@ function keepFocus(e: MouseEvent) {
 /**
  * チャットの入力欄（ネイティブ ChannelRoomColumn の Composer）。返信中の表示と取り消し・絵文字の挿入・
  * `:` の絵文字補完・`@` のメンション補完・画像 / 動画の添付・送信。Enter は改行、Ctrl / Cmd + Enter で送信。
+ * 画像添付があるときは解像度チップ（低/中/高。ComposeDialog と同じ。CH4 / 挙動4.4）。
  * 添付は送信時にアップロードし、URL を本文の後ろに足す（1 件でも失敗したら送らず、添付を残す）。
  */
 export function ChatComposer({
@@ -74,6 +86,20 @@ export function ChatComposer({
   const moveCursor = useRef(false);
   /** まだ revoke していないプレビューの blob: URL */
   const previews = useRef(new Set<string>());
+  // 添付画像の解像度（ネイティブ ChannelRoomColumn の Composer と同じ既定「中」。CH4 / 挙動4.4）
+  const [resolution, setResolution] = useState<ImageResolution>("mid");
+  const compressionPrefs = useImageCompression((s) => s.prefs);
+  const attachmentsRef = useRef(attachments);
+  useLayoutEffect(() => {
+    attachmentsRef.current = attachments;
+  });
+  // 解像度（または圧縮設定）を変えたら、添付済みの画像を圧縮し直す（ComposeDialog と同じ）
+  useEffect(() => {
+    const maxDim = maxDimFor(resolution, compressionPrefs);
+    const list = attachmentsRef.current;
+    if (!list.some((a) => a.kind === "image")) return;
+    setAttachments(reprocessImages(list, maxDim, compressionPrefs.quality));
+  }, [resolution, compressionPrefs]);
 
   useEffect(() => {
     if (autoFocus) textarea.current?.focus();
@@ -257,6 +283,24 @@ export function ChatComposer({
             </li>
           ))}
         </ul>
+      )}
+      {attachments.some((a) => a.kind === "image") && (
+        <fieldset className={styles.resolutionRow}>
+          <legend className={styles.resolutionLegend}>解像度</legend>
+          <div className={styles.resolutionGroup}>
+            {RESOLUTIONS.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={styles.resolutionButton}
+                aria-pressed={resolution === value}
+                onClick={() => setResolution(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
       )}
       <div className={styles.row}>
         <EmojiInsertButton onInsert={(str) => update(insertAtCursor(value, str))} />

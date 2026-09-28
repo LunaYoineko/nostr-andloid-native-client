@@ -79,6 +79,8 @@ export function LoginGate() {
     <main className={styles.gate}>
       {/* AppShell を通らないので、SW の更新通知はここでも出す（#595） */}
       <UpdateToast />
+      {/* ネイティブ AppMark 56dp と同じ置き場所（L5） */}
+      <img className={styles.logo} src="/icons/icon-192.png" alt="" width={56} height={56} />
       <h1 className={styles.title}>Nostrism へようこそ</h1>
       <p className={styles.lead}>
         ログイン方法を選んでください。秘密鍵を勝手に生成することはありません。アカウントをお持ちでない場合は、下の「新規生成」から新しい鍵を作れます。

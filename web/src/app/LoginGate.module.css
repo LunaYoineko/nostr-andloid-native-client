@@ -7,6 +7,13 @@
   gap: var(--sp-3);
 }
 
+/* ネイティブ AppMark 56dp（L5） */
+.logo {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-md);
+}
+
 .title {
   margin: 0;
   font-size: var(--type-display);

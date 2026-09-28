@@ -40,7 +40,6 @@ function shape(entries: MenuEntry[]): string[] {
 }
 
 const COPIES = [
-  "---",
   "テキストをコピー",
   "リンクをコピー（njump）",
   "投稿IDをコピー",
@@ -68,6 +67,7 @@ it("他人・client あり・フォロー中・ブックマーク済みの並び
     "ブックマークを解除",
     "このユーザーをミュート",
     "通報 (danger)",
+    "---",
     ...COPIES,
   ]);
 
@@ -107,11 +107,13 @@ it("未フォローは「フォロー」、自分の kind:3 が未取得（null�
     "フォロー",
     "このユーザーをミュート",
     "通報 (danger)",
+    "---",
     ...COPIES,
   ]);
   expect(shape(moreMenuEntries({ ...base, isFollowing: null }))).toEqual([
     "このユーザーをミュート",
     "通報 (danger)",
+    "---",
     ...COPIES,
   ]);
 });
@@ -131,11 +133,13 @@ it("未ブックマークは「ブックマーク」、自分の kind:10003 が�
     "ブックマーク",
     "このユーザーをミュート",
     "通報 (danger)",
+    "---",
     ...COPIES,
   ]);
   expect(shape(moreMenuEntries({ ...base, isBookmarked: null }))).toEqual([
     "このユーザーをミュート",
     "通報 (danger)",
+    "---",
     ...COPIES,
   ]);
 });
@@ -153,7 +157,7 @@ it("ミュート中の人は「ミュートを解除」", () => {
     nevent: NEVENT,
     on,
   });
-  expect(shape(entries)).toEqual(["ミュートを解除", "通報 (danger)", ...COPIES]);
+  expect(shape(entries)).toEqual(["ミュートを解除", "通報 (danger)", "---", ...COPIES]);
   const entry = entries[0];
   if (entry.type === "item") entry.onSelect();
   expect(on.unmute).toHaveBeenCalledTimes(1);
@@ -179,6 +183,7 @@ it("自分の投稿はフォロー項目・ミュート項目なしで「削除�
     "ブックマーク",
     "プロフィールに固定",
     "削除をリクエスト (danger)",
+    "---",
     ...COPIES,
   ]);
   const select = (label: string) => {
@@ -202,13 +207,14 @@ it("自分の投稿で固定済みなら「プロフィールの固定を解除�
   };
   const on = actions();
   const entries = moreMenuEntries({ ...base, isPinned: true, on });
-  expect(shape(entries)).toEqual(["プロフィールの固定を解除", "削除をリクエスト (danger)", ...COPIES]);
+  expect(shape(entries)).toEqual(["プロフィールの固定を解除", "削除をリクエスト (danger)", "---", ...COPIES]);
   const entry = entries.find((e) => e.type === "item" && e.label === "プロフィールの固定を解除");
   if (entry?.type === "item") entry.onSelect();
   expect(on.unpin).toHaveBeenCalledTimes(1);
 
   expect(shape(moreMenuEntries({ ...base, isPinned: null, on: actions() }))).toEqual([
     "削除をリクエスト (danger)",
+    "---",
     ...COPIES,
   ]);
 });
@@ -246,7 +252,7 @@ it("translationVisible が undefined / null なら「翻訳」を出さない。
 
   const onShow = actions();
   const shown = moreMenuEntries({ ...base, translationVisible: false, on: onShow });
-  expect(shape(shown)).toEqual(["削除をリクエスト (danger)", "翻訳", ...COPIES]);
+  expect(shape(shown)).toEqual(["削除をリクエスト (danger)", "---", "翻訳", ...COPIES]);
   const translateEntry = shown.find((e) => e.type === "item" && e.label === "翻訳");
   if (translateEntry?.type === "item") translateEntry.onSelect();
   expect(onShow.translate).toHaveBeenCalledTimes(1);
@@ -254,7 +260,7 @@ it("translationVisible が undefined / null なら「翻訳」を出さない。
 
   const onHide = actions();
   const hidden = moreMenuEntries({ ...base, translationVisible: true, on: onHide });
-  expect(shape(hidden)).toEqual(["削除をリクエスト (danger)", "翻訳を隠す", ...COPIES]);
+  expect(shape(hidden)).toEqual(["削除をリクエスト (danger)", "---", "翻訳を隠す", ...COPIES]);
   const hideEntry = hidden.find((e) => e.type === "item" && e.label === "翻訳を隠す");
   if (hideEntry?.type === "item") hideEntry.onSelect();
   expect(onHide.hideTranslation).toHaveBeenCalledTimes(1);
@@ -276,7 +282,13 @@ it("開発者モードの間は末尾に「イベントJSONを表示」", () => 
   };
   expect(shape(moreMenuEntries({ ...base, developerMode: false })).at(-1)).toBe("nevent1abcde… をコピー");
   const entries = moreMenuEntries({ ...base, developerMode: true });
-  expect(shape(entries)).toEqual(["削除をリクエスト (danger)", ...COPIES, "イベントJSONを表示"]);
+  expect(shape(entries)).toEqual([
+    "削除をリクエスト (danger)",
+    "---",
+    ...COPIES,
+    "---",
+    "イベントJSONを表示",
+  ]);
   const last = entries.at(-1);
   if (last?.type === "item") last.onSelect();
   expect(on.viewJson).toHaveBeenCalledTimes(1);

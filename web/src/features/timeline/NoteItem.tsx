@@ -249,7 +249,8 @@ function NoteBody({
 
 /**
  * ⋯「翻訳」の結果（本文の下に別ブロック。#541。ネイティブ NoteItem.kt と同じ置き場所）。
- * 取得中はキャプションだけ出し、隠している間（visible: false）は取得済みでも何も描かない。
+ * キャプションは常に「翻訳」、取得中はその横にスピナーを出す（ネイティブと同じ。N5）。
+ * 隠している間（visible: false）は取得済みでも何も描かない。
  */
 function TranslationBlock({ eventId }: { eventId: string }) {
   const entry = useTranslation(eventId);
@@ -257,7 +258,10 @@ function TranslationBlock({ eventId }: { eventId: string }) {
   if (!pending && !entry?.visible) return null;
   return (
     <div className={styles.translation}>
-      <p className={styles.translationCaption}>{pending ? "翻訳中…" : "翻訳"}</p>
+      <p className={styles.translationCaption}>
+        翻訳
+        {pending && <span className={styles.translationSpinner} aria-hidden="true" />}
+      </p>
       {entry?.visible && <p className={styles.translationText}>{entry.text}</p>}
     </div>
   );

@@ -10,7 +10,7 @@ import { formatAbsoluteTime } from "../../lib/time";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { retryUnsentNow, useIsUnsent } from "../../nostr/publish";
 import { currentSigner } from "../../signer/session";
-import { ArrowBackIcon, CloseIcon, ImageIcon, PlayArrowIcon, ReplyIcon, VideocamIcon } from "../../ui/icons";
+import { ArrowBackIcon, CloseIcon, ImageIcon, PlayArrowIcon, ReplyIcon, SendIcon } from "../../ui/icons";
 import { showToast } from "../../ui/toast";
 import { EmojiInsertButton } from "../actions/EmojiInsertButton";
 import { ReplyQuote } from "../chat/ChannelRoom";
@@ -20,6 +20,7 @@ import {
   type Attachment,
   createAttachment,
   humanSize,
+  reprocessImages,
   UploadFailedError,
   uploadAttachments,
 } from "../compose/attachments";
@@ -32,6 +33,12 @@ import {
   type TextState,
 } from "../compose/completion";
 import { type CustomEmoji, useCustomEmojis } from "../compose/customEmojis";
+import {
+  type ImageResolution,
+  maxDimFor,
+  RESOLUTIONS,
+  useImageCompression,
+} from "../compose/imageCompression";
 import { uploadServers, useMediaServer } from "../compose/mediaServer";
 import { ProfileAvatar } from "../compose/ProfileAvatar";
 import { type ProfileHit, searchProfiles } from "../compose/searchProfiles";
@@ -95,6 +102,9 @@ export function ConversationView({
   const profile = useProfile(peer);
   const picture = pictureOf(profile);
   const name = displayName(profile, peer);
+  // 副題は nip05（無ければ npub 短縮。ネイティブ DmScreen.kt の handle と同じ。DM3）
+  const nip05 =
+    typeof profile?.nip05 === "string" && profile.nip05.trim() !== "" ? profile.nip05.trim() : null;
 
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   const start = Math.max(0, messages.length - limit);
@@ -133,7 +143,7 @@ export function ConversationView({
           <Avatar key={picture} url={picture} size="lg" seed={name} pubkey={peer} />
           <span className={styles.peerTexts}>
             <h2 className={styles.peerName}>{name}</h2>
-            <span className={styles.peerNpub}>{shortNpub(peer)}</span>
+            <span className={styles.peerNpub}>{nip05 ?? shortNpub(peer)}</span>
           </span>
         </Link>
         {onClose && (
@@ -179,10 +189,13 @@ const warnedNoPeerRelays = new Set<string>();
 
 /**
  * 会話の入力欄（ネイティブ DmScreen の入力行 + ChannelRoomColumn の Composer と同じ補完・添付）。
- * Enter は改行、Ctrl / Cmd + Enter で送信（IME 変換中は送らない）。カーソル直前の ":…" でカスタム絵文字、
- * "@…" でメンションを補完し、絵文字ボタンでカーソル位置に挿入する（ComposeDialog / completion.ts と共通）。
- * 画像・動画は選んだ時点で圧縮を始め、送信時にアップロードして URL を本文の末尾に改行でつなぐ
- * （ネイティブ Composer の onSend と同じ）。1 件でも失敗したら送らず chat_upload_failed。
+ * 並びは 絵文字 → 入力欄 → 添付（画像・動画共通の 1 ボタン）→ 送信（丸いアイコンボタン）で
+ * ChatComposer と統一（DM4）。Enter は改行、Ctrl / Cmd + Enter で送信（IME 変換中は送らない）。
+ * カーソル直前の ":…" でカスタム絵文字、"@…" でメンションを補完し、絵文字ボタンでカーソル位置に挿入する
+ * （ComposeDialog / completion.ts と共通）。
+ * 画像は選んだ時点で圧縮を始め、添付中は解像度チップ（低/中/高）で選び直せる（挙動4.4）。
+ * 送信時にアップロードして URL を本文の末尾に改行でつなぐ（ネイティブ Composer の onSend と同じ）。
+ * 1 件でも失敗したら送らず chat_upload_failed。
  * 送信中は入力と送信を止める。送れたら空にし、送れなければ入力・添付を残してトースト
  */
 function Composer({
@@ -206,12 +219,24 @@ function Composer({
   const emojis = useCustomEmojis(me);
   const mediaServer = useMediaServer((s) => s.server);
   const textarea = useRef<HTMLTextAreaElement>(null);
-  const imageInput = useRef<HTMLInputElement>(null);
-  const videoInput = useRef<HTMLInputElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   // コードで本文を変えたら、描画後にカーソルを合わせて本文へフォーカスを戻す
   const moveCursor = useRef(false);
   // まだ revoke していないプレビューの blob: URL（会話を離れたらまとめて revoke する）
   const previews = useRef(new Set<string>());
+  // 添付画像の解像度（ネイティブ ChannelRoomColumn の Composer と同じ既定「中」。DM4 / 挙動4.4）
+  const [resolution, setResolution] = useState<ImageResolution>("mid");
+  const compressionPrefs = useImageCompression((s) => s.prefs);
+  const attachmentsRef = useRef(attachments);
+  useLayoutEffect(() => {
+    attachmentsRef.current = attachments;
+  });
+  useEffect(() => {
+    const maxDim = maxDimFor(resolution, compressionPrefs);
+    const list = attachmentsRef.current;
+    if (!list.some((a) => a.kind === "image")) return;
+    setAttachments(reprocessImages(list, maxDim, compressionPrefs.quality));
+  }, [resolution, compressionPrefs]);
 
   // 返信を選んだら入力欄へ（ネイティブ・ChatComposer と同じ #589）
   useEffect(() => {
@@ -360,49 +385,26 @@ function Composer({
       {attachments.length > 0 && (
         <AttachmentList attachments={attachments} removable={!sending} onRemove={removeAttachment} />
       )}
+      {attachments.some((a) => a.kind === "image") && (
+        <fieldset className={styles.resolutionRow}>
+          <legend className={styles.resolutionLegend}>解像度</legend>
+          <div className={styles.resolutionGroup}>
+            {RESOLUTIONS.map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={styles.resolutionButton}
+                aria-pressed={resolution === value}
+                onClick={() => setResolution(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {/* 絵文字 → 入力欄 → 添付 → 送信（ネイティブ ChannelRoomColumn の Composer・ChatComposer と同じ並び。DM4） */}
       <div className={styles.composer}>
-        <button
-          type="button"
-          className={styles.attachButton}
-          aria-label="画像を添付"
-          disabled={sending}
-          onClick={() => imageInput.current?.click()}
-        >
-          <ImageIcon className={styles.attachIcon} />
-        </button>
-        <input
-          ref={imageInput}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            const input = e.currentTarget;
-            addFiles(Array.from(input.files ?? []));
-            input.value = "";
-          }}
-        />
-        <button
-          type="button"
-          className={styles.attachButton}
-          aria-label="動画を添付"
-          disabled={sending}
-          onClick={() => videoInput.current?.click()}
-        >
-          <VideocamIcon className={styles.attachIcon} />
-        </button>
-        <input
-          ref={videoInput}
-          type="file"
-          accept="video/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            const input = e.currentTarget;
-            addFiles(Array.from(input.files ?? []));
-            input.value = "";
-          }}
-        />
         <EmojiInsertButton onInsert={(str) => update(insertAtCursor(value, str), true)} />
         <textarea
           ref={textarea}
@@ -426,8 +428,40 @@ function Composer({
             }
           }}
         />
-        <button type="button" className={styles.send} disabled={!canSend} onClick={() => void send()}>
-          送信
+        <button
+          type="button"
+          className={styles.attachButton}
+          aria-label="画像・動画を添付"
+          disabled={sending}
+          onClick={() => fileInput.current?.click()}
+        >
+          <ImageIcon className={styles.attachIcon} />
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            const input = e.currentTarget;
+            addFiles(Array.from(input.files ?? []));
+            input.value = "";
+          }}
+        />
+        <button
+          type="button"
+          className={styles.send}
+          aria-label="送信"
+          aria-busy={sending || undefined}
+          disabled={!canSend}
+          onClick={() => void send()}
+        >
+          {sending ? (
+            <span className={styles.spinner} aria-hidden="true" />
+          ) : (
+            <SendIcon className={styles.sendIcon} />
+          )}
         </button>
       </div>
     </div>

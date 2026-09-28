@@ -7,6 +7,7 @@ import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
 import { BoltIcon, ContentCopyIcon } from "../../ui/icons";
+import { showToast } from "../../ui/toast";
 import { Lightbox } from "../media/Lightbox";
 import { useMuteMatcher } from "../mute/muteList";
 import { RichText } from "../timeline/NoteContent";
@@ -20,8 +21,6 @@ import styles from "./ProfileHeaderCard.module.css";
 import { ProfileMenu } from "./ProfileMenu";
 import { ProfileRelays } from "./ProfileRelays";
 
-/** 「コピーしました」等を出しておく時間 */
-const STATUS_MS = 1_500;
 /** フォロー失敗の案内を出しておく時間 */
 const ERROR_MS = 4_000;
 
@@ -107,7 +106,6 @@ export function ProfileHeaderCard({
     [profileEvent, about],
   );
 
-  const [status, showStatus] = useTimedMessage(STATUS_MS);
   const [error, showError] = useTimedMessage(ERROR_MS);
   const [zoom, setZoom] = useState<string | null>(null);
   const [zapping, setZapping] = useState(false);
@@ -118,10 +116,10 @@ export function ProfileHeaderCard({
     try {
       await navigator.clipboard.writeText(npub);
     } catch {
-      showStatus("コピーできませんでした");
+      showToast("コピーできませんでした");
       return;
     }
-    showStatus("npub をコピーしました");
+    showToast("npub をコピーしました");
   }
 
   return (
@@ -154,7 +152,7 @@ export function ProfileHeaderCard({
               <BoltIcon className={`${styles.icon} ${styles.zap}`} />
             </button>
           )}
-          <ProfileMenu pubkey={pubkey} me={isMe ? null : me} muted={muted} onCopied={showStatus} />
+          <ProfileMenu pubkey={pubkey} me={isMe ? null : me} muted={muted} onCopied={showToast} />
           {isMe ? (
             <button
               type="button"
@@ -195,11 +193,6 @@ export function ProfileHeaderCard({
             <ContentCopyIcon className={styles.icon} />
           </button>
         </div>
-        {status && (
-          <p role="status" className={styles.status}>
-            {status}
-          </p>
-        )}
         <div className={styles.counts}>
           <button type="button" className={styles.count} onClick={onShowFollowing}>
             <span className={styles.countNum}>{followingCount}</span>

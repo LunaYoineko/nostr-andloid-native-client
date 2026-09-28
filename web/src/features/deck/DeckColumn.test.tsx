@@ -75,7 +75,7 @@ it("ヘッダにタイトルとサブタイトルを出す", () => {
   renderWithRouter(<DeckColumn spec={hashtag} showHeader />);
   expect(screen.getByRole("heading", { name: "#nostr" })).toBeInTheDocument();
   expect(screen.getByText(columnSubtitleFor(hashtag))).toBeInTheDocument();
-  expect(screen.getByText("まだ投稿がありません")).toBeInTheDocument();
+  expect(screen.getByText("投稿がありません")).toBeInTheDocument();
 });
 
 it("左端のカラムのメニューでは「左へ移動」が押せない", async () => {

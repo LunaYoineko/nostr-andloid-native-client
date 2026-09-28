@@ -313,12 +313,6 @@ button.lud16 {
   }
 }
 
-.status {
-  margin: var(--sp-1) 0 0;
-  color: var(--text-3);
-  font-size: var(--type-label);
-}
-
 .error {
   margin: 0 0 var(--sp-2);
   color: var(--warn);

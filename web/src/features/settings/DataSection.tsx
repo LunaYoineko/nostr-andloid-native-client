@@ -115,6 +115,9 @@ function ProtocolHandlerBlock() {
 /** 接続と通信量（ネイティブ ConnectionMonitorDialog #364）への入口 */
 function ConnectionMonitorBlock() {
   const [open, setOpen] = useState(false);
+  const developerMode = useDeveloperMode((s) => s.enabled);
+  // [#364] 開発者モード ON のときだけ導線を出す（ネイティブと同じ。S13）
+  if (!developerMode) return null;
   return (
     <div className={styles.block}>
       <button type="button" className={`${styles.ghost} ${styles.alignStart}`} onClick={() => setOpen(true)}>

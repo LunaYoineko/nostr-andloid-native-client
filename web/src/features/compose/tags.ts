@@ -1,4 +1,5 @@
-import { getParsedContent, links, nostrMentions } from "applesauce-content/text";
+import { decodePointer } from "applesauce-core/helpers/pointers";
+import { tokenizeNostrContent } from "../../lib/content/tokenize";
 
 /**
  * 投稿に付けるタグの組み立て（純関数）。ネイティブの Nip10.kt / Nip22.kt / Nip27.kt / RelayHints.kt と
@@ -34,16 +35,21 @@ export function emojiTagsIn(content: string, known: ReadonlyMap<string, string>)
 
 /**
  * 本文のメンション（nostr:npub / nprofile。nostr: は任意）の pubkey（重複除去・出現順）。
- * 表示（#454）と同じ判定なので、URL の中や語中の bech32 は拾わない。
+ * 表示側と同じ tokenizeNostrContent（ネイティブ Nip27.kt 移植、裸の bech32 の境界規則込み）で判定するので、
+ * URL の中や語中の bech32 は拾わない（挙動2.2: 発行時も表示と同じ規則にする）。
  */
 export function mentionPubkeysIn(content: string): string[] {
   const out = new Set<string>();
-  const root = getParsedContent(content, undefined, [links, nostrMentions], null);
-  for (const node of root.children) {
-    if (node.type !== "mention") continue;
-    const decoded = node.decoded;
-    if (decoded.type === "npub") out.add(decoded.data);
-    else if (decoded.type === "nprofile") out.add(decoded.data.pubkey);
+  for (const token of tokenizeNostrContent(content)) {
+    if (token.type !== "nostr") continue;
+    let decoded: ReturnType<typeof decodePointer>;
+    try {
+      decoded = decodePointer(token.bech);
+    } catch {
+      continue;
+    }
+    if (decoded?.type === "npub") out.add(decoded.data);
+    else if (decoded?.type === "nprofile") out.add(decoded.data.pubkey);
   }
   return [...out];
 }

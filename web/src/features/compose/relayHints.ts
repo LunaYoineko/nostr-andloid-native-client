@@ -3,6 +3,7 @@ import { getSeenRelays } from "applesauce-core/helpers/relays";
 import type { NostrEvent } from "nostr-tools/pure";
 import { SEARCH_RELAYS } from "../../lib/columnRequest";
 import { writeRelays } from "../../nostr/pool";
+import { authRequestedRelays } from "../../nostr/relayAuth";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { normalizeRelayUrl, pickRelayHint } from "./tags";
@@ -11,11 +12,16 @@ export type RelayHintLookup = { eventHint(id: string): string; pubkeyHint(pk: st
 
 /**
  * ストアから引くリレーヒント（ネイティブ EventRepository.withRelayHints の Web 版）。
- * 受信元はストアの記録、著者の write はストアの kind:10002（自分は write リレー）。検索専用リレーは除く。
+ * 受信元はストアの記録、著者の write はストアの kind:10002（自分は write リレー）。
+ * 検索専用リレーと、AUTH を要求済みのリレーは除く（挙動1.7）。
  */
 export function storeRelayHints(me: string | null): RelayHintLookup {
-  // AUTH を求めたリレーの除外は #463 で足す
-  const excluded = new Set(SEARCH_RELAYS.map(normalizeRelayUrl));
+  // AUTH を要求済みのリレーも除く（挙動1.7。relayAuth.ts は applesauce の normalizeURL で正規化しているので、
+  // ここでの比較用に normalizeRelayUrl へ通し直す）
+  const excluded = new Set([
+    ...SEARCH_RELAYS.map(normalizeRelayUrl),
+    ...[...authRequestedRelays()].map(normalizeRelayUrl),
+  ]);
   const writeOf = (pk: string): string[] => {
     if (pk === me) return writeRelays().map(normalizeRelayUrl);
     const list = eventStore.getReplaceable(10002, pk);

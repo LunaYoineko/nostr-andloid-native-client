@@ -1,6 +1,6 @@
 import { type ReactNode, useId, useState } from "react";
 import type { CustomColors } from "./customPalette";
-import type { NoteAccentStyle } from "./noteAccent";
+import type { NoteAccentKind, NoteAccentStyle } from "./noteAccent";
 import { ThemeEditModal, type ThemeEditTab } from "./ThemeEditModal";
 import styles from "./ThemeSettings.module.css";
 import {
@@ -30,6 +30,14 @@ const NOTE_ACCENT_OPTIONS: readonly Option<NoteAccentStyle>[] = [
   { value: "none", label: "なし" },
   { value: "line", label: "縦ライン" },
   { value: "bg", label: "背景色" },
+];
+
+/** 種別→色の凡例（ネイティブ NoteAccentKind.entries と同じ順・note_kind_* と同じ文言。S11） */
+const NOTE_ACCENT_KINDS: readonly Option<NoteAccentKind>[] = [
+  { value: "repost", label: "リポスト" },
+  { value: "quote", label: "引用" },
+  { value: "reply", label: "リプライ" },
+  { value: "reaction", label: "リアクション" },
 ];
 
 /** ネイティブ ui_scale_small / medium / large */
@@ -95,6 +103,17 @@ export function ThemeSettings() {
         value={noteAccent}
         onChange={setNoteAccent}
       />
+      {/* 種別→色の凡例。表示 ON のときだけ出す（ネイティブと同じ。S11） */}
+      {noteAccent !== "none" && (
+        <ul className={styles.accentLegend} aria-label="種別の色の凡例">
+          {NOTE_ACCENT_KINDS.map((k) => (
+            <li key={k.value} className={styles.accentLegendRow}>
+              <span className={styles.accentSwatch} data-kind={k.value} />
+              {k.label}
+            </li>
+          ))}
+        </ul>
+      )}
       <ChoiceGroup
         legend="表示サイズ"
         desc="文字・アイコン・余白を含む画面全体の大きさ。"
@@ -105,6 +124,7 @@ export function ThemeSettings() {
       />
       <ChoiceGroup
         legend="文字サイズ"
+        desc="文字だけをさらに大きく。"
         name={`${id}-text-scale`}
         options={TEXT_SCALE_OPTIONS}
         value={textScale}

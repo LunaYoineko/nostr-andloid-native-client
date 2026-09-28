@@ -266,7 +266,7 @@ function FavsList({
   // キー操作の対象にする（ふぁぼの行は r / t / f の対象外）
   useKbList(list, reactions.length);
   if (reactions.length === 0) {
-    return <p className={styles.empty}>{loading ? "読み込み中…" : "ふぁぼした投稿はまだありません。"}</p>;
+    return <p className={styles.empty}>{loading ? "読み込み中…" : "投稿がありません"}</p>;
   }
   return (
     <Virtuoso
@@ -293,7 +293,9 @@ function FavItem({ reaction }: { reaction: NostrEvent }) {
 /**
  * カラムの ⋯ メニュー（ネイティブの ColumnMenuButton）。移動 ◀ ▶ / フィルターを編集 / ミュートを表示・隠す /
  * 更新 / 固定する / タイムラインに混ぜる表示 / カラム幅 / カラムを削除。外側のクリック・Escape・戻る（#540）で閉じる。
- * onRefresh が無ければ「更新」を出さない。「ミュートを表示」は Web で描けるカラムだけ（描けない種別はミュートを当てていない）。
+ * onRefresh が無ければ「更新」を出さない。「ミュートを表示」は renderer が FEED / THREAD のときだけ
+ * （ネイティブ DeckScreen.kt と同じ。CHANNEL_LIST は対象外）。ROOM（パブリックチャット）は
+ * ネイティブには無い Web 独自の対象（発言のミュート表示切替は Web の既存機能なので残す。D3）。
  * 「タイムラインに混ぜる表示」はフォロー中カラムだけ。
  */
 export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: () => void }) {
@@ -384,17 +386,18 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
               フィルターを編集
             </button>
           )}
-          {!UNSUPPORTED_KINDS.has(spec.kind) && (
-            <button
-              type="button"
-              role="menuitem"
-              className={styles.menuItem}
-              onClick={act(() => deck().setRevealMuted(spec.id, !mutedRevealed))}
-            >
-              <Icon name={mutedRevealed ? "visibilityOff" : "visibility"} size="md" />
-              {mutedRevealed ? "ミュートを隠す" : "ミュートを表示"}
-            </button>
-          )}
+          {!UNSUPPORTED_KINDS.has(spec.kind) &&
+            (spec.renderer === "FEED" || spec.renderer === "THREAD" || spec.renderer === "ROOM") && (
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuItem}
+                onClick={act(() => deck().setRevealMuted(spec.id, !mutedRevealed))}
+              >
+                <Icon name={mutedRevealed ? "visibilityOff" : "visibility"} size="md" />
+                {mutedRevealed ? "ミュートを隠す" : "ミュートを表示"}
+              </button>
+            )}
           {onRefresh && (
             <button type="button" role="menuitem" className={styles.menuItem} onClick={act(onRefresh)}>
               <Icon name="refresh" size="md" />

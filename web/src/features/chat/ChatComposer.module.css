@@ -167,6 +167,45 @@
   height: 12px;
 }
 
+/* 画像添付があるときだけの解像度チップ（ComposeDialog と同じ。CH4 / 挙動4.4） */
+.resolutionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0 var(--sp-3);
+  border: 0;
+}
+
+.resolutionLegend {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.resolutionGroup {
+  display: flex;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.resolutionButton {
+  padding: var(--sp-1) var(--sp-3);
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
+
+.resolutionButton[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: var(--w-strong);
+}
+
 /* 絵文字 → 入力欄 → 添付 → 送信。複数行で伸びたらボタンは下端に沿わせる */
 .row {
   display: flex;

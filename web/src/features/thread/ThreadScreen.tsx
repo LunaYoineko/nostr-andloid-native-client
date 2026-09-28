@@ -50,6 +50,7 @@ const COMPONENTS = { Header: ListHeader, Footer: ListFooter };
  * root から深さ優先で並べ、起点の下に日時と反応を出す。返信の後にコメント付き Zap を返信風に並べる。
  * 起点へは自動スクロールしない（ネイティブと同じ）。
  * onReply があれば下端に返信ボックスを出す（起点、無ければ先頭の行への返信）。
+ * 返信先が無くても無効状態で常に出す（ネイティブ ThreadColumn.kt と同じ。T3）。
  * pointer が naddr（AddressPointer。#534）なら addressLoader で解決してから開く（6 秒で失敗表示）。
  * 起点（解決後含む）が kind:30023 なら、このスレッド表示の代わりに記事リーダー（ArticleReader）を描く
  * （ネイティブ ProfileScreen.kt のスレッド→記事リーダーの切り替えと同じ）。ヘッダはここが持つ
@@ -126,7 +127,7 @@ export function ThreadScreen({
             />
           )}
         </div>
-        {onReply && replyTarget && <ReplyBox onClick={() => onReply(replyTarget)} />}
+        {onReply && <ReplyBox onClick={replyTarget ? () => onReply(replyTarget) : undefined} />}
       </div>
     </>
   );

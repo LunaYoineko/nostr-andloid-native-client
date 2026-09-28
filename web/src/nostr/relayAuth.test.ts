@@ -1,3 +1,4 @@
+import { normalizeURL } from "applesauce-core/helpers/url";
 import type { AuthSigner } from "applesauce-relay/types";
 import { makeAuthEvent } from "nostr-tools/nip42";
 import { finalizeEvent } from "nostr-tools/pure";
@@ -10,6 +11,7 @@ import { pool, SINCE_MARGIN_SEC, subscribeTo } from "./pool";
 import {
   AUTH_POLICY_KEY,
   type AuthRelay,
+  authRequestedRelays,
   setAuthPolicy,
   shouldAuth,
   useAuthPolicy,
@@ -144,6 +146,16 @@ describe("AUTH への応答", () => {
     expect(currentSigner).not.toHaveBeenCalled();
     expect(signEvent).not.toHaveBeenCalled();
     expect(relay.authenticate).not.toHaveBeenCalled();
+  });
+
+  it("チャレンジが来たら応答の有無に関わらず authRequestedRelays に記録する（挙動1.7）", async () => {
+    setAuthPolicy("off");
+    const relay = new FakeAuthRelay("wss://e.example");
+    watch(relay);
+    expect(authRequestedRelays().has(normalizeURL("wss://e.example"))).toBe(false);
+    relay.challenge$.next("c1");
+    await flush();
+    expect(authRequestedRelays().has(normalizeURL("wss://e.example"))).toBe(true);
   });
 
   it("切断した後の同じチャレンジには再び応答する", async () => {

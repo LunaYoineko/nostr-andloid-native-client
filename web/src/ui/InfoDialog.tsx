@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useId, useRef } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useId, useRef } from "react";
 import styles from "./InfoDialog.module.css";
 
 /**
@@ -13,6 +13,7 @@ export function InfoDialog({
   action,
   onDismiss,
   children,
+  maxWidth = 560,
 }: {
   title: string;
   /** 見出しの横の補足（kind:1 など） */
@@ -21,6 +22,8 @@ export function InfoDialog({
   action?: { label: string; onClick(): void; disabled?: boolean };
   onDismiss(): void;
   children: ReactNode;
+  /** 最大幅 px（既定 560。リレー状態はネイティブと同じ 340。レスポンシブ L3） */
+  maxWidth?: number;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -34,6 +37,7 @@ export function InfoDialog({
     <dialog
       ref={dialog}
       className={styles.dialog}
+      style={{ "--dialog-max-w": `${maxWidth}px` } as CSSProperties}
       aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault();

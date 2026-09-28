@@ -10,6 +10,7 @@ import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
 import { clearViewport, mockViewport } from "../../test/viewport";
+import { useToast } from "../../ui/toast";
 import { reportUser } from "../actions/reactions";
 import { EMPTY_MUTE_MATCHER, useMute } from "../mute/muteList";
 import { muteUser, unmuteUser } from "../mute/muteSync";
@@ -123,6 +124,7 @@ beforeEach(() => {
   vi.mocked(reportUser).mockReset();
   vi.mocked(reportUser).mockResolvedValue(undefined);
   useMute.setState({ matcher: EMPTY_MUTE_MATCHER, list: null });
+  useToast.setState({ queue: [] });
   mockViewport(400);
 });
 
@@ -232,8 +234,7 @@ describe("ヘッダカード", () => {
     expect(dialog.querySelector("img")?.getAttribute("src")).toBe(BANNER);
   });
 
-  it("名前は h2、NIP-05 の文字、npub は先頭 20 + … + 末尾 6。コピーすると 1.5 秒だけ知らせる", async () => {
-    vi.useFakeTimers();
+  it("名前は h2、NIP-05 の文字、npub は先頭 20 + … + 末尾 6。コピーするとトーストで知らせる（P6）", async () => {
     alice({ nip05: "alice@example.com" });
     renderScreen();
 
@@ -246,12 +247,7 @@ describe("ヘッダカード", () => {
       fireEvent.click(screen.getByRole("button", { name: "npub をコピー" }));
     });
     expect(writeText).toHaveBeenCalledWith(npub);
-    expect(screen.getByRole("status")).toHaveTextContent("npub をコピーしました");
-
-    act(() => vi.advanceTimersByTime(1_499));
-    expect(screen.getByRole("status")).toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(1));
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(useToast.getState().queue).toEqual(["npub をコピーしました"]);
   });
 
   it("⋯ メニュー: nprofile（リレーは kind:10002 の先頭 3 件）と njump のリンクをコピーする", async () => {
@@ -275,13 +271,13 @@ describe("ヘッダカード", () => {
       pubkey: them,
       relays: ["wss://relay.one", "wss://relay.two", "wss://relay.three"],
     });
-    expect(screen.getByRole("status")).toHaveTextContent("nprofile をコピーしました");
+    expect(useToast.getState().queue).toEqual(["nprofile をコピーしました"]);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "メニュー" }));
     await user.click(screen.getByRole("menuitem", { name: "リンクをコピー（njump）" }));
     expect(writeText).toHaveBeenLastCalledWith(`https://njump.me/${nprofile}`);
-    expect(screen.getByRole("status")).toHaveTextContent("リンクをコピーしました");
+    expect(useToast.getState().queue).toEqual(["nprofile をコピーしました", "リンクをコピーしました"]);
   });
 
   it("自己紹介の URL・#タグ・メンションはリンク（画像 URL もリンクのまま）、lud16 と website", () => {
@@ -704,15 +700,15 @@ describe("ミュート / 通報", () => {
     expect(screen.getByText("ミュート中")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "メニュー" }));
     expect(screen.getByRole("menuitem", { name: "ミュートを解除" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "このユーザーをミュート" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "ミュート" })).not.toBeInTheDocument();
   });
 
-  it("「このユーザーをミュート」は確認してから muteUser を呼ぶ", async () => {
+  it("「ミュート」は確認してから muteUser を呼ぶ（ネイティブと同じ文言。P3）", async () => {
     const user = userEvent.setup();
     alice();
     renderScreen();
     await user.click(screen.getByRole("button", { name: "メニュー" }));
-    await user.click(screen.getByRole("menuitem", { name: "このユーザーをミュート" }));
+    await user.click(screen.getByRole("menuitem", { name: "ミュート" }));
     expect(vi.mocked(muteUser)).not.toHaveBeenCalled();
     const dialog = screen.getByRole("dialog", { name: "このユーザーをミュートしますか？" });
     await user.click(within(dialog).getByRole("button", { name: "ミュート" }));
@@ -731,12 +727,12 @@ describe("ミュート / 通報", () => {
     expect(vi.mocked(unmuteUser)).toHaveBeenCalledWith(me, them);
   });
 
-  it("「ユーザーを通報」は理由を選ぶと reportUser を呼ぶ（e タグの無い通報。中身は reactions.test.ts）", async () => {
+  it("「通報」は理由を選ぶと reportUser を呼ぶ（e タグの無い通報。中身は reactions.test.ts。ネイティブと同じ文言。P3）", async () => {
     const user = userEvent.setup();
     alice();
     renderScreen();
     await user.click(screen.getByRole("button", { name: "メニュー" }));
-    await user.click(screen.getByRole("menuitem", { name: "ユーザーを通報" }));
+    await user.click(screen.getByRole("menuitem", { name: "通報" }));
     const dialog = screen.getByRole("dialog", { name: "このユーザーを通報" });
     await user.click(within(dialog).getByRole("button", { name: "スパム" }));
     expect(vi.mocked(reportUser)).toHaveBeenCalledWith(them, "spam");
@@ -748,7 +744,7 @@ describe("ミュート / 通報", () => {
     renderScreen(me);
     await user.click(screen.getByRole("button", { name: "メニュー" }));
     expect(screen.queryByRole("menuitem", { name: /ミュート/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "ユーザーを通報" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "通報" })).not.toBeInTheDocument();
   });
 });
 

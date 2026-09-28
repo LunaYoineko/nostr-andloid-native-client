@@ -14,10 +14,13 @@ describe("urlExtension", () => {
 });
 
 describe("trimUrlTail", () => {
-  it("末尾の . , ! ? : を落とし、拡張子の . は残す", () => {
+  it("末尾の . , ! ? と閉じ括弧を落とし、拡張子の . は残す（tokenize.ts の URL_TAIL と同じ集合。挙動2.3）", () => {
     expect(trimUrlTail("https://x.co/a.")).toBe("https://x.co/a");
     expect(trimUrlTail("https://x.co/a?q=1,")).toBe("https://x.co/a?q=1");
     expect(trimUrlTail("https://x.co/a.jpg")).toBe("https://x.co/a.jpg");
+    expect(trimUrlTail("(https://x.co/a)")).toBe("(https://x.co/a");
+    // : は URL_TAIL に含まれないので落とさない（ポート番号等を壊さないため）
+    expect(trimUrlTail("https://x.co:8080")).toBe("https://x.co:8080");
   });
 });
 

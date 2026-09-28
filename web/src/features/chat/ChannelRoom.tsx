@@ -16,6 +16,7 @@ import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { retryUnsentNow, useIsUnsent } from "../../nostr/publish";
 import { useSession } from "../../signer/session";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { EventJsonDialog } from "../../ui/EventJsonDialog";
 import {
   AddReactionIcon,
   ArrowBackIcon,
@@ -45,6 +46,7 @@ import {
 import { NoteMedia } from "../media/NoteMedia";
 import { useMuteMatcher } from "../mute/muteList";
 import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
+import { useDeveloperMode } from "../settings/devMode";
 import type { ReactionGroup } from "../thread/engagement";
 import { NoteContent } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
@@ -359,7 +361,8 @@ function warn(message: string) {
 
 /**
  * 吹き出しの横の常設アクション（ネイティブ MessageActions）: リプライ → 既定リアクション → 絵文字 → ⚡ → ⋯
- * （テキストをコピー・このユーザーをミュート・通報）。[#538] ⚡ は発言者の kind:0 に lud16 があるときだけ。
+ * （テキストをコピー・このユーザーをミュート・通報、開発者モード中は末尾に「イベントJSONを表示」。CH3）。
+ * [#538] ⚡ は発言者の kind:0 に lud16 があるときだけ。
  */
 function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine: boolean; onReply(): void }) {
   const me = useSession((s) => s.pubkey);
@@ -369,7 +372,10 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
   const isStar = content === "⭐" || content === "★";
   const reacted = useIsReacted(message.id);
   const isMuted = useMuteMatcher().users.has(message.pubkey);
-  const [dialog, setDialog] = useState<"picker" | "unreact" | "mute" | "report" | "zap" | null>(null);
+  const developerMode = useDeveloperMode((s) => s.enabled);
+  const [dialog, setDialog] = useState<"picker" | "unreact" | "mute" | "report" | "zap" | "json" | null>(
+    null,
+  );
   // [#537] ウォレット接続（NWC）済みなら Zap ダイアログの受け口へアプリ内送金を渡す
   const walletConnected = useNwc((s) => s.connection !== null);
   const Glyph = isStar ? (reacted ? StarIcon : StarBorderIcon) : reacted ? FavoriteIcon : FavoriteBorderIcon;
@@ -392,6 +398,12 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
         ? { type: "item", label: "ミュートを解除", onSelect: () => mute("unmute") }
         : { type: "item", label: "このユーザーをミュート", onSelect: () => setDialog("mute") },
       { type: "item", label: "通報", onSelect: () => setDialog("report"), tone: "danger" },
+    );
+  }
+  if (developerMode) {
+    entries.push(
+      { type: "separator" },
+      { type: "item", label: "イベントJSONを表示", onSelect: () => setDialog("json") },
     );
   }
 
@@ -494,6 +506,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
           onDismiss={() => setDialog(null)}
         />
       )}
+      {dialog === "json" && <EventJsonDialog event={message} onDismiss={() => setDialog(null)} />}
     </div>
   );
 }

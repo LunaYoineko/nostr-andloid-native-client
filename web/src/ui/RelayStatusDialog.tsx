@@ -6,11 +6,12 @@ import styles from "./RelayStatusDialog.module.css";
 /**
  * リレー状態の一覧（ネイティブ RelayStatusDialog）。接続表示（RelayIndicator）を押すと開く。
  * 接続表示と同じ read リレーを、点・URL・状態（接続 / 接続中 / 切断）で並べる。1 秒ごとに読み直す。
+ * 幅はネイティブと同じ最大 340（レスポンシブ L3）。
  */
 export function RelayStatusDialog({ onDismiss }: { onDismiss(): void }) {
   const rows = usePolled(readRelayStates);
   return (
-    <InfoDialog title="リレー状態" onDismiss={onDismiss}>
+    <InfoDialog title="リレー状態" onDismiss={onDismiss} maxWidth={340}>
       {rows.length === 0 ? (
         <p className={styles.empty}>接続中のリレーはありません</p>
       ) : (

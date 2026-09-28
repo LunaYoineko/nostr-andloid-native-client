@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { hrefForProfile } from "../../lib/content/labels";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { badgeText } from "../../ui/badge";
-import { EditIcon } from "../../ui/icons";
+import { AddIcon } from "../../ui/icons";
 import { Avatar } from "../timeline/NoteItem";
 import styles from "./ConversationList.module.css";
 import { resumeDecrypting } from "./dmService";
@@ -35,7 +35,7 @@ export function ConversationList({
       {showBanners && <Banners />}
       {showNewRow && (
         <button type="button" className={styles.newRow} onClick={() => setComposing(true)}>
-          <EditIcon className={styles.newIcon} />
+          <AddIcon className={styles.newIcon} />
           新しいメッセージを送る
         </button>
       )}
