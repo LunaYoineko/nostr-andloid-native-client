@@ -318,6 +318,8 @@ describe("メッセージ画面のチャット", () => {
     expect(within(room).getByRole("textbox", { name: "メッセージ" })).toBeInTheDocument();
     // DOM は新しい順（column-reverse で最新が下）
     expect(texts()).toEqual(["返信です", "わたしの発言", "ミュートされる発言", "こんにちは"]);
+    // [#600] Compact は「←」だけ。「✕」（選択解除）は Expanded だけ
+    expect(screen.queryByRole("button", { name: "選択を解除" })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "戻る" }));
     expect(router.state.location.pathname).toBe("/channels");
@@ -345,6 +347,21 @@ describe("メッセージ画面のチャット", () => {
     expect(screen.getByText(/ に返信: 別のチャンネル$/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "返信をやめる" }));
     expect(screen.queryByText(/ に返信: /)).not.toBeInTheDocument();
+  });
+
+  it("[#600] Expanded はヘッダ右端に「✕」（選択解除）。押すと一覧はそのまま「チャンネルを選択」へ戻る", async () => {
+    const user = userEvent.setup();
+    useChannels.setState({ channels: CHANNELS });
+    const router = renderAt("/channels", 1000);
+
+    await user.click(screen.getByRole("button", { name: /comic magazine/ }));
+    expect(screen.getByRole("region", { name: "comic magazine" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "選択を解除" }));
+    expect(router.state.location.pathname).toBe("/channels");
+    expect(router.state.historyAction).toBe("REPLACE");
+    expect(screen.getByText("チャンネルを選択")).toBeInTheDocument();
+    expect(channelRows()).toHaveLength(2);
   });
 
   it("「ピン留め」でルームを固定カラムにして jump する（ネイティブ roomColumnFor）", async () => {

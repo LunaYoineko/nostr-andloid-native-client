@@ -179,17 +179,22 @@ export function ChannelRoom({
   );
 }
 
-/** メッセージ画面のルームのヘッダ（チャンネルの画像・名前・説明。Compact は「←」つき） */
+/**
+ * メッセージ画面のルームのヘッダ（チャンネルの画像・名前・説明）。onBack があれば（Compact）「←」、
+ * onClose があれば（Expanded）ヘッダ右端に「✕」を出す（ネイティブ ColumnChrome の onClose。#600）。
+ */
 export function RoomHeader({
   title,
   subtitle,
   picture,
   onBack,
+  onClose,
 }: {
   title: string;
   subtitle: string;
   picture: string | null;
   onBack?: () => void;
+  onClose?: () => void;
 }) {
   return (
     <header className={styles.header}>
@@ -203,6 +208,11 @@ export function RoomHeader({
         <h2 className={styles.headerTitle}>{title}</h2>
         {subtitle !== "" && <span className={styles.headerSubtitle}>{subtitle}</span>}
       </span>
+      {onClose && (
+        <button type="button" className={styles.back} aria-label="選択を解除" onClick={onClose}>
+          <CloseIcon className={styles.backIcon} />
+        </button>
+      )}
     </header>
   );
 }

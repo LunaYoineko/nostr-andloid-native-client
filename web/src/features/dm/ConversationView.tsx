@@ -66,9 +66,18 @@ function dmEvent(message: DmMessageRow): NostrEvent {
 /**
  * 相手との会話（ネイティブ DmScreen の会話側）。最新が下。
  * スクロール領域は column-reverse で下端に揃える（DOM は新しい順。ネイティブの reverseLayout と同じで、
- * 読み込み後に最下部へ飛ばす処理は書かない）。onBack があれば（Compact）「←」を出す。
+ * 読み込み後に最下部へ飛ばす処理は書かない）。onBack があれば（Compact）「←」、onClose があれば（Expanded）
+ * ヘッダ右端に「✕」を出す（ネイティブ ColumnChrome の onClose。#600）。
  */
-export function ConversationView({ peer, onBack }: { peer: string; onBack?: () => void }) {
+export function ConversationView({
+  peer,
+  onBack,
+  onClose,
+}: {
+  peer: string;
+  onBack?: () => void;
+  onClose?: () => void;
+}) {
   const me = useDm((s) => s.owner);
   const messages = useMessagesWith(peer);
   const conversation = useConversations().find((c) => c.peer === peer);
@@ -127,6 +136,11 @@ export function ConversationView({ peer, onBack }: { peer: string; onBack?: () =
             <span className={styles.peerNpub}>{shortNpub(peer)}</span>
           </span>
         </Link>
+        {onClose && (
+          <button type="button" className={styles.back} aria-label="選択を解除" onClick={onClose}>
+            <CloseIcon className={styles.backIcon} />
+          </button>
+        )}
       </header>
       <div className={styles.scroller}>
         {rows}
