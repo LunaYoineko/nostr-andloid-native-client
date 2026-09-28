@@ -6,7 +6,7 @@ import { useNavigate } from "react-router";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
-import { ContentCopyIcon } from "../../ui/icons";
+import { BoltIcon, ContentCopyIcon } from "../../ui/icons";
 import { Lightbox } from "../media/Lightbox";
 import { useMuteMatcher } from "../mute/muteList";
 import { RichText } from "../timeline/NoteContent";
@@ -148,6 +148,12 @@ export function ProfileHeaderCard({
           </div>
         )}
         <div className={styles.actions}>
+          {/* [#592] プロフィール Zap: lud16 がある他人にだけ、⋯ の左に丸いボタン（ネイティブ ProfileScreen.kt:715-719） */}
+          {!isMe && lud16 && (
+            <button type="button" className={styles.circle} aria-label="Zap" onClick={() => setZapping(true)}>
+              <BoltIcon className={`${styles.icon} ${styles.zap}`} />
+            </button>
+          )}
           <ProfileMenu pubkey={pubkey} me={isMe ? null : me} muted={muted} onCopied={showStatus} />
           {isMe ? (
             <button

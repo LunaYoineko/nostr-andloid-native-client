@@ -328,6 +328,27 @@ describe("ヘッダカード", () => {
     expect(screen.queryByRole("button", { name: "⚡ me@getalby.com" })).not.toBeInTheDocument();
   });
 
+  it("他人で lud16 があれば ⋯ の左に丸い ⚡ ボタンを出す（#592。ネイティブ ProfileScreen.kt:715-719）", async () => {
+    const user = userEvent.setup();
+    alice({ lud16: "alice@getalby.com" });
+    renderScreen();
+    await user.click(screen.getByRole("button", { name: "Zap" }));
+    const dialog = screen.getByRole("dialog", { name: "⚡ Zap" });
+    expect(within(dialog).getByText("送信先: alice@getalby.com")).toBeInTheDocument();
+  });
+
+  it("lud16 が無ければ丸い ⚡ ボタンを出さない（#592）", () => {
+    alice();
+    renderScreen();
+    expect(screen.queryByRole("button", { name: "Zap" })).not.toBeInTheDocument();
+  });
+
+  it("自分のプロフィールでは lud16 があっても丸い ⚡ ボタンを出さない（#592）", () => {
+    addProfile(meKey, { name: "Me", lud16: "me@getalby.com" });
+    renderScreen(me);
+    expect(screen.queryByRole("button", { name: "Zap" })).not.toBeInTheDocument();
+  });
+
   it("使用リレー: 押すと URL（wss:// と末尾 / 無し）と read / write。kind:10002 が無ければ出さない", async () => {
     const user = userEvent.setup();
     alice();

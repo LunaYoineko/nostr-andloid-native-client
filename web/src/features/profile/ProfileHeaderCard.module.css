@@ -78,6 +78,11 @@ button.ring {
   height: var(--icon-md);
 }
 
+/* [#592] プロフィール Zap ボタンのアイコン色（ネイティブ tint = DeckColors.Zap） */
+.zap {
+  color: var(--zap);
+}
+
 .copy {
   flex: none;
   color: var(--text-3);
