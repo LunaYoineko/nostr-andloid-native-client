@@ -89,7 +89,7 @@
   --column-w: calc(340px * var(--ui-scale));        /* 固定カラム幅。はみ出しは横スクロール */
   --column-w-s: calc(280px * var(--ui-scale));  /* カラム幅 S（Compose DeckScreen.kt columnWidthDp と 1 対 1） */
   --column-w-l: calc(460px * var(--ui-scale));  /* 同 L */
-  --column-gap: 8px;        /* カラム間ガター（線ではなく Bg の隙間で分離） */
+  --column-gap: calc(8px * var(--ui-scale));  /* カラム間ガター（線ではなく Bg の隙間で分離。ネイティブ DeckSpace.Sm と同じく density 側で拡大） */
   --hinge-gutter: 22px;     /* フォルダブルのヒンジ回避ガター */
 
   /* --- 左レール（Compose DeckDimens.Rail* と 1対1）--- */
