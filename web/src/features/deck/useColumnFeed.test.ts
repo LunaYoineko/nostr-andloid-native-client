@@ -64,26 +64,29 @@ function signed(kind: number, key: Uint8Array, tags: string[][] = [], content = 
   return finalizeEvent({ kind, created_at: createdAt ?? Math.floor(Date.now() / 1000), tags, content }, key);
 }
 
-it("フォロー中: kind:3 が無い間はリレー新着、届いたらフォロー + 自分で購読し直し、フォローの投稿だけを出す", () => {
+it("フォロー中: kind:3 未受信の間は REQ を出さず読み込み中。届いたらフォロー + 自分で購読し、フォローの投稿だけを出す（#583）", () => {
   const followKey = generateSecretKey();
   const follow = getPublicKey(followKey);
 
   const { result } = renderHook(() => useColumnFeed(FOLLOWING));
 
-  expect(result.current.mode).toBe("global");
+  // kind:3 未受信（null）の間は読み込み中で、リレー新着へは広げない
+  expect(result.current.mode).toBe("following");
+  expect(result.current.loading).toBe(true);
+  expect(result.current.emptyText).toBeUndefined();
   expect(vi.mocked(subscribe)).toHaveBeenCalledWith({ kinds: [3], authors: [me] });
-  expect(lastRequest().relays).toEqual(RELAYS);
-  const mix = [
-    { kinds: [1, 6, 16, 7, 9735, 1111], "#p": [me], limit: 200 },
-    { kinds: [7], authors: [me], limit: 100 },
-  ];
-  expect(lastRequest().filters).toEqual([{ kinds: [1], limit: 100 }, ...mix]);
+  expect(vi.mocked(subscribeTo)).not.toHaveBeenCalled();
 
   act(() => {
     eventStore.add(signed(3, meKey, [["p", follow]]));
   });
 
+  const mix = [
+    { kinds: [1, 6, 16, 7, 9735, 1111], "#p": [me], limit: 200 },
+    { kinds: [7], authors: [me], limit: 100 },
+  ];
   expect(result.current.mode).toBe("following");
+  expect(lastRequest().relays).toEqual(RELAYS);
   expect(lastRequest().filters).toEqual([
     { kinds: [1, 6, 16, 5, 1111], authors: [follow, me], limit: 100 },
     ...mix,
@@ -97,8 +100,38 @@ it("フォロー中: kind:3 が無い間はリレー新着、届いたらフォ�
   expect(result.current.events).toEqual([followed]);
 });
 
+it("フォロー中: kind:3 が届いてフォロー 0 件なら REQ を出さず、読み込み中も終えて空表示（#583）", () => {
+  const { result } = renderHook(() => useColumnFeed(FOLLOWING));
+  expect(result.current.loading).toBe(true);
+
+  act(() => {
+    eventStore.add(signed(3, meKey, []));
+  });
+
+  expect(vi.mocked(subscribeTo)).not.toHaveBeenCalled();
+  expect(result.current.loading).toBe(false);
+  expect(result.current.events).toEqual([]);
+  expect(result.current.emptyText).toBe("投稿がありません");
+});
+
+it("フォロー中: 未ログインなら REQ を出さず、読み込み中にもしない（#583）", () => {
+  useSession.setState({ status: "out", method: null, pubkey: null });
+  const { result } = renderHook(() => useColumnFeed(FOLLOWING));
+
+  expect(vi.mocked(subscribe)).not.toHaveBeenCalled();
+  expect(vi.mocked(subscribeTo)).not.toHaveBeenCalled();
+  expect(result.current.loading).toBe(false);
+  expect(result.current.rows).toBeNull();
+  expect(result.current.events).toEqual([]);
+  expect(result.current.emptyText).toBe("投稿がありません");
+});
+
 it("最初の EOSE で、EOSE が来なくても 8 秒で読み込み中を消す", () => {
   vi.useFakeTimers();
+  // FOLLOWING は kind:3 未受信だと REQ を出さない（#583）ので、先に 1 人フォローさせて REQ を張らせる
+  act(() => {
+    eventStore.add(signed(3, meKey, [["p", getPublicKey(generateSecretKey())]]));
+  });
 
   const first = renderHook(() => useColumnFeed(FOLLOWING));
   expect(first.result.current.loading).toBe(true);

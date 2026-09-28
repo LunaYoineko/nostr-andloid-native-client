@@ -148,7 +148,7 @@ function RoomColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
 }
 
 function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
-  const { loading, events, rows, loadingOlder, loadOlder, refresh } = useColumnFeed(spec);
+  const { loading, events, rows, loadingOlder, loadOlder, refresh, emptyText } = useColumnFeed(spec);
   // 表示中の投稿への Zap 受領（アクション行の ⚡ の合計）
   useZapReceipts(zapTargetIds(events));
   // PROFILE カラムの上部カード（ネイティブ ProfileColumn と同じ。一覧の先頭に置き、スクロールに追従させる）
@@ -178,6 +178,7 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             loadingOlder={loadingOlder}
             renderItem={renderFeedRow}
             postOf={feedRowPost}
+            emptyText={emptyText}
           />
         ) : (
           <Timeline
@@ -187,6 +188,7 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             loading={loading}
             onEndReached={loadOlder}
             loadingOlder={loadingOlder}
+            emptyText={emptyText}
             header={profileHeader}
           />
         )}

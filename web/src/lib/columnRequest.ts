@@ -86,10 +86,9 @@ export function requestFor(spec: ColumnSpec, ctx: Ctx): RequestPlan {
   const f = spec.filter;
   switch (spec.kind) {
     case "FOLLOWING":
+      // フォロー未取得・0 件ならリレー新着へ広げず REQ を出さない（#583。ネイティブと同じ authors = follows + 自分）
+      if (!ctx.follows || ctx.follows.length === 0) return null;
       // 投稿に、自分宛ての通知と自分のリアクション（混ぜて出す。mixViewsFor）を足す
-      if (!ctx.follows || ctx.follows.length === 0) {
-        return { relays: ctx.relays, filters: [{ kinds: [1], limit: COLUMN_LIMIT }, ...mixFilters(ctx.me)] };
-      }
       return {
         relays: ctx.relays,
         filters: [
@@ -125,7 +124,8 @@ export function viewFor(spec: ColumnSpec, ctx: Ctx): ViewPlan {
   const f = spec.filter;
   switch (spec.kind) {
     case "FOLLOWING":
-      if (!ctx.follows || ctx.follows.length === 0) return { filters: [{ kinds: [1] }] };
+      // REQ を張らない（#583）のでストアからも読まない。手元にたまたまある他人の投稿を出さない
+      if (!ctx.follows || ctx.follows.length === 0) return { filters: [] };
       return { filters: [{ kinds: FOLLOWING_VIEW_KINDS, authors: followAuthors(ctx.follows, ctx.me) }] };
     case "NOTIFICATIONS":
       // カラムの filter.kinds（表示する種別）は見ない。全種別を出す（ネイティブの NotificationsColumn と同じ）

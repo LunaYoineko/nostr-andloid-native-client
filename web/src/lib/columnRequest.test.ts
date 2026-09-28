@@ -34,19 +34,15 @@ function note(overrides: Partial<NostrEvent>): NostrEvent {
 const [following, hashtag, notif] = DEFAULT_COLUMNS;
 
 describe("requestFor", () => {
-  it("フォロー中: kind:3 が未取得・空ならリレー新着、取得後はフォロー + 自分。通知・自分のリアクションも一緒に取る（#522）", () => {
+  it("フォロー中: kind:3 が未取得・空なら REQ を出さない（グローバルへ広げない、#583）。取得後はフォロー + 自分。通知・自分のリアクションも一緒に取る（#522）", () => {
     const mix = [
       { kinds: [1, 6, 16, 7, 9735, 1111], "#p": [ME], limit: 200 },
       { kinds: [7], authors: [ME], limit: 100 },
     ];
-    expect(requestFor(following, ctx())).toEqual({
-      relays: RELAYS,
-      filters: [{ kinds: [1], limit: 100 }, ...mix],
-    });
-    expect(requestFor(following, ctx({ follows: [] }))).toEqual({
-      relays: RELAYS,
-      filters: [{ kinds: [1], limit: 100 }, ...mix],
-    });
+    // kind:3 未受信（null）
+    expect(requestFor(following, ctx())).toBeNull();
+    // フォロー 0 件
+    expect(requestFor(following, ctx({ follows: [] }))).toBeNull();
     expect(requestFor(following, ctx({ follows: [FOLLOW, ME] }))).toEqual({
       relays: RELAYS,
       filters: [{ kinds: [1, 6, 16, 5, 1111], authors: [FOLLOW, ME], limit: 100 }, ...mix],
@@ -56,6 +52,8 @@ describe("requestFor", () => {
       relays: RELAYS,
       filters: [{ kinds: [1, 6, 16, 5, 1111], authors: [FOLLOW], limit: 100 }],
     });
+    // 未ログインでフォローも無いなら REQ を出さない
+    expect(requestFor(following, ctx({ me: null, follows: null }))).toBeNull();
   });
 
   it("mixViewsFor: フォロー中カラムだけ、通知（自分の発行は除く）と自分のリアクションを読む。未ログインは null", () => {
@@ -133,6 +131,11 @@ describe("viewFor", () => {
       { kinds: [1, 6, 16, 1111], authors: [FOLLOW, ME] },
     ]);
     expect(viewFor(hashtag, ctx()).filters).toEqual([{ kinds: [1], "#t": ["nostr"] }]);
+  });
+
+  it("フォロー中: kind:3 未受信・フォロー 0 件はストアからも読まない（#583）", () => {
+    expect(viewFor(following, ctx()).filters).toEqual([]);
+    expect(viewFor(following, ctx({ follows: [] })).filters).toEqual([]);
   });
 
   it("ハッシュタグ: 表示は先頭のタグを小文字にして読み、REQ はタグをそのまま送る", () => {
