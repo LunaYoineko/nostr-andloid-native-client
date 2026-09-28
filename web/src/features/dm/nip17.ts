@@ -134,17 +134,18 @@ export async function unwrapGiftWrap(
 }
 
 /**
- * rumor → 会話の 1 件（owner / proto は呼び出し側）。宛先（p）がちょうど 1 人のものだけ（グループ DM は M1 では出さない）。
- * 自分が送った分は宛先が相手（自分宛てのメモなら自分）、受けた分は送り手が相手。自分が当事者でなければ null。
+ * rumor → 会話の 1 件（owner / proto は呼び出し側）。宛先（p）は複数でもよい（グループ DM はネイティブと同じ
+ * 「先頭の p」を相手として保存する: 自分が送った分は先頭の p が相手（自分宛てのメモなら自分）、受けた分は
+ * 送り手が相手）。p の一覧は tags にそのまま残す。自分が当事者でなければ（送り手でも p にも無ければ）null。
  */
 export function dmFromRumor(rumor: Rumor, me: string): Omit<DmMessageRow, "owner" | "proto"> | null {
   const recipients = [...new Set(rumor.tags.filter((t) => t[0] === "p" && t.length >= 2).map((t) => t[1]))];
-  if (recipients.length !== 1) return null;
   let peer: string;
   if (rumor.pubkey === me) {
+    if (recipients.length === 0) return null;
     peer = recipients[0];
   } else {
-    if (recipients[0] !== me) return null;
+    if (!recipients.includes(me)) return null;
     peer = rumor.pubkey;
   }
   return {

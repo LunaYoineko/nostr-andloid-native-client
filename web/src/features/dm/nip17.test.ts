@@ -165,7 +165,7 @@ describe("復号の例外", () => {
 });
 
 describe("dmFromRumor", () => {
-  it("宛先が 2 人（グループ）・宛先なしは null。p の重複は 1 人に数える", () => {
+  it("宛先が 2 人（グループ）でも受け手なら送り手が相手。宛先なしは null。p の重複は 1 人に数える", () => {
     const group = makeRumor(aliceKey, {
       content: "x",
       tags: [
@@ -181,9 +181,26 @@ describe("dmFromRumor", () => {
         ["p", me],
       ],
     });
-    expect(dmFromRumor(group, me)).toBeNull();
+    expect(dmFromRumor(group, me)).toMatchObject({
+      peer: ALICE,
+      tags: [
+        ["p", me],
+        ["p", BOB],
+      ],
+    });
     expect(dmFromRumor(none, me)).toBeNull();
     expect(dmFromRumor(duplicated, me)).toMatchObject({ peer: ALICE });
+  });
+
+  it("自分が送り手でグループ（宛先が複数）なら先頭の p が相手", () => {
+    const group = makeRumor(myKey, {
+      content: "x",
+      tags: [
+        ["p", ALICE],
+        ["p", BOB],
+      ],
+    });
+    expect(dmFromRumor(group, me)).toMatchObject({ peer: ALICE, sender: me });
   });
 
   it("自分が当事者でなければ null", () => {
