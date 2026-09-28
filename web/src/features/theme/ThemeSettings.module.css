@@ -227,3 +227,90 @@
   font-size: var(--type-caption);
   cursor: pointer;
 }
+
+/* [#539] テーマストアへの公開の導線をカスタム配色の編集から区切る */
+.divider {
+  align-self: stretch;
+  margin: var(--sp-2) 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+/* [#539] 公開ダイアログ（枠は ConfirmDialog / NewConversationDialog と同じ） */
+.dialog {
+  box-sizing: border-box;
+  width: min(560px, calc(100% - var(--sp-5) * 2));
+  padding: var(--sp-5);
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.dialogTitle {
+  margin: 0;
+  font-size: var(--type-title);
+  font-weight: var(--w-strong);
+}
+
+.dialogInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--touch-sm);
+  margin-top: var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  /* 16px 未満だと iOS Safari がフォーカス時に拡大する */
+  font-size: 16px;
+}
+
+.dialogInput:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.dialogButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-5);
+}
+
+.dialogButton {
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font: inherit;
+  font-size: var(--type-body);
+  font-weight: var(--w-link);
+  cursor: pointer;
+}
+
+.dialogButton:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.dialogButton:disabled {
+  color: var(--text-3);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dialogDismiss {
+  color: var(--text-3);
+}
+
+.dialogConfirm {
+  color: var(--text);
+}

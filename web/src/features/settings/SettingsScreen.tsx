@@ -4,6 +4,7 @@ import { hrefForProfile } from "../../lib/content/labels";
 import { useSession } from "../../signer/session";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { useLayoutMode } from "../../ui/useLayoutMode";
+import { ThemeStoreSection } from "../theme/ThemeStoreSection";
 import { WalletSection } from "../wallet/WalletSection";
 import { AccountSection, AccountSummary } from "./AccountSection";
 import { BookmarksSection } from "./BookmarksSection";
@@ -176,6 +177,8 @@ function SectionBody({ id }: { id: string }) {
       return <WalletSection />;
     case "display":
       return <DisplaySection />;
+    case "theme-store":
+      return <ThemeStoreSection />;
     case "data":
       return <DataSection />;
     default:
