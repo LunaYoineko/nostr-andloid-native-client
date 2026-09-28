@@ -1,9 +1,9 @@
 import type { NostrEvent } from "nostr-tools/pure";
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { useSession } from "../../signer/session";
-import { CloseIcon } from "../../ui/icons";
+import { ModalSheet } from "../../ui/ModalSheet";
 import { useCustomEmojis } from "../compose/customEmojis";
 import { ProfileAvatar } from "../compose/ProfileAvatar";
 import { NoteContent } from "../timeline/NoteContent";
@@ -15,6 +15,7 @@ import { loadRecentEmojis } from "./reactionPrefs";
  * リアクションピッカー（ネイティブ ReactionPicker.kt + AppModalSheet）。画面上端寄せのカードをモーダルで開く。
  * 検索なし = 最近 → カスタム絵文字 → Unicode のカテゴリ、検索あり = カスタム → 絵文字。選ぶと onPick して閉じる。
  * target があれば対象の投稿（アバター・名前・本文 2 行）を上に出す（投稿画面の絵文字ボタンでは無し）。
+ * [#587] 器は共通の ModalSheet（旧: 自前の dialog + card）。
  */
 export function ReactionPickerDialog({
   target,
@@ -25,31 +26,10 @@ export function ReactionPickerDialog({
   onPick(content: string, imageUrl: string | null): void;
   onClose(): void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const [query, setQuery] = useState("");
   const [recent] = useState(loadRecentEmojis);
   const me = useSession((s) => s.pubkey);
   const customs = useCustomEmojis(me);
-  const latestOnClose = useRef(onClose);
-  useLayoutEffect(() => {
-    latestOnClose.current = onClose;
-  });
-
-  useEffect(() => {
-    const d = dialog.current;
-    if (d && !d.open) d.showModal();
-  }, []);
-
-  // カードの外（dialog 自身 = 背景）の押下
-  useEffect(() => {
-    const d = dialog.current;
-    if (!d) return;
-    const onClick = (e: MouseEvent) => {
-      if (e.target === d) latestOnClose.current();
-    };
-    d.addEventListener("click", onClick);
-    return () => d.removeEventListener("click", onClick);
-  }, []);
 
   function pick(content: string, imageUrl: string | null) {
     onPick(content, imageUrl);
@@ -64,105 +44,83 @@ export function ReactionPickerDialog({
   const matchedUnicode = useMemo(() => searchEmojis(q), [q]);
 
   return (
-    <dialog
-      ref={dialog}
-      className={styles.dialog}
-      aria-label="リアクション"
-      // React は cancel / close を親へ伝えるので、投稿画面など外側の dialog を一緒に閉じないよう止める
-      onCancel={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }}
-      onClose={(e) => {
-        e.stopPropagation();
-        onClose();
-      }}
-    >
-      <div className={styles.card}>
-        <div className={styles.head}>
-          <h2 className={styles.title}>リアクション</h2>
-          <button type="button" className={styles.close} aria-label="閉じる" onClick={onClose}>
-            <CloseIcon className={styles.closeIcon} />
-          </button>
-        </div>
-        {target && <TargetHeader target={target} />}
-        <input
-          type="search"
-          className={styles.search}
-          aria-label="絵文字を検索"
-          placeholder="絵文字を検索（例: わらい / fire / 🔥）"
-          enterKeyHint="search"
-          value={query}
-          onChange={(e) => setQuery(e.currentTarget.value)}
-        />
-        <div className={styles.scroll}>
-          {q === "" ? (
-            <>
-              {recent.length > 0 && (
-                <Section title="最近">
-                  {recent.map((r) =>
-                    r.imageUrl ? (
-                      <ImageCell
-                        key={r.content}
-                        label={r.content}
-                        url={r.imageUrl}
-                        onClick={() => pick(r.content, r.imageUrl)}
-                      />
-                    ) : (
-                      <TextCell key={r.content} char={r.content} onClick={() => pick(r.content, null)} />
-                    ),
-                  )}
-                </Section>
-              )}
-              {customs.length > 0 && (
-                <Section title="カスタム絵文字">
-                  {customs.map((c) => (
+    <ModalSheet title="リアクション" onDismiss={onClose}>
+      {target && <TargetHeader target={target} />}
+      <input
+        type="search"
+        className={styles.search}
+        aria-label="絵文字を検索"
+        placeholder="絵文字を検索（例: わらい / fire / 🔥）"
+        enterKeyHint="search"
+        value={query}
+        onChange={(e) => setQuery(e.currentTarget.value)}
+      />
+      <div className={styles.scroll}>
+        {q === "" ? (
+          <>
+            {recent.length > 0 && (
+              <Section title="最近">
+                {recent.map((r) =>
+                  r.imageUrl ? (
                     <ImageCell
-                      key={c.shortcode}
-                      label={`:${c.shortcode}:`}
-                      url={c.url}
-                      onClick={() => pick(`:${c.shortcode}:`, c.url)}
+                      key={r.content}
+                      label={r.content}
+                      url={r.imageUrl}
+                      onClick={() => pick(r.content, r.imageUrl)}
                     />
-                  ))}
-                </Section>
-              )}
-              {EMOJI_CATEGORIES.map((category) => (
-                <Section key={category.title} title={category.title}>
-                  {category.emojis.map((e) => (
-                    <TextCell key={e.char} char={e.char} onClick={() => pick(e.char, null)} />
-                  ))}
-                </Section>
-              ))}
-            </>
-          ) : matchedCustom.length === 0 && matchedUnicode.length === 0 ? (
-            <p className={styles.empty}>一致する絵文字がありません</p>
-          ) : (
-            <>
-              {matchedCustom.length > 0 && (
-                <Section title="カスタム">
-                  {matchedCustom.map((c) => (
-                    <ImageCell
-                      key={c.shortcode}
-                      label={`:${c.shortcode}:`}
-                      url={c.url}
-                      onClick={() => pick(`:${c.shortcode}:`, c.url)}
-                    />
-                  ))}
-                </Section>
-              )}
-              {matchedUnicode.length > 0 && (
-                <Section title="絵文字">
-                  {matchedUnicode.map((e) => (
-                    <TextCell key={e.char} char={e.char} onClick={() => pick(e.char, null)} />
-                  ))}
-                </Section>
-              )}
-            </>
-          )}
-        </div>
+                  ) : (
+                    <TextCell key={r.content} char={r.content} onClick={() => pick(r.content, null)} />
+                  ),
+                )}
+              </Section>
+            )}
+            {customs.length > 0 && (
+              <Section title="カスタム絵文字">
+                {customs.map((c) => (
+                  <ImageCell
+                    key={c.shortcode}
+                    label={`:${c.shortcode}:`}
+                    url={c.url}
+                    onClick={() => pick(`:${c.shortcode}:`, c.url)}
+                  />
+                ))}
+              </Section>
+            )}
+            {EMOJI_CATEGORIES.map((category) => (
+              <Section key={category.title} title={category.title}>
+                {category.emojis.map((e) => (
+                  <TextCell key={e.char} char={e.char} onClick={() => pick(e.char, null)} />
+                ))}
+              </Section>
+            ))}
+          </>
+        ) : matchedCustom.length === 0 && matchedUnicode.length === 0 ? (
+          <p className={styles.empty}>一致する絵文字がありません</p>
+        ) : (
+          <>
+            {matchedCustom.length > 0 && (
+              <Section title="カスタム">
+                {matchedCustom.map((c) => (
+                  <ImageCell
+                    key={c.shortcode}
+                    label={`:${c.shortcode}:`}
+                    url={c.url}
+                    onClick={() => pick(`:${c.shortcode}:`, c.url)}
+                  />
+                ))}
+              </Section>
+            )}
+            {matchedUnicode.length > 0 && (
+              <Section title="絵文字">
+                {matchedUnicode.map((e) => (
+                  <TextCell key={e.char} char={e.char} onClick={() => pick(e.char, null)} />
+                ))}
+              </Section>
+            )}
+          </>
+        )}
       </div>
-    </dialog>
+    </ModalSheet>
   );
 }
 

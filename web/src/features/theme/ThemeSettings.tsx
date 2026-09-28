@@ -1,14 +1,10 @@
-import { type FormEvent, useEffect, useId, useRef, useState } from "react";
-import { useSession } from "../../signer/session";
-import { showToast } from "../../ui/toast";
-import { CUSTOM_PRESETS, type CustomColors, contrastRatio, normalizeHex } from "./customPalette";
+import { type ReactNode, useId, useState } from "react";
+import type { CustomColors } from "./customPalette";
 import type { NoteAccentStyle } from "./noteAccent";
+import { ThemeEditModal, type ThemeEditTab } from "./ThemeEditModal";
 import styles from "./ThemeSettings.module.css";
 import {
-  applyCustomColors,
-  resetCustomColors,
   setBoldText,
-  setCustomColor,
   setNoteAccent,
   setTextScale,
   setThemeMode,
@@ -21,7 +17,6 @@ import {
   useThemePrefs,
   useThemeUndo,
 } from "./themePrefs";
-import { publishTheme, ThemePublishError } from "./themeStore";
 
 type Option<T extends string> = { value: T; label: string };
 
@@ -30,11 +25,11 @@ const MODE_OPTIONS: readonly Option<ThemeMode>[] = (["system", "light", "dark", 
   (value) => ({ value, label: THEME_MODE_LABELS[value] }),
 );
 
-/** ネイティブ text_scale_small / medium / large */
-const TEXT_SCALE_OPTIONS: readonly Option<TextScale>[] = [
-  { value: "s", label: "小" },
-  { value: "m", label: "中" },
-  { value: "l", label: "大" },
+/** ネイティブ note_accent_none / line / bg */
+const NOTE_ACCENT_OPTIONS: readonly Option<NoteAccentStyle>[] = [
+  { value: "none", label: "なし" },
+  { value: "line", label: "縦ライン" },
+  { value: "bg", label: "背景色" },
 ];
 
 /** ネイティブ ui_scale_small / medium / large */
@@ -44,27 +39,30 @@ const UI_SCALE_OPTIONS: readonly Option<UiScale>[] = [
   { value: "l", label: "最大" },
 ];
 
-/** ネイティブ note_accent_none / line / bg */
-const NOTE_ACCENT_OPTIONS: readonly Option<NoteAccentStyle>[] = [
-  { value: "none", label: "なし" },
-  { value: "line", label: "縦ライン" },
-  { value: "bg", label: "背景色" },
+/** ネイティブ text_scale_small / medium / large */
+const TEXT_SCALE_OPTIONS: readonly Option<TextScale>[] = [
+  { value: "s", label: "小" },
+  { value: "m", label: "中" },
+  { value: "l", label: "大" },
 ];
 
 /**
- * テーマ・文字サイズ・表示サイズ・太字・種別の視覚表示（ネイティブの 設定 > 表示 の同名項目）。
- * 選ぶとすぐ保存して反映する。設定画面（#463）の「表示」セクションに置く。
+ * テーマ・種別の視覚表示・表示サイズ・文字サイズ・太字（ネイティブの 設定 > 表示 の同名項目。#587 で
+ * 順序をネイティブに合わせた: テーマ → 種別の視覚表示 → 表示サイズ → 文字サイズ → 太字）。
+ * カスタムを選ぶと、色の編集・テーマストアはここではなく上寄せモーダル（ThemeEditModal）へ導線を出す。
  */
 export function ThemeSettings() {
   const mode = useThemePrefs((s) => s.mode);
-  const textScale = useThemePrefs((s) => s.textScale);
-  const uiScale = useThemePrefs((s) => s.uiScale);
-  const bold = useThemePrefs((s) => s.bold);
+  const custom = useThemePrefs((s) => s.custom);
   const noteAccent = useThemePrefs((s) => s.noteAccent);
+  const uiScale = useThemePrefs((s) => s.uiScale);
+  const textScale = useThemePrefs((s) => s.textScale);
+  const bold = useThemePrefs((s) => s.bold);
+  const undo = useThemeUndo();
+  const [editTab, setEditTab] = useState<ThemeEditTab | null>(null);
   const id = useId();
   return (
     <div className={styles.settings}>
-      <ThemeUndoBar />
       <ChoiceGroup
         legend="テーマ"
         name={`${id}-mode`}
@@ -72,13 +70,30 @@ export function ThemeSettings() {
         value={mode}
         onChange={setThemeMode}
       />
-      {mode === "custom" && <ThemeCustomize />}
+      {mode === "custom" && (
+        <div className={styles.navRows}>
+          <ThemeNavRow
+            label="色をカスタマイズ"
+            sublabel={`${custom.bg} / ${custom.text} / ${custom.accent}`}
+            leading={<ThemeSwatch colors={custom} />}
+            onClick={() => setEditTab("customize")}
+          />
+          <ThemeNavRow
+            label="テーマストアから取得"
+            sublabel="他の人が公開したテーマを探す"
+            onClick={() => setEditTab("store")}
+          />
+          {/* [#264][#268] 取り消しはモーダルを閉じた後も効くようここにも出す。開いている間は二重に出さない */}
+          {undo && editTab === null && <ThemeUndoBar />}
+        </div>
+      )}
       <ChoiceGroup
-        legend="文字サイズ"
-        name={`${id}-text-scale`}
-        options={TEXT_SCALE_OPTIONS}
-        value={textScale}
-        onChange={setTextScale}
+        legend="種別の視覚表示"
+        desc="リポスト・引用・リプライ・リアクションを色で区別します。既定は「なし」（モノクロ基調のまま）。"
+        name={`${id}-note-accent`}
+        options={NOTE_ACCENT_OPTIONS}
+        value={noteAccent}
+        onChange={setNoteAccent}
       />
       <ChoiceGroup
         legend="表示サイズ"
@@ -87,6 +102,13 @@ export function ThemeSettings() {
         options={UI_SCALE_OPTIONS}
         value={uiScale}
         onChange={setUiScale}
+      />
+      <ChoiceGroup
+        legend="文字サイズ"
+        name={`${id}-text-scale`}
+        options={TEXT_SCALE_OPTIONS}
+        value={textScale}
+        onChange={setTextScale}
       />
       <fieldset className={styles.group}>
         <legend className={styles.caption}>文字を太くする</legend>
@@ -98,21 +120,37 @@ export function ThemeSettings() {
           太い文字を使う
         </label>
       </fieldset>
-      <ChoiceGroup
-        legend="種別の視覚表示"
-        desc="リポスト・引用・リプライ・リアクションを色で区別します。既定は「なし」（モノクロ基調のまま）。"
-        name={`${id}-note-accent`}
-        options={NOTE_ACCENT_OPTIONS}
-        value={noteAccent}
-        onChange={setNoteAccent}
-      />
+      {editTab && <ThemeEditModal initialTab={editTab} onDismiss={() => setEditTab(null)} />}
     </div>
+  );
+}
+
+/** 色をカスタマイズ / テーマストアから取得の導線行（ネイティブ SettingsNavRow） */
+function ThemeNavRow({
+  label,
+  sublabel,
+  leading,
+  onClick,
+}: {
+  label: string;
+  sublabel: string;
+  leading?: ReactNode;
+  onClick(): void;
+}) {
+  return (
+    <button type="button" className={styles.navRow} onClick={onClick}>
+      {leading}
+      <span className={styles.navRowText}>
+        <span className={styles.navRowLabel}>{label}</span>
+        <span className={styles.navRowSub}>{sublabel}</span>
+      </span>
+    </button>
   );
 }
 
 /**
  * 適用直後の「元に戻す」（ネイティブ ThemeUndoBar）。モード・カスタム配色の変更でだけ出る。
- * テーマストア（#539）の画面でも、ストアから適用した直後に同じバーを出すために export する。
+ * テーマ編集モーダル（ThemeEditModal）でも、開いている間だけ同じバーを出すために export する。
  */
 export function ThemeUndoBar() {
   const undo = useThemeUndo();
@@ -127,188 +165,9 @@ export function ThemeUndoBar() {
   );
 }
 
-/** コントラスト比を小数第1位までの表示用文字列に */
-function ratioLabel(ratio: number): string {
-  return (Math.round(ratio * 10) / 10).toString();
-}
-
-function sameColors(a: CustomColors, b: CustomColors): boolean {
-  return a.bg === b.bg && a.text === b.text && a.accent === b.accent;
-}
-
 /**
- * カスタムテーマの編集（ネイティブ ThemeSheet.kt ThemeCustomizePage 相当）。
- * プリセット・3色の編集・コントラスト警告・既定に戻す。選ぶたびに即座に適用する
- * （ネイティブの下書き+適用ボタンとは異なり、既存の ThemeSettings が即時反映のため合わせた）。
- */
-function ThemeCustomize() {
-  const custom = useThemePrefs((s) => s.custom);
-  const textRatio = contrastRatio(custom.bg, custom.text);
-  const accentRatio = contrastRatio(custom.bg, custom.accent);
-  const me = useSession((s) => s.pubkey);
-  const [publishOpen, setPublishOpen] = useState(false);
-  return (
-    <div className={styles.customize}>
-      <p className={styles.desc}>
-        背景・文字・アクセントの3色を選ぶと、面・境界線・補助文字は自動で導出されます。
-      </p>
-      <div className={styles.presets}>
-        {CUSTOM_PRESETS.map((preset) => (
-          <button
-            key={preset.name}
-            type="button"
-            className={styles.preset}
-            aria-pressed={sameColors(preset.colors, custom)}
-            onClick={() => applyCustomColors(preset.colors, preset.name)}
-          >
-            <ThemeSwatch colors={preset.colors} />
-            <span>{preset.name}</span>
-          </button>
-        ))}
-      </div>
-      <ColorField label="背景" value={custom.bg} onChange={(hex) => setCustomColor("bg", hex)} />
-      <ColorField label="文字" value={custom.text} onChange={(hex) => setCustomColor("text", hex)} />
-      <ColorField
-        label="アクセント"
-        value={custom.accent}
-        onChange={(hex) => setCustomColor("accent", hex)}
-      />
-      {textRatio < 4.5 && (
-        <p className={styles.warn}>
-          コントラストが低いです（{ratioLabel(textRatio)}:1）。読みにくい可能性があります — 4.5:1 以上を推奨。
-        </p>
-      )}
-      {accentRatio < 3.0 && (
-        <p className={styles.warn}>
-          アクセントのコントラストが低いです（{ratioLabel(accentRatio)}
-          :1）。ボタンやリンクが見えにくい可能性があります — 3:1 以上を推奨。
-        </p>
-      )}
-      <button type="button" className={styles.reset} onClick={resetCustomColors}>
-        既定に戻す
-      </button>
-      {me && (
-        <>
-          <hr className={styles.divider} />
-          <p className={styles.desc}>
-            この配色をテーマストアに公開すると、他の人が探して使えるようになります。同じ名前で再公開すると更新されます。
-          </p>
-          <button type="button" className={styles.reset} onClick={() => setPublishOpen(true)}>
-            テーマストアに公開
-          </button>
-        </>
-      )}
-      {publishOpen && me && (
-        <PublishThemeDialog me={me} colors={custom} onDismiss={() => setPublishOpen(false)} />
-      )}
-    </div>
-  );
-}
-
-/** 発行の失敗を文言へ（#478 の規則。理由ごとにネイティブと揃えた文言） */
-function themePublishFailureMessage(e: unknown): string {
-  if (e instanceof ThemePublishError) {
-    switch (e.reason) {
-      case "no-theme":
-        return "最新の状態を取得できなかったため、公開しませんでした。接続を確認してもう一度お試しください";
-      case "stale":
-        return "別の端末で更新されていたため、公開しませんでした。もう一度お試しください";
-    }
-  }
-  // ネイティブ theme_publish_failed
-  return "テーマを公開できませんでした。";
-}
-
-/**
- * 公開ダイアログ（ネイティブ DeckInputDialog 相当）。名前だけ聞いて公開する（配色は編集中の下書きをそのまま使う）。
- * #478 の規則（取り直し・食い違いチェック）は publishTheme 側で行う。
- */
-function PublishThemeDialog({
-  me,
-  colors,
-  onDismiss,
-}: {
-  me: string;
-  colors: CustomColors;
-  onDismiss(): void;
-}) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
-  const inputId = useId();
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    const d = dialog.current;
-    if (d && !d.open) d.showModal();
-  }, []);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    const trimmed = name.trim();
-    if (trimmed === "" || busy) return;
-    setBusy(true);
-    try {
-      await publishTheme(me, trimmed, colors);
-      showToast("テーマを公開しました。");
-      onDismiss();
-    } catch (err) {
-      showToast(themePublishFailureMessage(err));
-      setBusy(false);
-    }
-  }
-
-  return (
-    <dialog
-      ref={dialog}
-      className={styles.dialog}
-      aria-labelledby={titleId}
-      onCancel={(e) => {
-        e.preventDefault();
-        if (!busy) onDismiss();
-      }}
-    >
-      <form onSubmit={(e) => void submit(e)}>
-        <h2 id={titleId} className={styles.dialogTitle}>
-          テーマストアに公開
-        </h2>
-        <label htmlFor={inputId} className="srOnly">
-          テーマ名
-        </label>
-        <input
-          id={inputId}
-          className={styles.dialogInput}
-          type="text"
-          placeholder="テーマ名"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          disabled={busy}
-        />
-        <div className={styles.dialogButtons}>
-          <button
-            type="button"
-            className={`${styles.dialogButton} ${styles.dialogDismiss}`}
-            onClick={onDismiss}
-            disabled={busy}
-          >
-            キャンセル
-          </button>
-          <button
-            type="submit"
-            className={`${styles.dialogButton} ${styles.dialogConfirm}`}
-            disabled={name.trim() === "" || busy}
-          >
-            {busy ? "公開中…" : "公開"}
-          </button>
-        </div>
-      </form>
-    </dialog>
-  );
-}
-
-/**
- * プリセット行の見本（背景の上に文字サンプルとアクセントの小さな四角）。
- * テーマストア（#539）のミニカードにも同じ見た目を使うために export する。
+ * 3色の見本（背景の上に文字サンプルとアクセントの小さな四角。ネイティブ ThemeMiniCard / プリセットの
+ * 見本と同じ見た目）。プリセット・テーマストアのミニカード・導線行の先頭に使うために export する。
  */
 export function ThemeSwatch({ colors }: { colors: CustomColors }) {
   return (
@@ -316,53 +175,6 @@ export function ThemeSwatch({ colors }: { colors: CustomColors }) {
       <span style={{ color: colors.text }}>Aa</span>
       <span className={styles.swatchAccent} style={{ background: colors.accent }} />
     </span>
-  );
-}
-
-/**
- * 1色分の編集行: ブラウザ標準のカラーピッカー（input type="color"）+ hex 入力。
- * hex は完全な値になった時だけ反映する（入力途中で戻さない。ネイティブ ColorEditRow と同じ）。
- */
-function ColorField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (hex: string) => void;
-}) {
-  const id = useId();
-  const [text, setText] = useState(value);
-  // プリセット選択・既定に戻すなど外部から値が変わったら入力欄も合わせる
-  useEffect(() => setText(value), [value]);
-  return (
-    <div className={styles.colorField}>
-      <label htmlFor={id} className={styles.caption}>
-        {label}
-      </label>
-      <div className={styles.colorRow}>
-        <input
-          type="color"
-          aria-label={`${label}の色を選ぶ`}
-          value={value.toLowerCase()}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <input
-          id={id}
-          type="text"
-          className={styles.hexInput}
-          value={text}
-          placeholder="#RRGGBB"
-          onChange={(e) => {
-            const next = e.target.value;
-            setText(next);
-            const normalized = normalizeHex(next);
-            if (normalized) onChange(normalized);
-          }}
-        />
-      </div>
-    </div>
   );
 }
 

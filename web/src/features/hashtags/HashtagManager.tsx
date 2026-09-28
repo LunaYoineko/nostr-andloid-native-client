@@ -4,7 +4,7 @@ import { relativeTime } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
-import { InfoDialog } from "../../ui/InfoDialog";
+import { ModalSheet } from "../../ui/ModalSheet";
 import { showToast } from "../../ui/toast";
 import {
   loadUsedHashtagsDetailed,
@@ -14,6 +14,7 @@ import {
   type UsedHashtag,
 } from "../compose/storage";
 import styles from "../settings/SettingsSections.module.css";
+import ownStyles from "./HashtagManager.module.css";
 import {
   normalizeHashtag,
   PinnedHashtagsError,
@@ -44,9 +45,9 @@ export function HashtagManager({ onDismiss }: { onDismiss(): void }) {
   const me = useSession((s) => s.pubkey);
   if (!me) {
     return (
-      <InfoDialog title="ハッシュタグの整理" onDismiss={onDismiss}>
+      <ModalSheet title="ハッシュタグの整理" onDismiss={onDismiss}>
         <p className={styles.desc}>ピン留めを管理するにはログインしてください。</p>
-      </InfoDialog>
+      </ModalSheet>
     );
   }
   return <Manager me={me} onDismiss={onDismiss} />;
@@ -121,77 +122,83 @@ function Manager({ me, onDismiss }: { me: string; onDismiss(): void }) {
 
   return (
     <>
-      <InfoDialog
-        title="ハッシュタグの整理"
-        action={{
-          label: saving ? "保存中…" : "保存",
-          onClick: () => void save(),
-          disabled: !dirty || saving,
-        }}
-        onDismiss={attemptDismiss}
-      >
-        <p className={styles.desc}>
-          ピン留めしたタグ（NIP-51
-          kind:30015）は投稿画面とハッシュタグカラム作成のチップに常に表示され、端末をまたいで同期されます。使ったことのあるタグはこの端末で記憶され、#
-          入力時の候補になります。
-        </p>
-        <section className={styles.block} aria-label="ピン留め">
-          <h3 className={styles.caption}>ピン留め</h3>
-          <p className={styles.desc}>長押ししてドラッグで並べ替え。ここでの順番がチップの順番になります。</p>
-          {list.length === 0 ? (
+      <ModalSheet title="ハッシュタグの整理" onDismiss={attemptDismiss}>
+        <div className={ownStyles.body}>
+          <p className={styles.desc}>
+            ピン留めしたタグ（NIP-51
+            kind:30015）は投稿画面とハッシュタグカラム作成のチップに常に表示され、端末をまたいで同期されます。使ったことのあるタグはこの端末で記憶され、#
+            入力時の候補になります。
+          </p>
+          <section className={styles.block} aria-label="ピン留め">
+            <h3 className={styles.caption}>ピン留め</h3>
             <p className={styles.desc}>
-              ピン留めはまだありません。下から追加するか、使ったことのあるタグをピン留めしてください。
+              長押ししてドラッグで並べ替え。ここでの順番がチップの順番になります。
             </p>
-          ) : (
-            <ol className={styles.relays} aria-label="ピン留めの一覧">
-              {list.map((tag, i) => (
-                <PinnedRow
-                  key={tag}
-                  tag={tag}
-                  index={i}
-                  total={list.length}
-                  onMoveUp={() => movePinned(i, i - 1)}
-                  onMoveDown={() => movePinned(i, i + 1)}
-                  onDropFrom={(from) => movePinned(from, i)}
-                  onRemove={() => removePinned(tag)}
-                />
-              ))}
-            </ol>
-          )}
-          <AddPinnedForm list={list} onAdd={(tag) => edit([...list, tag])} />
-        </section>
-        <section className={styles.block} aria-label="使ったことのあるタグ">
-          <h3 className={styles.caption}>使ったことのあるタグ</h3>
-          <input
-            className={styles.input}
-            type="text"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-            placeholder="絞り込み"
-            aria-label="使ったことのあるタグを絞り込み"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          {usedList.length === 0 ? (
-            <p className={styles.desc}>まだ使ったタグがありません。</p>
-          ) : filtered.length === 0 ? (
-            <p className={styles.desc}>一致するタグがありません。</p>
-          ) : (
-            <ul className={styles.relays} aria-label="使ったことのあるタグの一覧">
-              {filtered.map((u) => (
-                <UsedRow
-                  key={u.tag}
-                  entry={u}
-                  pinned={list.includes(u.tag)}
-                  onPin={() => pinUsed(u.tag)}
-                  onDelete={() => deleteUsed(u.tag)}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
-      </InfoDialog>
+            {list.length === 0 ? (
+              <p className={styles.desc}>
+                ピン留めはまだありません。下から追加するか、使ったことのあるタグをピン留めしてください。
+              </p>
+            ) : (
+              <ol className={styles.relays} aria-label="ピン留めの一覧">
+                {list.map((tag, i) => (
+                  <PinnedRow
+                    key={tag}
+                    tag={tag}
+                    index={i}
+                    total={list.length}
+                    onMoveUp={() => movePinned(i, i - 1)}
+                    onMoveDown={() => movePinned(i, i + 1)}
+                    onDropFrom={(from) => movePinned(from, i)}
+                    onRemove={() => removePinned(tag)}
+                  />
+                ))}
+              </ol>
+            )}
+            <AddPinnedForm list={list} onAdd={(tag) => edit([...list, tag])} />
+          </section>
+          <section className={styles.block} aria-label="使ったことのあるタグ">
+            <h3 className={styles.caption}>使ったことのあるタグ</h3>
+            <input
+              className={styles.input}
+              type="text"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder="絞り込み"
+              aria-label="使ったことのあるタグを絞り込み"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            {usedList.length === 0 ? (
+              <p className={styles.desc}>まだ使ったタグがありません。</p>
+            ) : filtered.length === 0 ? (
+              <p className={styles.desc}>一致するタグがありません。</p>
+            ) : (
+              <ul className={styles.relays} aria-label="使ったことのあるタグの一覧">
+                {filtered.map((u) => (
+                  <UsedRow
+                    key={u.tag}
+                    entry={u}
+                    pinned={list.includes(u.tag)}
+                    onPin={() => pinUsed(u.tag)}
+                    onDelete={() => deleteUsed(u.tag)}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+        <div className={ownStyles.footer}>
+          <button
+            type="button"
+            className={ownStyles.save}
+            disabled={!dirty || saving}
+            onClick={() => void save()}
+          >
+            {saving ? "保存中…" : "保存"}
+          </button>
+        </div>
+      </ModalSheet>
       {confirmClose && (
         <ConfirmDialog
           title="変更を破棄しますか？"
