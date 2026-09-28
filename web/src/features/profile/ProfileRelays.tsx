@@ -1,21 +1,20 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { useState } from "react";
-import { useNavigate } from "react-router";
 import { map } from "rxjs";
 import { displayRelayUrl, relayPrefsFromEvent } from "../../nostr/outbox";
+import { addRelay, useRelayRows } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
-import { ADD_RELAY_STATE, useOwnRelayPrefs } from "../settings/RelaySection";
+import { showToast } from "../../ui/toast";
 import styles from "./ProfileRelays.module.css";
 
 /**
  * 使用リレー（ネイティブ ProfileRelaysSection）。kind:10002 が無ければ何も出さない。
- * 見出しで開閉し、行は URL と read / write。自分の一覧に無いリレーは「追加」でリレー設定を開き、
- * そのリレーを read + write で下書きに足す（発行はリレー設定の「保存」で）。あれば「追加済み」。
+ * 見出しで開閉し、行は URL と read / write。自分の一覧に無いリレーは「追加」で即座に手動リレーとして足し
+ * （read/write = true）、トーストを出す（遷移しない。#585）。既にあれば「追加済み」。
  */
 export function ProfileRelays({ pubkey }: { pubkey: string }) {
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
-  const mine = new Set(useOwnRelayPrefs().current.map((p) => p.url));
+  const mine = new Set(useRelayRows().map((r) => r.url));
   const prefs =
     use$(
       () => eventStore.replaceable(10002, pubkey).pipe(map((e) => (e ? relayPrefsFromEvent(e) : []))),
@@ -44,10 +43,10 @@ export function ProfileRelays({ pubkey }: { pubkey: string }) {
                   type="button"
                   className={styles.add}
                   aria-label={`${displayRelayUrl(p.url)} を自分のリレーに追加`}
-                  // プロフィールの「編集」と同じく、リレー設定へ置き換えて開く
-                  onClick={() =>
-                    void navigate("/settings/relays", { replace: true, state: { [ADD_RELAY_STATE]: p.url } })
-                  }
+                  onClick={() => {
+                    addRelay(p.url);
+                    showToast("自分のリレーに追加しました");
+                  }}
                 >
                   追加
                 </button>

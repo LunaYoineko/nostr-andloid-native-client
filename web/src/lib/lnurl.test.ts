@@ -70,7 +70,7 @@ beforeEach(() => {
   signer = test.signer;
   signerPubkey = test.pubkey;
   vi.mocked(currentSigner).mockReturnValue(signer);
-  useRelays.setState({ read: READ_RELAYS, write: READ_RELAYS, source: "saved" });
+  useRelays.setState({ read: READ_RELAYS, write: READ_RELAYS, source: "manual" });
 });
 
 afterEach(() => {
@@ -194,7 +194,7 @@ describe("requestZapInvoice", () => {
   });
 
   it("プロフィール Zap は e / k なし。読むリレーが 6 件未満ならそのまま", async () => {
-    useRelays.setState({ read: READ_RELAYS.slice(0, 2), write: READ_RELAYS, source: "saved" });
+    useRelays.setState({ read: READ_RELAYS.slice(0, 2), write: READ_RELAYS, source: "manual" });
     const fetchMock = stubLnurl(NOSTR_META);
     await requestZapInvoice({ recipient: RECIPIENT, lud16: LUD16, amountSats: 100, comment: "" });
     const zapRequest = JSON.parse(callbackUrl(fetchMock).searchParams.get("nostr") ?? "") as NostrEvent;

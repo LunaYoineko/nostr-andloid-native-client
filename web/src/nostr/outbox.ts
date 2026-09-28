@@ -5,13 +5,13 @@ import { catchError, concat, defer, EMPTY, ignoreElements, type Observable, Subs
 import { INDEXER_RELAYS, OUTBOX_MAX_AUTHORS } from "../lib/columnRequest";
 import { useSession } from "../signer/session";
 import {
-  applyRelayPrefs,
+  applyOwnRelayList,
   defaultRelays,
+  loadRelayTable,
   readRelays,
   requestOnce,
-  resetRelays,
   subscribeTo,
-  useRelays,
+  unloadRelayTable,
 } from "./pool";
 import { eventStore } from "./store";
 
@@ -123,19 +123,20 @@ export function authorOutbox$(authors: readonly string[], filters: Filter[]): Ob
   });
 }
 
-// ---- 自分の kind:10002 → リレー集合（ネイティブ applyRelayList） ----
+// ---- 自分の kind:10002 → リレー表（ネイティブ applyRelayList） ----
 
 /**
- * 自分の kind:10002 の読み書きをリレー集合（pool.ts の useRelays）に反映し続ける。
- * インデクサと既定リレーへ 1 度取りに行き、手元の最新版（DB から戻した分・後から届いた分・設定で発行した分）を反映する。
- * 取れなければ今の集合（既定）のまま。nostrism.relays があるときは何もしない（保存値が優先）。
+ * 自分の kind:10002 の読み書きをリレー表（pool.ts の relay table）に反映し続ける。
+ * ログインしたら、まずこのアカウントのリレー表を読み込み（無ければ nostrism.relays から引き継ぐ・既定で作る）、
+ * インデクサと既定リレーへ 1 度取りに行って、手元の最新版（DB から戻した分・後から届いた分・設定で発行した分）
+ * を反映する。取れなければ今の表のまま。#585: NIP-65 は手動追加より常に優先する（nostrism.relays があっても無視しない）。
  */
 export function followOwnRelayList(me: string): Subscription {
+  loadRelayTable(me);
   const subscription = new Subscription();
-  if (useRelays.getState().source === "saved") return subscription;
   subscription.add(
     eventStore.timeline({ kinds: [10002], authors: [me] }).subscribe(([latest]) => {
-      if (latest) applyRelayPrefs(relayPrefsFromEvent(latest));
+      if (latest) applyOwnRelayList(me, relayPrefsFromEvent(latest));
     }),
   );
   subscription.add(
@@ -144,7 +145,7 @@ export function followOwnRelayList(me: string): Subscription {
       [{ kinds: [10002], authors: [me], limit: 1 }],
       OWN_RELAYLIST_TIMEOUT_MS,
     ).subscribe({
-      // どこからも届かなければ今の集合のまま
+      // どこからも届かなければ今の表のまま
       error: () => {},
     }),
   );
@@ -162,7 +163,7 @@ export function startOwnRelayList(): () => void {
     if (current) {
       current.subscription.unsubscribe();
       current = null;
-      resetRelays();
+      unloadRelayTable();
     }
     if (me) current = { me, subscription: followOwnRelayList(me) };
   };

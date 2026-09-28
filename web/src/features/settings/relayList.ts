@@ -3,7 +3,7 @@ import type { EventTemplate, NostrEvent } from "nostr-tools/pure";
 import { INDEXER_RELAYS } from "../../lib/columnRequest";
 import { unixNow } from "../../lib/time";
 import { isRecognizedRelayTag, type RelayPref } from "../../nostr/outbox";
-import { applyRelayPrefs, type RelaySet, readRelays, requestOnce, writeRelays } from "../../nostr/pool";
+import { applyOwnRelayList, readRelays, requestOnce, writeRelays } from "../../nostr/pool";
 import { PublishError, type PublishFailure, publishEvent } from "../../nostr/publish";
 import { eventStore } from "../../nostr/store";
 
@@ -37,17 +37,6 @@ export function parseRelayInput(input: string): string | null {
   } catch {
     return null;
   }
-}
-
-/** kind:10002 が無いときの一覧（今のリレー集合。read の順 → write だけのもの） */
-export function prefsFromRelaySet(set: Pick<RelaySet, "read" | "write">): RelayPref[] {
-  const read = new Set(set.read.map((url) => normalizeURL(url)));
-  const write = new Set(set.write.map((url) => normalizeURL(url)));
-  return [...new Set([...read, ...write])].map((url) => ({
-    url,
-    read: read.has(url),
-    write: write.has(url),
-  }));
 }
 
 /**
@@ -119,5 +108,5 @@ export async function publishRelayList(
     if (e instanceof PublishError) throw new RelayListError(e.reason, { cause: e });
     throw e;
   }
-  applyRelayPrefs(prefs);
+  applyOwnRelayList(me, prefs);
 }
