@@ -7,6 +7,7 @@ import { DeveloperSection } from "./DeveloperSection";
 import { DisplaySection } from "./DisplaySection";
 import { MediaSection } from "./MediaSection";
 import { MuteSection } from "./MuteSection";
+import { ProfileEditSection } from "./ProfileEditSection";
 import { RelaySection } from "./RelaySection";
 import styles from "./SettingsScreen.module.css";
 import { DEFAULT_SECTION_ID, findSection, SETTINGS_GROUPS, type SettingsSection } from "./sections";
@@ -126,6 +127,8 @@ function SectionBody({ id }: { id: string }) {
   switch (id) {
     case "mute":
       return <MuteSection />;
+    case "profile-edit":
+      return <ProfileEditSection />;
     case "account":
       return <AccountSection />;
     case "relays":
