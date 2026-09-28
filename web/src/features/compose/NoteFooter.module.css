@@ -33,8 +33,10 @@
   cursor: pointer;
 }
 
-.action:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .action:hover {
+    background: var(--surface-2);
+  }
 }
 
 .action:focus-visible {

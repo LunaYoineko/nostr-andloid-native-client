@@ -157,8 +157,10 @@
   cursor: pointer;
 }
 
-.textButton:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .textButton:hover {
+    background: var(--surface-3);
+  }
 }
 
 /* ネイティブの DeckButton（Text の面に Bg の文字・角丸 Full・高さ 40dp） */

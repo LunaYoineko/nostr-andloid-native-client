@@ -46,8 +46,10 @@
   cursor: pointer;
 }
 
-.reason:hover {
-  color: var(--text-2);
+@media (hover: hover) {
+  .reason:hover {
+    color: var(--text-2);
+  }
 }
 
 .buttons {
@@ -70,6 +72,8 @@
   cursor: pointer;
 }
 
-.dismiss:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .dismiss:hover {
+    background: var(--surface-3);
+  }
 }

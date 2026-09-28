@@ -27,8 +27,10 @@
   cursor: pointer;
 }
 
-.save:hover:not(:disabled) {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .save:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
 }
 
 .save:disabled {

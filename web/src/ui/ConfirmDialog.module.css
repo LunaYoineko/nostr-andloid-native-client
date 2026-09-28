@@ -48,8 +48,10 @@
   cursor: pointer;
 }
 
-.button:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .button:hover {
+    background: var(--surface-3);
+  }
 }
 
 .dismiss {

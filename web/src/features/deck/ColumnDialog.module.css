@@ -49,8 +49,10 @@
   cursor: pointer;
 }
 
-.close:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .close:hover {
+    background: var(--surface-3);
+  }
 }
 
 /* --- テンプレ一覧 --- */
@@ -80,8 +82,10 @@
   cursor: pointer;
 }
 
-.template:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .template:hover {
+    background: var(--surface-3);
+  }
 }
 
 .templateIcon {
@@ -175,8 +179,10 @@
   cursor: pointer;
 }
 
-.chip:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .chip:hover {
+    background: var(--surface-3);
+  }
 }
 
 .caption {
@@ -274,8 +280,10 @@
   color: var(--text-2);
 }
 
-.ghost:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .ghost:hover {
+    background: var(--surface-3);
+  }
 }
 
 .primary {

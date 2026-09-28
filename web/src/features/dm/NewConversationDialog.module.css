@@ -62,8 +62,10 @@
   cursor: pointer;
 }
 
-.button:hover:not(:disabled) {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .button:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
 }
 
 .button:disabled {

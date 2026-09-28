@@ -27,8 +27,10 @@
   word-break: break-all;
 }
 
-.link:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .link:hover {
+    text-decoration: underline;
+  }
 }
 
 .gallery {
@@ -43,9 +45,11 @@
   text-decoration: none;
 }
 
-a.hashtag:hover,
-a.mention:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  a.hashtag:hover,
+  a.mention:hover {
+    text-decoration: underline;
+  }
 }
 
 /* カスタム絵文字は文字と同じ高さ（ネイティブの 1.4em 角） */
