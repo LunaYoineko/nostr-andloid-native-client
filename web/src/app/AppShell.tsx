@@ -6,6 +6,7 @@ import { AddColumnDialog } from "../features/deck/AddColumnDialog";
 import { EditColumnDialog } from "../features/deck/EditColumnDialog";
 import { useDmUnreadTotal } from "../features/dm/dmStore";
 import { MessagesScreen } from "../features/dm/MessagesScreen";
+import { KeyboardShortcuts } from "../features/keyboard/KeyboardShortcuts";
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen";
 import { SearchScreen } from "../features/search/SearchScreen";
 import { SettingsScreen } from "../features/settings/SettingsScreen";
@@ -131,6 +132,7 @@ export function AppShell() {
           </DetailOverlay>
         )}
         <ComposeHost showFab={dest === "home" && overlay === null} />
+        <KeyboardShortcuts enabled={dest === "home"} hasDetail={overlay !== null} />
         <ConnectionPill />
       </main>
       {mode === "compact" && <BottomNav selected={selected} badges={badges} onSelect={open} />}

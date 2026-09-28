@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { ColumnMenu, DeckColumn } from "../../features/deck/DeckColumn";
+import { KbColumn } from "../../features/keyboard/KbList";
 import { useDeck } from "../../store/deck";
 import { ColumnTabs } from "../../ui/ColumnTabs";
 import { scrollBehavior, scrollToLeft, useLayoutMode } from "../../ui/useLayoutMode";
@@ -153,7 +154,9 @@ export function DeckScreen() {
             data-width={widths[c.id] ?? "M"}
             aria-label={c.title}
           >
-            <DeckColumn spec={c} showHeader={mode === "expanded"} />
+            <KbColumn id={c.id}>
+              <DeckColumn spec={c} showHeader={mode === "expanded"} />
+            </KbColumn>
           </section>
         ))}
         {mode === "expanded" && (

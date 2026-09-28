@@ -71,6 +71,8 @@ export function SearchScreen() {
             <div className={styles.field}>
               <input
                 ref={inputRef}
+                // キーボードの / がここへフォーカスする（features/keyboard）
+                id="search-query"
                 type="search"
                 enterKeyHint="search"
                 aria-label="検索語"

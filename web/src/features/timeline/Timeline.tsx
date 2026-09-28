@@ -1,6 +1,7 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { useCallback, useRef, useState } from "react";
 import { type ListRange, Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { KbRow, useKbList } from "../keyboard/KbList";
 import { NoteItem } from "./NoteItem";
 import styles from "./Timeline.module.css";
 
@@ -86,6 +87,9 @@ export function Timeline({
     [firstItemIndex],
   );
 
+  // デッキのカラムならキー操作（j / k 等）の対象にする
+  useKbList(list, events.length, (index) => events[index]);
+
   const newCount = atTop ? 0 : positionOf(events, anchor.seenTopId);
   const pill = newCount > 0 ? `${newCount} 件の新着` : scrolledAway ? "最新へ戻る" : null;
 
@@ -116,7 +120,11 @@ export function Timeline({
         endReached={onEndReached}
         components={COMPONENTS}
         context={{ loadingOlder }}
-        itemContent={(_, event) => <NoteItem event={event} />}
+        itemContent={(index, event) => (
+          <KbRow index={index - firstItemIndex}>
+            <NoteItem event={event} />
+          </KbRow>
+        )}
       />
     </div>
   );
