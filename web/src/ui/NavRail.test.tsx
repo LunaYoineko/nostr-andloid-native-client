@@ -33,10 +33,10 @@ function renderRail(props: Partial<Parameters<typeof NavRail>[0]> = {}) {
   return handlers;
 }
 
-/** ブランド画像とボタンを DOM の順に並べる */
+/** ブランド画像とボタンを DOM の順に並べる（リレーの接続表示のボタンは除く。別に確かめる） */
 function railItems() {
   const nav = screen.getByRole("navigation", { name: "メイン" });
-  return [...nav.querySelectorAll("img[alt='Nostrism'], button")].map(
+  return [...nav.querySelectorAll("img[alt='Nostrism'], button:not([aria-label^='リレー接続'])")].map(
     (el) => el.getAttribute("aria-label") ?? `img:${el.getAttribute("alt")}`,
   );
 }
@@ -55,7 +55,7 @@ it("ブランド → ホーム → 目次 → カラム追加 → 検索 → メ
     "設定",
   ]);
   const nav = screen.getByRole("navigation", { name: "メイン" });
-  expect(within(nav).getByRole("img", { name: /^リレー接続 / })).toBeInTheDocument();
+  expect(within(nav).getByRole("button", { name: /^リレー接続 / })).toBeInTheDocument();
 });
 
 it("通知カラムが無ければ検索・メッセージ・通知の順に出す", () => {

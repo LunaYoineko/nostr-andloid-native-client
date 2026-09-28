@@ -1,0 +1,52 @@
+.json {
+  max-height: 360px;
+  padding: var(--sp-2);
+  overflow: auto;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.pre {
+  margin: 0;
+  color: var(--text-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--type-caption);
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+}
+
+.loading {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-sub);
+}
+
+.caption {
+  margin: var(--sp-4) 0 0;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--w-body);
+}
+
+.refs {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ref {
+  width: 100%;
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--type-caption);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ref:hover {
+  text-decoration: underline;
+}

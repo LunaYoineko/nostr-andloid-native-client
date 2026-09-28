@@ -6,6 +6,7 @@ import { startDm } from "./features/dm/dmService";
 import { startMuteList } from "./features/mute/muteSync";
 import { initTheme } from "./features/theme/themePrefs";
 import { startBackgroundPause } from "./nostr/backgroundPause";
+import { startConnStats } from "./nostr/connStats";
 import { startOwnRelayList } from "./nostr/outbox";
 import { startPublishQueue } from "./nostr/publish";
 import { startRelayAuth } from "./nostr/relayAuth";
@@ -34,6 +35,8 @@ startMuteList();
 startRelayAuth();
 // タブの非表示が 5 分続いたらリレーを一時停止し、表示に戻ったら張り直す
 startBackgroundPause();
+// リレーごとの受信数・受信量を数える（設定 > データ・キャッシュ の「接続と通信量」）
+startConnStats();
 
 createRoot(root).render(
   <StrictMode>

@@ -1,0 +1,89 @@
+.summary {
+  margin: 0;
+}
+
+/* ネイティブ MonitorKv */
+.kv {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 1px 0;
+  font-size: var(--type-label);
+}
+
+.kv dt {
+  color: var(--text-3);
+}
+
+.kv dd {
+  margin: 0;
+  color: var(--text);
+}
+
+/* ネイティブ MonitorHeader */
+.header {
+  margin: var(--sp-4) 0 var(--sp-1);
+  color: var(--text);
+  font-size: var(--type-sub);
+  font-weight: var(--w-strong);
+}
+
+.relays {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.relay {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--text-3);
+}
+
+/* 信号色はトークン外の例外（RelayStatusDialog と同じ。接続 = 緑 / 接続中 = 黄） */
+.dot[data-state="connected"] {
+  background: #3fb950;
+}
+
+.dot[data-state="connecting"] {
+  background: #d8a11a;
+}
+
+.url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-caption);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.state {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.meta {
+  padding-left: calc(8px + var(--sp-2));
+  color: var(--text-3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--type-label);
+}

@@ -12,12 +12,14 @@ export type MoreMenuActions = {
   copyId(): void;
   copyNote1(): void;
   copyNevent(): void;
+  viewJson(): void;
 };
 
 /**
  * 投稿の ⋯ メニュー（ネイティブ NoteItem.kt の並び。M1 に無い項目 = ブックマーク・プロフィールに固定・
- * 翻訳・イベント JSON は出さない）。isFollowing が null（自分の kind:3 が未取得）ならフォロー項目を出さない。
+ * 翻訳は出さない）。isFollowing が null（自分の kind:3 が未取得）ならフォロー項目を出さない。
  * 他人の投稿は「通報」の前に「このユーザーをミュート」（ミュート中なら「ミュートを解除」）。
+ * 開発者モード（developerMode）の間は末尾に「イベントJSONを表示」。
  */
 export function moreMenuEntries(a: {
   clientName: string | null;
@@ -26,6 +28,7 @@ export function moreMenuEntries(a: {
   isMuted: boolean;
   note1: string;
   nevent: string;
+  developerMode?: boolean;
   on: MoreMenuActions;
 }): MenuEntry[] {
   const entries: MenuEntry[] = [];
@@ -59,5 +62,6 @@ export function moreMenuEntries(a: {
     { type: "item", label: `${a.note1.slice(0, 12)}… をコピー`, onSelect: a.on.copyNote1 },
     { type: "item", label: `${a.nevent.slice(0, 12)}… をコピー`, onSelect: a.on.copyNevent },
   );
+  if (a.developerMode) entries.push({ type: "item", label: "イベントJSONを表示", onSelect: a.on.viewJson });
   return entries;
 }

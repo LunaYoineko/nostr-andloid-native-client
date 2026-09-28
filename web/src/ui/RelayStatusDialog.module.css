@@ -1,0 +1,59 @@
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+}
+
+.dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-full);
+  background: var(--text-3);
+}
+
+.url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: var(--type-caption);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.state {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+/* 信号色はトークン外の例外（出典: ネイティブ RelayStatus.kt。接続 = 緑 / 接続中 = 黄 / 切断 = グレー） */
+.dot[data-state="connected"] {
+  background: #3fb950;
+}
+
+.dot[data-state="connecting"] {
+  background: #d8a11a;
+}
+
+.state[data-state="connected"] {
+  color: #3fb950;
+}
+
+.state[data-state="connecting"] {
+  color: #d8a11a;
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}

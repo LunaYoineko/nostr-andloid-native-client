@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useRelayConnections } from "../nostr/pool";
 import styles from "./RelayIndicator.module.css";
+import { RelayStatusDialog } from "./RelayStatusDialog";
 
 export type RelayAggregate = "all" | "some" | "none";
 
@@ -10,22 +12,28 @@ export function relayAggregate(connected: number, total: number): RelayAggregate
 }
 
 /**
- * リレーの接続表示（ネイティブ RelayRailIndicator）。点 + 接続数/総数。表示だけで操作はしない。
+ * リレーの接続表示（ネイティブ RelayRailIndicator）。点 + 接続数/総数。押すとリレー状態の一覧（RelayStatusDialog）。
  * horizontal = Compact のタブ列の右端、vertical = レールの下。
  */
 export function RelayIndicator({ orientation }: { orientation: "horizontal" | "vertical" }) {
   const { connected, total } = useRelayConnections();
+  const [open, setOpen] = useState(false);
   const label = `リレー接続 ${connected}/${total}`;
   return (
-    <span
-      className={styles.indicator}
-      data-orientation={orientation}
-      role="img"
-      aria-label={label}
-      title={label}
-    >
-      <span className={styles.dot} data-state={relayAggregate(connected, total)} aria-hidden="true" />
-      <span aria-hidden="true">{`${connected}/${total}`}</span>
-    </span>
+    <>
+      <button
+        type="button"
+        className={styles.indicator}
+        data-orientation={orientation}
+        aria-label={label}
+        aria-haspopup="dialog"
+        title={label}
+        onClick={() => setOpen(true)}
+      >
+        <span className={styles.dot} data-state={relayAggregate(connected, total)} aria-hidden="true" />
+        <span aria-hidden="true">{`${connected}/${total}`}</span>
+      </button>
+      {open && <RelayStatusDialog onDismiss={() => setOpen(false)} />}
+    </>
   );
 }

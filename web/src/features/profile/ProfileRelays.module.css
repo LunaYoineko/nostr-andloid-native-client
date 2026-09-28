@@ -22,8 +22,40 @@
 
 .item {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
   padding: var(--sp-1) 0;
+}
+
+.names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ネイティブ DeckGhostButton（relay_add_to_mine） */
+.add {
+  flex: none;
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-label);
+  cursor: pointer;
+}
+
+.add:hover {
+  background: var(--surface-3);
+}
+
+.added {
+  flex: none;
+  color: var(--text-3);
+  font-size: var(--type-label);
 }
 
 .url {
