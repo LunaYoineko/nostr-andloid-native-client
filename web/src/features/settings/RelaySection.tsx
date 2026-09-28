@@ -1,5 +1,5 @@
 import { use$ } from "applesauce-react/hooks/use-$";
-import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { map } from "rxjs";
 import { displayRelayUrl } from "../../nostr/outbox";
 import { addRelay, type RelayRow, removeRelay, setRelayReadWrite, useRelayRows } from "../../nostr/pool";
@@ -40,6 +40,11 @@ function failureMessage(e: unknown): string {
 export function RelaySection() {
   const me = useSession((s) => s.pubkey);
   const rows = useRelayRows();
+  // 一覧はネイティブ allRelays（ORDER BY source ASC, url ASC）と同じ並び: 既定 → 手動 → NIP-65、URL 昇順
+  const sortedRows = useMemo(
+    () => [...rows].sort((a, b) => a.source.localeCompare(b.source) || a.url.localeCompare(b.url)),
+    [rows],
+  );
   // 保存の直前の取り直しと突き合わせる、今わかっている自分の kind:10002 の id
   const latest = use$(
     () =>
@@ -87,7 +92,7 @@ export function RelaySection() {
       <AuthPolicyBlock />
       <div className={styles.block}>
         <ul className={styles.relays} aria-label="リレーの一覧">
-          {rows.map((row) => (
+          {sortedRows.map((row) => (
             <RelayRowItem
               key={row.url}
               row={row}
