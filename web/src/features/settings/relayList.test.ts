@@ -94,6 +94,43 @@ describe("タグ", () => {
     });
   });
 
+  it("解釈できない r タグ（ws:// ・不正 URL）は未知タグ同様そのまま残し、wss:// はこれまでどおり prefs で置き換える（#580）", () => {
+    const base = relayList(
+      [
+        ["r", "wss://old.example"],
+        ["r", "ws://dev.example"],
+        ["r", "not-a-url"],
+        ["client", "other"],
+      ],
+      2_000,
+    );
+    expect(
+      buildRelayListTemplate(base, [{ url: "wss://new.example/", read: true, write: true }], 1_000),
+    ).toEqual({
+      kind: 10002,
+      content: "",
+      tags: [
+        ["r", "wss://new.example"],
+        ["r", "ws://dev.example"],
+        ["r", "not-a-url"],
+        ["client", "other"],
+      ],
+      created_at: 2_001,
+    });
+
+    // wss:// を全部外せば、解釈できない r タグと未知タグだけが残る
+    expect(buildRelayListTemplate(base, [], 1_000)).toEqual({
+      kind: 10002,
+      content: "",
+      tags: [
+        ["r", "ws://dev.example"],
+        ["r", "not-a-url"],
+        ["client", "other"],
+      ],
+      created_at: 2_001,
+    });
+  });
+
   it("追加できるのは wss:// の URL だけ（正規化して返す）", () => {
     expect(parseRelayInput(" wss://relay.example ")).toBe("wss://relay.example/");
     expect(parseRelayInput("ws://relay.example")).toBeNull();

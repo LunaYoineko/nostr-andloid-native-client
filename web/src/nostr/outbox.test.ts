@@ -5,6 +5,7 @@ import { INDEXER_RELAYS } from "../lib/columnRequest";
 import {
   authorOutbox$,
   displayRelayUrl,
+  isRecognizedRelayTag,
   OUTBOX_RELAYLIST_WAIT_MS,
   relayHintsOf,
   relayPrefsFromEvent,
@@ -74,6 +75,17 @@ describe("relayPrefsFromEvent", () => {
 
   it("displayRelayUrl は wss:// と末尾の / を落とす", () => {
     expect(displayRelayUrl("wss://relay.example/")).toBe("relay.example");
+  });
+});
+
+describe("isRecognizedRelayTag", () => {
+  it("relayPrefsFromEvent が解釈する r タグ（wss://）だけ true。ws:// ・不正 URL・r 以外は false（#580）", () => {
+    expect(isRecognizedRelayTag(["r", "wss://a"])).toBe(true);
+    expect(isRecognizedRelayTag(["r", "wss://a", "read"])).toBe(true);
+    expect(isRecognizedRelayTag(["r", "ws://d"])).toBe(false);
+    expect(isRecognizedRelayTag(["r", "https://e"])).toBe(false);
+    expect(isRecognizedRelayTag(["r"])).toBe(false);
+    expect(isRecognizedRelayTag(["p", "wss://f"])).toBe(false);
   });
 });
 

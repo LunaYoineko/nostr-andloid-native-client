@@ -29,6 +29,18 @@ export const OUTBOX_RELAYLIST_WAIT_MS = 10_000;
 /** ログイン後に自分の kind:10002 を取りに行って待つ最大時間 */
 export const OWN_RELAYLIST_TIMEOUT_MS = 10_000;
 
+/** r タグを正規化した URL に読める（wss:// で URL として正規化できる）ときだけ返す。だめなら null */
+function normalizedRelayTagUrl(t: readonly string[]): string | null {
+  if (t[0] !== "r" || t.length < 2 || typeof t[1] !== "string") return null;
+  const raw = t[1].trim();
+  if (!raw.startsWith("wss://")) return null;
+  try {
+    return normalizeURL(raw);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * kind:10002 の r タグ → リレーの読み書き（ネイティブ nip65PrefsFromTags）。
  * wss:// だけを正規化して使い、マーカー無しは read + write。同じ URL は最初のものを残す。
@@ -37,21 +49,22 @@ export function relayPrefsFromEvent(event: NostrEvent): RelayPref[] {
   const prefs: RelayPref[] = [];
   const seen = new Set<string>();
   for (const t of event.tags) {
-    if (t[0] !== "r" || t.length < 2 || typeof t[1] !== "string") continue;
-    const raw = t[1].trim();
-    if (!raw.startsWith("wss://")) continue;
-    let url: string;
-    try {
-      url = normalizeURL(raw);
-    } catch {
-      continue;
-    }
+    const url = normalizedRelayTagUrl(t);
+    if (url === null) continue;
     if (seen.has(url)) continue;
     seen.add(url);
     const marker = t[2]?.trim().toLowerCase() || null;
     prefs.push({ url, read: marker !== "write", write: marker !== "read" });
   }
   return prefs;
+}
+
+/**
+ * r タグが relayPrefsFromEvent で解釈される（wss:// の URL として正規化できる）かどうか。
+ * ws:// や不正な URL の r タグは解釈されない（#580: 保存時に others と同様に引き継ぐため）。
+ */
+export function isRecognizedRelayTag(t: readonly string[]): boolean {
+  return normalizedRelayTagUrl(t) !== null;
 }
 
 /** 手元（EventStore）にある pubkey の kind:10002 の読み書きリレー。無ければ空 */
