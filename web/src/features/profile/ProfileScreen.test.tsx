@@ -386,7 +386,7 @@ describe("フォロー", () => {
     expect(screen.queryByRole("button", { name: "フォロー" })).not.toBeInTheDocument();
     expect(vi.mocked(useContactsOf)).toHaveBeenCalledWith(null);
     await user.click(screen.getByRole("button", { name: "編集" }));
-    expect(router.state.location.pathname).toBe("/settings/account");
+    expect(router.state.location.pathname).toBe("/settings/profile-edit");
   });
 });
 

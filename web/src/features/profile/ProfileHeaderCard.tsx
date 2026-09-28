@@ -146,7 +146,7 @@ export function ProfileHeaderCard({
             <button
               type="button"
               className={`${styles.pill} ${styles.ghost}`}
-              onClick={() => navigate("/settings/account", { replace: true })}
+              onClick={() => navigate("/settings/profile-edit", { replace: true })}
             >
               編集
             </button>
