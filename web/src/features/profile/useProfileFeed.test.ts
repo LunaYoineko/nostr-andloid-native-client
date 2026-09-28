@@ -49,7 +49,7 @@ function last<T>(fn: typeof subscribeTo | typeof requestOnce | typeof authorOutb
 
 it("開くと自分のリレー・アウトボックス・インデクサ（+ リレーヒント）へ張り、閉じるとすべてやめる", () => {
   const { unmount } = renderHook(() => useProfileFeed(pubkey, ["wss://hint", "https://bad"]));
-  const main = [{ kinds: [0, 1, 6, 16, 10002], authors: [pubkey], limit: 100 }];
+  const main = [{ kinds: [0, 1, 6, 16, 10002, 30023], authors: [pubkey], limit: 100 }];
 
   expect(vi.mocked(subscribeTo)).toHaveBeenCalledWith(["wss://relay.example"], main);
   expect(vi.mocked(authorOutbox$)).toHaveBeenCalledWith([pubkey], main);
@@ -92,6 +92,22 @@ it("投稿は本人の kind 1/6/16 を新しい順に最大 150 件", () => {
   expect(result.current.posts).toHaveLength(PROFILE_FEED_MAX);
   expect(result.current.posts[0].content).toBe("post 159");
   expect(result.current.posts.at(-1)?.content).toBe("post 10");
+});
+
+it("記事（kind:30023）は新しい順。同じ d タグは最新版だけにする（#534）", () => {
+  const { result } = renderHook(() => useProfileFeed(pubkey, []));
+
+  const old = note(key, "古い版", 1_000, 30023, [["d", "x"]]);
+  const updated = note(key, "新しい版", 2_000, 30023, [["d", "x"]]);
+  const other = note(key, "別の記事", 1_500, 30023, [["d", "y"]]);
+  act(() => {
+    eventStore.add(old);
+    eventStore.add(updated);
+    eventStore.add(other);
+    eventStore.add(note(generateSecretKey(), "他人の記事", 3_000, 30023, [["d", "x"]]));
+  });
+
+  expect(result.current.articles.map((e) => e.content)).toEqual(["新しい版", "別の記事"]);
 });
 
 it("メディアは画像を含む kind 1 と、元投稿（画像あり）が手元にあるリポストだけ", () => {

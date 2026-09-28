@@ -1,11 +1,11 @@
-import type { EventPointer } from "applesauce-core/helpers/pointers";
+import type { AddressPointer, EventPointer } from "applesauce-core/helpers/pointers";
 import { getEventPointerFromETag, isEventPointer } from "applesauce-core/helpers/pointers";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { createAddressLoader } from "applesauce-loaders/loaders/address-loader";
 import { createEventLoader } from "applesauce-loaders/loaders/event-loader";
 import { use$ } from "applesauce-react/hooks/use-$";
 import { type NostrEvent, verifyEvent } from "nostr-tools/pure";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { catchError, type Observable, of } from "rxjs";
 import { shortNpub } from "../lib/npub";
 import { pool, readRelays$ } from "./pool";
@@ -103,6 +103,34 @@ function isEventShape(value: unknown): value is NostrEvent {
  */
 export function useEventByPointer(pointer: EventPointer | null): NostrEvent | undefined {
   return use$(() => (pointer ? eventStore.event(pointer) : undefined), [pointer?.id]);
+}
+
+/** naddr の 6 秒タイムアウト（#534。ネイティブ EventRepository.kt resolveAddress と同じ） */
+const ADDRESS_RESOLVE_TIMEOUT_MS = 6_000;
+
+function addressKey(pointer: AddressPointer): string {
+  return `${pointer.kind}:${pointer.pubkey}:${pointer.identifier}`;
+}
+
+/**
+ * [#534] naddr（アドレス指定可能イベント。記事 kind:30023 等）を addressLoader で解決する。
+ * ストアに無ければ addressLoader が pointer.relays のヒント + read リレーへ取りに行き、6 秒届かなければ
+ * failed = true にする（ネイティブの resolveAddress と同じ。id 指定の useEventByPointer は届くまで待ち、失敗を示さない）。
+ */
+export function useEventByAddress(pointer: AddressPointer | null): {
+  event: NostrEvent | undefined;
+  failed: boolean;
+} {
+  const key = pointer ? addressKey(pointer) : null;
+  const event = use$(() => (pointer ? eventStore.event(pointer) : undefined), [key]);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+    if (!key || event) return;
+    const timer = setTimeout(() => setFailed(true), ADDRESS_RESOLVE_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [key, event]);
+  return { event, failed };
 }
 
 /**

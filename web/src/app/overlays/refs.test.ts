@@ -1,4 +1,4 @@
-import { neventEncode, noteEncode, nprofileEncode, npubEncode } from "nostr-tools/nip19";
+import { naddrEncode, neventEncode, noteEncode, nprofileEncode, npubEncode } from "nostr-tools/nip19";
 import { describe, expect, it } from "vitest";
 import { OTHER_PUBKEY, PUBKEY } from "../../test/fakeNostr";
 import { parseEventRef, parseProfileRef } from "./refs";
@@ -14,6 +14,19 @@ describe("parseEventRef", () => {
     });
     expect(parseEventRef(ID.toUpperCase())).toEqual({ id: ID });
     expect(parseEventRef(`nostr:${noteEncode(ID)}`)).toEqual({ id: ID });
+  });
+
+  it("naddr1…（relays 付き）は AddressPointer（#534）", () => {
+    expect(parseEventRef(naddrEncode({ kind: 30023, pubkey: PUBKEY, identifier: "d" }))).toMatchObject({
+      kind: 30023,
+      pubkey: PUBKEY,
+      identifier: "d",
+    });
+    expect(
+      parseEventRef(
+        `nostr:${naddrEncode({ kind: 30023, pubkey: PUBKEY, identifier: "d", relays: ["wss://r"] })}`,
+      ),
+    ).toMatchObject({ kind: 30023, pubkey: PUBKEY, identifier: "d", relays: ["wss://r"] });
   });
 
   it("読めない ref と別種の bech32 は null", () => {
