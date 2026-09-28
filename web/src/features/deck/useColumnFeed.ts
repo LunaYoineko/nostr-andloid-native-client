@@ -23,13 +23,18 @@ import { useDmNotices } from "../notifications/useDmNotices";
 import { type FeedRow, mixFollowingFeed } from "./followingMix";
 import { useFollows } from "./useFollows";
 
-/** following = フォロー + 自分、global = フォローが空/未取得の間のリレー新着、column = フォロー中以外のカラム */
-export type FeedMode = "following" | "global" | "column";
+/** following = フォロー + 自分、column = フォロー中以外のカラム */
+export type FeedMode = "following" | "column";
+
+/** フォロー 0 件（未ログイン含む）の空表示（ネイティブ feed_empty と同じ文言。#583） */
+export const FOLLOWING_EMPTY_TEXT = "投稿がありません";
 
 export type ColumnFeed = {
   mode: FeedMode;
-  /** 最初の EOSE（または 8 秒経過）まで true */
+  /** 最初の EOSE（または 8 秒経過。フォロー中は kind:3 未受信の間も）まで true */
   loading: boolean;
+  /** フォロー中カラムで REQ を出していない（フォロー 0 件・未ログイン）ときの空表示の文言 */
+  emptyText?: string;
   /** 新しい順（ミュート対象は除く。カラムで「ミュートを表示」中なら除かない） */
   events: NostrEvent[];
   /**
@@ -142,9 +147,10 @@ export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
 
   const refresh = useCallback(() => setEpoch((e) => e + 1), []);
 
-  const mode: FeedMode =
-    spec.kind !== "FOLLOWING" ? "column" : follows && follows.length > 0 ? "following" : "global";
-  return { mode, loading, events: visible, rows, loadingOlder, loadOlder, refresh };
+  const mode: FeedMode = spec.kind !== "FOLLOWING" ? "column" : "following";
+  // フォロー中カラムで REQ を出していない（未ログインでフォローも無い）ときだけ空表示の文言を出す（#583）
+  const emptyText = spec.kind === "FOLLOWING" && plan === null ? FOLLOWING_EMPTY_TEXT : undefined;
+  return { mode, loading, emptyText, events: visible, rows, loadingOlder, loadOlder, refresh };
 }
 
 /**
