@@ -1,4 +1,6 @@
-/* カラム追加 / フィルター編集のダイアログ（showModal で開く） */
+/* フィルター編集（EditColumnDialog）のダイアログ（showModal で開く）。
+   カラム追加（AddColumnDialog）自体の器は [#593] で上寄せの共通モーダル（ui/ModalSheet）に移った。
+   テンプレ一覧・設定フォームの部品はカラム追加とフィルター編集の両方で使うのでここに残す。 */
 .dialog {
   box-sizing: border-box;
   width: min(420px, calc(100vw - var(--sp-4) * 2));
@@ -34,25 +36,15 @@
   font-weight: var(--w-strong);
 }
 
-.close {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--touch-sm);
-  height: var(--touch-sm);
-  padding: 0;
-  border: none;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--text-3);
-  cursor: pointer;
-}
+/* --- カラム追加（ModalSheet の中身。#593） --- */
 
-@media (hover: hover) {
-  .close:hover {
-    background: var(--surface-3);
-  }
+/* ModalSheet の .card は flex 縦並びなので、ヘッダー下をここだけスクロールさせる（ThemeEditModal の
+   .page / HashtagManager の .body と同じ作法） */
+.body {
+  flex: 1;
+  min-height: 0;
+  margin-top: var(--sp-3);
+  overflow-y: auto;
 }
 
 /* --- テンプレ一覧 --- */
