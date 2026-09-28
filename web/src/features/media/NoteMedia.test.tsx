@@ -1,13 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { NoteMedia as Media, MediaItem } from "../../lib/media";
+import { DEFAULT_EMBED_PREFS, setEmbedPref, useEmbedPrefs } from "../linkcard/embedPrefs";
 import gridStyles from "./ImageGrid.module.css";
 import { NoteMedia } from "./NoteMedia";
 
 beforeEach(() => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
   return () => vi.restoreAllMocks();
+});
+
+afterEach(() => {
+  localStorage.clear();
+  useEmbedPrefs.setState(DEFAULT_EMBED_PREFS);
 });
 
 function items(count: number, prefix: string): MediaItem[] {
@@ -35,18 +41,35 @@ it("画像 → 動画 → YouTube の順に出す", () => {
   expect(blocks).toHaveLength(3);
   expect(blocks[0]).toHaveClass(gridStyles.grid, gridStyles.cols3);
   expect(blocks[1]).toBe(screen.getByRole("button", { name: "動画を再生" }));
-  expect(blocks[2]).toBe(screen.getByRole("link", { name: "YouTube で開く" }));
+  expect(blocks[2].tagName).toBe("IFRAME");
 });
 
 it("動画と YouTube は動画を先に数えて合計 4 件まで（画像は数えない）", () => {
-  const { unmount } = render(<NoteMedia media={media({ videos: items(3, "v"), youtube: youtube(3) })} />);
+  const { container, unmount } = render(
+    <NoteMedia media={media({ videos: items(3, "v"), youtube: youtube(3) })} />,
+  );
   expect(screen.getAllByRole("button", { name: "動画を再生" })).toHaveLength(3);
-  expect(screen.getAllByRole("link", { name: "YouTube で開く" })).toHaveLength(1);
+  expect(container.querySelectorAll("iframe")).toHaveLength(1);
   unmount();
 
   render(<NoteMedia media={media({ images: items(12, "i"), videos: items(5, "v") })} />);
   expect(screen.getAllByRole("button", { name: "動画を再生" })).toHaveLength(4);
   expect(screen.getAllByRole("button", { name: /^画像 \d+ \/ 12 を拡大$/ })).toHaveLength(12);
+});
+
+it("embed_video が OFF なら動画を出さない。空いた枠は YouTube に回さない（#532）", () => {
+  setEmbedPref("video", false);
+  const { container } = render(<NoteMedia media={media({ videos: items(3, "v"), youtube: youtube(3) })} />);
+  expect(screen.queryByRole("button", { name: "動画を再生" })).toBeNull();
+  // 動画 3 本が枠 3 つを占めたまま OFF になっているので、YouTube は残り 1 枠のまま
+  expect(container.querySelectorAll("iframe")).toHaveLength(1);
+});
+
+it("embed_youtube が OFF なら YouTube を出さない", () => {
+  setEmbedPref("youtube", false);
+  const { container } = render(<NoteMedia media={media({ videos: items(1, "v"), youtube: youtube(1) })} />);
+  expect(screen.getAllByRole("button", { name: "動画を再生" })).toHaveLength(1);
+  expect(container.querySelectorAll("iframe")).toHaveLength(0);
 });
 
 it("何も無ければ何も描かない", () => {

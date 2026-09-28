@@ -199,6 +199,12 @@
   accent-color: var(--accent);
 }
 
+/* ogp が OFF の間の ogpImages（トグル自体は無効だが読めるようには残す） */
+.check:has(input:disabled) {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* ---- リレー ---- */
 
 .relays {
