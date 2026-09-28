@@ -16,6 +16,12 @@ export function waitForNostr(timeoutMs = 1500, intervalMs = 100): Promise<Window
   return new Promise((resolve) => {
     const startedAt = Date.now();
     const timer = setInterval(() => {
+      // テストの後片付けなどで window が無くなったら待つのをやめる（未処理の例外にしない）
+      if (typeof window === "undefined") {
+        clearInterval(timer);
+        resolve(null);
+        return;
+      }
       if (window.nostr) {
         clearInterval(timer);
         resolve(window.nostr);
