@@ -1,7 +1,5 @@
 import { useSyncExternalStore } from "react";
-
-/** Expanded になる幅（ネイティブ COMPACT_BREAKPOINT_DP = 600。maxWidth < 600 が Compact） */
-export const EXPANDED_QUERY = "(min-width: 600px)";
+import { UI_SCALE_FACTOR, useThemePrefs } from "../features/theme/themePrefs";
 
 export type LayoutMode = "compact" | "expanded";
 
@@ -9,16 +7,55 @@ function hasMatchMedia(): boolean {
   return typeof window.matchMedia === "function";
 }
 
-function subscribe(onChange: () => void): () => void {
+/** 現在の表示サイズの倍率（ネイティブ density * uiScale.factor と同じ値） */
+function currentUiScale(): number {
+  return UI_SCALE_FACTOR[useThemePrefs.getState().uiScale];
+}
+
+/** [#596] ネイティブは dp の閾値に density * uiScale を掛けて px 判定するのと同じ結果になるよう、閾値(dp)側に uiScale を掛ける */
+function queryFor(breakpointDp: number, uiScale: number): string {
+  return `(min-width: ${Math.round(breakpointDp * uiScale)}px)`;
+}
+
+/**
+ * [#596] 幅の変化（matchMedia の change）と表示サイズの変化（uiScale）の両方で再評価する。
+ * uiScale が変わったら閾値の px が変わるため、古い matchMedia を解除して新しい閾値で張り直す。
+ */
+function subscribeAtBreakpoint(breakpointDp: number, onChange: () => void): () => void {
   if (!hasMatchMedia()) return () => {};
-  const mql = window.matchMedia(EXPANDED_QUERY);
+  let uiScale = currentUiScale();
+  let mql = window.matchMedia(queryFor(breakpointDp, uiScale));
   mql.addEventListener("change", onChange);
-  return () => mql.removeEventListener("change", onChange);
+  const unsubscribeTheme = useThemePrefs.subscribe((prefs) => {
+    const nextUiScale = UI_SCALE_FACTOR[prefs.uiScale];
+    if (nextUiScale === uiScale) return;
+    mql.removeEventListener("change", onChange);
+    uiScale = nextUiScale;
+    if (!hasMatchMedia()) return;
+    mql = window.matchMedia(queryFor(breakpointDp, uiScale));
+    mql.addEventListener("change", onChange);
+    onChange();
+  });
+  return () => {
+    mql.removeEventListener("change", onChange);
+    unsubscribeTheme();
+  };
+}
+
+function getMatchesAtBreakpoint(breakpointDp: number): boolean {
+  if (!hasMatchMedia()) return false;
+  return window.matchMedia(queryFor(breakpointDp, currentUiScale())).matches;
+}
+
+/** Expanded になる閾値（ネイティブ COMPACT_BREAKPOINT_DP = 600。maxWidth < 600 が Compact） */
+const COMPACT_BREAKPOINT_DP = 600;
+
+function subscribe(onChange: () => void): () => void {
+  return subscribeAtBreakpoint(COMPACT_BREAKPOINT_DP, onChange);
 }
 
 function getSnapshot(): LayoutMode {
-  if (!hasMatchMedia()) return "compact";
-  return window.matchMedia(EXPANDED_QUERY).matches ? "expanded" : "compact";
+  return getMatchesAtBreakpoint(COMPACT_BREAKPOINT_DP) ? "expanded" : "compact";
 }
 
 /**
@@ -35,18 +72,14 @@ export function useLayoutMode(): LayoutMode {
  * 幅の広いスマホ表示（Fold のカバー画面等）向け。下部ナビの 72dp が高くつくので、
  * ナビだけデッキと同じ左レールにする（内容は 600px 未満なので [useLayoutMode] は compact のまま）。
  */
-export const RAIL_QUERY = "(min-width: 440px)";
+const RAIL_MIN_WIDTH_DP = 440;
 
 function subscribeRail(onChange: () => void): () => void {
-  if (!hasMatchMedia()) return () => {};
-  const mql = window.matchMedia(RAIL_QUERY);
-  mql.addEventListener("change", onChange);
-  return () => mql.removeEventListener("change", onChange);
+  return subscribeAtBreakpoint(RAIL_MIN_WIDTH_DP, onChange);
 }
 
 function getRailSnapshot(): boolean {
-  if (!hasMatchMedia()) return false;
-  return window.matchMedia(RAIL_QUERY).matches;
+  return getMatchesAtBreakpoint(RAIL_MIN_WIDTH_DP);
 }
 
 /** 左レールを出すか（440px 以上。600px 以上の Expanded でも当然 true）。matchMedia が無ければ false */

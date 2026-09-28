@@ -1,9 +1,12 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
+import { DEFAULT_THEME_PREFS, useThemePrefs } from "../features/theme/themePrefs";
 import { clearViewport, mockViewport, setViewportWidth } from "../test/viewport";
 import { prefersReducedMotion, scrollBehavior, useLayoutMode, useShowNavRail } from "./useLayoutMode";
 
 afterEach(() => {
+  // uiScale を戻す購読の再評価が matchMedia を使うため、外す前に戻す
+  useThemePrefs.setState(DEFAULT_THEME_PREFS);
   clearViewport();
 });
 
@@ -51,4 +54,31 @@ it("[#540] 幅が 500 → 400 に変わると再描画でレールが消える",
 it("[#540] matchMedia が無ければレールも false", () => {
   clearViewport();
   expect(renderHook(() => useShowNavRail()).result.current).toBe(false);
+});
+
+it("[#596] 表示サイズ「最大」(uiScale 1.3) のとき 700px は compact（ネイティブの物理700px→538dpと同じ結果）", () => {
+  useThemePrefs.setState({ uiScale: "l" });
+  mockViewport(700);
+  expect(renderHook(() => useLayoutMode()).result.current).toBe("compact");
+});
+
+it("[#596] 表示サイズ「標準」(uiScale 1.0) のとき 700px は expanded", () => {
+  mockViewport(700);
+  expect(renderHook(() => useLayoutMode()).result.current).toBe("expanded");
+});
+
+it("[#596] 700px のまま表示サイズを標準→最大に変えると再描画で compact になる（閾値が 600→780px に広がる）", () => {
+  mockViewport(700);
+  const { result } = renderHook(() => useLayoutMode());
+  expect(result.current).toBe("expanded");
+
+  act(() => {
+    useThemePrefs.setState({ uiScale: "l" });
+  });
+  expect(result.current).toBe("compact");
+
+  act(() => {
+    useThemePrefs.setState({ uiScale: "s" });
+  });
+  expect(result.current).toBe("expanded");
 });

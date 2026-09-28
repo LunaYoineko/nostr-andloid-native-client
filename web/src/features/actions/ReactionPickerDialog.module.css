@@ -156,11 +156,12 @@
   gap: var(--sp-1);
 }
 
+/* [#596] セルだけ文字サイズにも追従（ネイティブ ReactionPicker.kt の EmojiCell = 40.dp.scaledByText()。最大1.3倍） */
 .cell {
   display: grid;
   place-items: center;
-  width: var(--touch-sm);
-  height: var(--touch-sm);
+  width: calc(var(--touch-sm) * clamp(1, var(--text-scale), 1.3));
+  height: calc(var(--touch-sm) * clamp(1, var(--text-scale), 1.3));
   padding: 0;
   border: 0;
   border-radius: var(--r-sm);
