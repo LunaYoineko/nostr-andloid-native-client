@@ -1,8 +1,10 @@
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { noteEncode, npubEncode } from "nostr-tools/nip19";
+import { neventEncode, noteEncode, npubEncode } from "nostr-tools/nip19";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useCompose } from "../features/compose/composeStore";
+import { saveDraft } from "../features/compose/storage";
 import { useDmSeen } from "../features/dm/dmSeen";
 import { useDm } from "../features/dm/dmStore";
 import type { ColumnSpec } from "../lib/columns";
@@ -319,6 +321,60 @@ describe("一時カラム（/t/:tag）", () => {
 
     await act(() => router.navigate(-1));
     expect(useDeck.getState().columns.map((c) => c.id)).toEqual(["c_following", "c_hashtag", "c_notif"]);
+  });
+});
+
+describe("共有（/share。#541）", () => {
+  afterEach(() => {
+    act(() => useCompose.setState({ request: null }));
+    localStorage.clear();
+  });
+
+  it("title・text・url を改行でつないで下書きに入れ、投稿シートを開いて / に置き換える", async () => {
+    installDialogPolyfill();
+    const router = renderAt(["/share?title=a&text=b&url=https://x"]);
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(screen.getByRole("dialog", { name: "投稿" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "本文" })).toHaveValue("a\nb\nhttps://x");
+  });
+
+  it("空の値は省く", async () => {
+    installDialogPolyfill();
+    const router = renderAt(["/share?text=本文だけ"]);
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(screen.getByRole("textbox", { name: "本文" })).toHaveValue("本文だけ");
+  });
+
+  it("書きかけの下書きは消さず、空行を挟んで後ろへ足す", async () => {
+    installDialogPolyfill();
+    saveDraft("書きかけ");
+    const router = renderAt(["/share?url=https://x"]);
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe("/"));
+    expect(screen.getByRole("textbox", { name: "本文" })).toHaveValue("書きかけ\n\nhttps://x");
+  });
+});
+
+describe("web+nostr:（/open。#541）", () => {
+  it("npub / nprofile は /p/ のプロフィールへ", async () => {
+    const npub = npubEncode(OTHER_PUBKEY);
+    const router = renderAt([`/open?uri=${encodeURIComponent(`web+nostr:${npub}`)}`]);
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe(`/p/${npub}`));
+    expect(screen.getByRole("region", { name: "プロフィール" })).toBeInTheDocument();
+  });
+
+  it("note / nevent / naddr は /e/ のスレッドへ（nostr: だけの URI も受ける）", async () => {
+    const nevent = neventEncode({ id: "5c83da77af1dec6d7289834998ad7aafbd9e2191396d75ec3cc27f5a77226f36" });
+    const router = renderAt([`/open?uri=${encodeURIComponent(`nostr:${nevent}`)}`]);
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe(`/e/${nevent}`));
+    expect(screen.getByRole("region", { name: "スレッド" })).toBeInTheDocument();
+  });
+
+  it("読めない値は「ページが見つかりません」", async () => {
+    const router = renderAt([`/open?uri=${encodeURIComponent("web+nostr:not-a-valid-ref")}`]);
+    await vi.waitFor(() =>
+      expect(screen.getByRole("heading", { name: "ページが見つかりません" })).toBeInTheDocument(),
+    );
+    expect(router.state.location.pathname).toBe("/404");
   });
 });
 

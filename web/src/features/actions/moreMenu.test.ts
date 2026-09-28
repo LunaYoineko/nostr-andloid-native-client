@@ -23,6 +23,8 @@ function actions(): MoreMenuActions {
     copyNote1: vi.fn(),
     copyNevent: vi.fn(),
     viewJson: vi.fn(),
+    translate: vi.fn(),
+    hideTranslation: vi.fn(),
   };
 }
 
@@ -224,6 +226,39 @@ it("client タグが無ければ見出しと最初の区切りを出さない", 
     on: actions(),
   });
   expect(shape(entries)[0]).toBe("削除をリクエスト (danger)");
+});
+
+it("translationVisible が undefined / null なら「翻訳」を出さない。false は「翻訳」、true は「翻訳を隠す」", () => {
+  const base = {
+    clientName: null,
+    isMine: true,
+    isFollowing: null,
+    isBookmarked: null,
+    isPinned: null,
+    isMuted: false,
+    note1: NOTE1,
+    nevent: NEVENT,
+  };
+  expect(shape(moreMenuEntries({ ...base, on: actions() }))[0]).toBe("削除をリクエスト (danger)");
+  expect(shape(moreMenuEntries({ ...base, translationVisible: null, on: actions() }))[0]).toBe(
+    "削除をリクエスト (danger)",
+  );
+
+  const onShow = actions();
+  const shown = moreMenuEntries({ ...base, translationVisible: false, on: onShow });
+  expect(shape(shown)).toEqual(["削除をリクエスト (danger)", "翻訳", ...COPIES]);
+  const translateEntry = shown.find((e) => e.type === "item" && e.label === "翻訳");
+  if (translateEntry?.type === "item") translateEntry.onSelect();
+  expect(onShow.translate).toHaveBeenCalledTimes(1);
+  expect(onShow.hideTranslation).not.toHaveBeenCalled();
+
+  const onHide = actions();
+  const hidden = moreMenuEntries({ ...base, translationVisible: true, on: onHide });
+  expect(shape(hidden)).toEqual(["削除をリクエスト (danger)", "翻訳を隠す", ...COPIES]);
+  const hideEntry = hidden.find((e) => e.type === "item" && e.label === "翻訳を隠す");
+  if (hideEntry?.type === "item") hideEntry.onSelect();
+  expect(onHide.hideTranslation).toHaveBeenCalledTimes(1);
+  expect(onHide.translate).not.toHaveBeenCalled();
 });
 
 it("開発者モードの間は末尾に「イベントJSONを表示」", () => {

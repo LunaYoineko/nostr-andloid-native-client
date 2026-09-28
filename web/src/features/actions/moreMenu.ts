@@ -17,14 +17,18 @@ export type MoreMenuActions = {
   copyNote1(): void;
   copyNevent(): void;
   viewJson(): void;
+  translate(): void;
+  hideTranslation(): void;
 };
 
 /**
- * 投稿の ⋯ メニュー（ネイティブ NoteItem.kt の並び。M1 に無い項目 = 翻訳は出さない）。
+ * 投稿の ⋯ メニュー（ネイティブ NoteItem.kt の並び）。
  * isFollowing が null（自分の kind:3 が未取得）ならフォロー項目を出さない。
  * isBookmarked が null（自分の kind:10003 が未取得）ならブックマーク項目を出さない（#531）。
  * 自分の投稿は isPinned が null（自分の kind:10001 が未取得）でなければ「プロフィールに固定」。
  * 他人の投稿は「通報」の前に「このユーザーをミュート」（ミュート中なら「ミュートを解除」）。
+ * translationVisible が undefined / null（Translator 非対応・本文が空）なら「翻訳」は出さない。
+ * false なら「翻訳」、true なら「翻訳を隠す」（コピー系の区切りの前。#541）。
  * 開発者モード（developerMode）の間は末尾に「イベントJSONを表示」。
  */
 export function moreMenuEntries(a: {
@@ -37,6 +41,7 @@ export function moreMenuEntries(a: {
   note1: string;
   nevent: string;
   developerMode?: boolean;
+  translationVisible?: boolean | null;
   on: MoreMenuActions;
 }): MenuEntry[] {
   const entries: MenuEntry[] = [];
@@ -77,6 +82,13 @@ export function moreMenuEntries(a: {
       ? { type: "item", label: "削除をリクエスト", onSelect: a.on.requestDelete, tone: "danger" }
       : { type: "item", label: "通報", onSelect: a.on.report, tone: "danger" },
   );
+  if (a.translationVisible !== undefined && a.translationVisible !== null) {
+    entries.push(
+      a.translationVisible
+        ? { type: "item", label: "翻訳を隠す", onSelect: a.on.hideTranslation }
+        : { type: "item", label: "翻訳", onSelect: a.on.translate },
+    );
+  }
   entries.push(
     { type: "separator" },
     { type: "item", label: "テキストをコピー", onSelect: a.on.copyText },
