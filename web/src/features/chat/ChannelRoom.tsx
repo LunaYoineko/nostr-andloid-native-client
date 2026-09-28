@@ -262,8 +262,11 @@ function MessageRow({
   );
 }
 
-/** 返信元の 1 行「↩ (アバター) 名前: 本文」（ネイティブ ReplyQuote → ReplyContextLine） */
-function ReplyQuote({ parent }: { parent: NostrEvent }) {
+/**
+ * 返信元の 1 行「↩ (アバター) 名前: 本文」（ネイティブ ReplyQuote → ReplyContextLine）。
+ * DM（features/dm/ConversationView）とも共有する部品（#589）。
+ */
+export function ReplyQuote({ parent }: { parent: NostrEvent }) {
   const profile = useProfile(parent.pubkey);
   const picture = pictureOf(profile);
   return (

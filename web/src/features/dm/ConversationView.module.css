@@ -148,12 +148,44 @@
   line-height: var(--line-desc);
 }
 
+/* 吹き出し + 返信ボタン（ネイティブ MessageActions。#589） */
+.bubbleRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  max-width: 100%;
+}
+
 .bubble {
   min-width: 0;
   max-width: 100%;
   padding: var(--sp-2) var(--sp-3);
   border-radius: var(--r-lg);
   overflow-wrap: anywhere;
+}
+
+/* 吹き出し横のリプライボタン（ChannelRoom の .action / .actionIcon と同じ体裁） */
+.action {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--surface-2);
+}
+
+.actionIcon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .theirs .bubble {
@@ -200,6 +232,11 @@
   align-items: flex-end;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
+}
+
+/* 返信中（features/chat の ReplyingTo を共有。ここでは DM の余白に合わせて包むだけ。#589） */
+.replying {
+  padding: var(--sp-2) var(--sp-3) 0;
 }
 
 /* ---- 添付・絵文字ボタン（ComposeDialog の .tool と同じ） ---- */

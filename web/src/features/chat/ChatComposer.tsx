@@ -326,8 +326,11 @@ export function ChatComposer({
   );
 }
 
-/** 返信中の 1 行（ネイティブ chat_reply_to_fmt「%1$s に返信: %2$s」）と取り消し */
-function ReplyingTo({ target, onCancel }: { target: NostrEvent; onCancel(): void }) {
+/**
+ * 返信中の 1 行（ネイティブ chat_reply_to_fmt「%1$s に返信: %2$s」）と取り消し。
+ * DM（features/dm/ConversationView）とも共有する部品（#589）。
+ */
+export function ReplyingTo({ target, onCancel }: { target: NostrEvent; onCancel(): void }) {
   const profile = useProfile(target.pubkey);
   return (
     <div className={styles.replying}>

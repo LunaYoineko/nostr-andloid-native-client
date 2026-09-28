@@ -92,7 +92,7 @@ describe("入力欄", () => {
     await userEvent.type(input(), "やあ");
     await userEvent.click(sendButton());
 
-    expect(vi.mocked(sendDm)).toHaveBeenCalledWith(PEER, "やあ");
+    expect(vi.mocked(sendDm)).toHaveBeenCalledWith(PEER, "やあ", null);
     expect(input()).toBeDisabled();
     expect(sendButton()).toBeDisabled();
 
@@ -116,14 +116,14 @@ describe("入力欄", () => {
     await act(async () => {
       fireEvent.keyDown(input(), { key: "Enter", ctrlKey: true });
     });
-    expect(vi.mocked(sendDm)).toHaveBeenCalledWith(PEER, "1 行目\n2 行目");
+    expect(vi.mocked(sendDm)).toHaveBeenCalledWith(PEER, "1 行目\n2 行目", null);
     expect(input()).toHaveValue("");
 
     await userEvent.type(input(), "cmd");
     await act(async () => {
       fireEvent.keyDown(input(), { key: "Enter", metaKey: true });
     });
-    expect(vi.mocked(sendDm)).toHaveBeenLastCalledWith(PEER, "cmd");
+    expect(vi.mocked(sendDm)).toHaveBeenLastCalledWith(PEER, "cmd", null);
   });
 
   it("「届かない可能性があります」は同じ相手ではセッション中 1 回だけ", async () => {
@@ -181,6 +181,66 @@ describe("未送信", () => {
 
     await userEvent.click(retry[0]);
     expect(vi.mocked(retryUnsentNow)).toHaveBeenCalledWith("mine");
+  });
+});
+
+describe("返信（#589）", () => {
+  it("バブルの返信ボタンでバナーが出て、送信すると返信元を sendDm へ渡す。送れたらバナーは消え、✕ でも取り消せる", async () => {
+    sendResolves("sent");
+    useDm.getState().upsertMessages([dm("parent", PEER, "元の発言")]);
+    renderWithRouter(<ConversationView peer={PEER} />);
+    expect(screen.queryByText(/ に返信: /)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "リプライ" }));
+    expect(screen.getByText(/ に返信: 元の発言$/)).toBeInTheDocument();
+
+    await userEvent.type(input(), "了解です");
+    await userEvent.click(sendButton());
+    expect(vi.mocked(sendDm)).toHaveBeenCalledWith(
+      PEER,
+      "了解です",
+      expect.objectContaining({ id: "parent", pubkey: PEER, content: "元の発言" }),
+    );
+    await waitFor(() => expect(screen.queryByText(/ に返信: /)).not.toBeInTheDocument());
+  });
+
+  it("✕（返信をやめる）でバナーを消し、次の送信では返信元を渡さない", async () => {
+    sendResolves("sent");
+    useDm.getState().upsertMessages([dm("parent", PEER, "元の発言")]);
+    renderWithRouter(<ConversationView peer={PEER} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "リプライ" }));
+    await userEvent.click(screen.getByRole("button", { name: "返信をやめる" }));
+    expect(screen.queryByText(/ に返信: /)).not.toBeInTheDocument();
+
+    await userEvent.type(input(), "普通の発言");
+    await userEvent.click(sendButton());
+    expect(vi.mocked(sendDm)).toHaveBeenCalledWith(PEER, "普通の発言", null);
+  });
+
+  it("受信側: #e（reply マーカー）から返信元を引いて 1 行引用を出す。手元に無ければ出さない（落ちない）", () => {
+    useDm.getState().upsertMessages([
+      dm("parent", PEER, "元の発言"),
+      {
+        ...dm("child", ME, "了解です"),
+        tags: [
+          ["p", PEER],
+          ["e", "parent", "", "reply"],
+        ],
+      },
+      {
+        ...dm("orphan", ME, "宙に浮いた返信"),
+        tags: [
+          ["p", PEER],
+          ["e", "missing", "", "reply"],
+        ],
+      },
+    ]);
+    renderWithRouter(<ConversationView peer={PEER} />);
+
+    expect(screen.getByText(/: 元の発言$/)).toBeInTheDocument();
+    expect(screen.getByText("了解です")).toBeInTheDocument();
+    expect(screen.getByText("宙に浮いた返信")).toBeInTheDocument();
   });
 });
 
@@ -295,7 +355,7 @@ describe("添付（画像・動画。#535）", () => {
     await userEvent.upload(fileInput("image/*"), png());
     await userEvent.click(sendButton());
 
-    await waitFor(() => expect(vi.mocked(sendDm)).toHaveBeenCalledWith(PEER, `写真\n${UPLOADED_URL}`));
+    await waitFor(() => expect(vi.mocked(sendDm)).toHaveBeenCalledWith(PEER, `写真\n${UPLOADED_URL}`, null));
   });
 
   it("アップロードに失敗したら送らず chat_upload_failed", async () => {

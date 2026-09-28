@@ -1,10 +1,10 @@
 import { type FormEvent, useId, useState } from "react";
 import { shortNpub } from "../../lib/npub";
 import { displayName, useProfile } from "../../nostr/loaders";
-import { useSession } from "../../signer/session";
+import { currentSigner, useSession } from "../../signer/session";
 import { showToast } from "../../ui/toast";
 import { type MuteCategory, type MuteEntry, useMute } from "../mute/muteList";
-import { addMuteWord, MuteListError, removeMuteEntry } from "../mute/muteSync";
+import { addMuteWord, MuteListError, saveMuteList, signerCanPrivateMute } from "../mute/muteSync";
 import styles from "./SettingsSections.module.css";
 
 /** 種別の見出し（ネイティブ mute_cat_*）と並び */
@@ -18,6 +18,10 @@ const CATEGORY_LABELS: readonly { category: MuteCategory; label: string }[] = [
 /** ネイティブ mute_locked */
 const LOCKED_MESSAGE = "復号できない非公開項目があるため編集できません（上書きで失うのを防いでいます）";
 
+/** 署名者が暗号（NIP-44 / NIP-04）を使えない（ネイティブに無い web 独自の案内。#478） */
+const NO_CIPHER_MESSAGE =
+  "この署名方式は暗号化に対応していないため、非公開でミュートできません（公開では追加しません）";
+
 /** 変更の失敗の文言 */
 function failureMessage(e: unknown): string {
   if (e instanceof MuteListError) {
@@ -29,73 +33,80 @@ function failureMessage(e: unknown): string {
       case "locked":
         return LOCKED_MESSAGE;
       case "no-cipher":
-        return "この署名方式は暗号化に対応していないため、非公開でミュートできません（公開では追加しません）";
+        return NO_CIPHER_MESSAGE;
     }
   }
   // ネイティブ mute_save_failed
   return "保存に失敗しました（鍵を確認してください）";
 }
 
-function privacyLabel(entry: MuteEntry): string {
-  if (entry.isPublic && entry.isPrivate) return "公開・非公開";
-  return entry.isPublic ? "公開" : "非公開";
-}
+/** 編集中の下書き。basedOnId = 編集を始めた時点の版の id（無ければ null。ネイティブに無い web 独自の #478 対策） */
+type Draft = { basedOnId: string | null; entries: MuteEntry[] };
 
 /**
- * ミュート（ネイティブ MuteSettings。NIP-51 kind:10000 の公開 + 復号した非公開）。
- * 1 件ごとの解除・削除とワードの追加は、その場で kind:10000 を再発行する。表示している版と、発行の直前に
- * 取り直した最新版が違えば発行しない（muteSync.ts editMuteList）。非公開部分を復号できなければ編集しない。
+ * ミュート（ネイティブ MuteSettings。NIP-51 kind:10000 の公開 + 復号した非公開）。行ごとの公開 / 非公開の
+ * チェックを下書きに反映し、変更があれば下部の「保存」で 1 回にまとめて kind:10000 を再発行する
+ * （muteSync.ts の saveMuteList。#478: 取り直し・応答なしなら発行しない・basedOnId 照合・非公開部分の再暗号化）。
+ * 署名者が暗号（NIP-44 / NIP-04）を使えなければ非公開のチェックを無効にし、案内を出す（公開に黙って倒さない）。
+ * ⋯ メニューからの 1 件のミュート / 解除（muteUser / unmuteUser）はここを介さず、その場で発行する。
  */
 export function MuteSection() {
   const me = useSession((s) => s.pubkey);
   const list = useMute((s) => s.list);
-  const [busy, setBusy] = useState(false);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [saving, setSaving] = useState(false);
   // RequireSession の内側なので pubkey は必ずある
   if (!me) return null;
 
-  const editable = list !== null && !list.locked && !busy;
+  const canPrivate = signerCanPrivateMute(currentSigner());
+  const entries = draft?.entries ?? list?.entries ?? [];
+  const editable = list !== null && !list.locked && !saving;
 
-  async function run(
-    action: (basedOnId: string | null) => Promise<"done" | "noop">,
-    messages: { done: string; noop: string },
-  ) {
-    if (!list || list.locked) return;
-    setBusy(true);
+  function toggle(entry: MuteEntry, patch: Partial<Pick<MuteEntry, "isPublic" | "isPrivate">>) {
+    if (!list) return;
+    setDraft((prev) => {
+      const base = prev ?? { basedOnId: list.eventId, entries: list.entries };
+      return {
+        basedOnId: base.basedOnId,
+        entries: base.entries.map((e) =>
+          e.category === entry.category && e.value === entry.value ? { ...e, ...patch } : e,
+        ),
+      };
+    });
+  }
+
+  async function save() {
+    if (!me || !draft) return;
+    setSaving(true);
     try {
-      const result = await action(list.eventId);
-      showToast(result === "done" ? messages.done : messages.noop);
+      await saveMuteList(me, draft.entries, draft.basedOnId);
+      setDraft(null);
+      // ネイティブ mute_saved
+      showToast("ミュートリストを保存しました");
     } catch (e) {
+      // 最新版と食い違っていたら下書きを捨てて最新の内容を出し直す
+      if (e instanceof MuteListError && e.reason === "stale") setDraft(null);
       showToast(failureMessage(e));
     } finally {
-      setBusy(false);
+      setSaving(false);
     }
   }
 
-  function remove(entry: MuteEntry) {
-    if (!me) return;
-    void run((basedOnId) => removeMuteEntry(me, entry.category, entry.value, basedOnId), {
-      done: entry.category === "p" ? "ミュートを解除しました" : "ミュートリストを保存しました",
-      noop: "ミュートリストを保存しました",
-    });
-  }
-
   function addWord(word: string) {
-    if (!me) return;
-    void run((basedOnId) => addMuteWord(me, word, basedOnId), {
-      done: "ミュートワードを追加しました",
-      noop: "追加できませんでした",
-    });
+    if (!me || !list || list.locked) return;
+    addMuteWord(me, word, list.eventId)
+      .then((result) =>
+        showToast(result === "done" ? "ミュートワードを追加しました" : "追加できませんでした"),
+      )
+      .catch((e: unknown) => showToast(failureMessage(e)));
   }
-
-  const entries = list?.entries ?? [];
 
   return (
     <>
       <div className={styles.block}>
         <h3 className={styles.caption}>ミュートリスト（NIP-51 / kind:10000）</h3>
         <p className={styles.desc}>
-          ミュートしたユーザー・ワード・ハッシュタグ・スレッドの投稿を表示しません。ワードは本文とハッシュタグに一致し、/正規表現/
-          も使えます（非公開で保存）。変更はその場で kind:10000 を再発行します。
+          公開／非公開を切り替えて「保存」で再発行します。両方のチェックを外すと解除です。
         </p>
         <AddWordForm entries={entries} disabled={!editable} onAdd={addWord} />
       </div>
@@ -107,21 +118,27 @@ export function MuteSection() {
         ) : (
           <>
             {list.locked && <p className={styles.note}>{LOCKED_MESSAGE}</p>}
+            {!canPrivate && <p className={styles.note}>{NO_CIPHER_MESSAGE}</p>}
             {entries.length === 0 ? (
               <p className={styles.desc}>ミュートしている項目はありません</p>
             ) : (
-              CATEGORY_LABELS.map(({ category, label }) => (
-                <MuteGroup
-                  key={category}
-                  label={label}
-                  entries={entries.filter((e) => e.category === category)}
-                  disabled={!editable}
-                  onRemove={remove}
-                />
-              ))
+              <>
+                <MuteLegend />
+                {CATEGORY_LABELS.map(({ category, label }) => (
+                  <MuteGroup
+                    key={category}
+                    label={label}
+                    entries={entries.filter((e) => e.category === category)}
+                    editable={editable}
+                    canPrivate={canPrivate}
+                    onToggle={toggle}
+                  />
+                ))}
+              </>
             )}
           </>
         )}
+        {draft !== null && <SaveBar saving={saving} onSave={() => void save()} />}
       </div>
     </>
   );
@@ -185,29 +202,43 @@ function AddWordForm({
   );
 }
 
-/** 種別ごとの一覧（見出しに件数。行の見た目はリレーの一覧と同じ） */
+/** 公開 / 非公開の列見出し（ネイティブ ColumnLegend） */
+function MuteLegend() {
+  return (
+    <div className={styles.muteLegend} aria-hidden="true">
+      <span className={styles.muteLegendLabel}>公開</span>
+      <span className={styles.muteLegendLabel}>非公開</span>
+    </div>
+  );
+}
+
+/** 種別ごとの一覧（見出しに件数。両方外した項目も編集中は残す） */
 function MuteGroup({
   label,
   entries,
-  disabled,
-  onRemove,
+  editable,
+  canPrivate,
+  onToggle,
 }: {
   label: string;
   entries: readonly MuteEntry[];
-  disabled: boolean;
-  onRemove(entry: MuteEntry): void;
+  editable: boolean;
+  canPrivate: boolean;
+  onToggle(entry: MuteEntry, patch: Partial<Pick<MuteEntry, "isPublic" | "isPrivate">>): void;
 }) {
   if (entries.length === 0) return null;
+  const count = entries.filter((e) => e.isPublic || e.isPrivate).length;
   return (
     <section aria-label={label}>
-      <h4 className={styles.caption}>{`${label} (${entries.length})`}</h4>
+      <h4 className={styles.caption}>{`${label} (${count})`}</h4>
       <ul className={styles.relays}>
         {entries.map((entry) => (
           <MuteRow
             key={`${entry.category}:${entry.value}`}
             entry={entry}
-            disabled={disabled}
-            onRemove={() => onRemove(entry)}
+            editable={editable}
+            canPrivate={canPrivate}
+            onToggle={(patch) => onToggle(entry, patch)}
           />
         ))}
       </ul>
@@ -215,28 +246,48 @@ function MuteGroup({
   );
 }
 
-function MuteRow({ entry, disabled, onRemove }: { entry: MuteEntry; disabled: boolean; onRemove(): void }) {
+function MuteRow({
+  entry,
+  editable,
+  canPrivate,
+  onToggle,
+}: {
+  entry: MuteEntry;
+  editable: boolean;
+  canPrivate: boolean;
+  onToggle(patch: Partial<Pick<MuteEntry, "isPublic" | "isPrivate">>): void;
+}) {
   const label = entryLabel(entry);
-  const isWord = entry.category === "word";
+  const removed = !entry.isPublic && !entry.isPrivate;
   return (
     <li className={styles.relay}>
       {entry.category === "p" ? (
-        <MutedUserLabel pubkey={entry.value} />
+        <MutedUserLabel pubkey={entry.value} dimmed={removed} />
       ) : (
-        <span className={styles.relayUrl} title={entry.value}>
+        <span className={`${styles.relayUrl} ${removed ? styles.dimmed : ""}`} title={entry.value}>
           {label}
         </span>
       )}
-      <span className={styles.relayMeta}>{privacyLabel(entry)}</span>
-      <button
-        type="button"
-        className={styles.textButton}
-        disabled={disabled}
-        aria-label={isWord ? `${label} を削除` : `${label} のミュートを解除`}
-        onClick={onRemove}
-      >
-        {isWord ? "削除" : "解除"}
-      </button>
+      <span className={styles.muteChecks}>
+        <span className={styles.muteCheck}>
+          <input
+            type="checkbox"
+            aria-label={`${label} を公開でミュート`}
+            checked={entry.isPublic}
+            disabled={!editable}
+            onChange={(e) => onToggle({ isPublic: e.target.checked })}
+          />
+        </span>
+        <span className={styles.muteCheck}>
+          <input
+            type="checkbox"
+            aria-label={`${label} を非公開でミュート`}
+            checked={entry.isPrivate}
+            disabled={!editable || !canPrivate}
+            onChange={(e) => onToggle({ isPrivate: e.target.checked })}
+          />
+        </span>
+      </span>
     </li>
   );
 }
@@ -255,12 +306,30 @@ function entryLabel(entry: MuteEntry): string {
 }
 
 /** ミュート中のユーザー（kind:0 の名前 + npub の先頭） */
-function MutedUserLabel({ pubkey }: { pubkey: string }) {
+function MutedUserLabel({ pubkey, dimmed }: { pubkey: string; dimmed: boolean }) {
   const profile = useProfile(pubkey);
   return (
-    <span className={styles.relayUrl}>
+    <span className={`${styles.relayUrl} ${dimmed ? styles.dimmed : ""}`}>
       <span className={styles.name}>{displayName(profile, pubkey)}</span>
       <span className={styles.shortNpub}>{shortNpub(pubkey)}</span>
     </span>
+  );
+}
+
+/** 変更があるときだけ出す保存バー（ネイティブ SaveBar）。保存中は安定するまで入力をロックする */
+function SaveBar({ saving, onSave }: { saving: boolean; onSave(): void }) {
+  return (
+    <div className={styles.saveBar}>
+      <p className={styles.caption} role="status">
+        {
+          saving
+            ? "保存中…（安定するまでお待ちください）" // ネイティブ mute_saving_wait
+            : "変更があります" /* ネイティブ mute_dirty */
+        }
+      </p>
+      <button type="button" className={styles.primary} disabled={saving} onClick={onSave}>
+        {saving ? "保存中…" : "保存"}
+      </button>
+    </div>
   );
 }
