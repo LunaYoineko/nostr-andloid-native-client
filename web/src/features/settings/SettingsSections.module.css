@@ -93,6 +93,47 @@
   font-size: var(--type-label);
 }
 
+/* [#588] ① 現在のログインカード（ネイティブ SignerSettings 冒頭のカード） */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.cardDivider {
+  border-top: 1px solid var(--border);
+}
+
+.cardMethod {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--type-caption);
+}
+
+.cardMethodLabel {
+  color: var(--text-2);
+}
+
+.cardMethodValue {
+  color: var(--text);
+}
+
+.active {
+  color: var(--verified);
+  font-size: var(--type-label);
+}
+
 .mono {
   margin: 0;
   color: var(--text-2);
