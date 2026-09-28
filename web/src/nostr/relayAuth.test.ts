@@ -234,14 +234,17 @@ describe("AUTH 成立後の張り直し（applesauce-relay の実物 + 偽の We
     useAuthPolicy.setState({ policy: "dm" });
   });
 
-  it("再接続では since 差分で張り直し、AUTH が成立したら同じ購読を since 無しで張り直す", async () => {
+  it("再接続では since 差分で張り直し（kind:1059 は全量）、AUTH が成立したら同じ購読を since 無しで張り直す", async () => {
     const url = "wss://auth-resend.example/";
     const { signer, pubkey, secretKey } = createTestSigner();
     vi.mocked(currentSigner).mockReturnValue(signer);
     useSession.setState({ status: "in", method: "local", pubkey });
     setAuthPolicy("always");
     stop = watchRelayAuth(pool);
-    const filters = [{ kinds: [1059], "#p": [pubkey] }];
+    const filters = [
+      { kinds: [4], "#p": [pubkey] },
+      { kinds: [1059], "#p": [pubkey] },
+    ];
     subscriptions.push(subscribeTo([url], filters).subscribe());
 
     const first = ScriptedWebSocket.latest(url);
@@ -253,7 +256,7 @@ describe("AUTH 成立後の張り直し（applesauce-relay の実物 + 偽の We
     first.push([
       "EVENT",
       req.id,
-      finalizeEvent({ kind: 1059, created_at: received, tags: [["p", pubkey]], content: "x" }, secretKey),
+      finalizeEvent({ kind: 4, created_at: received, tags: [["p", pubkey]], content: "x" }, secretKey),
     ]);
 
     // 異常切断 → 再接続（リレーの待ち 1.5 秒・購読の待ち 1 秒）
@@ -262,9 +265,8 @@ describe("AUTH 成立後の張り直し（applesauce-relay の実物 + 偽の We
     const second = ScriptedWebSocket.latest(url);
     if (!second || second === first) throw new Error("not reconnected");
     second.accept();
-    expect(second.reqs()).toEqual([
-      { id: req.id, filters: [{ ...filters[0], since: received - SINCE_MARGIN_SEC }] },
-    ]);
+    const resent = [{ ...filters[0], since: received - SINCE_MARGIN_SEC }, filters[1]];
+    expect(second.reqs()).toEqual([{ id: req.id, filters: resent }]);
 
     // AUTH → OK で、同じ id の REQ を since 無しで送り直す
     second.push(["AUTH", "challenge-1"]);
@@ -278,7 +280,7 @@ describe("AUTH 成立後の張り直し（applesauce-relay の実物 + 偽の We
     second.push(["OK", auth.id, true, ""]);
     await vi.advanceTimersByTimeAsync(0);
     expect(second.reqs()).toEqual([
-      { id: req.id, filters: [{ ...filters[0], since: received - SINCE_MARGIN_SEC }] },
+      { id: req.id, filters: resent },
       { id: req.id, filters },
     ]);
     expect(pool.relay(url).authenticated).toBe(true);

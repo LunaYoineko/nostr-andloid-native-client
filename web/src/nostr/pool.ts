@@ -189,7 +189,8 @@ export const FUTURE_SKEW_SEC = 300;
 /**
  * 再接続で張り直す REQ のフィルタ（ネイティブ applySinceForResend）。受信記録があれば、since / until を
  * 明示していないフィルタに since = 最終受信 − marginSec（0 未満にしない）を入れる。limit は安全上限として残す。
- * 受信記録が無ければそのまま（全量）
+ * 受信記録が無ければそのまま（全量）。kind:1059 を含むフィルタは付けない（gift wrap の created_at は
+ * 最大 2 日過去にずらされるので差分だと取りこぼす。毎回全量を取り直し、再復号は処理済み id の表で防ぐ）
  */
 export function applySinceForResend(
   filters: Filter[],
@@ -198,7 +199,9 @@ export function applySinceForResend(
 ): Filter[] {
   if (lastEventAt === undefined) return filters;
   const since = Math.max(0, lastEventAt - marginSec);
-  return filters.map((f) => (f.since !== undefined || f.until !== undefined ? f : { ...f, since }));
+  return filters.map((f) =>
+    f.since !== undefined || f.until !== undefined || f.kinds?.includes(1059) ? f : { ...f, since },
+  );
 }
 
 /** リレーごとの最終受信（created_at の最大）を更新する。今より FUTURE_SKEW_SEC を超えて未来のものは基準にしない */

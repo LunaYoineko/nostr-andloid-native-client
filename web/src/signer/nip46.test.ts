@@ -75,6 +75,8 @@ describe("connectBunker", () => {
     expect(pubkey).toBe(bunker.user);
     expect(bunker.methods()).toEqual(["connect", "get_public_key"]);
     expect(bunker.requests[0]?.params).toEqual([bunker.remote, SECRET, NIP46_PERMISSIONS.join(",")]);
+    // リレーの AUTH（NIP-42）の署名も求める
+    expect(NIP46_PERMISSIONS).toContain("sign_event:22242");
     const row = await db.vault.get(NIP46_ROW_ID);
     expect(row).toMatchObject({ id: "nip46", pubkey: bunker.user, remote: bunker.remote, relays: [RELAY] });
     // secret は保存しない

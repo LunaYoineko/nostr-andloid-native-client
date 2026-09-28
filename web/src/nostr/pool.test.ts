@@ -39,6 +39,15 @@ describe("再接続時の since 差分（applySinceForResend）", () => {
     expect(out[2].since).toBe(999_940);
   });
 
+  it("kind:1059 を含むフィルタには since を付けない（ほかのフィルタには付ける）", () => {
+    const giftWrap = { kinds: [1059], "#p": ["me"] };
+    const mixed = { kinds: [4, 1059], "#p": ["me"] };
+    const out = applySinceForResend([giftWrap, mixed, stream], 1_000_000, 60);
+    expect(out[0]).toEqual({ kinds: [1059], "#p": ["me"] });
+    expect(out[1]).toEqual({ kinds: [4, 1059], "#p": ["me"] });
+    expect(out[2]).toEqual({ kinds: [1], limit: 100, since: 999_940 });
+  });
+
   it("マージンが受信時刻を上回っても負にならない", () => {
     expect(applySinceForResend([stream], 30, 60)[0].since).toBe(0);
   });
