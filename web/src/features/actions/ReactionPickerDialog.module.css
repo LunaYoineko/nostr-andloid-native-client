@@ -1,0 +1,200 @@
+/* 画面全体を覆う透明な dialog の上端にカードを置く（#458 の ComposeDialog と同じ作り）。
+   投稿の中に置くので、投稿の cursor: pointer などを引き継がないよう戻す */
+.dialog {
+  box-sizing: border-box;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: calc(env(safe-area-inset-top, 0px) + var(--sp-3)) var(--sp-4) var(--sp-3);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  cursor: default;
+  overflow: hidden;
+}
+
+/* #453 のスクリムと同じ */
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+/* 560px = ネイティブのカード最大幅（560dp）。高さは画面いっぱい */
+.card {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  height: calc(100dvh - env(safe-area-inset-top, 0px) - var(--sp-3) * 2);
+  margin: 0 auto;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: var(--sp-2) 0;
+  font-size: var(--type-title);
+  font-weight: var(--w-strong);
+}
+
+.close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--surface-3);
+}
+
+.closeIcon {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+/* ---- 対象の投稿 ---- */
+
+.target {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.targetText {
+  flex: 1;
+  min-width: 0;
+}
+
+.targetName {
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+}
+
+/* 本文は 2 行で省略 */
+.targetBody {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: var(--type-sub);
+}
+
+.divider {
+  margin: var(--sp-2) 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+/* ---- 検索 ---- */
+
+.search {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--touch-sm);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2);
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-body);
+}
+
+.search::placeholder {
+  color: var(--text-3);
+}
+
+/* ---- 一覧 ---- */
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: var(--sp-4);
+}
+
+.section {
+  margin: var(--sp-2) 0 var(--sp-1);
+  font-size: var(--type-label);
+  font-weight: var(--w-strong);
+  color: var(--text-3);
+}
+
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--type-display);
+  line-height: 1;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.cell:hover {
+  background: var(--surface-3);
+}
+
+.cell img {
+  width: var(--type-display);
+  height: var(--type-display);
+  object-fit: contain;
+}
+
+/* 画像が読めなかったカスタム絵文字の :code: */
+.fallback {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--type-micro);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sp-5);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}

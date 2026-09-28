@@ -1,0 +1,116 @@
+.rail {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--rail-w);
+  height: 100%;
+  background: var(--bg);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.top {
+  padding-top: var(--sp-2);
+}
+
+.bottom {
+  padding-bottom: var(--sp-2);
+}
+
+/* ピン留めの目次（ここだけ縦スクロール） */
+.index {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.divider {
+  flex: none;
+  align-self: stretch;
+  height: 1px;
+  margin: var(--sp-1) var(--sp-3);
+  background: var(--border);
+}
+
+.slot {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--rail-item);
+  height: var(--rail-item);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+/* 選択中は下地だけ変える。宛先は色も accent、目次は --text-2 のまま（ネイティブ） */
+.slot[aria-current] {
+  background: var(--accent-weak);
+}
+
+.slot[aria-current="page"] {
+  color: var(--accent);
+}
+
+.add {
+  background: var(--accent-weak);
+  color: var(--accent);
+}
+
+.slot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.icon {
+  width: var(--rail-icon);
+  height: var(--rail-icon);
+}
+
+/* 未読数（M3 BadgedBox: アイコンの右上に重ねる） */
+.badge {
+  position: absolute;
+  top: calc((var(--rail-item) - var(--rail-icon)) / 2 - 6px);
+  left: calc(50% + var(--rail-icon) / 2 - 6px);
+  min-width: 16px;
+  padding: 0 var(--sp-1);
+  box-sizing: border-box;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--bg);
+  font-size: var(--type-micro);
+  font-weight: var(--w-name);
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.brandSlot {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--rail-item);
+  height: var(--rail-item);
+}
+
+.brand {
+  width: var(--rail-mark);
+  height: var(--rail-mark);
+  border-radius: var(--r-md);
+}

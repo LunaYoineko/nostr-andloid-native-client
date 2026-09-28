@@ -1,0 +1,101 @@
+/* 自分がリポスト済み（ネイティブの Boost 色） */
+.reposted {
+  color: var(--repost);
+}
+
+/* ♡ / ☆ の包み。付与済み（押下中を含む）は鮮色、未付与はボタンの色（--text-3）のまま */
+.glyph {
+  display: grid;
+  place-items: center;
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.heart {
+  color: var(--react-heart);
+}
+
+.star {
+  color: var(--react-star);
+}
+
+/* 署名待ち（ネイティブの CircularProgressIndicator。色は押下の鮮色） */
+.spinner {
+  box-sizing: border-box;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+/* ⚡ Zap（ネイティブ ZapAction）。未受領は --text-3 */
+.zap {
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding: 0;
+  color: var(--text-3);
+}
+
+/* 受領あり: --zap、左右に 4px（ネイティブ DeckSpace.Xs） */
+.zapped {
+  padding: 0 var(--sp-1);
+  color: var(--zap);
+}
+
+/* 作者に lud16 があれば押せる（Zap ダイアログ）。hover・フォーカスはアクションボタンと同じ */
+.zapButton {
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.zapButton:hover {
+  background: var(--surface-2);
+}
+
+.zapButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* アイコンの枠はアクションボタンのタッチ箱と同じ */
+.zapIcon {
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+}
+
+.zapIcon svg {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+/* 金額はアイコン側へ 4px 寄せる（ネイティブ offset(x = -Xs)） */
+.zapAmount {
+  position: relative;
+  left: calc(var(--sp-1) * -1);
+  font-size: var(--type-label);
+}
+
+/* ⋯ を右端へ寄せる */
+.spacer {
+  flex: 1;
+}

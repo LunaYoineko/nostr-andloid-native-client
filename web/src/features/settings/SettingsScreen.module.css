@@ -1,0 +1,128 @@
+/* Compact: 一覧か内容のどちらか 1 つ */
+.single {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* Expanded: 左 280px の一覧 + 右の内容（ネイティブ TwoPane listWidth = 280） */
+.twoPane {
+  display: flex;
+  height: 100%;
+  background: var(--bg);
+}
+
+.listPane {
+  flex: none;
+  width: 280px;
+  height: 100%;
+  border-right: 1px solid var(--border);
+}
+
+.detailPane {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface);
+}
+
+.groups {
+  flex: 1;
+  min-height: 0;
+  padding-bottom: var(--sp-5);
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+}
+
+/* ネイティブ PaletteGroupHeader */
+.groupTitle {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-3) var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--w-body);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ネイティブ PaletteRow */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--touch);
+  padding: 0 var(--sp-4);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-sub);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--surface-3);
+}
+
+.row[aria-current="page"] {
+  background: var(--accent-weak);
+  color: var(--accent);
+  font-weight: var(--w-strong);
+}
+
+.rowLabel {
+  flex: 1;
+  min-width: 0;
+}
+
+.badge {
+  flex: none;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  color: var(--text-3);
+  font-size: var(--type-micro);
+  font-weight: var(--w-body);
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+.paneTitle {
+  flex: none;
+  margin: 0;
+  padding: var(--sp-4) var(--sp-4) var(--sp-2);
+  color: var(--text);
+  font-size: var(--type-title);
+  font-weight: var(--w-strong);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--sp-3) var(--sp-4) var(--sp-5);
+  overflow-y: auto;
+}
+
+.comingSoon {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-sub);
+}

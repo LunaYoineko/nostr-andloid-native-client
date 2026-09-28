@@ -1,0 +1,21 @@
+/* 選択ハイライトの基準（左のバーを行の上に重ねる） */
+.row {
+  position: relative;
+}
+
+/* 背景は行の本体に塗る（通知の行は自分で --surface を塗るので、枠に塗っても隠れる） */
+.row[data-kb-selected] > * {
+  background: var(--surface-2);
+}
+
+/* 左 3px のアクセントのバー（ネイティブ NoteItem.kt の selBar） */
+.row[data-kb-selected]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--accent);
+  pointer-events: none;
+}

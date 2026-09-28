@@ -1,0 +1,259 @@
+/* ヘッダを固定し、残りの高さを本体（内部でスクロール）に渡す */
+.column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  background: var(--surface);
+}
+
+/* ネイティブの ColumnHeader（designs/index.html の .col-head） */
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+
+/* 先頭は 40px の固定スロット */
+.icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  border-radius: var(--r-sm);
+  background: var(--accent-weak);
+  color: var(--accent);
+}
+
+/* タイトル + 説明は行高で合計 40px */
+.titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.title,
+.subtitle {
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.title {
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+  line-height: var(--line-title);
+}
+
+.subtitle {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  font-weight: var(--w-body);
+  line-height: var(--line-desc);
+}
+
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 本体が自分でスクロールしない一覧（DM カラム） */
+.scroll {
+  overflow-y: auto;
+}
+
+/* 読み込み中の 2px の進行バー（ヘッダ直下に重ねる） */
+.progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  height: 2px;
+  overflow: hidden;
+}
+
+.progress::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: var(--accent);
+  animation: progress 1.2s ease-in-out infinite;
+}
+
+@keyframes progress {
+  from {
+    left: -40%;
+  }
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress::before {
+    left: 0;
+    width: 100%;
+    animation: none;
+  }
+}
+
+.list {
+  height: 100%;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--sp-5) var(--sp-4);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--type-sub);
+}
+
+/* --- ⋯ メニュー --- */
+
+.menuRoot {
+  position: relative;
+  flex: none;
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--surface-3);
+}
+
+.menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  /* カラム本体（新着ピル等）より手前に出す */
+  z-index: 10;
+  box-sizing: border-box;
+  min-width: 220px;
+  padding: var(--sp-1) 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--type-sub);
+}
+
+/* 移動・カラム幅の行（fieldset の既定の枠を消す） */
+.menuRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+  margin: 0;
+  padding: var(--sp-1) var(--sp-3);
+  border: none;
+}
+
+.menuLabel {
+  flex: 1;
+  color: var(--text);
+}
+
+/* タイムラインに混ぜる表示（区切り線 + 見出し + トグル。fieldset の既定の枠を消す） */
+.menuGroup {
+  min-width: 0;
+  margin: var(--sp-1) 0;
+  padding: var(--sp-1) 0;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.menuHeading {
+  display: block;
+  padding: var(--sp-1) var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.menuItem[aria-checked="false"] {
+  color: var(--text-3);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-3);
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuItem:hover {
+  background: var(--surface-3);
+}
+
+.danger {
+  color: var(--like);
+}
+
+/* 移動の ◀ ▶（32px の実タップ領域。無効は沈める） */
+.arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-xs);
+  height: var(--touch-xs);
+  padding: 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.arrow:disabled {
+  background: transparent;
+  color: var(--text-3);
+  cursor: default;
+}
+
+/* カラム幅のチップ。選択中はアクセントの下地 */
+.chip {
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-2);
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--type-label);
+  cursor: pointer;
+}
+
+.chip[aria-checked="true"] {
+  background: var(--accent-weak);
+  color: var(--text);
+}

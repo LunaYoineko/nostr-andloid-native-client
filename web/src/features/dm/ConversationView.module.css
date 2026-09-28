@@ -1,0 +1,438 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* ScreenHeader と同じ並び（← + アバター・名前・npub） */
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.back {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.backIcon {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+.peer {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.peerTexts {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.peerName,
+.peerNpub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.peerName {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+  line-height: var(--line-title);
+}
+
+.peerNpub {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  line-height: var(--line-desc);
+}
+
+/* 最新が下。column-reverse で下端に揃える（DOM は新しい順） */
+.scroller {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  overflow-y: auto;
+}
+
+.more {
+  align-self: center;
+  min-height: var(--touch-xs);
+  margin-bottom: var(--sp-2);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--type-label);
+  cursor: pointer;
+}
+
+.mine,
+.theirs {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+}
+
+.mine {
+  justify-content: flex-end;
+}
+
+/* 連投でなければ前の吹き出しと少し離す */
+.mine:not([data-continuation]),
+.theirs:not([data-continuation]) {
+  margin-top: var(--sp-2);
+}
+
+.avatar {
+  flex: none;
+  display: flex;
+}
+
+/* アバターを省いた連投でも吹き出しの左端を揃える（アバター 38px） */
+.avatarGap {
+  flex: none;
+  width: 38px;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: min(80%, 560px);
+}
+
+.mine .column {
+  align-items: flex-end;
+}
+
+.theirs .column {
+  align-items: flex-start;
+}
+
+.sender {
+  color: var(--text-2);
+  font-size: var(--type-label);
+  font-weight: var(--w-name);
+  line-height: var(--line-desc);
+}
+
+.bubble {
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-lg);
+  overflow-wrap: anywhere;
+}
+
+.theirs .bubble {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.mine .bubble {
+  background: var(--accent-weak);
+  color: var(--text);
+}
+
+.time {
+  color: var(--text-3);
+  font-size: var(--type-micro);
+  line-height: var(--line-desc);
+}
+
+/* NoteFooter の「未送信」と同じ */
+.unsent {
+  margin-top: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--warn);
+  font: inherit;
+  font-size: var(--type-label);
+  font-weight: var(--w-name);
+  cursor: pointer;
+}
+
+/* 入力欄（下端に固定。会話のスクロールとは別）。補完候補・添付は入力行の上に積む */
+.composerColumn {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+}
+
+/* ---- 添付・絵文字ボタン（ComposeDialog の .tool と同じ） ---- */
+
+.attachButton {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.attachIcon {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+/* ---- 入力補完（ComposeDialog の .chips / .chip / .mentions 等と同じ体裁） ---- */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3) 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-3);
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: var(--surface-3);
+}
+
+.chipEmoji {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  object-fit: contain;
+}
+
+.mentions {
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2) var(--sp-3) 0;
+}
+
+.mention {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-1) 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mention:hover {
+  background: var(--surface-2);
+}
+
+.mentionText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mentionName,
+.mentionHandle {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mentionName {
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+  line-height: var(--line-title);
+}
+
+.mentionHandle {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  line-height: var(--line-desc);
+}
+
+/* ---- 添付の一覧（ComposeDialog の ImageCarousel と同じ体裁） ---- */
+
+.attachments {
+  display: flex;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3) 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.attachment {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  width: 84px;
+}
+
+.thumb {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  border-radius: var(--r-sm);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.thumbMedia {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbPlay {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  color: #fff;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
+  pointer-events: none;
+}
+
+.remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: var(--touch-xs);
+  height: var(--touch-xs);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+}
+
+.removeIcon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.size {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--type-micro);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.input {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-sm);
+  max-height: calc(var(--line-body) * 6 + var(--sp-2) * 2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  resize: none;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-body);
+  line-height: var(--line-body);
+  field-sizing: content;
+}
+
+.input:disabled {
+  color: var(--text-3);
+}
+
+/* ComposeDialog の「投稿」と同じ */
+.send {
+  flex: none;
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-4);
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: var(--type-body);
+  font-weight: var(--w-strong);
+  cursor: pointer;
+}
+
+.send:disabled {
+  background: var(--surface-3);
+  color: var(--text-3);
+  cursor: default;
+}
+
+.cannotSend {
+  flex: none;
+  margin: 0;
+  padding: var(--sp-3);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: var(--type-sub);
+  text-align: center;
+}

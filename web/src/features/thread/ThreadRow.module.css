@@ -1,0 +1,22 @@
+/* インデントはネイティブ 18dp → --sp-4 にスナップ（上限なし） */
+.row {
+  padding-left: calc(var(--sp-4) * var(--depth, 0));
+  background: var(--surface);
+}
+
+/* root はネイティブ Accent.copy(alpha = 0.05f) */
+.row[data-root="true"] {
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+
+/* 起点が root を兼ねるときも起点を優先する（後に書く） */
+.row[data-focused="true"] {
+  background: var(--accent-weak);
+}
+
+.meta {
+  margin: 0;
+  padding: 0 var(--sp-3) var(--sp-2);
+  color: var(--text-3);
+  font-size: var(--type-label);
+}

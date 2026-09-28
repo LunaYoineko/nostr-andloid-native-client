@@ -1,0 +1,93 @@
+/* ネイティブの LinkEmbeds.kt YouTubeEmbed（16:9・Crop・黒地・角丸 Md・赤い再生ボタン・右下のロゴ） */
+.card {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  background: #000;
+  aspect-ratio: 16 / 9;
+  cursor: pointer;
+}
+
+/* youtube-nocookie の埋め込み（データセーバー中は押すまで置かない） */
+.frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: var(--r-md);
+  background: #000;
+}
+
+.thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hidden {
+  display: none;
+}
+
+/* 58×40dp・赤 95%。角丸はネイティブの 10dp をトークンの 8px にスナップ */
+.play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 40px;
+  margin: auto;
+  border-radius: var(--r-sm);
+  background: rgba(255, 0, 0, 0.95);
+  color: #fff;
+  font-size: var(--type-title);
+  line-height: 1;
+}
+
+.logo {
+  position: absolute;
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  padding: 1px var(--sp-1);
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--type-label);
+  font-weight: var(--w-strong);
+}
+
+/* タイトル帯（黒 70%、左右 Md・上下 Sm。タイトルは Sub・w-strong・白で 2 行、チャンネル名は Label・白 80% で 1 行） */
+.band {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sp-2) var(--sp-3);
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.bandTitle {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: #fff;
+  font-size: var(--type-sub);
+  font-weight: var(--w-strong);
+}
+
+.bandAuthor {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--type-label);
+}

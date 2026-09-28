@@ -1,0 +1,10 @@
+.body {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-5);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: var(--type-sub);
+  text-align: center;
+}

@@ -1,0 +1,49 @@
+/* ネイティブの NoteImages.kt（1 枚 / グリッド / カルーセル） */
+
+/* 1 枚。dim があれば style の aspect-ratio で高さを決める */
+.one {
+  width: 100%;
+}
+
+/* dim の無い 1 枚（NoteImages.kt の height(200.dp)） */
+.single {
+  height: 200px;
+}
+
+.fill {
+  width: 100%;
+  height: 100%;
+}
+
+/* 2〜9 枚。端数行は grid が列幅を揃える */
+.grid {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.cols2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.cols3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.cell {
+  aspect-ratio: 1;
+}
+
+/* 10 枚以上。間隔はネイティブの 6dp をトークンの 8px にスナップ */
+.carousel {
+  display: flex;
+  gap: var(--sp-2);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.slide {
+  flex: none;
+  width: 140px;
+  height: 140px;
+  scroll-snap-align: start;
+}

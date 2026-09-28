@@ -1,24 +1,30 @@
-import type { EventPointer } from "applesauce-core/helpers/pointers";
+import type { AddressPointer, EventPointer } from "applesauce-core/helpers/pointers";
 import { getEventPointerFromETag, isEventPointer } from "applesauce-core/helpers/pointers";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { createAddressLoader } from "applesauce-loaders/loaders/address-loader";
 import { createEventLoader } from "applesauce-loaders/loaders/event-loader";
 import { use$ } from "applesauce-react/hooks/use-$";
 import { type NostrEvent, verifyEvent } from "nostr-tools/pure";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { catchError, type Observable, of } from "rxjs";
 import { shortNpub } from "../lib/npub";
-import { pool, relays } from "./pool";
-import { eventStore } from "./store";
+import { pool, readRelays$ } from "./pool";
+import { eventStore, verifiedStoreActions } from "./store";
 
 /**
  * 置換可能イベント（kind:0 プロフィール等）のバッチローダ。
  * 既定の 1,000ms / 200 件で溜めて 1 つの REQ にまとめ、結果は EventStore へ入る。
  */
-export const addressLoader = createAddressLoader(pool, { eventStore, extraRelays: [...relays] });
+export const addressLoader = createAddressLoader(pool, {
+  eventStore: verifiedStoreActions,
+  extraRelays: readRelays$,
+});
 
 /** ID 指定のイベント（リポスト元など）のバッチローダ。e タグのリレーヒントにも問い合わせる */
-export const eventLoader = createEventLoader(pool, { eventStore, extraRelays: [...relays] });
+export const eventLoader = createEventLoader(pool, {
+  eventStore: verifiedStoreActions,
+  extraRelays: readRelays$,
+});
 
 // EventStore に無いものを読みに行く口。profile() / event() がストアに無いとき 1 度だけ呼ばれる
 eventStore.eventLoader = (pointer) =>
@@ -36,14 +42,19 @@ export function useProfile(pubkey: string | undefined): ProfileContent | undefin
 }
 
 /**
- * 表示名（display_name → name の順）。無ければ npub の短縮。
+ * 表示名（display_name → name の順）。無ければ hex の先頭 10 字（ネイティブの toNoteUi / profileFor と同じ）。
+ * fallback = "npub" は npub の短縮（ネイティブのリアクションした人の一覧・投稿画面と同じ）。
  * kind:0 の中身は任意の JSON なので、文字列でない値は無視する。
  */
-export function displayName(profile: ProfileContent | undefined, pubkey: string): string {
+export function displayName(
+  profile: ProfileContent | undefined,
+  pubkey: string,
+  fallback: "hex" | "npub" = "hex",
+): string {
   for (const value of [profile?.display_name, profile?.displayName, profile?.name]) {
     if (typeof value === "string" && value.trim() !== "") return value.trim();
   }
-  return shortNpub(pubkey);
+  return fallback === "npub" ? shortNpub(pubkey) : pubkey.slice(0, 10);
 }
 
 /** プロフィール画像の URL（文字列でなければ undefined） */
@@ -87,6 +98,42 @@ function isEventShape(value: unknown): value is NostrEvent {
 }
 
 /**
+ * pointer の投稿（引用元・返信先など）。ストアに無ければ eventLoader がリレーへ取りに行き、届くまでは undefined。
+ * 購読は id で張り直す（同じ id の新しい pointer オブジェクトでは張り直さない）。
+ */
+export function useEventByPointer(pointer: EventPointer | null): NostrEvent | undefined {
+  return use$(() => (pointer ? eventStore.event(pointer) : undefined), [pointer?.id]);
+}
+
+/** naddr の 6 秒タイムアウト（#534。ネイティブ EventRepository.kt resolveAddress と同じ） */
+const ADDRESS_RESOLVE_TIMEOUT_MS = 6_000;
+
+function addressKey(pointer: AddressPointer): string {
+  return `${pointer.kind}:${pointer.pubkey}:${pointer.identifier}`;
+}
+
+/**
+ * [#534] naddr（アドレス指定可能イベント。記事 kind:30023 等）を addressLoader で解決する。
+ * ストアに無ければ addressLoader が pointer.relays のヒント + read リレーへ取りに行き、6 秒届かなければ
+ * failed = true にする（ネイティブの resolveAddress と同じ。id 指定の useEventByPointer は届くまで待ち、失敗を示さない）。
+ */
+export function useEventByAddress(pointer: AddressPointer | null): {
+  event: NostrEvent | undefined;
+  failed: boolean;
+} {
+  const key = pointer ? addressKey(pointer) : null;
+  const event = use$(() => (pointer ? eventStore.event(pointer) : undefined), [key]);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+    if (!key || event) return;
+    const timer = setTimeout(() => setFailed(true), ADDRESS_RESOLVE_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [key, event]);
+  return { event, failed };
+}
+
+/**
  * リポスト元の投稿。content の JSON を優先し、無ければ e タグの ID を EventStore から引く
  * （ストアに無ければ eventLoader がリレーへ取りに行く）。解決できるまでは undefined。
  */
@@ -101,4 +148,11 @@ export function useRepostedEvent(repost: NostrEvent): NostrEvent | undefined {
     [embedded, pointer],
   );
   return embedded ?? loaded;
+}
+
+/** リポスト元のうち、いま手元にあるもの（content の JSON か EventStore。取りには行かない）。無ければ undefined */
+export function repostedEventNow(repost: NostrEvent): NostrEvent | undefined {
+  const tag = repost.tags.find((t) => t[0] === "e");
+  const pointer = tag ? getEventPointerFromETag(tag) : null;
+  return embeddedRepost(repost, pointer) ?? (pointer ? eventStore.getEvent(pointer.id) : undefined);
 }

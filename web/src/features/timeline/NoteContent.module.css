@@ -2,10 +2,22 @@
   color: var(--text);
   font-size: var(--type-body);
   font-weight: var(--w-body);
-  line-height: 1.5;
+  line-height: var(--line-body);
   /* 改行をそのまま出し、長い URL や連続した英数字ははみ出させず折り返す */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* 一段小さい文章（プロフィールの自己紹介） */
+.content.sub {
+  font-size: var(--type-sub);
+}
+
+/* 引用カード内は文字の大きさ・色・行高をカード側に合わせる */
+.quote {
+  color: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .link {
@@ -28,4 +40,18 @@
 .mention {
   color: var(--accent);
   font-weight: var(--w-link);
+  text-decoration: none;
+}
+
+a.hashtag:hover,
+a.mention:hover {
+  text-decoration: underline;
+}
+
+/* カスタム絵文字は文字と同じ高さ（ネイティブの 1.4em 角） */
+.emoji {
+  width: 1.4em;
+  height: 1.4em;
+  vertical-align: middle;
+  object-fit: contain;
 }

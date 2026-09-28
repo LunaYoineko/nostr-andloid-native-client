@@ -18,6 +18,17 @@
   --accent:      #16171c;
   --accent-2:    #3b3c45;
   --accent-weak: rgba(0, 0, 0, 0.08);
+  --verified: #2f7d55;
+  --warn: #b04a4a;
+  /* [#464] ノート種別の識別色（Color.kt LightPalette の kindRepost/kindQuote/kindReply/kindReaction と1対1） */
+  --kind-repost: #1f6b44;
+  --kind-quote: #2c5c90;
+  --kind-reply: #7d6220;
+  --kind-reaction: #8e3a4e;
+  --kind-repost-bg: rgba(31, 107, 68, 0.14);
+  --kind-quote-bg: rgba(44, 92, 144, 0.14);
+  --kind-reply-bg: rgba(125, 98, 32, 0.14);
+  --kind-reaction-bg: rgba(142, 58, 78, 0.14);
 }
 
 :root {
@@ -41,30 +52,51 @@
   --zap:           #f7b955;  /* zap = ゴールド */
   --repost:        #4ade80;
   --like:          #f76e8e;
+  --verified: #4fa77a;  /* NIP-05 検証OK（Compose Color.kt verified と 1 対 1） */
+  --warn: #c76b6b;  /* 検証エラー・警告（Color.kt warn） */
+  --react-heart: #e0245e;  /* ♡ 付与済み（Compose NoteItem.kt ReactHeartColor。明暗共通） */
+  --react-star: #f5b301;  /* ☆ 付与済み（同 ReactStarColor） */
+  /* [#464] ノート種別の識別色（Color.kt DarkPalette の kindRepost/kindQuote/kindReply/kindReaction と1対1）。
+     設定「表示」の種別の視覚表示（既定 なし）で使う。-bg は塗り用（同色の alpha 0.14）。 */
+  --kind-repost: #2e7d52;
+  --kind-quote: #3a6ea5;
+  --kind-reply: #9a7b2e;
+  --kind-reaction: #a34a5e;
+  --kind-repost-bg: rgba(46, 125, 82, 0.14);
+  --kind-quote-bg: rgba(58, 110, 165, 0.14);
+  --kind-reply-bg: rgba(154, 123, 46, 0.14);
+  --kind-reaction-bg: rgba(163, 74, 94, 0.14);
+
+  /* [#464] 表示サイズ（標準/大きめ/最大 = 1 / 1.15 / 1.30）。余白・角丸・アイコン・タップ領域・
+     カラム幅・レール幅の寸法と、文字（--text-scale と掛け合わせ）に効く。
+     Web は <html> の style で差し替える（web/src/features/theme） */
+  --ui-scale: 1;
 
   /* --- Radius --- */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 18px;
+  --r-sm: calc(8px * var(--ui-scale));
+  --r-md: calc(12px * var(--ui-scale));
+  --r-lg: calc(18px * var(--ui-scale));
   --r-full: 999px;
 
   /* --- Spacing --- */
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 12px;
-  --sp-4: 16px;
-  --sp-5: 24px;
+  --sp-1: calc(4px * var(--ui-scale));
+  --sp-2: calc(8px * var(--ui-scale));
+  --sp-3: calc(12px * var(--ui-scale));
+  --sp-4: calc(16px * var(--ui-scale));
+  --sp-5: calc(24px * var(--ui-scale));
 
   /* --- Deck geometry --- */
-  --column-w: 340px;        /* 固定カラム幅。はみ出しは横スクロール */
+  --column-w: calc(340px * var(--ui-scale));        /* 固定カラム幅。はみ出しは横スクロール */
+  --column-w-s: calc(280px * var(--ui-scale));  /* カラム幅 S（Compose DeckScreen.kt columnWidthDp と 1 対 1） */
+  --column-w-l: calc(460px * var(--ui-scale));  /* 同 L */
   --column-gap: 8px;        /* カラム間ガター（線ではなく Bg の隙間で分離） */
   --hinge-gutter: 22px;     /* フォルダブルのヒンジ回避ガター */
 
   /* --- 左レール（Compose DeckDimens.Rail* と 1対1）--- */
-  --rail-w:    72px;        /* レール幅 */
-  --rail-item: 48px;        /* 各項目のタップ領域 */
-  --rail-icon: 24px;        /* レールのグリフ実寸 */
-  --rail-mark: 40px;        /* ロゴ/アバターの識別マーク */
+  --rail-w:    calc(72px * var(--ui-scale));        /* レール幅 */
+  --rail-item: calc(48px * var(--ui-scale));        /* 各項目のタップ領域 */
+  --rail-icon: calc(24px * var(--ui-scale));        /* レールのグリフ実寸 */
+  --rail-mark: calc(40px * var(--ui-scale));        /* ロゴ/アバターの識別マーク */
 
   /* --- Type family --- */
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", system-ui, sans-serif;
@@ -76,22 +108,37 @@
   --w-body:   400;  /* 本文・メタ（時刻/ハンドル/npub/ID） */
 
   /* --- Type scale (Option C: hybrid / 7段, Compose DeckType と 1対1) --- */
-  --type-display: 20px;  /* ダイアログ見出し */
-  --type-title:   15px;  /* 画面/カラム名 */
-  --type-body:    14px;  /* 本文 */
-  --type-sub:     13px;  /* 著者名/小見出し */
-  --type-caption: 12px;  /* 補足 */
-  --type-label:   11px;  /* 時刻/ハンドル/ラベル */
-  --type-micro:   10px;  /* バッジ/最小メタ */
-  --type-emoji:   18px;  /* リアクション絵文字グリフ */
-  --line-title:   22px;  /* 2段テキスト(タイトル+説明)のタイトル行高 */
-  --line-desc:    18px;  /* 同・説明行高（合計40px, スペーサーなし） */
+  /* 文字サイズ設定の倍率（Compose TextScale.factor = 1 / 1.15 / 1.35。sp が fontScale に追従するのと同じく
+     --type-* / --line-* に掛ける）。Web は <html> の style で差し替える（web/src/features/theme）。
+     [#464] 表示サイズ（--ui-scale）も掛け合わせる（ネイティブは density 経由で sp にも効くため）。 */
+  --text-scale: 1;
+  --type-display: calc(20px * var(--text-scale) * var(--ui-scale));  /* ダイアログ見出し */
+  --type-title:   calc(15px * var(--text-scale) * var(--ui-scale));  /* 画面/カラム名 */
+  --type-body:    calc(14px * var(--text-scale) * var(--ui-scale));  /* 本文 */
+  --type-sub:     calc(13px * var(--text-scale) * var(--ui-scale));  /* 著者名/小見出し */
+  --type-caption: calc(12px * var(--text-scale) * var(--ui-scale));  /* 補足 */
+  --type-label:   calc(11px * var(--text-scale) * var(--ui-scale));  /* 時刻/ハンドル/ラベル */
+  --type-micro:   calc(10px * var(--text-scale) * var(--ui-scale));  /* バッジ/最小メタ */
+  --type-emoji:   calc(18px * var(--text-scale) * var(--ui-scale));  /* リアクション絵文字グリフ */
+  --type-emoji-lg: calc(22px * var(--text-scale) * var(--ui-scale));  /* 拡大絵文字（Compose DeckType.EmojiLg と 1 対 1） */
+  --line-title:   calc(22px * var(--text-scale) * var(--ui-scale));  /* 2段テキスト(タイトル+説明)のタイトル行高 */
+  --line-desc:    calc(18px * var(--text-scale) * var(--ui-scale));  /* 同・説明行高（合計40px, スペーサーなし） */
+  --line-body: calc(20px * var(--text-scale) * var(--ui-scale));  /* 本文の行高（Compose CollapsibleText の lineHeight 20sp と 1 対 1） */
 
   /* --- Touch / icon (Compose DeckDimens と 1対1) --- */
-  --touch:     48px;     /* 原則8の推奨 */
-  --touch-sm:  40px;     /* Deck 密度優先の実用最小(T3) */
-  --touch-xs:  32px;     /* インライン補助操作（キャンセル/削除/行内ピン）の下限 */
-  --icon-sm:   16px;
-  --icon-md:   18px;
-  --icon-lg:   20px;
+  --touch:     calc(48px * var(--ui-scale));     /* 原則8の推奨 */
+  --touch-sm:  calc(40px * var(--ui-scale));     /* Deck 密度優先の実用最小(T3) */
+  --touch-xs:  calc(32px * var(--ui-scale));     /* インライン補助操作（キャンセル/削除/行内ピン）の下限 */
+  --icon-sm:   calc(16px * var(--ui-scale));
+  --icon-md:   calc(18px * var(--ui-scale));
+  --icon-lg:   calc(20px * var(--ui-scale));
+}
+
+/* [#327] 太字モード（Compose DeckWeight の bold と 1 対 1。各役割を 1 段上げる）。
+   CJK は実質 400/700 の 2 段なので本文は 500 ではなく 600（700 側へ丸められて確実に効く） */
+:root[data-bold] {
+  --w-name:   900;
+  --w-strong: 700;
+  --w-link:   700;
+  --w-body:   600;
 }

@@ -1,6 +1,7 @@
 import type { NostrEvent } from "nostr-tools/pure";
-import { useCallback, useRef, useState } from "react";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { type ReactNode, useCallback, useRef, useState } from "react";
+import { type ListRange, Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { KbRow, useKbList } from "../keyboard/KbList";
 import { NoteItem } from "./NoteItem";
 import styles from "./Timeline.module.css";
 
@@ -8,9 +9,11 @@ import styles from "./Timeline.module.css";
 const START_INDEX = 1_000_000_000;
 // 先頭から 40px 以内なら「先頭にいる」とみなす（ネイティブの NewItemsPill.kt と同じ）
 const AT_TOP_THRESHOLD = 40;
+// 先頭に見えている投稿がこの位置以降なら、新着が無くても「最新へ戻る」を出す（ネイティブの rememberScrolledAway と同じ 3）
+const SCROLLED_AWAY_INDEX = 3;
 
-/** 投稿の位置 = それより上にある件数（見つからなければ 0） */
-function positionOf(events: NostrEvent[], id: string | undefined): number {
+/** 行の位置 = それより上にある件数（見つからなければ 0） */
+function positionOf(events: readonly { id: string }[], id: string | undefined): number {
   const index = events.findIndex((e) => e.id === id);
   return index < 0 ? 0 : index;
 }
@@ -23,11 +26,60 @@ type Anchor = {
   seenTopId: string | undefined;
 };
 
+type ListContext = { loadingOlder: boolean; header?: ReactNode };
+
+/** 末尾の「過去を読み込み中…」 */
+function OlderFooter({ context }: { context?: ListContext }) {
+  return context?.loadingOlder ? <p className={styles.empty}>過去を読み込み中…</p> : null;
+}
+
+/**
+ * 先頭の任意の見出し（PROFILE カラムの上部カードなど）。Virtuoso の components.Header は item の
+ * index に含まれないので、新着ピル・keyboard 操作（KbRow / postOf）の番号はずれない（スクロールには追従する）。
+ */
+function ListHeader({ context }: { context?: ListContext }) {
+  return <>{context?.header}</>;
+}
+
+const COMPONENTS = { Footer: OlderFooter, Header: ListHeader };
+
+const renderNote = (event: NostrEvent) => <NoteItem event={event} />;
+
 /**
  * 新しい順のタイムライン（仮想リスト）。
  * 先頭付近にいれば新着はそのまま上から流れ、読み進めている間は位置を保って「↑ N 件の新着」を出す。
+ * 新着が無くても 3 件目以降まで下りていれば「↑ 最新へ戻る」を出す（ネイティブの FeedTopPill。ピルは 1 つにまとめる）。
+ * 末尾まで来たら onEndReached（過去読み）を呼ぶ。
+ * 行は既定で投稿（NoteItem）。renderItem を渡すと投稿以外の行（フォロー中カラムの混在）も並べられる（id で数える）。
+ * デッキのカラムでは postOf が投稿を返す行だけをキー操作（j / k）で選べる（r / t / f の対象）。
+ * postOf の既定は、renderItem が無ければ行そのもの（すべて投稿）、あれば無し（どの行も選べて、どれも投稿ではない）。
+ * header を渡すと一覧の先頭（スクロール領域の中）に出す（PROFILE カラムの上部カードなど。渡さなければ何も変わらない）。
  */
-export function Timeline({ events, loading }: { events: NostrEvent[]; loading: boolean }) {
+export function Timeline<T extends { id: string } = NostrEvent>({
+  events,
+  loading,
+  onEndReached,
+  loadingOlder = false,
+  emptyText = "まだ投稿がありません",
+  renderItem,
+  postOf,
+  header,
+}: {
+  events: T[];
+  loading: boolean;
+  onEndReached?: () => void;
+  loadingOlder?: boolean;
+  emptyText?: string;
+  /** 省略時は T = NostrEvent として NoteItem で描く */
+  renderItem?: (item: T) => ReactNode;
+  /** 行の投稿（投稿の行でなければ null）。キー操作で選べる行と r / t / f の対象を決める */
+  postOf?: (item: T) => NostrEvent | null;
+  /** 一覧の先頭（item の index には含まれず、キー操作・新着ピルの番号はずれない） */
+  header?: ReactNode;
+}) {
+  // renderItem を省くのは投稿の一覧だけ（T = NostrEvent）
+  const render = renderItem ?? (renderNote as unknown as (item: T) => ReactNode);
+  const toPost = postOf ?? (renderItem ? undefined : (item: T) => item as unknown as NostrEvent);
   const list = useRef<VirtuosoHandle>(null);
   const [atTop, setAtTop] = useState(true);
   const topId = events[0]?.id;
@@ -53,21 +105,43 @@ export function Timeline({ events, loading }: { events: NostrEvent[]; loading: b
     if (value) setAnchor((a) => ({ ...a, seenTopId: a.topId }));
   }, []);
 
+  // range の番号は firstItemIndex を足した値なので、先頭からの位置に直して比べる
+  const [scrolledAway, setScrolledAway] = useState(false);
+  const firstItemIndex = anchor.firstItemIndex;
+  const onRangeChanged = useCallback(
+    (range: ListRange) => setScrolledAway(range.startIndex - firstItemIndex >= SCROLLED_AWAY_INDEX),
+    [firstItemIndex],
+  );
+
+  // デッキのカラムならキー操作（j / k 等）の対象にする
+  useKbList(
+    list,
+    events.length,
+    toPost && ((index) => (index < events.length ? (toPost(events[index]) ?? undefined) : undefined)),
+  );
+
   const newCount = atTop ? 0 : positionOf(events, anchor.seenTopId);
+  const pill = newCount > 0 ? `${newCount} 件の新着` : scrolledAway ? "最新へ戻る" : null;
 
   if (events.length === 0) {
-    return <p className={styles.empty}>{loading ? "読み込み中…" : "まだ投稿がありません"}</p>;
+    // header（PROFILE カラムの上部カードなど）は投稿が無くても出す（ネイティブの LazyColumn と同じ）
+    return (
+      <div className={styles.timeline}>
+        {header}
+        <p className={styles.empty}>{loading ? "読み込み中…" : emptyText}</p>
+      </div>
+    );
   }
 
   return (
     <div className={styles.timeline}>
-      {newCount > 0 && (
+      {pill !== null && (
         <button
           type="button"
           className={styles.pill}
           onClick={() => list.current?.scrollTo({ top: 0, behavior: "smooth" })}
         >
-          ↑ {newCount} 件の新着
+          ↑ {pill}
         </button>
       )}
       <Virtuoso
@@ -75,10 +149,14 @@ export function Timeline({ events, loading }: { events: NostrEvent[]; loading: b
         className={styles.list}
         data={events}
         firstItemIndex={anchor.firstItemIndex}
-        computeItemKey={(_, event) => event.id}
+        computeItemKey={(_, item) => item.id}
         atTopThreshold={AT_TOP_THRESHOLD}
         atTopStateChange={onAtTopChange}
-        itemContent={(_, event) => <NoteItem event={event} />}
+        rangeChanged={onRangeChanged}
+        endReached={onEndReached}
+        components={COMPONENTS}
+        context={{ loadingOlder, header }}
+        itemContent={(index, item) => <KbRow index={index - firstItemIndex}>{render(item)}</KbRow>}
       />
     </div>
   );

@@ -16,3 +16,14 @@ export function relativeTime(createdAt: number, now = unixNow()): string {
   if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
   return `${Math.floor(diff / 604800)}w`;
 }
+
+/**
+ * 投稿の日時（ネイティブの DateFormat.kt と同じ `yyyy/MM/dd HH:mm`。端末のタイムゾーン・24 時間制）。
+ * Date の範囲外なら ""。
+ */
+export function formatAbsoluteTime(unixSeconds: number): string {
+  const date = new Date(unixSeconds * 1000);
+  if (!Number.isFinite(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}

@@ -1,0 +1,4 @@
+/* ネイティブの NoteItem.kt（画像 → リンク埋め込みの順に縦に並べる） */
+.media > * + * {
+  margin-top: var(--sp-2);
+}

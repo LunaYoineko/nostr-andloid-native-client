@@ -20,9 +20,11 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^24.19.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.1.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -34,15 +36,19 @@
     "wrangler": "^4.141.0"
   },
   "dependencies": {
+    "applesauce-common": "^6.2.0",
     "applesauce-content": "^6.2.0",
     "applesauce-core": "^6.2.0",
     "applesauce-loaders": "^6.2.0",
     "applesauce-react": "^6.0.0",
     "applesauce-relay": "^6.2.1",
     "applesauce-signers": "^6.2.2",
+    "blurhash": "^2.0.5",
+    "dexie": "^4.4.6",
     "nostr-tools": "~2.19",
     "react-router": "^8.4.0",
     "react-virtuoso": "^4.18.15",
+    "uqr": "^0.1.3",
     "zustand": "^5.0.15"
   }
 }

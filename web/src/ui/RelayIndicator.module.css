@@ -1,0 +1,50 @@
+.indicator {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--type-label);
+  font-weight: var(--w-link);
+  cursor: pointer;
+}
+
+.indicator:hover {
+  background: var(--surface-3);
+}
+
+.indicator[data-orientation="vertical"] {
+  flex-direction: column;
+  border-radius: var(--r-md);
+  font-size: var(--type-micro);
+  font-weight: var(--w-strong);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+}
+
+.indicator[data-orientation="vertical"] .dot {
+  width: 9px;
+  height: 9px;
+}
+
+/* 信号色はトークン外の例外（出典: ネイティブ RelayStatus.kt。全接続 = 緑 / 一部 = 黄） */
+.dot[data-state="all"] {
+  background: #3fb950;
+}
+
+.dot[data-state="some"] {
+  background: #d8a11a;
+}
+
+.dot[data-state="none"] {
+  background: var(--text-3);
+}

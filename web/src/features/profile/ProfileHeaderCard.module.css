@@ -1,0 +1,315 @@
+/* 値はネイティブ ProfileHeaderCard と同じ。トークンに無い値はスナップを明記 */
+.card {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.top {
+  position: relative;
+}
+
+.banner {
+  display: block;
+  width: 100%;
+  height: 120px;
+  padding: 0;
+  border: 0;
+  background: var(--surface-3);
+  overflow: hidden;
+  cursor: zoom-in;
+}
+
+div.banner {
+  cursor: default;
+}
+
+.banner img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* バナーの下の帯（ネイティブ Xl = 24dp） */
+.band {
+  height: var(--sp-5);
+}
+
+/* アバター 72px を Surface のリングで囲み、バナーの下端に重ねる */
+.ring {
+  position: absolute;
+  left: var(--sp-4);
+  bottom: 0;
+  padding: var(--sp-1);
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--surface);
+  line-height: 0;
+}
+
+button.ring {
+  cursor: zoom-in;
+}
+
+.actions {
+  position: absolute;
+  right: var(--sp-4);
+  bottom: var(--sp-1);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.circle {
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.icon {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.copy {
+  flex: none;
+  color: var(--text-3);
+}
+
+/* フォロー / 編集（ネイティブ DeckButton / DeckGhostButton。高さ 40dp 以上・角丸 Full・横余白 Lg） */
+.pill {
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-4);
+  border: 0;
+  border-radius: var(--r-full);
+  font: inherit;
+  font-size: var(--type-body);
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: var(--w-strong);
+}
+
+.ghost {
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: var(--w-link);
+}
+
+.pill:disabled {
+  background: var(--surface-3);
+  color: var(--text-3);
+  cursor: default;
+}
+
+/* ⋯ メニュー（ColumnMenu と同じ見た目） */
+.menuRoot {
+  position: relative;
+  flex: none;
+}
+
+.menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  box-sizing: border-box;
+  min-width: 220px;
+  padding: var(--sp-1) 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--type-sub);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-3);
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menuItem:hover {
+  background: var(--surface-3);
+}
+
+/* 「ユーザーを通報」（ネイティブ DeckColors.Warn） */
+.danger {
+  color: var(--warn);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--sp-2) var(--sp-4) var(--sp-3);
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 100%;
+}
+
+/* ネイティブ DeckType.Emoji（18sp） */
+.name {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--type-emoji);
+  font-weight: var(--w-name);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.badge {
+  flex: none;
+  padding: calc(var(--sp-1) / 2) var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+/* NIP-05 / npub の行 */
+.line {
+  max-width: 100%;
+  margin-top: var(--sp-1);
+}
+
+.npubRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.npub {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.counts {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-top: var(--sp-2);
+}
+
+.count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  min-height: var(--touch-xs);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.countNum {
+  color: var(--text);
+  font-size: var(--type-sub);
+  font-weight: var(--w-strong);
+}
+
+.hint {
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+/* 「フォロワーを確認」（ネイティブ: 枠線 1dp・角丸 Sm・Label・Text3、余白 横 Sm 縦 Xs） */
+.followers {
+  min-height: var(--touch-xs);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--type-label);
+  cursor: pointer;
+}
+
+/* 行高は RichText の --line-body（20px。ネイティブ 19sp をスナップ） */
+.about {
+  align-self: stretch;
+  margin-top: var(--sp-3);
+  color: var(--text);
+}
+
+.lud16 {
+  max-width: 100%;
+  margin: var(--sp-2) 0 0;
+  overflow: hidden;
+  color: var(--zap);
+  font-size: var(--type-caption);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 他人の lud16（押すと Zap）。見た目は文字のまま */
+button.lud16 {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.lud16:hover {
+  text-decoration: underline;
+}
+
+.website {
+  max-width: 100%;
+  margin-top: var(--sp-1);
+  overflow: hidden;
+  color: var(--accent);
+  font-size: var(--type-caption);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+
+a.website:hover {
+  text-decoration: underline;
+}
+
+.status {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.error {
+  margin: 0 0 var(--sp-2);
+  color: var(--warn);
+  font-size: var(--type-label);
+}

@@ -1,0 +1,160 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+/* Timeline.module.css の .empty と同じ */
+.empty {
+  margin: 0;
+  padding: var(--sp-5) var(--sp-4);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--type-sub);
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--type-label);
+  line-height: var(--line-desc);
+}
+
+.bannerText {
+  flex: 1;
+  min-width: 0;
+}
+
+.bannerButton {
+  flex: none;
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  font-weight: var(--w-strong);
+  cursor: pointer;
+}
+
+/* 先頭の「新しいメッセージを送る」（ネイティブ dm_new_row） */
+.newRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--touch);
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--type-sub);
+  font-weight: var(--w-strong);
+  text-align: left;
+  cursor: pointer;
+}
+
+.newRow:hover {
+  background: var(--surface-3);
+}
+
+.newIcon {
+  flex: none;
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ネイティブ DmConversationRows: アバター・名前・最後のメッセージ 1 行・未読数 */
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 0 0 var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.item:hover {
+  background: var(--surface-3);
+}
+
+.item:has(> [aria-current="true"]) {
+  background: var(--accent-weak);
+}
+
+.avatarLink {
+  flex: none;
+  display: flex;
+  border-radius: var(--r-full);
+}
+
+.row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 60px;
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.texts {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.name,
+.last {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.name {
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+  line-height: var(--line-title);
+}
+
+.last {
+  color: var(--text-3);
+  font-size: var(--type-label);
+  line-height: var(--line-desc);
+}
+
+/* 未読数の丸（ネイティブ: Accent の下地に Bg の文字） */
+.unread {
+  flex: none;
+  min-width: 18px;
+  padding: 1px var(--sp-1);
+  box-sizing: border-box;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--bg);
+  font-size: var(--type-micro);
+  font-weight: var(--w-name);
+  line-height: 16px;
+  text-align: center;
+}

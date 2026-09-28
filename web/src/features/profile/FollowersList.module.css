@@ -1,0 +1,32 @@
+/* 一覧の見た目は FollowingList.module.css。ここはフォロワー一覧だけの部品（ネイティブ UserListScreen の FOLLOWERS） */
+
+/* 「観測できた範囲のみ」の注記（Label・Text3、余白 横 Lg 縦 Sm） */
+.note {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4);
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  padding: var(--sp-3);
+}
+
+/* 「さらに読み込む」（枠線 1px・角丸 Sm・Caption・Text3） */
+.moreButton {
+  min-height: var(--touch-xs);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
+
+.moreButton:disabled {
+  cursor: default;
+}

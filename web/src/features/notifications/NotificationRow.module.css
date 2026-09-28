@@ -1,0 +1,128 @@
+/* ネイティブの NoticeRow。区切り線は Web のタイムラインの行と揃える */
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+/* 種別マークの列。幅 38px はネイティブの DeckDimens.AvatarSize（本体の開始位置をタイムラインと揃える） */
+.mark {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  width: 38px;
+  padding-top: var(--sp-1);
+}
+
+.markInner {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ネイティブの 17dp を 18px に寄せる */
+.markIcon {
+  width: var(--icon-md);
+  height: var(--icon-md);
+}
+
+[data-kind="reply"] .markIcon,
+[data-kind="mention"] .markIcon {
+  color: var(--accent);
+}
+
+[data-kind="repost"] .markIcon {
+  color: var(--repost);
+}
+
+[data-kind="zap"] .markIcon {
+  color: var(--zap);
+}
+
+[data-kind="dm"] .markIcon {
+  color: var(--accent);
+}
+
+.emojiText {
+  font-size: var(--type-emoji-lg);
+  line-height: 1;
+}
+
+.emojiImg {
+  width: var(--type-emoji-lg);
+  height: var(--type-emoji-lg);
+  object-fit: contain;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* 返信・メンションの見出し = 対象（自分の投稿）の 1 行 */
+.snippet {
+  display: block;
+  color: var(--text-3);
+  font-size: var(--type-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+
+/* リアクション・リポスト・Zap の見出し = アバター・名前（残り幅）・金額・時刻 */
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.avatarLink {
+  flex: none;
+  display: flex;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+
+.sats {
+  flex: none;
+  color: var(--zap);
+  font-size: var(--type-label);
+  font-weight: var(--w-name);
+}
+
+.time {
+  flex: none;
+  margin-left: var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--type-label);
+  text-decoration: none;
+}
+
+/* DM の本体 = 未読の数の 1 行（本文は出さない） */
+.dmText {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-caption);
+  font-weight: var(--w-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -1,0 +1,28 @@
+.wrap {
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.card {
+  display: block;
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.label {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-caption);
+}
+
+.sub {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
