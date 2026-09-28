@@ -70,3 +70,38 @@ export function setBox(el: Element, box: Box): void {
     Object.defineProperty(el, key, { configurable: true, get: () => value });
   }
 }
+
+type ResizeListener = () => void;
+
+let vvHeight = 0;
+const vvListeners = new Set<ResizeListener>();
+
+/** window.visualViewport をスタブに差し替える（jsdom には無い） */
+export function mockVisualViewport(height: number): void {
+  vvHeight = height;
+  vvListeners.clear();
+  const vv = {
+    get height() {
+      return vvHeight;
+    },
+    addEventListener(type: string, listener: ResizeListener) {
+      if (type === "resize") vvListeners.add(listener);
+    },
+    removeEventListener(type: string, listener: ResizeListener) {
+      if (type === "resize") vvListeners.delete(listener);
+    },
+  };
+  Object.defineProperty(window, "visualViewport", { configurable: true, value: vv });
+}
+
+/** 高さを変えて resize リスナーを呼ぶ */
+export function setVisualViewportHeight(height: number): void {
+  vvHeight = height;
+  for (const listener of [...vvListeners]) listener();
+}
+
+/** window.visualViewport を消す（jsdom の既定に戻す） */
+export function clearVisualViewport(): void {
+  vvListeners.clear();
+  Reflect.deleteProperty(window, "visualViewport");
+}

@@ -1,8 +1,12 @@
-/* 上・左右のシステムバーはルートで確保し、下は Compact = 下部ナビ / Expanded = 本体が確保する（ネイティブと同じ） */
+/*
+ * 上・左右のシステムバーはルートで確保し、下は Compact = 下部ナビ / Expanded = 本体が確保する（ネイティブと同じ）。
+ * 高さは visualViewport.height（--shell-vvh。#594）に追従し、ソフトキーボードで縮んだ分だけ骨格ごと収める。
+ * visualViewport が無い環境（デスクトップ・jsdom 等）は今までどおり 100dvh。
+ */
 .shell {
   box-sizing: border-box;
   display: flex;
-  height: 100dvh;
+  height: var(--shell-vvh, 100dvh);
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
   background: var(--bg);
 }

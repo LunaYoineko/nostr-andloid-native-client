@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useMatches, useNavigate, useParams } from "react-router";
 import { useShallow } from "zustand/react/shallow";
 import { ComposeHost } from "../features/compose/ComposeHost";
@@ -18,6 +18,7 @@ import { ConnectionPill } from "../ui/ConnectionPill";
 import { DetailOverlay } from "../ui/DetailOverlay";
 import { NavRail } from "../ui/NavRail";
 import { useLayoutMode, useShowNavRail } from "../ui/useLayoutMode";
+import { useVisualViewportHeight } from "../ui/useVisualViewportHeight";
 import styles from "./AppShell.module.css";
 import { DeckScreen } from "./deck/DeckScreen";
 import { useCloseOverlay, useTransientHistory } from "./history";
@@ -67,6 +68,9 @@ export function AppShell() {
   const handle = routeHandleOf(useMatches());
   const params = useParams();
   const navigate = useNavigate();
+  // ソフトキーボードで縮んだ高さに骨格ごと収める（#594。iOS は 100dvh がキーボードに縮まないため）
+  const shell = useRef<HTMLDivElement>(null);
+  useVisualViewportHeight(shell, "--shell-vvh");
 
   // 詳細の背後に描く宛先。直リンク・リロードで詳細から始まったらデッキ
   const [baseDest, setBaseDest] = useState<Dest>(handle && "dest" in handle ? handle.dest : "home");
@@ -110,7 +114,7 @@ export function AppShell() {
   const pinnedIds = useMemo(() => pinned.map((c) => c.id), [pinned]);
 
   return (
-    <div className={styles.shell} data-layout={railLayout}>
+    <div className={styles.shell} data-layout={railLayout} ref={shell}>
       {railLayout !== "compact" && (
         <NavRail
           selected={selected}

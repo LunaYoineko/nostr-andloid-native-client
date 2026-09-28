@@ -1,5 +1,13 @@
 import type { NostrEvent } from "nostr-tools/pure";
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  type FocusEvent,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { oneLine } from "../../lib/content/labels";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { extractMedia } from "../../lib/media";
@@ -22,6 +30,7 @@ import {
 } from "../../ui/icons";
 import { MenuButton, type MenuEntry } from "../../ui/MenuButton";
 import { showToast } from "../../ui/toast";
+import { useVisualViewportHeight } from "../../ui/useVisualViewportHeight";
 import { copyText, plainTextOf } from "../actions/noteLinks";
 import { ReactionPickerDialog } from "../actions/ReactionPickerDialog";
 import { ReportDialog } from "../actions/ReportDialog";
@@ -74,9 +83,16 @@ export function ChannelRoom({
   const { loading, messages, reactions, channelRelays } = useChannelRoom(channelId, revealMuted);
   const [replyTo, setReplyTo] = useState<NostrEvent | null>(null);
   const [composing, setComposing] = useState(false);
+  const scroller = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (me) ensureMyReactionsSubscribed(me);
   }, [me]);
+
+  // [#594] 常設の入力欄（textarea）にフォーカスしたら最新のメッセージ（column-reverse の scrollTop 0）を見せる
+  function onComposerFocus(e: FocusEvent<HTMLElement>) {
+    if (mode !== "screen" || e.target.tagName !== "TEXTAREA" || !scroller.current) return;
+    scroller.current.scrollTop = 0;
+  }
 
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
 
@@ -107,9 +123,9 @@ export function ChannelRoom({
   });
 
   return (
-    <section className={styles.root} aria-label={title} aria-busy={loading}>
+    <section className={styles.root} aria-label={title} aria-busy={loading} onFocus={onComposerFocus}>
       {header}
-      <div className={mode === "screen" ? styles.chatScroller : styles.feedScroller}>
+      <div ref={scroller} className={mode === "screen" ? styles.chatScroller : styles.feedScroller}>
         {messages.length === 0 ? (
           <p className={styles.empty}>{loading ? "読み込み中…" : "まだ発言がありません"}</p>
         ) : (
@@ -487,6 +503,9 @@ function ComposeModal({ title, onClose, children }: { title: string; onClose(): 
     const d = dialog.current;
     if (d && !d.open) d.showModal();
   }, []);
+
+  // ソフトキーボードが出たら見えている高さにカードを収める（ComposeDialog と同じ --compose-vvh。#594）
+  useVisualViewportHeight(dialog, "--compose-vvh");
 
   // カードの外（dialog 自身 = 背景）の押下
   useEffect(() => {

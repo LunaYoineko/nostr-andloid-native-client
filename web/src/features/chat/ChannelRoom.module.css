@@ -316,12 +316,14 @@
   background: rgba(0, 0, 0, 0.55);
 }
 
+/* 高さはソフトキーボードを除いた見えている高さ（--compose-vvh）に収める。ComposeDialog の .card と同じ（#594） */
 .modalCard {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 460px;
+  max-height: calc(var(--compose-vvh, 100dvh) - env(safe-area-inset-top, 0px) - var(--sp-3) * 2);
   margin: 0 auto;
   border-radius: var(--r-lg);
   background: var(--surface);
