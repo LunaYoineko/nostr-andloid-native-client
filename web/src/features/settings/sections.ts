@@ -48,7 +48,8 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
 ];
 
 /** Expanded で項目を選んでいないときに右へ出す項目 */
-export const DEFAULT_SECTION_ID = "account";
+/** Expanded で最初に開くセクション = 一覧の先頭（ネイティブ SettingsScreen の sections.first()） */
+export const DEFAULT_SECTION_ID = "profile";
 
 /** 改名した項目の古い id → 今の id。「テーマストア」は「表示」の導線行に統合した（#587） */
 const RENAMED_SECTIONS: ReadonlyMap<string, string> = new Map([
