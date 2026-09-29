@@ -115,7 +115,8 @@
   border: none;
   border-radius: var(--r-full);
   background: var(--accent);
-  color: #fff;
+  /* [#673] アクセント地の上の文字色（ダークではほぼ白地に固定 #fff が乗り不可視だった） */
+  color: var(--on-accent);
   font: inherit;
   font-weight: var(--w-strong);
   cursor: pointer;
