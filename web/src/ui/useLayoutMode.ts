@@ -55,16 +55,16 @@ function getMatchesAtBreakpoint(breakpointDp: number): boolean {
 const COMPACT_BREAKPOINT_DP = 600;
 
 /**
- * [#661] Rail ⇄ Expanded の境界（レール幅 + カラム M × 3 + ガター 2 本）。カラムが 3 本入る幅からだけ
- * 横並びのデッキ（Expanded）を出す。designs/tokens.css の --rail-w / --column-w / --column-gap /
- * --web-base の基準値と揃える（tokens.test.ts で一致を確認）。
+ * [#661][#680] Rail ⇄ Expanded の境界（レール幅 + カラム M × 2 + ガター 1 本。標準で 891px）。カラムが 2 本入る幅から
+ * 横並びのデッキ（Expanded）を出し、入らない幅は 1 カラム + レール。designs/tokens.css の --rail-w / --column-w /
+ * --column-gap / --web-base の基準値と揃える（tokens.test.ts で一致を確認）。
  */
 const RAIL_W_BASE_PX = 72; // designs/tokens.css --rail-w の基準値
 const COLUMN_M_BASE_PX = 348; // designs/tokens.css --column-w の基準値
 const COLUMN_GAP_PX = 8; // designs/tokens.css --column-gap（--web-base を掛けない）
 const WEB_BASE = 1.15; // designs/tokens.css --web-base と同じ
 export const EXPANDED_BREAKPOINT_DP = Math.round(
-  RAIL_W_BASE_PX * WEB_BASE + COLUMN_M_BASE_PX * WEB_BASE * 3 + COLUMN_GAP_PX * 2,
+  RAIL_W_BASE_PX * WEB_BASE + COLUMN_M_BASE_PX * WEB_BASE * 2 + COLUMN_GAP_PX * 1,
 );
 
 /** [#648][#661] ホバーできる端末（PC のブラウザ）か。幅を問わず Compact にしない */

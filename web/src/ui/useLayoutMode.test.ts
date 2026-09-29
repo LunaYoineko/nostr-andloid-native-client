@@ -27,19 +27,24 @@ it("[#661] 768px はタッチ端末（タブレット縦）なら rail", () => {
   expect(renderHook(() => useLayoutMode()).result.current).toBe("rail");
 });
 
-it("[#661] 1280px はホバーできる端末（ノート PC）なら rail（3 カラム入らない）", () => {
-  mockViewport(1280, { hover: true });
+it("[#680] 800px はホバーできる端末でも rail（2 カラム入らない）", () => {
+  mockViewport(800, { hover: true });
   expect(renderHook(() => useLayoutMode()).result.current).toBe("rail");
 });
 
-it("[#661] 1366px はホバーできる端末なら expanded（3 カラム入る）", () => {
+it("[#680] 1200px はホバーできる端末なら expanded（2 カラム入る）", () => {
+  mockViewport(1200, { hover: true });
+  expect(renderHook(() => useLayoutMode()).result.current).toBe("expanded");
+});
+
+it("[#661] 1366px はホバーできる端末なら expanded", () => {
   mockViewport(1366, { hover: true });
   expect(renderHook(() => useLayoutMode()).result.current).toBe("expanded");
 });
 
-it("[#661] 表示サイズ「最大」(uiScale 1.3) のとき 1366px は rail（閾値が伸びる）", () => {
+it("[#661] 表示サイズ「最大」(uiScale 1.3) のとき 1100px は rail（閾値が 891 × 1.3 ≈ 1158 に伸びる）", () => {
   useThemePrefs.setState({ uiScale: "l" });
-  mockViewport(1366, { hover: true });
+  mockViewport(1100, { hover: true });
   expect(renderHook(() => useLayoutMode()).result.current).toBe("rail");
 });
 
@@ -114,5 +119,5 @@ it("[#596][#661] 700px のまま表示サイズを標準→最大に変えると
 });
 
 it("[#661] Rail⇄Expanded の閾値は designs/tokens.css の基準値と一致する（EXPANDED_BREAKPOINT_DP）", () => {
-  expect(EXPANDED_BREAKPOINT_DP).toBe(1299);
+  expect(EXPANDED_BREAKPOINT_DP).toBe(891);
 });

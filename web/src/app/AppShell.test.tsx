@@ -110,7 +110,7 @@ describe("骨格", () => {
     expect(screen.getByTestId("col-c_following")).toHaveAttribute("data-header", "false");
   });
 
-  it("[#661] タッチ端末でも 600px 以上・3 カラム入る閾値未満ならレール（内容は compact のまま）", () => {
+  it("[#661][#680] タッチ端末でも 600px 以上・2 カラム入る閾値未満ならレール（内容は compact のまま）", () => {
     renderAt(["/"], 700);
     expect(within(mainNav()).getByRole("img", { name: "Nostrism" })).toBeInTheDocument();
     expect(navLabels()).toEqual([
