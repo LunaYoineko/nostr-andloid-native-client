@@ -11,6 +11,7 @@ import {
   resolveTheme,
   setBoldText,
   setCustomColor,
+  setDensity,
   setNoteAccent,
   setTextScale,
   setThemeMode,
@@ -35,6 +36,7 @@ afterEach(() => {
   const root = document.documentElement;
   root.removeAttribute("data-theme");
   root.removeAttribute("data-bold");
+  root.removeAttribute("data-density");
   // 個々の --text-scale / --ui-scale / カスタムパレット変数をまとめて外す
   root.removeAttribute("style");
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.remove();
@@ -146,6 +148,7 @@ it("保存値を初期値にする。壊れた JSON は既定、不正な項目�
     custom: { bg: "#111111", text: "#EEEEEE", accent: "#FF0000" },
     noteAccent: "line",
     uiScale: "m",
+    density: "normal",
   });
   localStorage.clear();
   expect(await initialWith("{broken")).toEqual(DEFAULT_THEME_PREFS);
@@ -169,6 +172,7 @@ it("保存値を初期値にする。壊れた JSON は既定、不正な項目�
     custom: { bg: DEFAULT_CUSTOM_COLORS.bg, text: "#123456", accent: "#654321" },
     noteAccent: "none",
     uiScale: "s",
+    density: "normal",
   });
 });
 
@@ -305,6 +309,36 @@ it("種別の視覚表示（none/line/bg）を保存する", () => {
 
   setNoteAccent("bg");
   expect(saved()).toEqual({ ...SAVED_DEFAULTS, noteAccent: "bg" });
+});
+
+it("[#674] 廃人モード（density）の既定は normal。保存値に無くても normal のまま（旧バージョンの保存値でも壊れない）", async () => {
+  expect((await initialWith(null)).density).toBe("normal");
+  expect((await initialWith(JSON.stringify({ mode: "light", version: CURRENT_THEME_VERSION }))).density).toBe(
+    "normal",
+  );
+});
+
+it("[#674] setDensity は data-density を付け外しして保存する（normal のときは属性を外す）", () => {
+  dispose = initTheme();
+  expect(html().hasAttribute("data-density")).toBe(false);
+
+  setDensity("dense");
+  expect(html().dataset.density).toBe("dense");
+  expect(saved()).toEqual({ ...SAVED_DEFAULTS, density: "dense" });
+
+  setDensity("normal");
+  expect(html().hasAttribute("data-density")).toBe(false);
+  expect(saved()).toEqual(SAVED_DEFAULTS);
+});
+
+it("[#674] initTheme は保存済みの density を同期的に <html> へ当てる", async () => {
+  localStorage.setItem(THEME_KEY, JSON.stringify({ density: "dense", version: CURRENT_THEME_VERSION }));
+  vi.resetModules();
+  const fresh = await import("./themePrefs");
+
+  dispose = fresh.initTheme();
+
+  expect(html().dataset.density).toBe("dense");
 });
 
 it("カスタムテーマ: 背景の輝度でdata-themeを決め、導出したCSS変数と背景色のtheme-colorを当てる", () => {

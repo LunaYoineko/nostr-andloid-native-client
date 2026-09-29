@@ -46,15 +46,15 @@
 
 .row {
   display: flex;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
+  gap: var(--note-gap);
+  padding: var(--note-pad-y) var(--note-pad-x);
 }
 
 /* 表示 38px はネイティブの DeckDimens.AvatarSize */
 .avatar {
   flex: none;
-  width: 38px;
-  height: 38px;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
   /* 名前の文字位置に揃えて少し下げる（ネイティブと同じ） */
   margin-top: var(--sp-1);
   border-radius: var(--r-full);
@@ -159,7 +159,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: var(--note-gap);
   /* アクション行（#458）が来るまでの仮の余白 */
   padding-bottom: var(--sp-1);
 }
@@ -282,4 +282,35 @@
   margin: var(--sp-1) 0 0;
   white-space: pre-wrap;
   overflow-wrap: break-word;
+}
+
+/*
+ * [#674] 廃人モード: アイコン・名前の下に本文を出す。DOM は変えず、.row を grid にして
+ * .avatarLink を 1 行目の 1 列目、.main を display: contents（子をそのまま .row の grid item にする）、
+ * .meta を 1 行目の 2 列目、それ以外（本文・メディア・アクション行など）は 2 行目以降で全幅にする。
+ */
+:root[data-density="dense"] .row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: var(--note-gap);
+  row-gap: var(--note-gap);
+}
+
+:root[data-density="dense"] .avatarLink {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+:root[data-density="dense"] .main {
+  display: contents;
+}
+
+:root[data-density="dense"] .main > .meta {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+:root[data-density="dense"] .main > *:not(.meta) {
+  grid-column: 1 / -1;
 }

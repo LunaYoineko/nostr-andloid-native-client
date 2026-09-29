@@ -16,7 +16,7 @@
 
 .meta {
   margin: 0;
-  padding: 0 var(--sp-3) var(--sp-2);
+  padding: 0 var(--note-pad-x) var(--note-gap);
   color: var(--text-3);
   font-size: var(--type-label);
 }

@@ -1,6 +1,8 @@
+/* [#674] padding は --note-gap（廃人モードで sp-2 → sp-1）。カードの内側全体を1行目=見出し（アイコン+名前）・
+   2行目以降=本文/メディアとして詰める（見出し以外は元々全幅なので DOM・レイアウトの変更は不要） */
 .quote {
   display: block;
-  padding: var(--sp-2);
+  padding: var(--note-gap);
   border-radius: var(--r-md);
   background: var(--surface-2);
   color: inherit;
