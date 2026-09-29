@@ -111,6 +111,7 @@
   --column-w: calc(348px * var(--web-base) * var(--ui-scale));        /* 固定カラム幅。はみ出しは横スクロール */
   --column-w-s: calc(278px * var(--web-base) * var(--ui-scale));  /* カラム幅 S（Compose DeckScreen.kt columnWidthDp と 1 対 1） */
   --column-w-l: calc(452px * var(--web-base) * var(--ui-scale));  /* 同 L */
+  --single-col-max: calc(560px * var(--web-base) * var(--ui-scale)); /* [#670] rail（左レール + 1 カラム）の 1 カラムの最大幅。標準で ≈644px。Web だけの値（ネイティブの Compact は全幅） */
   --column-gap: calc(8px * var(--ui-scale));  /* カラム間ガター（線ではなく Bg の隙間で分離。ネイティブ DeckSpace.Sm と同じく density 側で拡大。[#660] ここは --web-base を掛けない） */
   --hinge-gutter: 22px;     /* フォルダブルのヒンジ回避ガター */
 
