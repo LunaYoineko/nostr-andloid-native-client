@@ -158,12 +158,12 @@ function basePx(expr: string): number {
   return Number(m[1]);
 }
 
-it("[#661] Rail⇄Expanded の閾値（useLayoutMode.ts の EXPANDED_BREAKPOINT_DP）は designs/tokens.css の基準値（レール幅 + カラム M×3 + ガター2本）と一致する", () => {
+it("[#661][#680] Rail⇄Expanded の閾値（useLayoutMode.ts の EXPANDED_BREAKPOINT_DP）は designs/tokens.css の基準値（レール幅 + カラム M×2 + ガター1本）と一致する", () => {
   const webBase = Number(readVar(darkBlock, "web-base"));
   const railW = basePx(readVar(darkBlock, "rail-w"));
   const columnM = basePx(readVar(darkBlock, "column-w"));
   const gap = basePx(readVar(darkBlock, "column-gap"));
-  const expected = Math.round(railW * webBase + columnM * webBase * 3 + gap * 2);
+  const expected = Math.round(railW * webBase + columnM * webBase * 2 + gap * 1);
   expect(EXPANDED_BREAKPOINT_DP).toBe(expected);
 });
 
