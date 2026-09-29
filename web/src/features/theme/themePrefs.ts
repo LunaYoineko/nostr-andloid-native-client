@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { isHoverCapable } from "../../ui/platform";
 import {
   type CustomColors,
   customPaletteVars,
@@ -9,8 +8,14 @@ import {
 } from "./customPalette";
 import type { NoteAccentStyle } from "./noteAccent";
 
-/** 値は {mode, textScale, bold, custom: {bg,text,accent}, noteAccent, uiScale} */
+/** 値は {mode, textScale, bold, custom: {bg,text,accent}, noteAccent, uiScale, version} */
 export const THEME_KEY = "nostrism.theme";
+
+/**
+ * [#660] 保存値のバージョン。既定を変えたときにここで移行する（readThemePrefs 参照）。
+ * v1: version フィールド無し。v2: --web-base 導入に伴い uiScale "m" を "s" へ移行済み。
+ */
+export const CURRENT_THEME_VERSION = 2;
 
 /** テーマ（ネイティブ ThemeMode の id）。custom は #464 の残り（3色から導出） */
 export type ThemeMode = "system" | "light" | "dark" | "custom";
@@ -74,13 +79,12 @@ function isNoteAccentStyle(v: unknown): v is NoteAccentStyle {
 }
 
 /**
- * [#649] 保存値に uiScale が無いときの既定。ホバーできる端末（PC）は本文が LP と同じくらいになる
- * "m"（1.15）、それ以外・matchMedia が無い環境（jsdom 等）はネイティブと同じ "s"。
- * #648 の [isHoverCapable] と同じ判定を共有する。DEFAULT_THEME_PREFS.uiScale はこの関数を使わず
- * "s" 固定のまま（既存コード・テストが参照する既定値を変えないため）。
+ * [#660] 保存値に uiScale が無いときの既定。常に "s"（標準）。
+ * [#649] でホバーできる端末（PC）だけ "m" にしていたが、標準の本文サイズ自体を --web-base で
+ * 16px 相当に上げたため撤回した。
  */
 export function defaultUiScale(): UiScale {
-  return isHoverCapable() ? "m" : "s";
+  return "s";
 }
 
 /** custom は3項目それぞれ個別に既定へ（1色だけ壊れていても他の2色は活かす） */
@@ -95,8 +99,10 @@ function readCustomColors(value: unknown): CustomColors {
 }
 
 /**
- * 無い・壊れている項目は既定へ（項目ごと）。uiScale だけは、保存値に無いとき端末に応じた
- * [defaultUiScale] を当てる（保存値が丸ごと無い場合も含む。[#649]）。
+ * 無い・壊れている項目は既定へ（項目ごと）。uiScale だけは、保存値に無いとき [defaultUiScale] を当てる
+ * （保存値が丸ごと無い場合も含む）。
+ * [#660] バージョン移行: 保存値の version が 2 未満（無しを含む）で uiScale が "m" なら "s" へ戻す
+ * （[#649] の PC 既定でそうなっていただけの可能性が高いため）。"l" はそのまま、version 2 以降は触らない。
  */
 function readThemePrefs(): ThemePrefs {
   let value: unknown = null;
@@ -107,14 +113,17 @@ function readThemePrefs(): ThemePrefs {
   }
   const obj: Record<string, unknown> =
     typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-  const { mode, textScale, bold, custom, noteAccent, uiScale } = obj;
+  const { mode, textScale, bold, custom, noteAccent, uiScale, version } = obj;
+  const storedVersion = typeof version === "number" ? version : 1;
+  let resolvedUiScale = isUiScale(uiScale) ? uiScale : defaultUiScale();
+  if (storedVersion < 2 && resolvedUiScale === "m") resolvedUiScale = "s";
   return {
     mode: isThemeMode(mode) ? mode : DEFAULT_THEME_PREFS.mode,
     textScale: isTextScale(textScale) ? textScale : DEFAULT_THEME_PREFS.textScale,
     bold: typeof bold === "boolean" ? bold : DEFAULT_THEME_PREFS.bold,
     custom: readCustomColors(custom),
     noteAccent: isNoteAccentStyle(noteAccent) ? noteAccent : DEFAULT_THEME_PREFS.noteAccent,
-    uiScale: isUiScale(uiScale) ? uiScale : defaultUiScale(),
+    uiScale: resolvedUiScale,
   };
 }
 
@@ -137,7 +146,10 @@ function update(patch: Partial<ThemePrefs>): void {
   useThemePrefs.setState(patch);
   const { mode, textScale, bold, custom, noteAccent, uiScale } = useThemePrefs.getState();
   try {
-    localStorage.setItem(THEME_KEY, JSON.stringify({ mode, textScale, bold, custom, noteAccent, uiScale }));
+    localStorage.setItem(
+      THEME_KEY,
+      JSON.stringify({ mode, textScale, bold, custom, noteAccent, uiScale, version: CURRENT_THEME_VERSION }),
+    );
   } catch {
     // 保存できなくてもこのセッションでは効く
   }

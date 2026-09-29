@@ -5,7 +5,14 @@ import { useSession } from "../../signer/session";
 import { installDialogPolyfill } from "../../test/dialog";
 import { DEFAULT_CUSTOM_COLORS } from "./customPalette";
 import { ThemeSettings } from "./ThemeSettings";
-import { DEFAULT_THEME_PREFS, initTheme, THEME_KEY, useThemePrefs, useThemeUndo } from "./themePrefs";
+import {
+  CURRENT_THEME_VERSION,
+  DEFAULT_THEME_PREFS,
+  initTheme,
+  THEME_KEY,
+  useThemePrefs,
+  useThemeUndo,
+} from "./themePrefs";
 
 beforeAll(() => {
   installDialogPolyfill();
@@ -78,6 +85,7 @@ it("選ぶとすぐ保存して <html> へ反映する", async () => {
     custom: DEFAULT_CUSTOM_COLORS,
     noteAccent: "line",
     uiScale: "l",
+    version: CURRENT_THEME_VERSION,
   });
 });
 

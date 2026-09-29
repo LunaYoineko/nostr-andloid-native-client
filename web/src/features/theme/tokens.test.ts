@@ -91,3 +91,57 @@ it("designs/tokens.css のライト配色は Color.kt LightPalette と一致す�
     expect(readVar(lightBlock, name), `--${name}`).toBe(expected);
   }
 });
+
+/**
+ * [#660] --web-base（Web の density 補正）の計算値。calc(<基準px>px * var(--web-base) * ...) の
+ * 形を素朴に評価し、標準表示（textScale=uiScale=1）で本文 ≈16px・カラム M/S/L ≈400/320/520px に
+ * なることを確認する。
+ */
+function evalCalc(expr: string, vars: Record<string, number>): number {
+  const inner = expr
+    .trim()
+    .replace(/^calc\(/, "")
+    .replace(/\)$/, "");
+  return inner.split("*").reduce((acc, part) => {
+    const token = part.trim();
+    const px = token.match(/^(-?\d+(?:\.\d+)?)px$/);
+    if (px) return acc * Number(px[1]);
+    const ref = token.match(/^var\(--([\w-]+)\)$/);
+    if (ref) {
+      const value = vars[ref[1]];
+      if (value === undefined) throw new Error(`unknown var: --${ref[1]}`);
+      return acc * value;
+    }
+    throw new Error(`unparsable calc term: ${token}`);
+  }, 1);
+}
+
+const STANDARD_VARS = { "web-base": 1.15, "text-scale": 1, "ui-scale": 1 };
+
+it("[#660] --web-base は 1.15", () => {
+  expect(readVar(darkBlock, "web-base")).toBe("1.15");
+});
+
+it("[#660] 標準表示（s）で本文 ≈16px・タイトル ≈17px・caption ≈14px", () => {
+  const cases: [name: string, expectedPx: number][] = [
+    ["type-title", 17],
+    ["type-body", 16],
+    ["type-caption", 14],
+  ];
+  for (const [name, expectedPx] of cases) {
+    const px = evalCalc(readVar(darkBlock, name), STANDARD_VARS);
+    expect(Math.round(px), `--${name}`).toBe(expectedPx);
+  }
+});
+
+it("[#660] 標準表示（s）でカラム幅 M/S/L ≈400/320/520px", () => {
+  const cases: [name: string, expectedPx: number][] = [
+    ["column-w", 400],
+    ["column-w-s", 320],
+    ["column-w-l", 520],
+  ];
+  for (const [name, expectedPx] of cases) {
+    const px = evalCalc(readVar(darkBlock, name), STANDARD_VARS);
+    expect(Math.round(px), `--${name}`).toBe(expectedPx);
+  }
+});
