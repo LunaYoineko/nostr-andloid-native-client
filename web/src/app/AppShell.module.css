@@ -32,6 +32,13 @@
   overflow: hidden;
 }
 
+/* [#670] rail では 1 カラムが画面幅いっぱいに伸びて 1 行が長くなりすぎるので、最大幅を抑えてレールの右の中央に置く
+   （タブ列・ページャ・詳細画面・FAB を含む内容領域ごと）。compact / expanded は変えない */
+.shell[data-layout="rail"] .content {
+  max-width: var(--single-col-max);
+  margin-inline: auto;
+}
+
 .base {
   position: absolute;
   inset: 0;
