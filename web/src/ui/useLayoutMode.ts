@@ -74,15 +74,40 @@ export function useLayoutMode(): LayoutMode {
  */
 const RAIL_MIN_WIDTH_DP = 440;
 
+/** [#648] ホバーできる端末（PC のブラウザを細くした場合）だけレールを出す。タッチ端末は常に下部ナビ */
+const HOVER_FINE_QUERY = "(hover: hover) and (pointer: fine)";
+
+function subscribeHoverCapable(onChange: () => void): () => void {
+  if (!hasMatchMedia()) return () => {};
+  const mql = window.matchMedia(HOVER_FINE_QUERY);
+  mql.addEventListener("change", onChange);
+  return () => mql.removeEventListener("change", onChange);
+}
+
+function isHoverCapable(): boolean {
+  if (!hasMatchMedia()) return false;
+  return window.matchMedia(HOVER_FINE_QUERY).matches;
+}
+
 function subscribeRail(onChange: () => void): () => void {
-  return subscribeAtBreakpoint(RAIL_MIN_WIDTH_DP, onChange);
+  const unsubscribeWidth = subscribeAtBreakpoint(RAIL_MIN_WIDTH_DP, onChange);
+  const unsubscribeHover = subscribeHoverCapable(onChange);
+  return () => {
+    unsubscribeWidth();
+    unsubscribeHover();
+  };
 }
 
 function getRailSnapshot(): boolean {
-  return getMatchesAtBreakpoint(RAIL_MIN_WIDTH_DP);
+  return getMatchesAtBreakpoint(RAIL_MIN_WIDTH_DP) && isHoverCapable();
 }
 
-/** 左レールを出すか（440px 以上。600px 以上の Expanded でも当然 true）。matchMedia が無ければ false */
+/**
+ * 左レールを出すか（440px 以上 かつ ホバーできる端末だけ）。
+ * [#648] タッチ端末（hover 無し）は 600px 未満では常に下部ナビ。600px 以上（Expanded）は
+ * 呼び出し側（[useLayoutMode] が "expanded"）がこの値を無視して常にレールにする。
+ * matchMedia が無ければ false
+ */
 export function useShowNavRail(): boolean {
   return useSyncExternalStore(subscribeRail, getRailSnapshot);
 }
