@@ -85,6 +85,14 @@
      Web は <html> の style で差し替える（web/src/features/theme） */
   --ui-scale: 1;
 
+  /* [#660] Web の基準倍率（Web の density 補正）。ネイティブ（Compose）は端末の density × --ui-scale
+     で dp を px に変換しているが、Web の CSS px はネイティブの dp 相当で固定倍率が無いため、標準表示
+     （--ui-scale: 1）でも本文が 16px 未満のままになっていた（モバイル Safari は入力欄が 16px 未満だと
+     自動ズームする）。dp → px の変換（--type-* / --line-* / --sp-* / --icon-* / --touch-* / --rail-* /
+     --column-*）にこれを掛け、標準で本文 ≈ 16px になるようにする。幅の判定（useLayoutMode.ts の閾値）
+     には掛けない（境界は画面の実 px で決める） */
+  --web-base: 1.15;
+
   /* --- Radius --- */
   --r-sm: calc(8px * var(--ui-scale));
   --r-md: calc(12px * var(--ui-scale));
@@ -92,24 +100,25 @@
   --r-full: 999px;
 
   /* --- Spacing --- */
-  --sp-1: calc(4px * var(--ui-scale));
-  --sp-2: calc(8px * var(--ui-scale));
-  --sp-3: calc(12px * var(--ui-scale));
-  --sp-4: calc(16px * var(--ui-scale));
-  --sp-5: calc(24px * var(--ui-scale));
+  --sp-1: calc(4px * var(--web-base) * var(--ui-scale));
+  --sp-2: calc(8px * var(--web-base) * var(--ui-scale));
+  --sp-3: calc(12px * var(--web-base) * var(--ui-scale));
+  --sp-4: calc(16px * var(--web-base) * var(--ui-scale));
+  --sp-5: calc(24px * var(--web-base) * var(--ui-scale));
 
   /* --- Deck geometry --- */
-  --column-w: calc(340px * var(--ui-scale));        /* 固定カラム幅。はみ出しは横スクロール */
-  --column-w-s: calc(280px * var(--ui-scale));  /* カラム幅 S（Compose DeckScreen.kt columnWidthDp と 1 対 1） */
-  --column-w-l: calc(460px * var(--ui-scale));  /* 同 L */
-  --column-gap: calc(8px * var(--ui-scale));  /* カラム間ガター（線ではなく Bg の隙間で分離。ネイティブ DeckSpace.Sm と同じく density 側で拡大） */
+  /* [#660] 標準（--web-base 込み）で M=400 / S=320 / L=520px になる基準値 */
+  --column-w: calc(348px * var(--web-base) * var(--ui-scale));        /* 固定カラム幅。はみ出しは横スクロール */
+  --column-w-s: calc(278px * var(--web-base) * var(--ui-scale));  /* カラム幅 S（Compose DeckScreen.kt columnWidthDp と 1 対 1） */
+  --column-w-l: calc(452px * var(--web-base) * var(--ui-scale));  /* 同 L */
+  --column-gap: calc(8px * var(--ui-scale));  /* カラム間ガター（線ではなく Bg の隙間で分離。ネイティブ DeckSpace.Sm と同じく density 側で拡大。[#660] ここは --web-base を掛けない） */
   --hinge-gutter: 22px;     /* フォルダブルのヒンジ回避ガター */
 
   /* --- 左レール（Compose DeckDimens.Rail* と 1対1）--- */
-  --rail-w:    calc(72px * var(--ui-scale));        /* レール幅 */
-  --rail-item: calc(48px * var(--ui-scale));        /* 各項目のタップ領域 */
-  --rail-icon: calc(24px * var(--ui-scale));        /* レールのグリフ実寸 */
-  --rail-mark: calc(40px * var(--ui-scale));        /* ロゴ/アバターの識別マーク */
+  --rail-w:    calc(72px * var(--web-base) * var(--ui-scale));        /* レール幅 */
+  --rail-item: calc(48px * var(--web-base) * var(--ui-scale));        /* 各項目のタップ領域 */
+  --rail-icon: calc(24px * var(--web-base) * var(--ui-scale));        /* レールのグリフ実寸 */
+  --rail-mark: calc(40px * var(--web-base) * var(--ui-scale));        /* ロゴ/アバターの識別マーク */
 
   /* --- Type family --- */
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", system-ui, sans-serif;
@@ -123,28 +132,29 @@
   /* --- Type scale (Option C: hybrid / 7段, Compose DeckType と 1対1) --- */
   /* 文字サイズ設定の倍率（Compose TextScale.factor = 1 / 1.15 / 1.35。sp が fontScale に追従するのと同じく
      --type-* / --line-* に掛ける）。Web は <html> の style で差し替える（web/src/features/theme）。
-     [#464] 表示サイズ（--ui-scale）も掛け合わせる（ネイティブは density 経由で sp にも効くため）。 */
+     [#464] 表示サイズ（--ui-scale）も掛け合わせる（ネイティブは density 経由で sp にも効くため）。
+     [#660] --web-base（Web の density 補正）も掛け、標準（s）で本文 ≈16px・タイトル ≈17px・caption ≈14px。 */
   --text-scale: 1;
-  --type-display: calc(20px * var(--text-scale) * var(--ui-scale));  /* ダイアログ見出し */
-  --type-title:   calc(15px * var(--text-scale) * var(--ui-scale));  /* 画面/カラム名 */
-  --type-body:    calc(14px * var(--text-scale) * var(--ui-scale));  /* 本文 */
-  --type-sub:     calc(13px * var(--text-scale) * var(--ui-scale));  /* 著者名/小見出し */
-  --type-caption: calc(12px * var(--text-scale) * var(--ui-scale));  /* 補足 */
-  --type-label:   calc(11px * var(--text-scale) * var(--ui-scale));  /* 時刻/ハンドル/ラベル */
-  --type-micro:   calc(10px * var(--text-scale) * var(--ui-scale));  /* バッジ/最小メタ */
-  --type-emoji:   calc(18px * var(--text-scale) * var(--ui-scale));  /* リアクション絵文字グリフ */
-  --type-emoji-lg: calc(22px * var(--text-scale) * var(--ui-scale));  /* 拡大絵文字（Compose DeckType.EmojiLg と 1 対 1） */
-  --line-title:   calc(22px * var(--text-scale) * var(--ui-scale));  /* 2段テキスト(タイトル+説明)のタイトル行高 */
-  --line-desc:    calc(18px * var(--text-scale) * var(--ui-scale));  /* 同・説明行高（合計40px, スペーサーなし） */
-  --line-body: calc(20px * var(--text-scale) * var(--ui-scale));  /* 本文の行高（Compose CollapsibleText の lineHeight 20sp と 1 対 1） */
+  --type-display: calc(20px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* ダイアログ見出し */
+  --type-title:   calc(15px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* 画面/カラム名 */
+  --type-body:    calc(14px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* 本文 */
+  --type-sub:     calc(13px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* 著者名/小見出し */
+  --type-caption: calc(12px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* 補足 */
+  --type-label:   calc(11px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* 時刻/ハンドル/ラベル */
+  --type-micro:   calc(10px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* バッジ/最小メタ */
+  --type-emoji:   calc(18px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* リアクション絵文字グリフ */
+  --type-emoji-lg: calc(22px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* 拡大絵文字（Compose DeckType.EmojiLg と 1 対 1） */
+  --line-title:   calc(22px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* 2段テキスト(タイトル+説明)のタイトル行高 */
+  --line-desc:    calc(18px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* 同・説明行高（合計40px, スペーサーなし） */
+  --line-body: calc(20px * var(--web-base) * var(--text-scale) * var(--ui-scale));  /* 本文の行高（Compose CollapsibleText の lineHeight 20sp と 1 対 1） */
 
   /* --- Touch / icon (Compose DeckDimens と 1対1) --- */
-  --touch:     calc(48px * var(--ui-scale));     /* 原則8の推奨 */
-  --touch-sm:  calc(40px * var(--ui-scale));     /* Deck 密度優先の実用最小(T3) */
-  --touch-xs:  calc(32px * var(--ui-scale));     /* インライン補助操作（キャンセル/削除/行内ピン）の下限 */
-  --icon-sm:   calc(16px * var(--ui-scale));
-  --icon-md:   calc(18px * var(--ui-scale));
-  --icon-lg:   calc(20px * var(--ui-scale));
+  --touch:     calc(48px * var(--web-base) * var(--ui-scale));     /* 原則8の推奨 */
+  --touch-sm:  calc(40px * var(--web-base) * var(--ui-scale));     /* Deck 密度優先の実用最小(T3) */
+  --touch-xs:  calc(32px * var(--web-base) * var(--ui-scale));     /* インライン補助操作（キャンセル/削除/行内ピン）の下限 */
+  --icon-sm:   calc(16px * var(--web-base) * var(--ui-scale));
+  --icon-md:   calc(18px * var(--web-base) * var(--ui-scale));
+  --icon-lg:   calc(20px * var(--web-base) * var(--ui-scale));
 }
 
 /* [#327] 太字モード（Compose DeckWeight の bold と 1 対 1。各役割を 1 段上げる）。
