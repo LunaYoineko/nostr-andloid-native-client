@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, it } from "vitest";
 import { DEFAULT_THEME_PREFS, useThemePrefs } from "../features/theme/themePrefs";
-import { clearViewport, mockViewport, setViewportWidth } from "../test/viewport";
+import { clearViewport, mockViewport, setViewportHover, setViewportWidth } from "../test/viewport";
 import { prefersReducedMotion, scrollBehavior, useLayoutMode, useShowNavRail } from "./useLayoutMode";
 
 afterEach(() => {
@@ -54,6 +54,37 @@ it("[#540] 幅が 500 → 400 に変わると再描画でレールが消える",
 it("[#540] matchMedia が無ければレールも false", () => {
   clearViewport();
   expect(renderHook(() => useShowNavRail()).result.current).toBe(false);
+});
+
+it("[#648] 500px は hover 無し（タッチ端末）ならレール無し（下部ナビ）", () => {
+  mockViewport(500, { hover: false });
+  expect(renderHook(() => useShowNavRail()).result.current).toBe(false);
+  expect(renderHook(() => useLayoutMode()).result.current).toBe("compact");
+});
+
+it("[#648] 500px は hover あり（PC を細くした場合）ならレール", () => {
+  mockViewport(500, { hover: true });
+  expect(renderHook(() => useShowNavRail()).result.current).toBe(true);
+  expect(renderHook(() => useLayoutMode()).result.current).toBe("compact");
+});
+
+it("[#648] 700px は hover の有無に関わらず expanded", () => {
+  mockViewport(700, { hover: false });
+  expect(renderHook(() => useLayoutMode()).result.current).toBe("expanded");
+  mockViewport(700, { hover: true });
+  expect(renderHook(() => useLayoutMode()).result.current).toBe("expanded");
+});
+
+it("[#648] 500px のまま hover あり→無しに変わると再描画でレールが消える", () => {
+  mockViewport(500, { hover: true });
+  const { result } = renderHook(() => useShowNavRail());
+  expect(result.current).toBe(true);
+
+  setViewportHover(false);
+  expect(result.current).toBe(false);
+
+  setViewportHover(true);
+  expect(result.current).toBe(true);
 });
 
 it("[#596] 表示サイズ「最大」(uiScale 1.3) のとき 700px は compact（ネイティブの物理700px→538dpと同じ結果）", () => {

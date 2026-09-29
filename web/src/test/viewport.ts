@@ -2,21 +2,42 @@ import { act } from "@testing-library/react";
 
 type ChangeListener = (e: MediaQueryListEvent) => void;
 
+/** [#648] レールを出すかの判定に使う「ホバーできる端末」クエリ（useLayoutMode.ts と同じ文字列） */
+const HOVER_FINE_QUERY = "(hover: hover) and (pointer: fine)";
+
 let width = 0;
+/** [#648] 既定はホバーあり（PC 相当。hover を意識しない既存テストの前提を保つ） */
+let hover = true;
 const listeners = new Set<{ query: string; listener: ChangeListener; last: boolean }>();
 
-/** `(min-width: Npx)` だけを評価する。それ以外のクエリは常に false */
+/** `(min-width: Npx)` と [#648] のホバー判定クエリだけを評価する。それ以外のクエリは常に false */
 function evaluate(query: string): boolean {
-  const m = /^\(min-width:\s*(\d+)px\)$/.exec(query.trim());
+  const trimmed = query.trim();
+  if (trimmed === HOVER_FINE_QUERY) return hover;
+  const m = /^\(min-width:\s*(\d+)px\)$/.exec(trimmed);
   return m ? width >= Number(m[1]) : false;
 }
 
+/** 閾値をまたいだクエリの `change` リスナーを act の中で呼ぶ（setViewportWidth / setViewportHover 共通） */
+function notifyListeners(): void {
+  act(() => {
+    for (const entry of [...listeners]) {
+      const matches = evaluate(entry.query);
+      if (matches === entry.last) continue;
+      entry.last = matches;
+      entry.listener({ matches, media: entry.query } as MediaQueryListEvent);
+    }
+  });
+}
+
 /**
- * window.matchMedia を幅 width のスタブに差し替える（jsdom には matchMedia が無い）。
- * `change` リスナーは保持し、setViewportWidth で閾値をまたいだものだけ呼ぶ。
+ * window.matchMedia を幅 width・ホバー可否 hover のスタブに差し替える（jsdom には matchMedia が無い）。
+ * hover 省略時は true（PC 相当）。`change` リスナーは保持し、setViewportWidth / setViewportHover で
+ * 閾値をまたいだものだけ呼ぶ。
  */
-export function mockViewport(w: number): void {
+export function mockViewport(w: number, options?: { hover?: boolean }): void {
   width = w;
+  hover = options?.hover ?? true;
   listeners.clear();
   window.matchMedia = (query: string): MediaQueryList => {
     const mql = {
@@ -44,15 +65,14 @@ export function mockViewport(w: number): void {
 
 /** 幅を変え、閾値をまたいだクエリの `change` リスナーを act の中で呼ぶ */
 export function setViewportWidth(w: number): void {
-  act(() => {
-    width = w;
-    for (const entry of [...listeners]) {
-      const matches = evaluate(entry.query);
-      if (matches === entry.last) continue;
-      entry.last = matches;
-      entry.listener({ matches, media: entry.query } as MediaQueryListEvent);
-    }
-  });
+  width = w;
+  notifyListeners();
+}
+
+/** [#648] ホバー可否を変え、変化したクエリの `change` リスナーを act の中で呼ぶ */
+export function setViewportHover(h: boolean): void {
+  hover = h;
+  notifyListeners();
 }
 
 /** matchMedia を消す（jsdom の既定に戻す） */
