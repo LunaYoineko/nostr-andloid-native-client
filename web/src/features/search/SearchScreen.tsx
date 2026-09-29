@@ -9,7 +9,7 @@ import { addTokens } from "./searchTokens";
 /**
  * 検索画面（/search。ネイティブ SearchScreen）。単語と #タグを積んで OR で 1 つのフィードとして検索する。
  * 全幅（SingleColumnPane に入れない）。上から 検索バー → 条件チップ → 区切り線 →
- * Compact: 実行前は履歴、実行後は結果 / Expanded: 左に履歴 | 右に結果。
+ * Compact/Rail: 実行前は履歴、実行後は結果 / Expanded: 左に履歴 | 右に結果（[#661] Rail は Compact と同じ 1 ペイン）。
  * 入力・条件・結果は画面を離れると消える（ネイティブも宛先を切り替えると消える）。
  */
 export function SearchScreen() {
@@ -57,7 +57,7 @@ export function SearchScreen() {
   const active = running && tokens.length > 0;
 
   return (
-    <div className={styles.screen} data-layout={mode}>
+    <div className={styles.screen} data-layout={mode === "expanded" ? "expanded" : "compact"}>
       <h1 className="srOnly">検索</h1>
       <search>
         <form
@@ -111,7 +111,7 @@ export function SearchScreen() {
       )}
       <hr className={styles.divider} />
       <div className={styles.panes}>
-        {mode === "compact" ? (
+        {mode !== "expanded" ? (
           active ? (
             <ResultsPane key={searchSeq} tokens={tokens} onBack={() => setRunning(false)} />
           ) : (

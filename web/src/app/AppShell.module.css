@@ -15,7 +15,7 @@
   flex-direction: column;
 }
 
-/* [#540] rail は 440〜599px（内容は Compact のまま、ナビだけレール）。下部ナビが無いのは expanded と同じ */
+/* [#661] rail は 3 カラム入らない幅（内容は compact と同じ 1 カラム、ナビだけレール）。下部ナビが無いのは expanded と同じ */
 .shell[data-layout="expanded"],
 .shell[data-layout="rail"] {
   flex-direction: row;

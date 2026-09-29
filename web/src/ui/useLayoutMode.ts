@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import { UI_SCALE_FACTOR, useThemePrefs } from "../features/theme/themePrefs";
 import { HOVER_FINE_QUERY, isHoverCapable } from "./platform";
 
-export type LayoutMode = "compact" | "expanded";
+export type LayoutMode = "compact" | "rail" | "expanded";
 
 function hasMatchMedia(): boolean {
   return typeof window.matchMedia === "function";
@@ -48,34 +48,26 @@ function getMatchesAtBreakpoint(breakpointDp: number): boolean {
   return window.matchMedia(queryFor(breakpointDp, currentUiScale())).matches;
 }
 
-/** Expanded になる閾値（ネイティブ COMPACT_BREAKPOINT_DP = 600。maxWidth < 600 が Compact） */
+/**
+ * Compact になる境界（ネイティブ COMPACT_BREAKPOINT_DP = 600。maxWidth < 600 が Compact）。
+ * [#660] の判断により --web-base は掛けない（境界は画面の実 px で決める）。
+ */
 const COMPACT_BREAKPOINT_DP = 600;
 
-function subscribe(onChange: () => void): () => void {
-  return subscribeAtBreakpoint(COMPACT_BREAKPOINT_DP, onChange);
-}
-
-function getSnapshot(): LayoutMode {
-  return getMatchesAtBreakpoint(COMPACT_BREAKPOINT_DP) ? "expanded" : "compact";
-}
-
 /**
- * 幅による器の切替（Compact = タブ列 + ページャ + 下部ナビ / Expanded = レール + 横並びのデッキ）。
- * 判定はここ 1 か所だけ。CSS はメディアクエリを使わず、data-layout 属性で切り替える。
- * matchMedia が無い環境（jsdom 等）は常に compact。
+ * [#661] Rail ⇄ Expanded の境界（レール幅 + カラム M × 3 + ガター 2 本）。カラムが 3 本入る幅からだけ
+ * 横並びのデッキ（Expanded）を出す。designs/tokens.css の --rail-w / --column-w / --column-gap /
+ * --web-base の基準値と揃える（tokens.test.ts で一致を確認）。
  */
-export function useLayoutMode(): LayoutMode {
-  return useSyncExternalStore(subscribe, getSnapshot);
-}
+const RAIL_W_BASE_PX = 72; // designs/tokens.css --rail-w の基準値
+const COLUMN_M_BASE_PX = 348; // designs/tokens.css --column-w の基準値
+const COLUMN_GAP_PX = 8; // designs/tokens.css --column-gap（--web-base を掛けない）
+const WEB_BASE = 1.15; // designs/tokens.css --web-base と同じ
+export const EXPANDED_BREAKPOINT_DP = Math.round(
+  RAIL_W_BASE_PX * WEB_BASE + COLUMN_M_BASE_PX * WEB_BASE * 3 + COLUMN_GAP_PX * 2,
+);
 
-/**
- * [#332][#540] Compact のまま左レールに切り替える最小幅（ネイティブ RAIL_COMPACT_MIN_WIDTH_DP と同じ 440）。
- * 幅の広いスマホ表示（Fold のカバー画面等）向け。下部ナビの 72dp が高くつくので、
- * ナビだけデッキと同じ左レールにする（内容は 600px 未満なので [useLayoutMode] は compact のまま）。
- */
-const RAIL_MIN_WIDTH_DP = 440;
-
-/** [#648] ホバーできる端末（PC のブラウザを細くした場合）だけレールを出す。タッチ端末は常に下部ナビ */
+/** [#648][#661] ホバーできる端末（PC のブラウザ）か。幅を問わず Compact にしない */
 function subscribeHoverCapable(onChange: () => void): () => void {
   if (!hasMatchMedia()) return () => {};
   const mql = window.matchMedia(HOVER_FINE_QUERY);
@@ -83,27 +75,33 @@ function subscribeHoverCapable(onChange: () => void): () => void {
   return () => mql.removeEventListener("change", onChange);
 }
 
-function subscribeRail(onChange: () => void): () => void {
-  const unsubscribeWidth = subscribeAtBreakpoint(RAIL_MIN_WIDTH_DP, onChange);
+function subscribe(onChange: () => void): () => void {
+  const unsubscribeCompact = subscribeAtBreakpoint(COMPACT_BREAKPOINT_DP, onChange);
+  const unsubscribeExpanded = subscribeAtBreakpoint(EXPANDED_BREAKPOINT_DP, onChange);
   const unsubscribeHover = subscribeHoverCapable(onChange);
   return () => {
-    unsubscribeWidth();
+    unsubscribeCompact();
+    unsubscribeExpanded();
     unsubscribeHover();
   };
 }
 
-function getRailSnapshot(): boolean {
-  return getMatchesAtBreakpoint(RAIL_MIN_WIDTH_DP) && isHoverCapable();
+function getSnapshot(): LayoutMode {
+  if (!isHoverCapable() && !getMatchesAtBreakpoint(COMPACT_BREAKPOINT_DP)) return "compact";
+  if (!getMatchesAtBreakpoint(EXPANDED_BREAKPOINT_DP)) return "rail";
+  return "expanded";
 }
 
 /**
- * 左レールを出すか（440px 以上 かつ ホバーできる端末だけ）。
- * [#648] タッチ端末（hover 無し）は 600px 未満では常に下部ナビ。600px 以上（Expanded）は
- * 呼び出し側（[useLayoutMode] が "expanded"）がこの値を無視して常にレールにする。
- * matchMedia が無ければ false
+ * [#661] 器の切替（3 段階）。判定はここ 1 か所だけ。CSS はメディアクエリを使わず、data-layout 属性で
+ * 切り替える。matchMedia が無い環境（jsdom 等）は常に compact。
+ * - compact: ホバー無し かつ 幅 < 600 × uiScale → タブ列 + ページャ + 下部ナビ
+ * - rail: それ以外で、幅 < 「レール + カラム M×3 + ガター2本」× uiScale → 左レール + 1 カラム
+ *   （内容は compact と同じタブ列 + ページャ。ホバーできる端末は幅を問わずここ以上になる）
+ * - expanded: 幅がその閾値以上 → 左レール + 横並びのデッキ + 中央のオーバーレイ
  */
-export function useShowNavRail(): boolean {
-  return useSyncExternalStore(subscribeRail, getRailSnapshot);
+export function useLayoutMode(): LayoutMode {
+  return useSyncExternalStore(subscribe, getSnapshot);
 }
 
 /** OS の「視差効果を減らす」 */

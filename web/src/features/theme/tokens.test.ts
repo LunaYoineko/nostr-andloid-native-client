@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, it } from "vitest";
+import { EXPANDED_BREAKPOINT_DP } from "../../ui/useLayoutMode";
 
 /**
  * designs/tokens.css の色トークンが、ネイティブ composeApp Color.kt の DarkPalette / LightPalette
@@ -144,4 +145,20 @@ it("[#660] 標準表示（s）でカラム幅 M/S/L ≈400/320/520px", () => {
     const px = evalCalc(readVar(darkBlock, name), STANDARD_VARS);
     expect(Math.round(px), `--${name}`).toBe(expectedPx);
   }
+});
+
+/** calc(<基準px>px * ...) の先頭の px リテラル（ui-scale 等を掛ける前の基準値）だけを取り出す */
+function basePx(expr: string): number {
+  const m = expr.trim().match(/^calc\((-?\d+(?:\.\d+)?)px/);
+  if (!m) throw new Error(`unexpected calc: ${expr}`);
+  return Number(m[1]);
+}
+
+it("[#661] Rail⇄Expanded の閾値（useLayoutMode.ts の EXPANDED_BREAKPOINT_DP）は designs/tokens.css の基準値（レール幅 + カラム M×3 + ガター2本）と一致する", () => {
+  const webBase = Number(readVar(darkBlock, "web-base"));
+  const railW = basePx(readVar(darkBlock, "rail-w"));
+  const columnM = basePx(readVar(darkBlock, "column-w"));
+  const gap = basePx(readVar(darkBlock, "column-gap"));
+  const expected = Math.round(railW * webBase + columnM * webBase * 3 + gap * 2);
+  expect(EXPANDED_BREAKPOINT_DP).toBe(expected);
 });

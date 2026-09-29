@@ -106,7 +106,7 @@ describe("Compact", () => {
 
 describe("Expanded", () => {
   it("左に一覧・右に内容。未選択ならタイル（プロフィール・DM）以外の先頭のふぁぼ（#643）、選ぶと右が替わる（履歴は置き換え）", async () => {
-    const router = renderAt("/settings", 1000);
+    const router = renderAt("/settings", 1400);
     expect(within(items()).getByRole("button", { name: "ふぁぼ" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("region", { name: "ふぁぼ" })).toBeInTheDocument();
 
@@ -120,7 +120,7 @@ describe("Expanded", () => {
 
   it("リアクション: 既定リアクションをスターにする（#587 で独立セクションに戻した）", async () => {
     setDefaultReaction("+", null);
-    renderAt("/settings/reaction", 1000);
+    renderAt("/settings/reaction", 1400);
     expect(screen.getByRole("region", { name: "リアクション" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ハート" })).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(screen.getByRole("button", { name: "スター" }));
@@ -130,7 +130,7 @@ describe("Expanded", () => {
   });
 
   it("カスタマイズの並びはネイティブと同じ: リアクション → カスタム絵文字 → ハッシュタグ → 表示。テーマストアは独立セクションではない（#587）", () => {
-    renderAt("/settings", 1000);
+    renderAt("/settings", 1400);
     const heading = screen.getByRole("heading", { level: 2, name: "カスタマイズ" });
     const section = heading.closest("section");
     if (!section) throw new Error("section not found");
@@ -143,14 +143,14 @@ describe("Expanded", () => {
   });
 
   it("/settings/theme-store は /settings/display（表示。テーマストアから取得の導線行）に置き換える", async () => {
-    const router = renderAt("/settings/theme-store", 1000);
+    const router = renderAt("/settings/theme-store", 1400);
     expect(router.state.location.pathname).toBe("/settings/display");
     expect(router.state.historyAction).toBe("REPLACE");
     expect(screen.getByRole("region", { name: "表示" })).toBeInTheDocument();
   });
 
   it("/settings/developer は /settings/data（データ・キャッシュ）に置き換える", async () => {
-    const router = renderAt("/settings/developer", 1000);
+    const router = renderAt("/settings/developer", 1400);
     expect(router.state.location.pathname).toBe("/settings/data");
     expect(router.state.historyAction).toBe("REPLACE");
     expect(screen.getByRole("region", { name: "データ・キャッシュ" })).toBeInTheDocument();
@@ -162,7 +162,7 @@ describe("Expanded", () => {
   });
 
   it("データ・キャッシュ: 開発者モードの切り替えを保存する。「接続と通信量」は ON のときだけ出す（S13）", async () => {
-    renderAt("/settings/data", 1000);
+    renderAt("/settings/data", 1400);
     expect(screen.queryByRole("button", { name: "接続と通信量を表示" })).toBeNull();
     const toggle = screen.getByRole("checkbox", { name: "開発者モードを有効にする" });
     expect(toggle).not.toBeChecked();
@@ -178,7 +178,7 @@ describe("Expanded", () => {
 
   it("データ・キャッシュ: 「接続と通信量を表示」で read / write リレーの状態・受信量・購読中の REQ 数（開発者モード時のみ。S13）", async () => {
     setDeveloperMode(true);
-    renderAt("/settings/data", 1000);
+    renderAt("/settings/data", 1400);
     await userEvent.click(screen.getByRole("button", { name: "接続と通信量を表示" }));
     const dialog = screen.getByRole("dialog", { name: "接続と通信量" });
     expect(within(dialog).getByText("購読中のREQ")).toBeInTheDocument();
@@ -202,19 +202,19 @@ describe("Expanded", () => {
       configurable: true,
       value: registerProtocolHandler,
     });
-    renderAt("/settings/data", 1000);
+    renderAt("/settings/data", 1400);
     await userEvent.click(screen.getByRole("button", { name: "nostr: リンクをこのアプリで開く" }));
     expect(registerProtocolHandler).toHaveBeenCalledWith("web+nostr", "/open?uri=%s");
     Reflect.deleteProperty(navigator, "registerProtocolHandler");
   });
 
   it("データ・キャッシュ: registerProtocolHandler が無いブラウザでは出さない（#541）", () => {
-    renderAt("/settings/data", 1000);
+    renderAt("/settings/data", 1400);
     expect(screen.queryByRole("button", { name: "nostr: リンクをこのアプリで開く" })).toBeNull();
   });
 
   it("データ・キャッシュ: キャッシュの強制消去は確認してから", async () => {
-    renderAt("/settings/data", 1000);
+    renderAt("/settings/data", 1400);
     await userEvent.click(screen.getByRole("button", { name: "キャッシュを強制消去" }));
     const dialog = screen.getByRole("dialog", { name: "キャッシュを消去しますか？" });
     expect(dialog).toHaveTextContent("DM の復号済みメッセージも消えます");

@@ -205,7 +205,7 @@ describe("compact", () => {
 describe("expanded", () => {
   it("履歴と案内が並び、実行後は履歴を残したまま右に結果（← 履歴は無い）", async () => {
     const user = userEvent.setup();
-    renderScreen(1200);
+    renderScreen(1400);
     expect(screen.getByRole("region", { name: "検索履歴" })).toBeInTheDocument();
     expect(
       screen.getByText("単語・#タグを追加して検索してください（複数は OR で並びます）"),

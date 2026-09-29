@@ -39,7 +39,8 @@ function openedFromList(state: unknown): boolean {
 
 /**
  * 設定（ネイティブ SettingsScreen + TwoPane）。URL は /settings/:section?。
- * Expanded = 左に項目の一覧・右に内容（未選択ならアカウント）、Compact = 一覧 → 内容（「←」で一覧へ）。
+ * Expanded = 左に項目の一覧・右に内容（未選択ならアカウント）、Compact/Rail = 一覧 → 内容（「←」で一覧へ。
+ * [#661] Rail は内容が Compact と同じ 1 ペイン）。
  */
 export function SettingsScreen() {
   const mode = useLayoutMode();
@@ -62,7 +63,7 @@ export function SettingsScreen() {
       return;
     }
     if (id === selected?.id) return;
-    if (mode === "compact") void navigate(`/settings/${id}`, { state: { [FROM_LIST]: true } });
+    if (mode !== "expanded") void navigate(`/settings/${id}`, { state: { [FROM_LIST]: true } });
     else void navigate(`/settings/${id}`, { replace: true });
   }
 
@@ -74,7 +75,7 @@ export function SettingsScreen() {
   const renamed = renamedSectionId(param);
   if (renamed) return <Navigate to={`/settings/${renamed}`} replace state={location.state} />;
 
-  if (mode === "compact") {
+  if (mode !== "expanded") {
     return (
       <div className={styles.single}>
         {selected ? (

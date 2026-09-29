@@ -58,8 +58,8 @@ afterEach(() => {
   resetSession();
 });
 
-function renderAt(initialEntries: string[], width = 400) {
-  mockViewport(width);
+function renderAt(initialEntries: string[], width = 400, hover = false) {
+  mockViewport(width, { hover });
   const router = createMemoryRouter(routes, { initialEntries });
   render(<RouterProvider router={router} />);
   return router;
@@ -93,8 +93,25 @@ describe("骨格", () => {
     expect(screen.getByRole("main")).toBeInTheDocument();
   });
 
-  it("[#332][#540] rail (440〜599px): 内容は compact のまま、ナビだけレール（下部ナビは無い）", () => {
-    renderAt(["/"], 500);
+  it("[#661] ホバーできる端末（PC を細くした場合）は 600px 未満でもレール（内容は compact のまま）", () => {
+    renderAt(["/"], 500, true);
+    expect(within(mainNav()).getByRole("img", { name: "Nostrism" })).toBeInTheDocument();
+    expect(navLabels()).toEqual([
+      "ホーム",
+      "フォロー中",
+      "#nostr",
+      "通知",
+      "カラム追加",
+      "検索",
+      "メッセージ",
+      "設定",
+    ]);
+    expect(screen.getAllByRole("navigation", { name: "メイン" })).toHaveLength(1);
+    expect(screen.getByTestId("col-c_following")).toHaveAttribute("data-header", "false");
+  });
+
+  it("[#661] タッチ端末でも 600px 以上・3 カラム入る閾値未満ならレール（内容は compact のまま）", () => {
+    renderAt(["/"], 700);
     expect(within(mainNav()).getByRole("img", { name: "Nostrism" })).toBeInTheDocument();
     expect(navLabels()).toEqual([
       "ホーム",
@@ -125,7 +142,7 @@ describe("骨格", () => {
   });
 
   it("expanded: レールに目次 3 件。通知カラムがあれば通知ボタンは出さず、消すと出る", () => {
-    renderAt(["/"], 1200);
+    renderAt(["/"], 1400);
     expect(within(mainNav()).getByRole("img", { name: "Nostrism" })).toBeInTheDocument();
     expect(screen.getAllByRole("navigation", { name: "メイン" })).toHaveLength(1);
     expect(navLabels()).toEqual([
@@ -316,7 +333,7 @@ describe("ナビ", () => {
     const unsubscribe = useDeck.subscribe((s) => {
       if (s.jumpTarget !== null) targets.push(s.jumpTarget);
     });
-    const router = renderAt(["/search"], 1200);
+    const router = renderAt(["/search"], 1400);
     await userEvent.click(within(mainNav()).getByRole("button", { name: "#nostr" }));
     unsubscribe();
     expect(router.state.location.pathname).toBe("/");
@@ -343,7 +360,7 @@ describe("ナビ", () => {
       renderAt(["/"]);
       expect(within(mainNav()).getByRole("button", { name: "メッセージ（未読 2 件）" })).toBeInTheDocument();
       cleanup();
-      renderAt(["/"], 1200);
+      renderAt(["/"], 1400);
       expect(within(mainNav()).getByRole("button", { name: "メッセージ（未読 2 件）" })).toBeInTheDocument();
     } finally {
       useDm.getState().reset(null);

@@ -202,7 +202,7 @@ describe("レイアウト", () => {
   });
 
   it("expanded: 左ペインに「プロフィール」とヘッダカード、タブと投稿はその外", () => {
-    mockViewport(1200);
+    mockViewport(1400);
     alice();
     renderScreen();
     const side = screen.getByRole("complementary", { name: "プロフィール詳細" });
