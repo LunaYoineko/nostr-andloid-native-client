@@ -17,14 +17,15 @@ export default defineConfig({
   },
 });
 
-/** /app/ と /app/assets/a.css だけがある静的アセット。本文は test/functions/app-fallback.test.ts が照合する。 */
+/** /・/index.html・/assets/a.css だけがある静的アセット。本文は test/functions/fallback.test.ts が照合する。 */
 function fakeAssets(pathname: string): Response {
   switch (pathname) {
-    case "/app/":
+    case "/":
+    case "/index.html":
       return new Response("<!doctype html><title>app</title>", {
         headers: { "Content-Type": "text/html; charset=utf-8" },
       });
-    case "/app/assets/a.css":
+    case "/assets/a.css":
       return new Response("body{}", { headers: { "Content-Type": "text/css; charset=utf-8" } });
     default:
       return new Response("not found", {

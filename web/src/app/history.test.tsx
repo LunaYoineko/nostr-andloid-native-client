@@ -18,24 +18,24 @@ it("canGoBackInApp は idx > 0 のときだけ true", () => {
 });
 
 describe("synthesizeBaseEntry", () => {
-  it("履歴の先頭の /app/e/… なら下に /app/ を敷き、戻るとデッキ（idx 0）になる", async () => {
-    window.history.replaceState(null, "", "/app/e/note1abc");
+  it("履歴の先頭の /e/… なら下に / を敷き、戻るとデッキ（idx 0）になる", async () => {
+    window.history.replaceState(null, "", "/e/note1abc");
     const length = window.history.length;
 
     expect(synthesizeBaseEntry(window)).toBe(true);
-    expect(window.location.pathname).toBe("/app/e/note1abc");
+    expect(window.location.pathname).toBe("/e/note1abc");
     expect(window.history.state.idx).toBe(1);
     expect(window.history.length).toBe(length + 1);
 
     const popped = nextPopState();
     window.history.back();
     await popped;
-    expect(window.location.pathname).toBe("/app/");
+    expect(window.location.pathname).toBe("/");
     expect(window.history.state.idx).toBe(0);
   });
 
-  it("/app/p/npub1… と /app/t/nostr でも敷く", () => {
-    for (const path of [`/app/p/${npubEncode(PUBKEY)}`, "/app/t/nostr"]) {
+  it("/p/npub1… と /t/nostr でも敷く", () => {
+    for (const path of [`/p/${npubEncode(PUBKEY)}`, "/t/nostr"]) {
       window.history.replaceState(null, "", path);
       expect(synthesizeBaseEntry(window)).toBe(true);
       expect(window.location.pathname).toBe(path);
@@ -43,7 +43,7 @@ describe("synthesizeBaseEntry", () => {
   });
 
   it("詳細以外のパス・深いパス・既にアプリ内の履歴がある状態では何もしない", () => {
-    for (const path of ["/app/", "/app/search", "/app/e/x/y"]) {
+    for (const path of ["/", "/search", "/e/x/y"]) {
       window.history.replaceState(null, "", path);
       const length = window.history.length;
       expect(synthesizeBaseEntry(window)).toBe(false);
@@ -52,7 +52,7 @@ describe("synthesizeBaseEntry", () => {
       expect(window.history.length).toBe(length);
     }
 
-    window.history.replaceState({ idx: 2 }, "", "/app/e/note1abc");
+    window.history.replaceState({ idx: 2 }, "", "/e/note1abc");
     const length = window.history.length;
     expect(synthesizeBaseEntry(window)).toBe(false);
     expect(window.history.state).toEqual({ idx: 2 });

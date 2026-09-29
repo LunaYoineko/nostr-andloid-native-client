@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
+import { unregisterLegacyServiceWorker } from "./app/legacyServiceWorker";
 import { startPersistence } from "./db";
 import { startDm } from "./features/dm/dmService";
 import { startOwnLists } from "./features/lists/ownLists";
@@ -20,6 +21,8 @@ import "./styles/global.css";
 initTheme();
 // iOS 判定を <html data-os="ios"> に反映する（#598。BottomNav.module.css の下端インセット分岐で使う）
 applyOsAttribute();
+// 旧 scope（/app/）の Service Worker が残っていれば解除する（#647）
+void unregisterLegacyServiceWorker();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root が見つからない");

@@ -6,12 +6,417 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <meta name="robots" content="noindex" />
+    <meta name="color-scheme" content="dark light" />
     <meta name="theme-color" content="#0C0C10" />
-    <link rel="apple-touch-icon" href="/app/icons/icon-192.png" />
-    <title>Nostrism Web</title>
+    <title>Nostrism — デッキ型の Nostr クライアント</title>
+    <meta
+      name="description"
+      content="複数カラムを並べて読む Nostr クライアント。Android / iOS / macOS / Web（ブラウザ）。テーマストア、カスタム絵文字、キーボードショートカット。"
+    />
+    <meta property="og:title" content="Nostrism — デッキ型の Nostr クライアント" />
+    <meta
+      property="og:description"
+      content="複数カラムを並べて読む Nostr クライアント。Android / iOS / macOS / Web（ブラウザ）。"
+    />
+    <meta property="og:type" content="website" />
+    <link rel="icon" href="/store/icon-512.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="/lp/lp.css" />
   </head>
   <body>
+    <!--
+      LP（旧 docs/index.html。#647 で / に統合）。本文は SEO / OG のため静的に残し、React では描かない。
+      表示・非表示（hidden 属性）と CTA の出し分け（.signed-in）は src/app/lpVisibility.ts が
+      ルートとログイン状態を見て切り替える。/ と /about だけ表示、他のルートは常に隠す。
+    -->
+    <div id="lp">
+      <header class="top">
+        <div class="shell">
+          <a class="wordmark" href="/">Nostrism</a>
+          <nav>
+            <a href="#features" class="hide-s">機能</a>
+            <a href="/themes.html">テーマ</a>
+            <a href="#download">入手</a>
+            <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client">GitHub</a>
+          </nav>
+          <a class="btn primary app-open" href="/">アプリを開く</a>
+        </div>
+      </header>
+
+      <div class="shell">
+        <div class="hero">
+          <h1>並べて、読む。</h1>
+          <p class="thesis">
+            タイムライン、ハッシュタグ、通知、チャット。見たいものを横に並べたまま追える Nostr クライアント。
+          </p>
+          <p class="sub">Android · iOS · macOS · Web / オープンソース</p>
+          <div class="cta">
+            <a class="btn primary when-out" href="/login">ログイン / アカウントを作成</a>
+            <a class="btn primary when-in" href="/">アプリを開く</a>
+            <a class="btn" href="#download">入手する</a>
+            <a class="btn" href="/themes.html">テーマストアを見る</a>
+          </div>
+        </div>
+
+        <div class="deck-frame">
+          <div class="deck-label">実際の画面構成</div>
+          <div
+            class="deck"
+            role="img"
+            aria-label="3つのカラムを横に並べたデッキ画面。フォロー中タイムライン、ハッシュタグ、パブリックチャット。"
+          >
+            <div class="col">
+              <div class="col-head">
+                <svg aria-hidden="true"
+                  class="ic"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 10.5L12 3l9 7.5" />
+                  <path d="M5 9.5V21h14V9.5" />
+                </svg>
+                <b>フォロー中</b><span>2 relays</span>
+              </div>
+              <div class="col-body">
+                <div class="post">
+                  <div class="av">の</div>
+                  <div class="post-body">
+                    <div class="post-meta"><b>のstりsm</b><i>3m</i></div>
+                    <p>デッキを横に並べたまま、通知だけ別カラムで見られるのが楽</p>
+                    <div class="acts">
+                      <svg aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M9 17l-6-6 6-6" />
+                        <path d="M3 11h11a6 6 0 016 6v2" />
+                      </svg>
+                      <svg aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M17 2l4 4-4 4" />
+                        <path d="M3 11V9a4 4 0 014-4h14" />
+                        <path d="M7 22l-4-4 4-4" />
+                        <path d="M21 13v2a4 4 0 01-4 4H3" />
+                      </svg>
+                      <svg aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M20.8 5.6a5 5 0 00-7.1 0L12 7.3l-1.7-1.7a5 5 0 10-7.1 7.1L12 21l8.8-8.3a5 5 0 000-7.1z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div class="post">
+                  <div class="av">や</div>
+                  <div class="post-body">
+                    <div class="ctx">
+                      <svg aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M9 17l-6-6 6-6" />
+                        <path d="M3 11h11a6 6 0 016 6v2" />
+                      </svg>
+                      <span class="av sm">の</span>
+                      <span>リレー増やしたら早くなった？</span>
+                    </div>
+                    <div class="post-meta"><b>やぶみ</b><i>12m</i></div>
+                    <p>体感でわかるくらい速い。アウトボックスが効いてる</p>
+                  </div>
+                </div>
+                <div class="post">
+                  <div class="av">da</div>
+                  <div class="post-body">
+                    <div class="post-meta"><b>dai</b><i>28m</i></div>
+                    <p>今日のビルド通った 🎉</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col">
+              <div class="col-head">
+                <svg aria-hidden="true"
+                  class="ic"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />
+                </svg>
+                <b>#nostr</b><span>global</span>
+              </div>
+              <div class="col-body">
+                <div class="post">
+                  <div class="av">Pa</div>
+                  <div class="post-body">
+                    <div class="post-meta"><b>Paolo</b><i>1m</i></div>
+                    <p>Nostr の良さは、クライアントを乗り換えても人間関係が残ること</p>
+                  </div>
+                </div>
+                <div class="post">
+                  <div class="av">Bi</div>
+                  <div class="post-body">
+                    <div class="post-meta"><b>Bipu</b><i>5m</i></div>
+                    <p>relay を自分で建てると理解が一段深くなる</p>
+                    <div class="acts">
+                      <svg aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M9 17l-6-6 6-6" />
+                        <path d="M3 11h11a6 6 0 016 6v2" />
+                      </svg>
+                      <svg aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div class="post">
+                  <div class="av">wa</div>
+                  <div class="post-body">
+                    <div class="post-meta"><b>walker</b><i>9m</i></div>
+                    <p>カスタム絵文字がそのままリアクションに使えるの助かる</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col">
+              <div class="col-head">
+                <svg aria-hidden="true"
+                  class="ic"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 12a8 8 0 01-8 8H7l-4 3V12a8 8 0 018-8h2a8 8 0 018 8z" />
+                </svg>
+                <b>Nostr麻雀開発部</b><span>NIP-28</span>
+              </div>
+              <div class="col-body">
+                <div class="chat-line">
+                  <div class="av">う</div>
+                  <div>
+                    <div class="chat-name">うにゅう</div>
+                    <div class="bubble">点数計算どこまでできてる？</div>
+                  </div>
+                </div>
+                <div class="chat-line">
+                  <div class="av">や</div>
+                  <div>
+                    <div class="chat-name">やぶみちゃん</div>
+                    <div class="bubble">符計算まで。あと役満の複合が残ってる</div>
+                  </div>
+                </div>
+                <div class="chat-line">
+                  <div class="av">ホ</div>
+                  <div>
+                    <div class="chat-name">ホワンホワン</div>
+                    <div class="bubble">えんいー</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="shell">
+        <section id="features">
+          <div class="sec-label">できること</div>
+          <h2>読む速度に合わせて組み替えられる</h2>
+          <p class="sec-lede">
+            カラムは自由に追加・ピン留め・並べ替えできる。フォロー中もハッシュタグも、特定の人の投稿も、キーワード検索も、すべて同じ「カラム」として扱う。
+          </p>
+
+          <div class="features">
+            <div class="feat">
+              <div class="n">01 / デッキ</div>
+              <h3>カラムを並べる</h3>
+              <p>
+                フォロー中・ハッシュタグ・通知・DM・パブリックチャット・検索。開いたスレッドも一時カラムとして横に開き、ピン留めで常設にできる。
+              </p>
+            </div>
+            <div class="feat">
+              <div class="n">02 / 操作</div>
+              <h3>キーボードで動かす</h3>
+              <p>
+                <kbd>j</kbd> <kbd>k</kbd> で投稿、<kbd>h</kbd> <kbd>l</kbd> でカラム移動。<kbd>n</kbd>
+                新規投稿、<kbd>r</kbd> 返信、<kbd>f</kbd> リアクション、<kbd>b</kbd> ブックマーク。<kbd>?</kbd>
+                で一覧。
+              </p>
+            </div>
+            <div class="feat">
+              <div class="n">03 / 見た目</div>
+              <h3>3色で塗り替える</h3>
+              <p>
+                背景・文字・アクセントの3色を決めれば、面や境界線は自動で導出される。作った配色はテーマストアへ公開でき、他の人のものを取り込める。
+              </p>
+            </div>
+            <div class="feat">
+              <div class="n">04 / 絵文字</div>
+              <h3>カスタム絵文字</h3>
+              <p>自分の絵文字リストをアプリ内で編集。リアクションにも本文にも使える。GIF やアニメ WebP もそのまま動く。</p>
+            </div>
+            <div class="feat">
+              <div class="n">05 / 送金</div>
+              <h3>アプリ内 Zap</h3>
+              <p>Nostr Wallet Connect でウォレットを繋ぐと、外部アプリに飛ばずに Zap できる。送金は毎回確認する。</p>
+            </div>
+            <div class="feat">
+              <div class="n">06 / 取得</div>
+              <h3>アウトボックス</h3>
+              <p>相手が実際に使っているリレー（NIP-65）からも取りに行くので、自分の接続先に無い投稿も拾える。</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="themes">
+          <div class="sec-label">テーマストア</div>
+          <h2>誰かが作った配色を、そのまま着る</h2>
+          <p class="sec-lede">
+            テーマは Nostr のイベントとして公開される。だから特定のサーバーに依存せず、アプリを入れていなくてもブラウザから中身を見られる。
+          </p>
+
+          <div class="themes-teaser">
+            <div class="swatches" aria-hidden="true">
+              <div class="sw" style="background:#0C0C10;color:#ECEDF1">Aa<i style="background:#FFFFFF"></i></div>
+              <div class="sw" style="background:#F7F6F2;color:#1A1A1E">Aa<i style="background:#1A1A1E"></i></div>
+              <div class="sw" style="background:#002B36;color:#93A1A1">Aa<i style="background:#B58900"></i></div>
+              <div class="sw" style="background:#0E1A14;color:#E2EDE6">Aa<i style="background:#4FA77A"></i></div>
+              <div class="sw" style="background:#FDF3F5;color:#2A1E22">Aa<i style="background:#C2557A"></i></div>
+            </div>
+            <a class="btn primary" href="/themes.html">公開中のテーマを見る</a>
+          </div>
+        </section>
+
+        <section id="protocol">
+          <div class="sec-label">対応</div>
+          <h2>Nostr の仕様に沿って作られている</h2>
+          <p class="sec-lede">
+            鍵はあなたの端末にあり、アカウントやデータを特定のサーバーに預けない。既定の接続先には運営者のリレーも含まれるが、ほかのリレーと同じく接続先の一つにすぎず、設定で外せる。外部の署名アプリ（NIP-55
+            / NIP-46）やブラウザの拡張機能（NIP-07、Web 版）にも対応しているので、アプリに秘密鍵を渡さずに使える。
+          </p>
+          <div class="nips">
+            <span><b>NIP-01</b> 基本</span>
+            <span><b>NIP-07</b> ブラウザ拡張</span>
+            <span><b>NIP-10</b> スレッド</span>
+            <span><b>NIP-17</b> DM</span>
+            <span><b>NIP-18</b> リポスト</span>
+            <span><b>NIP-19</b> npub/nevent</span>
+            <span><b>NIP-25</b> リアクション</span>
+            <span><b>NIP-28</b> パブリックチャット</span>
+            <span><b>NIP-30</b> カスタム絵文字</span>
+            <span><b>NIP-36</b> 閲覧注意</span>
+            <span><b>NIP-42</b> AUTH</span>
+            <span><b>NIP-46</b> リモート署名</span>
+            <span><b>NIP-47</b> ウォレット接続</span>
+            <span><b>NIP-50</b> 検索</span>
+            <span><b>NIP-51</b> ミュート/ブックマーク</span>
+            <span><b>NIP-55</b> 外部署名</span>
+            <span><b>NIP-57</b> Zap</span>
+            <span><b>NIP-65</b> アウトボックス</span>
+            <span><b>NIP-78</b> テーマ配布</span>
+            <span><b>NIP-92</b> メディア情報</span>
+            <span><b>NIP-96</b> アップロード</span>
+          </div>
+        </section>
+
+        <section id="download">
+          <div class="sec-label">入手</div>
+          <h2>まだ開発中。テスターを募集しています</h2>
+          <p class="sec-lede">
+            正式公開前のため、どの経路もテスト版です。Web 版は登録なしですぐに使えます。不具合や要望は GitHub の Issue へどうぞ。
+          </p>
+
+          <div class="dl">
+            <div class="dl-item wide">
+              <div class="plat">Web</div>
+              <strong>ブラウザで使う</strong>
+              <span class="state">ベータ版</span>
+              <p>
+                インストール不要。PC やスマートフォンのブラウザでそのまま開けます。ログインは拡張機能（NIP-07）・署名アプリ（NIP-46）・秘密鍵（nsec）から選べ、ホーム画面に追加すればアプリのように起動できます。
+              </p>
+              <a href="/">Web 版を開く →</a>
+            </div>
+            <div class="dl-item">
+              <div class="plat">Android</div>
+              <strong>Google Play</strong>
+              <span class="state">クローズドテスト</span>
+              <p>参加にはテスターとしての登録が必要です。希望される方は Issue か Nostr でご連絡ください。</p>
+              <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client/issues">参加を申し込む →</a>
+            </div>
+            <div class="dl-item">
+              <div class="plat">iOS</div>
+              <strong>TestFlight</strong>
+              <span class="state">テスト配布</span>
+              <p>iPhone / iPad 向け。こちらもテスター登録制です。</p>
+              <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client/issues">参加を申し込む →</a>
+            </div>
+            <div class="dl-item">
+              <div class="plat">Android / macOS</div>
+              <strong>直接ダウンロード</strong>
+              <span class="state">プレビュー版</span>
+              <p>APK と dmg を GitHub Releases に置いています。Play 版とは署名が異なるため、相互の上書き更新はできません。</p>
+              <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client/releases">Releases を開く →</a>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer>
+        <div class="shell">
+          <a href="/privacy-policy.html">プライバシーポリシー</a>
+          <a href="/child-safety.html">児童の安全に関する基準</a>
+          <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client">ソースコード</a>
+          <a href="https://github.com/ShinoharaTa/nostr-andloid-native-client/releases">リリース</a>
+          <span class="copy">Nostrism — an open source Nostr client</span>
+        </div>
+      </footer>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
