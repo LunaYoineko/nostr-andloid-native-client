@@ -56,3 +56,23 @@ function blockFor(headers: string, path: string): string {
   const end = rest.findIndex((line) => line.trim() !== "" && !line.startsWith(" ") && !line.startsWith("\t"));
   return rest.slice(0, end === -1 ? undefined : end).join("\n");
 }
+
+describe("public/lp/lp.css（#647 / #664）", () => {
+  it("LP の CSS は全ルールが #lp 配下にある（要素セレクタや :root がアプリへ漏れない）", () => {
+    const css = readFileSync(join(process.cwd(), "public/lp/lp.css"), "utf8")
+      // コメントと @keyframes の中身は見ない
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, "");
+    const selectors = [...css.matchAll(/(^|[}{;])\s*([^@{};][^{}]*)\{/g)]
+      .map((m) => m[2].trim())
+      .filter((sel) => !sel.startsWith("@"));
+    const leaks = selectors.filter(
+      (sel) =>
+        !sel
+          .split(",")
+          .every((s) => /^(#lp(\s|$|[.:#[>~+])|\.signed-in #lp|html\.[\w-]+ #lp)/.test(s.trim())),
+    );
+    expect(selectors.length).toBeGreaterThan(50);
+    expect(leaks).toEqual([]);
+  });
+});
