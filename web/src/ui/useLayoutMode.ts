@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { UI_SCALE_FACTOR, useThemePrefs } from "../features/theme/themePrefs";
+import { HOVER_FINE_QUERY, isHoverCapable } from "./platform";
 
 export type LayoutMode = "compact" | "expanded";
 
@@ -75,18 +76,11 @@ export function useLayoutMode(): LayoutMode {
 const RAIL_MIN_WIDTH_DP = 440;
 
 /** [#648] ホバーできる端末（PC のブラウザを細くした場合）だけレールを出す。タッチ端末は常に下部ナビ */
-const HOVER_FINE_QUERY = "(hover: hover) and (pointer: fine)";
-
 function subscribeHoverCapable(onChange: () => void): () => void {
   if (!hasMatchMedia()) return () => {};
   const mql = window.matchMedia(HOVER_FINE_QUERY);
   mql.addEventListener("change", onChange);
   return () => mql.removeEventListener("change", onChange);
-}
-
-function isHoverCapable(): boolean {
-  if (!hasMatchMedia()) return false;
-  return window.matchMedia(HOVER_FINE_QUERY).matches;
 }
 
 function subscribeRail(onChange: () => void): () => void {

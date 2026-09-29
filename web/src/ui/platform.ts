@@ -21,3 +21,16 @@ export function applyOsAttribute(nav: Pick<Navigator, "platform" | "maxTouchPoin
     delete root.dataset.os;
   }
 }
+
+/** [#648][#649] ホバーできる端末（PC のブラウザ）の判定に使うクエリ。useLayoutMode.ts と共有 */
+export const HOVER_FINE_QUERY = "(hover: hover) and (pointer: fine)";
+
+function hasMatchMedia(): boolean {
+  return typeof window.matchMedia === "function";
+}
+
+/** ホバーできる端末か（PC のブラウザ）。matchMedia が無い環境（jsdom 等）は false */
+export function isHoverCapable(): boolean {
+  if (!hasMatchMedia()) return false;
+  return window.matchMedia(HOVER_FINE_QUERY).matches;
+}
