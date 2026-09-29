@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { applyOsAttribute, isIOS } from "./platform";
+import { clearViewport, mockViewport } from "../test/viewport";
+import { applyOsAttribute, isHoverCapable, isIOS } from "./platform";
 
 describe("isIOS", () => {
   it("iPhone は true", () => {
@@ -34,5 +35,26 @@ describe("applyOsAttribute", () => {
     document.documentElement.dataset.os = "ios";
     applyOsAttribute({ platform: "Linux armv8l", maxTouchPoints: 5 });
     expect(document.documentElement.dataset.os).toBeUndefined();
+  });
+});
+
+describe("isHoverCapable", () => {
+  afterEach(() => {
+    clearViewport();
+  });
+
+  it("ホバーできる端末（PC）は true", () => {
+    mockViewport(1024, { hover: true });
+    expect(isHoverCapable()).toBe(true);
+  });
+
+  it("ホバーできない端末（スマホ・タブレット）は false", () => {
+    mockViewport(1024, { hover: false });
+    expect(isHoverCapable()).toBe(false);
+  });
+
+  it("matchMedia が無ければ false", () => {
+    clearViewport();
+    expect(isHoverCapable()).toBe(false);
   });
 });

@@ -47,9 +47,21 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   },
 ];
 
-/** Expanded で項目を選んでいないときに右へ出す項目 */
-/** Expanded で最初に開くセクション = 一覧の先頭（ネイティブ SettingsScreen の sections.first()） */
-export const DEFAULT_SECTION_ID = "profile";
+/** タイルとして遷移する項目の id（設定の中では描かず、プロフィール・DM の画面を開く） */
+const TILE_SECTION_IDS: ReadonlySet<string> = new Set(["profile", "dm"]);
+
+/** 一覧の順で、タイル（profile / dm）以外の最初の項目の id */
+function firstSelectableSectionId(): string {
+  for (const group of SETTINGS_GROUPS) {
+    for (const section of group.sections) {
+      if (!TILE_SECTION_IDS.has(section.id)) return section.id;
+    }
+  }
+  throw new Error("no selectable section");
+}
+
+/** Expanded で項目を選んでいないときに右へ出す項目 = 一覧の順でタイル以外の最初の項目（#643） */
+export const DEFAULT_SECTION_ID = firstSelectableSectionId();
 
 /** 改名した項目の古い id → 今の id。「テーマストア」は「表示」の導線行に統合した（#587） */
 const RENAMED_SECTIONS: ReadonlyMap<string, string> = new Map([

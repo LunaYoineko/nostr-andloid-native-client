@@ -1,10 +1,15 @@
 .timeline {
   position: relative;
+  min-width: 0;
   height: 100%;
+  overflow-x: hidden;
 }
 
+/* min-width・overflow-x は NotificationList.module.css と同じ安全網（#645） */
 .list {
+  min-width: 0;
   height: 100%;
+  overflow-x: hidden;
 }
 
 /* ネイティブの FeedTopPill と同じ見た目（本文色の地に背景色の文字、上部中央） */
