@@ -1,10 +1,11 @@
-/* .main の gap（8px）と合わせて本文 ↔ アクション行が 12px（ネイティブ DeckSpace.Md） */
+/* .main の gap（8px）と合わせて本文 ↔ アクション行が 12px（ネイティブ DeckSpace.Md）。
+   [#674] margin-top は --action-row-my（廃人モードで sp-1 → 0）。 */
 .footer {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--sp-2);
-  margin-top: var(--sp-1);
+  margin-top: var(--action-row-my);
 }
 
 /* タッチ箱の内側余白ぶん左右へ出す（ネイティブの offset(-iconInset)）。fieldset の既定の枠・余白は消す */
@@ -14,7 +15,7 @@
   gap: var(--sp-1);
   align-self: stretch;
   min-width: 0;
-  margin: 0 calc((var(--icon-md) - var(--touch-sm)) / 2);
+  margin: 0 calc((var(--icon-md) - var(--action-size)) / 2);
   padding: 0;
   border: 0;
 }
@@ -23,8 +24,8 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: var(--touch-sm);
-  height: var(--touch-sm);
+  width: var(--action-size);
+  height: var(--action-size);
   padding: 0;
   border: 0;
   border-radius: var(--r-full);

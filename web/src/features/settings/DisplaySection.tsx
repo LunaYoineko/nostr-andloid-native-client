@@ -4,11 +4,13 @@ import { isDataSaver, setDataSaver } from "../../lib/imageProxy";
 import { type NyanMode, setNyanMode, useNyanMode } from "../../ui/nyan";
 import { type EmbedPrefs, setEmbedPref, useEmbedPrefs } from "../linkcard/embedPrefs";
 import { ThemeSettings } from "../theme/ThemeSettings";
+import { setDensity, useThemePrefs } from "../theme/themePrefs";
 import styles from "./SettingsSections.module.css";
 
 /**
  * 表示（ネイティブ設定 > 表示と同じ順: テーマ・種別の視覚表示・表示サイズ・文字サイズ・太字（#464。
- * ここまでは ThemeSettings）→ にゃんモード → 埋め込み表示 → データセーバー（Web 追加、末尾のまま #587）。
+ * ここまでは ThemeSettings）→ にゃんモード → 廃人モード（#674, Web 追加）→ 埋め込み表示 →
+ * データセーバー（Web 追加、末尾のまま #587）。
  * 「デフォルトのリアクション」はネイティブと同じく独立セクション（ReactionSection）に戻した。
  */
 export function DisplaySection() {
@@ -18,6 +20,7 @@ export function DisplaySection() {
         <ThemeSettings />
       </div>
       <NyanModeBlock />
+      <DensityBlock />
       <EmbedPrefsBlock />
       <DataSaverBlock />
     </>
@@ -51,6 +54,30 @@ function NyanModeBlock() {
         {choice("self", "自分のみ")}
         {choice("all", "全員")}
       </div>
+    </div>
+  );
+}
+
+/**
+ * [#674] 廃人モード。情報量を詰め込む高密度の表示モード。localStorage のみで NIP-78 の同期には入れない
+ * （settingsSync.ts のホワイトリストに追加していない）。
+ */
+function DensityBlock() {
+  const id = useId();
+  const density = useThemePrefs((s) => s.density);
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>廃人モード</h3>
+      <p className={styles.desc}>カラムの間隔・余白・行の高さを詰めて情報量を増やします</p>
+      <label className={styles.check} htmlFor={id}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={density === "dense"}
+          onChange={(e) => setDensity(e.target.checked ? "dense" : "normal")}
+        />
+        廃人モードを使う
+      </label>
     </div>
   );
 }

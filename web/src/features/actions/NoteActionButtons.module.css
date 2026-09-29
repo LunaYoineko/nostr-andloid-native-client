@@ -77,12 +77,12 @@
   outline-offset: -2px;
 }
 
-/* アイコンの枠はアクションボタンのタッチ箱と同じ */
+/* アイコンの枠はアクションボタンのタッチ箱と同じ（[#674] --action-size。廃人モードで詰める） */
 .zapIcon {
   display: grid;
   place-items: center;
-  width: var(--touch-sm);
-  height: var(--touch-sm);
+  width: var(--action-size);
+  height: var(--action-size);
 }
 
 /* [#596] グリフだけ文字サイズにも追従（ネイティブ NoteItem.kt の IconMd.scaledByText()。最大1.3倍） */

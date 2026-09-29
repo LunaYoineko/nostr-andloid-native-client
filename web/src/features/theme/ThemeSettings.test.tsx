@@ -85,6 +85,7 @@ it("選ぶとすぐ保存して <html> へ反映する", async () => {
     custom: DEFAULT_CUSTOM_COLORS,
     noteAccent: "line",
     uiScale: "l",
+    density: "normal",
     version: CURRENT_THEME_VERSION,
   });
 });

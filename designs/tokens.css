@@ -119,6 +119,15 @@
   --column-gap: calc(8px * var(--ui-scale));  /* カラム間ガター（線ではなく Bg の隙間で分離。ネイティブ DeckSpace.Sm と同じく density 側で拡大。[#660] ここは --web-base を掛けない） */
   --hinge-gutter: 22px;     /* フォルダブルのヒンジ回避ガター */
 
+  /* [#674] 廃人モード（密度。Web のみ）の寸法トークン。既定値は今までの固定値と同じにし、
+     後述の data-density="dense" 側だけで上書きする（個々の CSS に数値を散らさない）。 */
+  --note-pad-x: var(--sp-3);        /* ノート行の内側の左右余白（NoteItem.module.css .row の padding） */
+  --note-pad-y: var(--sp-3);        /* 同・上下 */
+  --note-gap:   var(--sp-2);        /* ノート行内の gap（アバター⇔本文・meta⇔本文など） */
+  --action-size: var(--touch-sm);   /* アクション行のボタン（NoteFooter.module.css .action）の一辺 */
+  --action-row-my: var(--sp-1);     /* アクション行の余白（NoteFooter.module.css .footer margin-top） */
+  --avatar-size: 38px;              /* タイムラインのアバター（NoteItem.module.css .avatar。表示 38px はネイティブの DeckDimens.AvatarSize） */
+
   /* --- 左レール（Compose DeckDimens.Rail* と 1対1）--- */
   --rail-w:    calc(72px * var(--web-base) * var(--ui-scale));        /* レール幅 */
   --rail-item: calc(48px * var(--web-base) * var(--ui-scale));        /* 各項目のタップ領域 */
@@ -169,4 +178,20 @@
   --w-strong: 700;
   --w-link:   700;
   --w-body:   600;
+}
+
+/*
+ * [#674] 廃人モード（密度。Web のみ。ネイティブへの移植は別 issue）。カラムの間隔・ノート行の余白・
+ * アクション行の高さ・アバターを詰めて情報量を増やす。data-theme と同じ仕組みで <html> に付ける
+ * （web/src/features/theme/themePrefs.ts の applyThemePrefs）。標準（属性無し）の見た目は変えない。
+ */
+:root[data-density="dense"] {
+  --column-gap: calc(2px * var(--ui-scale));  /* 8 → 2px 程度。[#660] と同じく --web-base は掛けない */
+  --note-pad-x: var(--sp-2);
+  --note-pad-y: var(--sp-2);
+  --note-gap:   var(--sp-1);
+  /* アクション行のタップ領域は 28px 以上を保つ（標準は ui-scale 最小の s でも 40*1.15≈46px） */
+  --action-size: calc(28px * var(--web-base) * var(--ui-scale));
+  --action-row-my: 0px;
+  --avatar-size: 28px;
 }

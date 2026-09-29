@@ -3,12 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it } from "vitest";
 import { NYAN_MODE_KEY, useNyanMode } from "../../ui/nyan";
 import { DEFAULT_EMBED_PREFS, EMBED_PREFS_KEY, useEmbedPrefs } from "../linkcard/embedPrefs";
+import { DEFAULT_THEME_PREFS, THEME_KEY, useThemePrefs } from "../theme/themePrefs";
 import { DisplaySection } from "./DisplaySection";
 
 afterEach(() => {
   localStorage.clear();
   useEmbedPrefs.setState(DEFAULT_EMBED_PREFS);
   useNyanMode.setState({ mode: "off" });
+  useThemePrefs.setState(DEFAULT_THEME_PREFS);
 });
 
 it("埋め込み表示の 6 項目は既定ですべて ON", () => {
@@ -58,6 +60,23 @@ it("にゃんモードは既定でオフ。選ぶと保存され、次の描画�
   expect(screen.getByRole("button", { name: "全員" })).toHaveAttribute("aria-pressed", "true");
 });
 
+it("[#674] 廃人モードは既定でオフ。トグルを押すと保存され、次の描画にも残る", async () => {
+  const user = userEvent.setup();
+  const { unmount } = render(<DisplaySection />);
+
+  const toggle = screen.getByRole("checkbox", { name: "廃人モードを使う" });
+  expect(toggle).not.toBeChecked();
+
+  await user.click(toggle);
+
+  expect(useThemePrefs.getState().density).toBe("dense");
+  expect(JSON.parse(localStorage.getItem(THEME_KEY) ?? "null").density).toBe("dense");
+  unmount();
+
+  render(<DisplaySection />);
+  expect(screen.getByRole("checkbox", { name: "廃人モードを使う" })).toBeChecked();
+});
+
 it("OGP カードを表示 が OFF の間は OGP カードの画像を読み込む を無効にする", async () => {
   const user = userEvent.setup();
   render(<DisplaySection />);
@@ -70,7 +89,7 @@ it("OGP カードを表示 が OFF の間は OGP カードの画像を読み込�
   expect(ogpImages).toBeDisabled();
 });
 
-it("項目の順序はネイティブと同じ: テーマ → 種別の視覚表示 → 表示サイズ → 文字サイズ → 文字を太くする → にゃにゃにゃ → 埋め込み表示。データセーバーは末尾のまま（Web 追加。#587）", () => {
+it("項目の順序はネイティブと同じ: テーマ → 種別の視覚表示 → 表示サイズ → 文字サイズ → 文字を太くする → にゃにゃにゃ → 埋め込み表示。データセーバーは末尾のまま（Web 追加。#587）。廃人モードはにゃにゃにゃの後（Web 追加。#674）", () => {
   const { container } = render(<DisplaySection />);
   const text = container.textContent ?? "";
   const labels = [
@@ -80,6 +99,7 @@ it("項目の順序はネイティブと同じ: テーマ → 種別の視覚表
     "文字サイズ",
     "文字を太くする",
     "にゃにゃにゃウイルス",
+    "廃人モード",
     "リンクの埋め込み表示",
     "データセーバー",
   ];

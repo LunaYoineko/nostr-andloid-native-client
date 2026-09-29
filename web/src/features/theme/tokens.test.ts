@@ -28,6 +28,8 @@ function readVar(block: string, name: string): string {
 // :root[data-theme="light"] より後に書かれた素の :root がダーク（既定）の配色ブロック
 const darkBlock = extractBlock(":root {");
 const lightBlock = extractBlock(':root[data-theme="light"] {');
+// [#674] 廃人モード（密度）の上書きブロック
+const denseBlock = extractBlock(':root[data-density="dense"]');
 
 /** Color.kt DarkPalette と1対1（ARGB から RGB を写した値） */
 const NATIVE_DARK: Record<string, string> = {
@@ -163,4 +165,33 @@ it("[#661] Rail⇄Expanded の閾値（useLayoutMode.ts の EXPANDED_BREAKPOINT_
   const gap = basePx(readVar(darkBlock, "column-gap"));
   const expected = Math.round(railW * webBase + columnM * webBase * 3 + gap * 2);
   expect(EXPANDED_BREAKPOINT_DP).toBe(expected);
+});
+
+/**
+ * [#674] 廃人モード（密度）。通常モード（素の :root）のトークンは今までの固定値と同じ
+ * （NoteItem.module.css / NoteFooter.module.css が元々使っていた値をそのまま指す）ことを確認する。
+ */
+it("[#674] 通常モードの密度トークンは今の値のまま（ノート行の余白 sp-3・gap sp-2・アクション sp-1/touch-sm・アバター 38px）", () => {
+  expect(readVar(darkBlock, "note-pad-x")).toBe("var(--sp-3)");
+  expect(readVar(darkBlock, "note-pad-y")).toBe("var(--sp-3)");
+  expect(readVar(darkBlock, "note-gap")).toBe("var(--sp-2)");
+  expect(readVar(darkBlock, "action-size")).toBe("var(--touch-sm)");
+  expect(readVar(darkBlock, "action-row-my")).toBe("var(--sp-1)");
+  expect(readVar(darkBlock, "avatar-size")).toBe("38px");
+});
+
+/** [#674] :root[data-density="dense"] が密度トークンを詰める方向へ上書きしていることを確認する */
+it("[#674] 廃人モードは --column-gap・ノート行の余白/gap・アクションサイズ・アバターを詰める", () => {
+  expect(basePx(readVar(denseBlock, "column-gap"))).toBe(2); // 8 → 2px 程度
+  expect(readVar(denseBlock, "note-pad-x")).toBe("var(--sp-2)"); // sp-3 → sp-2
+  expect(readVar(denseBlock, "note-pad-y")).toBe("var(--sp-2)");
+  expect(readVar(denseBlock, "note-gap")).toBe("var(--sp-1)"); // sp-2 → sp-1
+  expect(readVar(denseBlock, "action-row-my")).toBe("0px"); // sp-1 → 0
+  expect(readVar(denseBlock, "avatar-size")).toBe("28px"); // 38 → 28px 程度
+});
+
+/** [#674] アクション行のタップ領域は標準表示（s）でも 28px 以上を保つ */
+it("[#674] 廃人モードのアクションサイズは標準表示（s）で 28px 以上", () => {
+  const px = evalCalc(readVar(denseBlock, "action-size"), STANDARD_VARS);
+  expect(px).toBeGreaterThanOrEqual(28);
 });
