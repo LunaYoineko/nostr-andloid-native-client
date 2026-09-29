@@ -104,20 +104,17 @@ describe("Compact", () => {
 });
 
 describe("Expanded", () => {
-  it("左に一覧・右に内容。未選択なら先頭のプロフィール（ネイティブ sections.first()）、選ぶと右が替わる（履歴は置き換え）", async () => {
+  it("左に一覧・右に内容。未選択ならタイル（プロフィール・DM）以外の先頭のふぁぼ（#643）、選ぶと右が替わる（履歴は置き換え）", async () => {
     const router = renderAt("/settings", 1000);
-    expect(within(items()).getByRole("button", { name: "プロフィール" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("region", { name: "プロフィール" })).toBeInTheDocument();
+    expect(within(items()).getByRole("button", { name: "ふぁぼ" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("region", { name: "ふぁぼ" })).toBeInTheDocument();
 
     await userEvent.click(within(items()).getByRole("button", { name: "表示" }));
     expect(router.state.location.pathname).toBe("/settings/display");
     expect(router.state.historyAction).toBe("REPLACE");
     expect(within(items()).getByRole("button", { name: "表示" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("region", { name: "表示" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "プロフィール" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "ふぁぼ" })).not.toBeInTheDocument();
   });
 
   it("リアクション: 既定リアクションをスターにする（#587 で独立セクションに戻した）", async () => {
