@@ -34,8 +34,9 @@
   color: var(--accent);
 }
 
+/* ネイティブ NotificationsScreen.kt kindTint: REPOST は Repost ではなく Boost（控えめなグリーン） */
 [data-kind="repost"] .markIcon {
-  color: var(--repost);
+  color: var(--boost);
 }
 
 [data-kind="zap"] .markIcon {
