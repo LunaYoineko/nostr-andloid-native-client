@@ -1,6 +1,6 @@
 /* 自分がリポスト済み（ネイティブの Boost 色） */
 .reposted {
-  color: var(--repost);
+  color: var(--boost);
 }
 
 /* ♡ / ☆ の包み。付与済み（押下中を含む）は鮮色、未付与はボタンの色（--text-3）のまま */
