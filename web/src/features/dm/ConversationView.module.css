@@ -459,7 +459,7 @@
   border: 0;
   border-radius: var(--r-full);
   background: var(--accent);
-  color: var(--bg);
+  color: var(--on-accent);
   cursor: pointer;
 }
 
