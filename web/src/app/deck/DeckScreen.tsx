@@ -3,13 +3,7 @@ import { ColumnMenu, DeckColumn } from "../../features/deck/DeckColumn";
 import { KbColumn } from "../../features/keyboard/KbList";
 import { useDeck } from "../../store/deck";
 import { ColumnTabs } from "../../ui/ColumnTabs";
-import {
-  prefersReducedMotion,
-  scrollBehavior,
-  scrollToLeft,
-  useLayoutMode,
-  useShowNavRail,
-} from "../../ui/useLayoutMode";
+import { prefersReducedMotion, scrollBehavior, scrollToLeft, useLayoutMode } from "../../ui/useLayoutMode";
 import styles from "./DeckScreen.module.css";
 import { leftmostVisibleIndex, pageIndexFromScroll } from "./geometry";
 
@@ -21,8 +15,9 @@ const FLIP_DURATION_MS = 280;
 
 /**
  * デッキ（ネイティブ ExpandedDeck / CompactPager）。
- * Compact = タブ列 + 1 カラムずつ止まる横ページャ（カラムヘッダ無し）、Expanded = カラムを横に並べて末尾にカラム追加。
- * 両モードで同じ strip 要素にカラムを並べるので、モードを切り替えてもカラム（購読・仮想リスト）を作り直さない。
+ * Compact/Rail = タブ列 + 1 カラムずつ止まる横ページャ（カラムヘッダ無し）、
+ * Expanded = カラムを横に並べて末尾にカラム追加（[#661] 3 カラム入る幅からだけ）。
+ * 3 モードとも同じ strip 要素にカラムを並べるので、モードを切り替えてもカラム（購読・仮想リスト）を作り直さない。
  */
 export function DeckScreen() {
   const columns = useDeck((s) => s.columns);
@@ -30,7 +25,7 @@ export function DeckScreen() {
   const jumpTarget = useDeck((s) => s.jumpTarget);
   const visibleColumnId = useDeck((s) => s.visibleColumnId);
   const mode = useLayoutMode();
-  const showRail = useShowNavRail();
+  const showRail = mode !== "compact";
 
   const stripRef = useRef<HTMLDivElement>(null);
   const slots = useRef(new Map<string, HTMLElement>());
@@ -47,7 +42,7 @@ export function DeckScreen() {
     const strip = stripRef.current;
     if (!strip) return;
     const s = useDeck.getState();
-    if (mode === "compact") {
+    if (mode !== "expanded") {
       const i = pageIndexFromScroll(strip.scrollLeft, strip.clientWidth, s.columns.length);
       // 幅 0（非表示中・jsdom）かカラム 0 件なら何もしない（jump で入れた値を消さない）
       if (i === null) return;
@@ -93,7 +88,7 @@ export function DeckScreen() {
     const idx = current.findIndex((c) => c.id === visible);
     if (strip && idx >= 0) {
       const slot = slots.current.get(current[idx].id);
-      const left = mode === "compact" ? idx * strip.clientWidth : (slot?.offsetLeft ?? 0);
+      const left = mode !== "expanded" ? idx * strip.clientWidth : (slot?.offsetLeft ?? 0);
       scrollToLeft(strip, left, "instant");
     }
     syncVisible();
@@ -107,7 +102,7 @@ export function DeckScreen() {
     const ids = idsKey === "" ? [] : idsKey.split("\n");
     const { visibleColumnId: visible } = useDeck.getState();
     const idx = visible === null ? -1 : ids.indexOf(visible);
-    if (mode === "compact" && idx >= 0) scrollToLeft(strip, idx * strip.clientWidth, "instant");
+    if (mode !== "expanded" && idx >= 0) scrollToLeft(strip, idx * strip.clientWidth, "instant");
     syncVisible();
   }, [idsKey, mode, syncVisible]);
 
@@ -156,7 +151,7 @@ export function DeckScreen() {
     const idx = columns.findIndex((c) => c.id === jumpTarget);
     if (strip && idx >= 0) {
       let left: number;
-      if (mode === "compact") {
+      if (mode !== "expanded") {
         left = idx * strip.clientWidth;
         programmaticTarget.current = idx;
         clearTimeout(programmaticTimer.current);
@@ -178,8 +173,8 @@ export function DeckScreen() {
   const openAddColumn = () => useDeck.getState().setShowAddColumn(true);
 
   return (
-    <div className={styles.deck} data-layout={mode}>
-      {mode === "compact" && (
+    <div className={styles.deck} data-layout={mode === "expanded" ? "expanded" : "compact"}>
+      {mode !== "expanded" && (
         <ColumnTabs
           columns={columns.map((c) => ({ id: c.id, title: c.title }))}
           activeId={activeId}

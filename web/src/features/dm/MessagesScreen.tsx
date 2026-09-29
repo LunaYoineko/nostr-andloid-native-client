@@ -29,8 +29,9 @@ function openedFromList(state: unknown): boolean {
 /**
  * メッセージ（ネイティブ DmScreen / PublicChatScreen + TwoPane）。一覧の上に「DM | チャット」の切り替え（#422）。
  * segment = dm: URL は /messages/:peer?（npub。hex も受ける）、chat: /channels/:id?（チャンネルの id）。
- * Expanded = 左に一覧・右に会話 / ルーム（未選択は「会話を選択」「チャンネルを選択」）、Compact = 一覧 → 会話 / ルーム
- * （「←」で一覧へ）。表示したら DM の復号を始める（NIP-07 / NIP-46 はここまで署名者を呼ばない。DM 側の未読数にも使う）。
+ * Expanded = 左に一覧・右に会話 / ルーム（未選択は「会話を選択」「チャンネルを選択」）、Compact/Rail = 一覧 → 会話 / ルーム
+ * （「←」で一覧へ。[#661] Rail は内容が Compact と同じ 1 ペイン）。表示したら DM の復号を始める
+ * （NIP-07 / NIP-46 はここまで署名者を呼ばない。DM 側の未読数にも使う）。
  */
 export function MessagesScreen({ segment = "dm" }: { segment?: MessagesSegment }) {
   const mode = useLayoutMode();
@@ -54,7 +55,7 @@ function DmPanes({ mode }: { mode: LayoutMode }) {
   function select(pubkey: string) {
     if (pubkey === peer) return;
     const path = `/messages/${npubEncode(pubkey)}`;
-    if (mode === "compact") void navigate(path, { state: { [FROM_LIST]: true } });
+    if (mode !== "expanded") void navigate(path, { state: { [FROM_LIST]: true } });
     else void navigate(path, { replace: true });
   }
 
@@ -68,7 +69,7 @@ function DmPanes({ mode }: { mode: LayoutMode }) {
     void navigate("/messages", { replace: true });
   }
 
-  if (mode === "compact") {
+  if (mode !== "expanded") {
     return (
       <div className={styles.single}>
         {peer === undefined ? (
@@ -193,7 +194,7 @@ function ChannelsPanes({ mode }: { mode: LayoutMode }) {
   function select(channel: Channel) {
     if (channel.id === channelId) return;
     const path = channelHref(channel.id);
-    if (mode === "compact") void navigate(path, { state: { [FROM_LIST]: true } });
+    if (mode !== "expanded") void navigate(path, { state: { [FROM_LIST]: true } });
     else void navigate(path, { replace: true });
   }
 
@@ -217,7 +218,7 @@ function ChannelsPanes({ mode }: { mode: LayoutMode }) {
     </div>
   );
 
-  if (mode === "compact") {
+  if (mode !== "expanded") {
     return (
       <div className={styles.single}>
         {channelId === undefined ? list : <RoomPane channelId={channelId} onBack={back} />}

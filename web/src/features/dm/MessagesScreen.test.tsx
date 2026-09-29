@@ -174,7 +174,7 @@ describe("Compact", () => {
 describe("Expanded", () => {
   it("未選択は「会話を選択」。行を押すと右に会話（履歴は置き換え）、選択中の行は aria-current", async () => {
     seed();
-    const router = renderAt("/messages", 1000);
+    const router = renderAt("/messages", 1400);
     expect(screen.getByText("会話を選択")).toBeInTheDocument();
 
     await userEvent.click(rowButtons()[1]);
@@ -189,7 +189,7 @@ describe("Expanded", () => {
 
   it("[#600] ヘッダ右端に「✕」（選択解除）。押すと一覧はそのままプレースホルダへ戻る", async () => {
     seed();
-    const router = renderAt(`/messages/${npubEncode(ALICE)}`, 1000);
+    const router = renderAt(`/messages/${npubEncode(ALICE)}`, 1400);
     expect(within(screen.getByRole("region")).getByText("こんにちは")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "選択を解除" }));
@@ -242,7 +242,7 @@ describe("新しい会話", () => {
   });
 
   it("hex（大文字も可）でも開ける。「キャンセル」で閉じる", async () => {
-    const router = renderAt("/messages", 1000);
+    const router = renderAt("/messages", 1400);
     await openDialog();
     await userEvent.click(screen.getByRole("button", { name: "キャンセル" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -287,7 +287,7 @@ describe("未読", () => {
   it("会話を開くとその相手の未読だけが 0 になり、他の相手は残る。開いている間に届いた発言も未読にしない", async () => {
     useDmSeen.setState({ first: 0 });
     seed();
-    renderAt("/messages", 1000);
+    renderAt("/messages", 1400);
     await userEvent.click(rowButtons()[0]);
 
     const [alice, bob] = rowButtons();

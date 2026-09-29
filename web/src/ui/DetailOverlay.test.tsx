@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 it("Expanded のスレッドはスクリムを持ち、押すと閉じる", async () => {
-  mockViewport(1200);
+  mockViewport(1400);
   const onClose = vi.fn();
   render(
     <DetailOverlay kind="thread" label="スレッド" onClose={onClose}>
@@ -33,7 +33,7 @@ it("Compact のスレッドと Expanded のプロフィールはスクリムを�
   expect(screen.queryByRole("button", { name: "閉じる" })).not.toBeInTheDocument();
   unmount();
 
-  mockViewport(1200);
+  mockViewport(1400);
   render(
     <DetailOverlay kind="profile" label="プロフィール" onClose={() => {}}>
       本文
