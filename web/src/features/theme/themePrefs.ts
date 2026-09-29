@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { isHoverCapable } from "../../ui/platform";
 import {
   type CustomColors,
   customPaletteVars,
@@ -72,6 +73,16 @@ function isNoteAccentStyle(v: unknown): v is NoteAccentStyle {
   return v === "none" || v === "line" || v === "bg";
 }
 
+/**
+ * [#649] 保存値に uiScale が無いときの既定。ホバーできる端末（PC）は本文が LP と同じくらいになる
+ * "m"（1.15）、それ以外・matchMedia が無い環境（jsdom 等）はネイティブと同じ "s"。
+ * #648 の [isHoverCapable] と同じ判定を共有する。DEFAULT_THEME_PREFS.uiScale はこの関数を使わず
+ * "s" 固定のまま（既存コード・テストが参照する既定値を変えないため）。
+ */
+export function defaultUiScale(): UiScale {
+  return isHoverCapable() ? "m" : "s";
+}
+
 /** custom は3項目それぞれ個別に既定へ（1色だけ壊れていても他の2色は活かす） */
 function readCustomColors(value: unknown): CustomColors {
   const obj: Record<string, unknown> =
@@ -83,25 +94,28 @@ function readCustomColors(value: unknown): CustomColors {
   };
 }
 
-/** 無い・壊れている項目は既定へ（項目ごと） */
+/**
+ * 無い・壊れている項目は既定へ（項目ごと）。uiScale だけは、保存値に無いとき端末に応じた
+ * [defaultUiScale] を当てる（保存値が丸ごと無い場合も含む。[#649]）。
+ */
 function readThemePrefs(): ThemePrefs {
+  let value: unknown = null;
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(THEME_KEY) ?? "null");
-    if (typeof value === "object" && value !== null) {
-      const { mode, textScale, bold, custom, noteAccent, uiScale } = value as Record<string, unknown>;
-      return {
-        mode: isThemeMode(mode) ? mode : DEFAULT_THEME_PREFS.mode,
-        textScale: isTextScale(textScale) ? textScale : DEFAULT_THEME_PREFS.textScale,
-        bold: typeof bold === "boolean" ? bold : DEFAULT_THEME_PREFS.bold,
-        custom: readCustomColors(custom),
-        noteAccent: isNoteAccentStyle(noteAccent) ? noteAccent : DEFAULT_THEME_PREFS.noteAccent,
-        uiScale: isUiScale(uiScale) ? uiScale : DEFAULT_THEME_PREFS.uiScale,
-      };
-    }
+    value = JSON.parse(localStorage.getItem(THEME_KEY) ?? "null");
   } catch {
     // 壊れた保存値は既定へ
   }
-  return DEFAULT_THEME_PREFS;
+  const obj: Record<string, unknown> =
+    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  const { mode, textScale, bold, custom, noteAccent, uiScale } = obj;
+  return {
+    mode: isThemeMode(mode) ? mode : DEFAULT_THEME_PREFS.mode,
+    textScale: isTextScale(textScale) ? textScale : DEFAULT_THEME_PREFS.textScale,
+    bold: typeof bold === "boolean" ? bold : DEFAULT_THEME_PREFS.bold,
+    custom: readCustomColors(custom),
+    noteAccent: isNoteAccentStyle(noteAccent) ? noteAccent : DEFAULT_THEME_PREFS.noteAccent,
+    uiScale: isUiScale(uiScale) ? uiScale : defaultUiScale(),
+  };
 }
 
 /** テーマ・文字サイズ・太字・カスタム配色・種別表示・表示サイズ（設定 > 表示） */

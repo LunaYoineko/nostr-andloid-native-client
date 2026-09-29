@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { mockViewport } from "../../test/viewport";
 import { DEFAULT_CUSTOM_COLORS } from "./customPalette";
 import {
   applyCustomColors,
@@ -84,6 +85,25 @@ async function initialWith(value: string | null) {
 
 it("初期値はダーク・小・太字オフ・カスタムはMidnight・種別表示なし・表示サイズ標準（ネイティブの既定）", async () => {
   expect(await initialWith(null)).toEqual(DEFAULT_THEME_PREFS);
+});
+
+it("[#649] matchMedia が無ければ表示サイズの既定は標準（s）", async () => {
+  expect((await initialWith(null)).uiScale).toBe("s");
+});
+
+it("[#649] ホバーできる端末（PC）では、保存値が無いとき表示サイズの既定が大きめ（m）になる", async () => {
+  mockViewport(1024, { hover: true });
+  expect((await initialWith(null)).uiScale).toBe("m");
+});
+
+it("[#649] ホバーできない端末（スマホ・タブレット）では、表示サイズの既定は標準（s）のまま", async () => {
+  mockViewport(1024, { hover: false });
+  expect((await initialWith(null)).uiScale).toBe("s");
+});
+
+it("[#649] uiScale の保存値があれば、ホバーできる端末でもその値をそのまま使う", async () => {
+  mockViewport(1024, { hover: true });
+  expect((await initialWith(JSON.stringify({ uiScale: "l" }))).uiScale).toBe("l");
 });
 
 it("保存値を初期値にする。壊れた JSON は既定、不正な項目はその項目だけ既定へ", async () => {
