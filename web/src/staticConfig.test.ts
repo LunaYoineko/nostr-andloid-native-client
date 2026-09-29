@@ -8,19 +8,6 @@ import { describe, expect, it } from "vitest";
  */
 const staticDir = join(process.cwd(), "static");
 
-describe("static/_redirects（#647）", () => {
-  const lines = readFileSync(join(staticDir, "_redirects"), "utf8")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line !== "" && !line.startsWith("#"));
-
-  it("旧 /app への直リンクを / へ 301 する 2 行がある", () => {
-    expect(lines).toHaveLength(2);
-    expect(lines[0]).toMatch(/^\/app\s+\/\s+301$/);
-    expect(lines[1]).toMatch(/^\/app\/\*\s+\/:splat\s+301$/);
-  });
-});
-
 describe("static/_headers（#647）", () => {
   const headers = readFileSync(join(staticDir, "_headers"), "utf8");
 

@@ -42,7 +42,7 @@ export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
     title: "システム",
     sections: [
       { id: "data", label: "データ・キャッシュ", ready: true },
-      { id: "about", label: "このアプリについて", ready: false },
+      { id: "about", label: "このアプリについて", ready: true },
     ],
   },
 ];

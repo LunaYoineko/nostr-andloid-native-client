@@ -38,6 +38,7 @@ function renderAt(path: string, width: number) {
       { path: "/settings/:section?", element: <SettingsScreen /> },
       { path: "/p/:ref", element: <p>プロフィール画面</p> },
       { path: "/messages", element: <p>メッセージ画面</p> },
+      { path: "/about", element: <p>LP</p> },
     ],
     { initialEntries: [path] },
   );
@@ -50,10 +51,10 @@ function items() {
 }
 
 describe("Compact", () => {
-  it("一覧 → 項目 →「←」で一覧へ戻る。M1 に無い項目は準備中", async () => {
+  it("一覧 → 項目 →「←」で一覧へ戻る。「このアプリについて」は LP（/about）へ", async () => {
     const router = renderAt("/settings", 400);
     expect(screen.getByRole("heading", { level: 1, name: "設定" })).toBeInTheDocument();
-    expect(within(items()).getByRole("button", { name: "このアプリについて準備中" })).toBeInTheDocument();
+    expect(within(items()).getByRole("button", { name: "このアプリについて" })).toBeInTheDocument();
     expect(within(items()).getByRole("button", { name: "ミュート" })).toBeInTheDocument();
     expect(within(items()).getByRole("button", { name: "リレー" })).toBeInTheDocument();
 
@@ -66,8 +67,8 @@ describe("Compact", () => {
     expect(router.state.location.pathname).toBe("/settings");
     expect(items()).toBeInTheDocument();
 
-    await userEvent.click(within(items()).getByRole("button", { name: "このアプリについて準備中" }));
-    expect(screen.getByText("この項目は準備中です")).toBeInTheDocument();
+    await userEvent.click(within(items()).getByRole("button", { name: "このアプリについて" }));
+    expect(router.state.location.pathname).toBe("/about");
   });
 
   it("よく使うの「プロフィール」は自分のプロフィールを開き、「DM」はメッセージ画面へ切り替える", async () => {
@@ -203,7 +204,7 @@ describe("Expanded", () => {
     });
     renderAt("/settings/data", 1000);
     await userEvent.click(screen.getByRole("button", { name: "nostr: リンクをこのアプリで開く" }));
-    expect(registerProtocolHandler).toHaveBeenCalledWith("web+nostr", "/app/open?uri=%s");
+    expect(registerProtocolHandler).toHaveBeenCalledWith("web+nostr", "/open?uri=%s");
     Reflect.deleteProperty(navigator, "registerProtocolHandler");
   });
 

@@ -5,6 +5,7 @@ import { useSession } from "../../signer/session";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { useLayoutMode } from "../../ui/useLayoutMode";
 import { WalletSection } from "../wallet/WalletSection";
+import { AboutSection } from "./AboutSection";
 import { AccountSection, AccountSummary } from "./AccountSection";
 import { BookmarksSection } from "./BookmarksSection";
 import { DataSection } from "./DataSection";
@@ -181,6 +182,8 @@ function SectionBody({ id }: { id: string }) {
       return <DisplaySection />;
     case "data":
       return <DataSection />;
+    case "about":
+      return <AboutSection />;
     default:
       return <p className={styles.comingSoon}>この項目は準備中です</p>;
   }

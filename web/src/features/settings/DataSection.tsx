@@ -99,7 +99,7 @@ function ProtocolHandlerBlock() {
         className={`${styles.ghost} ${styles.alignStart}`}
         onClick={() => {
           try {
-            navigator.registerProtocolHandler("web+nostr", "/app/open?uri=%s");
+            navigator.registerProtocolHandler("web+nostr", "/open?uri=%s");
             showToast("登録しました");
           } catch {
             showToast("登録できませんでした");
