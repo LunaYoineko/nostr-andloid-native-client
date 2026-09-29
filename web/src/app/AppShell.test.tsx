@@ -110,6 +110,14 @@ describe("骨格", () => {
     expect(screen.getByTestId("col-c_following")).toHaveAttribute("data-header", "false");
   });
 
+  it("[#648] 500px でもタッチ端末（hover 無し）なら下部ナビ（レールにしない）", () => {
+    mockViewport(500, { hover: false });
+    const router = createMemoryRouter(routes, { initialEntries: ["/"] });
+    render(<RouterProvider router={router} />);
+    expect(navLabels()).toEqual(["ホーム", "検索", "メッセージ", "通知", "設定"]);
+    expect(screen.queryByRole("img", { name: "Nostrism" })).not.toBeInTheDocument();
+  });
+
   it("[#540] 439px は下部ナビ（レールは無い）", () => {
     renderAt(["/"], 439);
     expect(navLabels()).toEqual(["ホーム", "検索", "メッセージ", "通知", "設定"]);

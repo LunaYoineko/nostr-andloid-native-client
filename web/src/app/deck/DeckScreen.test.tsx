@@ -91,6 +91,12 @@ describe("compact", () => {
     expect(screen.queryByRole("button", { name: /^リレー接続/ })).not.toBeInTheDocument();
   });
 
+  it("[#648] 440〜599px でもタッチ端末（hover 無し）なら左レールが出ないのでタブ列に接続表示がある", () => {
+    mockViewport(500, { hover: false });
+    render(<DeckScreen />);
+    expect(screen.getByRole("button", { name: /^リレー接続/ })).toBeInTheDocument();
+  });
+
   it("カラムヘッダ無しで 3 カラム、タブ列と選択カラムの ⋯、カラム追加はタブ列の ＋ だけ", () => {
     render(<DeckScreen />);
     for (const id of ["c_following", "c_hashtag", "c_notif"]) {
