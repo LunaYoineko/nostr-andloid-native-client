@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 function renderAt(path: string) {
-  const router = createMemoryRouter(routes, { basename: "/app", initialEntries: [path] });
+  const router = createMemoryRouter(routes, { basename: "/", initialEntries: [path] });
   render(<RouterProvider router={router} />);
   return router;
 }
@@ -29,13 +29,13 @@ function renderAt(path: string) {
 it("ログインに成功すると next へ戻り、設定に npub の短縮が出る", async () => {
   installFakeNostr();
   useSession.setState({ status: "out" });
-  const router = renderAt("/app/login?next=%2Fsettings");
+  const router = renderAt("/login?next=%2Fsettings");
 
   await userEvent.click(screen.getByRole("button", { name: "拡張機能でログイン（NIP-07）" }));
 
   // プロフィール未取得なので名前も npub の短縮になる
   expect(await screen.findAllByText(`${npubEncode(PUBKEY).slice(0, 12)}…`)).not.toHaveLength(0);
-  expect(router.state.location.pathname).toBe("/app/settings");
+  expect(router.state.location.pathname).toBe("/settings");
   expect(useSession.getState().status).toBe("in");
   expect(localStorage.getItem(SESSION_KEY)).not.toBeNull();
   expect(localStorage.getItem(SESSION_FLAG_KEY)).toBe("1");
@@ -44,7 +44,7 @@ it("ログインに成功すると next へ戻り、設定に npub の短縮が�
 it("拡張が拒否したらエラー文言を画面に出す", async () => {
   installFakeNostr({ reject: true });
   useSession.setState({ status: "out" });
-  renderAt("/app/login");
+  renderAt("/login");
 
   await userEvent.click(screen.getByRole("button", { name: "拡張機能でログイン（NIP-07）" }));
 
@@ -54,7 +54,7 @@ it("拡張が拒否したらエラー文言を画面に出す", async () => {
 
 it("拡張が無ければ nos2x / Alby / Nostash の案内を出す", async () => {
   useSession.setState({ status: "out" });
-  renderAt("/app/login");
+  renderAt("/login");
 
   const help = await screen.findByRole("region", { name: "拡張機能の案内" }, { timeout: 3000 });
   for (const name of ["nos2x", "Alby", "Nostash"]) {
@@ -67,7 +67,7 @@ it("拡張が無ければ nos2x / Alby / Nostash の案内を出す", async () =
 it("ログアウトで localStorage が空になりゲートへ戻る", async () => {
   installFakeNostr();
   await useSession.getState().login();
-  renderAt("/app/settings/account");
+  renderAt("/settings/account");
 
   await userEvent.click(await screen.findByRole("button", { name: "ログアウト" }));
   const dialog = screen.getByRole("dialog", { name: "ログアウトしますか？" });
@@ -90,7 +90,7 @@ describe("秘密鍵（nsec）", () => {
 
   it("並びは NIP-07 → 秘密鍵（閉じている）→ 新規生成", () => {
     useSession.setState({ status: "out" });
-    renderAt("/app/login");
+    renderAt("/login");
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Nostrism へようこそ");
     const nip07 = screen.getByRole("button", { name: "拡張機能でログイン（NIP-07）" });
@@ -102,7 +102,7 @@ describe("秘密鍵（nsec）", () => {
 
   it("開くと警告とマスクした入力欄。「表示」「隠す」で切り替える", async () => {
     useSession.setState({ status: "out" });
-    renderAt("/app/login");
+    renderAt("/login");
     const input = await openNsecForm();
 
     expect(
@@ -122,7 +122,7 @@ describe("秘密鍵（nsec）", () => {
   it("nsec1 で始まらなければ入力の先頭を出す", async () => {
     await installTestVault();
     useSession.setState({ status: "out" });
-    renderAt("/app/login");
+    renderAt("/login");
     const input = await openNsecForm();
 
     await userEvent.type(input, "ab c");
@@ -135,7 +135,7 @@ describe("秘密鍵（nsec）", () => {
   it("正しい nsec で取り込むと next へ戻り、nsec は DOM に残らない", async () => {
     const db = await installTestVault();
     useSession.setState({ status: "out" });
-    const router = renderAt("/app/login?next=%2Fsettings");
+    const router = renderAt("/login?next=%2Fsettings");
     const input = await openNsecForm();
     const sk = generateSecretKey();
     const nsec = nsecEncode(sk);
@@ -146,7 +146,7 @@ describe("秘密鍵（nsec）", () => {
     await userEvent.click(screen.getByRole("button", { name: "取り込み" }));
 
     expect(await screen.findByRole("heading", { name: "設定" })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/app/settings");
+    expect(router.state.location.pathname).toBe("/settings");
     expect(useSession.getState()).toMatchObject({ status: "in", method: "local", pubkey: getPublicKey(sk) });
     expect(await db.vault.count()).toBe(1);
     expect(document.body.textContent).not.toContain(nsec);
@@ -155,7 +155,7 @@ describe("秘密鍵（nsec）", () => {
 
   it("保管先が使えなければ、安全に保存できない旨を出す", async () => {
     useSession.setState({ status: "out" });
-    renderAt("/app/login");
+    renderAt("/login");
     const input = await openNsecForm();
 
     await userEvent.type(input, nsecEncode(generateSecretKey()));
@@ -174,7 +174,7 @@ describe("新規生成", () => {
     const user = userEvent.setup();
     const db = await installTestVault();
     useSession.setState({ status: "out" });
-    const router = renderAt("/app/login?next=%2Fsettings");
+    const router = renderAt("/login?next=%2Fsettings");
 
     await user.click(screen.getByRole("button", { name: "新規生成" }));
     const dialog = screen.getByRole("dialog", { name: "新しい鍵を生成しますか？" });
@@ -212,7 +212,7 @@ describe("新規生成", () => {
     await user.click(next);
 
     expect(await screen.findByRole("heading", { name: "設定" })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/app/settings");
+    expect(router.state.location.pathname).toBe("/settings");
     expect(useSession.getState()).toMatchObject({ status: "in", method: "local", pubkey: stored });
     expect(document.body.textContent).not.toContain(nsec);
     expect(await db.vault.count()).toBe(1);
@@ -220,7 +220,7 @@ describe("新規生成", () => {
 
   it("保管先が使えなければ、控えを出さずに安全に保存できない旨を出す", async () => {
     useSession.setState({ status: "out" });
-    renderAt("/app/login");
+    renderAt("/login");
 
     await userEvent.click(screen.getByRole("button", { name: "新規生成" }));
     await userEvent.click(screen.getByRole("button", { name: "生成する" }));
@@ -257,7 +257,7 @@ describe("リモート署名（NIP-46）", () => {
 
   it("並びは NIP-07 → リモート署名（閉じている）→ 秘密鍵", () => {
     useSession.setState({ status: "out" });
-    renderAt("/app/login");
+    renderAt("/login");
 
     const nip07 = screen.getByRole("button", { name: "拡張機能でログイン（NIP-07）" });
     const nsec = screen.getByText("秘密鍵（nsec）でログイン", { selector: "summary" });
@@ -268,7 +268,7 @@ describe("リモート署名（NIP-46）", () => {
 
   it("bunker:// で始まらない入力では「接続」を押せない", async () => {
     useSession.setState({ status: "out" });
-    renderAt("/app/login");
+    renderAt("/login");
     const input = await openBunkerForm();
 
     expect(screen.getByText(/秘密鍵は署名アプリ側に残り、このブラウザには置きません。/)).toBeInTheDocument();
@@ -286,7 +286,7 @@ describe("リモート署名（NIP-46）", () => {
   it("接続に成功すると next へ戻り、secret は DOM に残らない", async () => {
     await installTestVault();
     useSession.setState({ status: "out" });
-    const router = renderAt("/app/login?next=%2Fsettings");
+    const router = renderAt("/login?next=%2Fsettings");
     const input = await openBunkerForm();
     const uri = bunker.uri({ secret: "very-secret-token" });
 
@@ -296,7 +296,7 @@ describe("リモート署名（NIP-46）", () => {
     await userEvent.click(screen.getByRole("button", { name: "接続" }));
 
     expect(await screen.findByRole("heading", { name: "設定" })).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/app/settings");
+    expect(router.state.location.pathname).toBe("/settings");
     expect(useSession.getState()).toMatchObject({ status: "in", method: "nip46", pubkey: bunker.user });
     expect(document.body.innerHTML).not.toContain("very-secret-token");
   });
@@ -305,7 +305,7 @@ describe("リモート署名（NIP-46）", () => {
     await installTestVault();
     bunker.replies.set("connect", { error: "denied by user" });
     useSession.setState({ status: "out" });
-    renderAt("/app/login");
+    renderAt("/login");
     const input = await openBunkerForm();
 
     await userEvent.type(input, bunker.uri());
@@ -328,7 +328,7 @@ describe("リモート署名（NIP-46）", () => {
         throw new LoginError(reason);
       },
     });
-    renderAt("/app/login");
+    renderAt("/login");
     const input = await openBunkerForm();
 
     await userEvent.type(input, "bunker://x");
@@ -341,7 +341,7 @@ describe("リモート署名（NIP-46）", () => {
     await installTestVault();
     bunker.replies.set("connect", "silent");
     useSession.setState({ status: "out" });
-    renderAt("/app/login");
+    renderAt("/login");
     const input = await openBunkerForm();
 
     await userEvent.type(input, bunker.uri());
@@ -372,7 +372,7 @@ describe("リモート署名（NIP-46）", () => {
 
     it("QR ボタンは bunker:// の入力より前にある", async () => {
       useSession.setState({ status: "out" });
-      renderAt("/app/login");
+      renderAt("/login");
       await userEvent.click(summary());
 
       const button = screen.getByRole("button", { name: "接続用の QR を表示（Amber など）" });
@@ -383,7 +383,7 @@ describe("リモート署名（NIP-46）", () => {
     it("QR・リンク・コピー・「やめる」を出し、接続中は他のログイン方法を押せない。URI の文字列は画面に出さない", async () => {
       await installTestVault();
       useSession.setState({ status: "out" });
-      renderAt("/app/login");
+      renderAt("/login");
 
       const link = await showQr();
 
@@ -421,7 +421,7 @@ describe("リモート署名（NIP-46）", () => {
     it("コピーで URI をクリップボードに入れる", async () => {
       const user = userEvent.setup();
       useSession.setState({ status: "out" });
-      renderAt("/app/login");
+      renderAt("/login");
       await user.click(summary());
       await user.click(screen.getByRole("button", { name: "接続用の QR を表示（Amber など）" }));
       const uri = screen.getByRole("link", { name: "署名アプリで開く" }).getAttribute("href");
@@ -435,14 +435,14 @@ describe("リモート署名（NIP-46）", () => {
     it("署名アプリが承認すると next へ戻り、nip46 でログインする", async () => {
       await installTestVault();
       useSession.setState({ status: "out" });
-      const router = renderAt("/app/login?next=%2Fsettings");
+      const router = renderAt("/login?next=%2Fsettings");
       const link = await showQr();
       await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
 
       bunker.acceptNostrConnect(link.getAttribute("href") ?? "");
 
       expect(await screen.findByRole("heading", { name: "設定" })).toBeInTheDocument();
-      expect(router.state.location.pathname).toBe("/app/settings");
+      expect(router.state.location.pathname).toBe("/settings");
       expect(useSession.getState()).toMatchObject({ status: "in", method: "nip46", pubkey: bunker.user });
       // 画面を離れても確定した接続は閉じない
       expect(bunker.openSubscriptions).toBe(1);
@@ -451,9 +451,7 @@ describe("リモート署名（NIP-46）", () => {
     it("画面を離れると接続の待ちをやめる", async () => {
       useSession.setState({ status: "out" });
       const { unmount } = render(
-        <RouterProvider
-          router={createMemoryRouter(routes, { basename: "/app", initialEntries: ["/app/login"] })}
-        />,
+        <RouterProvider router={createMemoryRouter(routes, { basename: "/", initialEntries: ["/login"] })} />,
       );
       await showQr();
       await vi.waitFor(() => expect(bunker.openSubscriptions).toBe(1));
@@ -479,7 +477,7 @@ describe("リモート署名（NIP-46）", () => {
           cancel: () => {},
         }),
       });
-      renderAt("/app/login");
+      renderAt("/login");
       await showQr();
 
       fail(new LoginError(reason));

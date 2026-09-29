@@ -318,7 +318,7 @@ export function startNostrConnect(): { uri: string; done: Promise<{ pubkey: stri
   const stopAuth = watchAuth(relays, clientSigner);
   const uri = inner.getNostrConnectURI({
     name: "Nostrism",
-    url: `${location.origin}/app/`,
+    url: `${location.origin}/`,
     permissions: NIP46_PERMISSIONS,
   });
   const abort = new AbortController();

@@ -155,6 +155,42 @@ describe("骨格", () => {
   });
 });
 
+describe("/ の出し分け（#647: LP は静的 HTML 側なのでここでは何も描かない）", () => {
+  it("セッション復元中は何も描かない", () => {
+    useSession.setState({ status: "loading", method: null, pubkey: null });
+    const router = renderAt(["/"]);
+    expect(screen.queryByRole("main")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
+  });
+
+  it("未ログインは何も描かない。/login へは飛ばない", () => {
+    useSession.setState({ status: "out", method: null, pubkey: null });
+    const router = renderAt(["/"]);
+    expect(screen.queryByRole("main")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/");
+  });
+
+  it("ログイン済みはデッキを描く（骨格 参照）", () => {
+    renderAt(["/"]);
+    expect(screen.getByRole("main")).toBeInTheDocument();
+  });
+});
+
+describe("/about（#647: 常に LP。ログイン中でも）", () => {
+  it("ログイン中でも何も描かない。デッキへは飛ばない", () => {
+    const router = renderAt(["/about"]);
+    expect(screen.queryByRole("main")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/about");
+  });
+
+  it("未ログインでも何も描かない。/login へは飛ばない", () => {
+    useSession.setState({ status: "out", method: null, pubkey: null });
+    const router = renderAt(["/about"]);
+    expect(screen.queryByRole("main")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/about");
+  });
+});
+
 describe("宛先", () => {
   it.each([
     ["/search", "検索", "検索"],

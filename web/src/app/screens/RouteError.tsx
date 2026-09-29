@@ -18,7 +18,7 @@ export function RouteError() {
           <button type="button" className={styles.reload} onClick={() => window.location.reload()}>
             再読み込み
           </button>
-          <a href="/app/" className={styles.link}>
+          <a href="/" className={styles.link}>
             デッキへ戻る
           </a>
         </div>
