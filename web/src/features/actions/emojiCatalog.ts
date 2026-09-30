@@ -1,13 +1,30 @@
 /**
- * リアクションピッカー用の軽量 Unicode 絵文字カタログ（ネイティブ EmojiCatalog.kt の写し。並び・キーワードを変えない）。
- * フルデータセットは同梱せず、よく使うものを日英キーワードで検索できるようにする。
+ * リアクションピッカー用の Unicode 絵文字カタログ（#684）。
+ * 起動直後は厳選リスト（旧ネイティブ EmojiCatalog.kt の写し・約120個）を EMOJI_CATEGORIES / EMOJI_ALL に
+ * 持っておき、ピッカーを開いたら loadEmojiCatalog() で標準の絵文字を全部（約1,900個）に差し替える。
+ * データは npm の emojibase-data（MIT）。ja/en の compact.json（ラベル・タグ）と ja/messages.json（カテゴリ名）
+ * だけをピッカーを開いたときに動的 import し、バンドルには含めない（他に読み込む場所がないので初期チャンクは増えない）。
+ * 肌の色・髪型のバリエーション（group: "component"）は基本形のみにするため丸ごと除外する。国旗は含める。
  */
 
 export type EmojiEntry = { char: string; keywords: readonly string[] };
+export type EmojiCategory = { title: string; emojis: readonly EmojiEntry[] };
 
-const e = (char: string, ...keywords: string[]): EmojiEntry => ({ char, keywords });
+/** NFKC 正規化 + 小文字化 + カタカナ→ひらがな。検索キーワードと入力クエリの両方をこれで揃えてから比較する */
+function normalizeForSearch(s: string): string {
+  return s
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[ァ-ヶ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+}
 
-export const EMOJI_CATEGORIES: readonly { title: string; emojis: readonly EmojiEntry[] }[] = [
+const e = (char: string, ...keywords: string[]): EmojiEntry => ({
+  char,
+  keywords: keywords.map(normalizeForSearch),
+});
+
+/** 読み込み前のフォールバック（ネイティブ EmojiCatalog.kt の写し。並び・キーワードは変えない） */
+const FALLBACK_CATEGORIES: readonly EmojiCategory[] = [
   {
     title: "表情",
     emojis: [
@@ -160,11 +177,11 @@ export const EMOJI_CATEGORIES: readonly { title: string; emojis: readonly EmojiE
   },
 ];
 
-/** 全エントリ（重複は char で除去） */
-export const EMOJI_ALL: readonly EmojiEntry[] = (() => {
+/** カテゴリ配列を頭から舐めて char 重複を除いた全エントリにする */
+function flattenAll(categories: readonly EmojiCategory[]): readonly EmojiEntry[] {
   const seen = new Set<string>();
   const out: EmojiEntry[] = [];
-  for (const category of EMOJI_CATEGORIES) {
+  for (const category of categories) {
     for (const entry of category.emojis) {
       if (seen.has(entry.char)) continue;
       seen.add(entry.char);
@@ -172,12 +189,117 @@ export const EMOJI_ALL: readonly EmojiEntry[] = (() => {
     }
   }
   return out;
-})();
+}
 
-/** 日英キーワードの部分一致（小文字化）か、絵文字そのものとの一致で探す。空なら [] */
+/** 読み込み前はフォールバックの厳選リスト。loadEmojiCatalog() が終わると全絵文字に差し替わる（ライブバインディング） */
+export let EMOJI_CATEGORIES: readonly EmojiCategory[] = FALLBACK_CATEGORIES;
+export let EMOJI_ALL: readonly EmojiEntry[] = flattenAll(FALLBACK_CATEGORIES);
+
+// ---- emojibase-data（標準の絵文字全部）の読み込み ----
+
+type CompactEmojiEntry = {
+  hexcode: string;
+  unicode: string;
+  label: string;
+  tags?: string[];
+  group?: number;
+  order?: number;
+};
+
+type EmojiMessages = {
+  groups: readonly { key: string; message: string; order: number }[];
+};
+
+/**
+ * emojibase の ja ラベル・タグは公式データが漢字表記（笑う・嬉しい 等）で、ひらがな入力（わらう 等）だと
+ * NFKC 正規化 + カタカナ→ひらがな だけでは一致しない。よく使う感情語（辞書形の完全な読み）だけ、対応する
+ * 漢字へ橋渡しする。厳選リストの短い手作りキーワード（「わらい」「おこ」等）と衝突しないよう、
+ * 語幹ではなく完全な読みで判定する（「わらい」は「わらう」を含まないので厳選リストのテストには影響しない）。
+ */
+const JA_READING_TO_KANJI: readonly (readonly [reading: string, kanji: string])[] = [
+  ["わらう", "笑"],
+  ["なく", "泣"],
+  ["おこる", "怒"],
+  ["いかり", "怒"],
+  ["かなしい", "悲"],
+  ["うれしい", "嬉"],
+  ["たのしい", "楽"],
+  ["こわい", "怖"],
+  ["すき", "好"],
+  ["ねむい", "眠"],
+  ["おどろく", "驚"],
+];
+
+/** 肌の色・髪型などの合成用パーツ（単体では出さない） */
+const EXCLUDED_GROUP_KEY = "component";
+
+function buildFullCatalog(
+  ja: readonly CompactEmojiEntry[],
+  en: readonly CompactEmojiEntry[],
+  messages: EmojiMessages,
+): readonly EmojiCategory[] {
+  const enByHex = new Map(en.map((entry) => [entry.hexcode, entry]));
+  const seen = new Set<string>();
+  const byGroup = new Map<number, { order: number; entry: EmojiEntry }[]>();
+
+  for (const entry of ja) {
+    const group = entry.group;
+    // group が無いのは国旗を組む regional indicator 等の部品。単体の絵文字ではないので除く
+    if (typeof group !== "number" || seen.has(entry.unicode)) continue;
+    seen.add(entry.unicode);
+    const enEntry = enByHex.get(entry.hexcode);
+    const rawKeywords = [entry.label, ...(entry.tags ?? []), enEntry?.label, ...(enEntry?.tags ?? [])].filter(
+      (v): v is string => typeof v === "string",
+    );
+    const keywords = Array.from(new Set(rawKeywords.map(normalizeForSearch)));
+    const list = byGroup.get(group) ?? [];
+    list.push({ order: entry.order ?? 0, entry: { char: entry.unicode, keywords } });
+    byGroup.set(group, list);
+  }
+
+  const categories: EmojiCategory[] = [];
+  for (const meta of [...messages.groups].sort((a, b) => a.order - b.order)) {
+    if (meta.key === EXCLUDED_GROUP_KEY) continue;
+    const list = byGroup.get(meta.order);
+    if (!list || list.length === 0) continue;
+    list.sort((a, b) => a.order - b.order);
+    categories.push({ title: meta.message, emojis: list.map((x) => x.entry) });
+  }
+  return categories;
+}
+
+let fullCatalogPromise: Promise<readonly EmojiCategory[]> | null = null;
+
+/**
+ * ピッカーを開いたときに呼ぶ。初回だけ emojibase-data（ja/en の compact.json + ja の messages.json）を
+ * 動的 import して EMOJI_CATEGORIES / EMOJI_ALL を標準の絵文字全部（約1,900個）に差し替える。
+ * 2 回目以降は同じ Promise を返すのでキャッシュされる。差し替わるまでは呼び出し側は今の一覧のまま描画してよい。
+ */
+export function loadEmojiCatalog(): Promise<readonly EmojiCategory[]> {
+  if (fullCatalogPromise) return fullCatalogPromise;
+  fullCatalogPromise = (async () => {
+    const [ja, en, messages] = await Promise.all([
+      import("emojibase-data/ja/compact.json"),
+      import("emojibase-data/en/compact.json"),
+      import("emojibase-data/ja/messages.json"),
+    ]);
+    const categories = buildFullCatalog(ja.default, en.default, messages.default);
+    EMOJI_CATEGORIES = categories;
+    EMOJI_ALL = flattenAll(categories);
+    return categories;
+  })();
+  return fullCatalogPromise;
+}
+
+/** 日英キーワードの部分一致か、絵文字そのものとの一致で探す。空なら [] */
 export function searchEmojis(query: string): EmojiEntry[] {
   const trimmed = query.trim();
-  const q = trimmed.toLowerCase();
-  if (q === "") return [];
-  return EMOJI_ALL.filter((entry) => entry.char === trimmed || entry.keywords.some((k) => k.includes(q)));
+  if (trimmed === "") return [];
+  const q = normalizeForSearch(trimmed);
+  const kanjiHints = JA_READING_TO_KANJI.filter(([reading]) => q.includes(reading)).map(([, kanji]) => kanji);
+  return EMOJI_ALL.filter(
+    (entry) =>
+      entry.char === trimmed ||
+      entry.keywords.some((k) => k.includes(q) || kanjiHints.some((kanji) => k.includes(kanji))),
+  );
 }
