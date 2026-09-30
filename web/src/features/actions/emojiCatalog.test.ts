@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { EMOJI_ALL, EMOJI_CATEGORIES, searchEmojis } from "./emojiCatalog";
+import { EMOJI_ALL, EMOJI_CATEGORIES, loadEmojiCatalog, searchEmojis } from "./emojiCatalog";
 
 it("カテゴリはネイティブと同じ順・件数（計 120、重複なし）", () => {
   expect(EMOJI_CATEGORIES.map((c) => c.title)).toEqual([
@@ -20,4 +20,23 @@ it("キーワードの部分一致（大小無視）と絵文字そのものと�
   expect(searchEmojis(" 🔥 ").map((e) => e.char)).toContain("🔥");
   expect(searchEmojis("")).toEqual([]);
   expect(searchEmojis("   ")).toEqual([]);
+});
+
+// #684: loadEmojiCatalog() で emojibase-data（標準の絵文字全部）に差し替わる。この it 以降は
+// EMOJI_ALL / EMOJI_CATEGORIES がフォールバックの厳選リストから全絵文字へ置き換わったままになる
+// （上の 2 つの it は差し替え前の厳選リストを見ているので、この it より前に定義してある）。
+it("loadEmojiCatalog() で標準の絵文字全部（1,500件超）・カテゴリ付きに差し替わる", async () => {
+  const categories = await loadEmojiCatalog();
+  expect(categories).toBe(EMOJI_CATEGORIES);
+  expect(EMOJI_ALL.length).toBeGreaterThan(1500);
+  // 表情・人体・動物・食べ物・旅行・活動・物・記号・国旗（肌の色などの合成用パーツは除く）
+  expect(EMOJI_CATEGORIES.length).toBeGreaterThanOrEqual(9);
+  // char の重複が無い
+  expect(new Set(EMOJI_ALL.map((e) => e.char)).size).toBe(EMOJI_ALL.length);
+});
+
+it("読み込み後は日英どちらの検索でも 😄 系が出る（わらう＝ひらがな読み、smile＝英語）", async () => {
+  await loadEmojiCatalog();
+  expect(searchEmojis("わらう").map((e) => e.char)).toContain("😄");
+  expect(searchEmojis("smile").map((e) => e.char)).toContain("😄");
 });
