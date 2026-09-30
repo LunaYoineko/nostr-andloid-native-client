@@ -59,6 +59,41 @@
   color: var(--text-3);
 }
 
+/* ---- カテゴリタブ（#684。全絵文字は多いので、選んだカテゴリだけ下のグリッドに描画する） ---- */
+
+.tabs {
+  display: flex;
+  flex: none;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  flex: none;
+  height: var(--touch-sm);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-caption);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  background: var(--accent-weak);
+  color: var(--accent);
+  font-weight: var(--w-strong);
+}
+
 /* ---- 一覧 ---- */
 
 .scroll {
