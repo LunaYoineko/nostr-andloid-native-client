@@ -43,20 +43,33 @@ export function ActionButton({
 }
 
 /**
- * 投稿の下の行（NoteItem から呼ぶ唯一の入口）: 自分の未送信なら「未送信」→ アクション行（返信 + children）。
- * children は #459 が リポスト / ♡ / 絵文字 / ⋯ を入れる。
+ * 投稿の下の行（NoteItem から呼ぶ唯一の入口）: 自分の未送信なら「未送信」→ アクション行（返信 + children + more）。
+ * children は #459 が リポスト / ♡ / 絵文字 を入れる。
+ * [#683] 返信〜children（Zap まで）は .primaryActions に包んで行の幅に均等配置し、⋯（more）は
+ * その外側に置いて行の右端に固定する（NoteActionButtons の NoteMoreMenu を渡す）。
  */
-export function NoteFooter({ event, children }: { event: NostrEvent; children?: ReactNode }) {
+export function NoteFooter({
+  event,
+  more,
+  children,
+}: {
+  event: NostrEvent;
+  more?: ReactNode;
+  children?: ReactNode;
+}) {
   const me = useSession((s) => s.pubkey);
   const unsent = useIsUnsent(event.id);
   return (
     <div className={styles.footer}>
       {event.pubkey === me && unsent && <UnsentChip eventId={event.id} />}
       <fieldset aria-label="操作" className={styles.actions}>
-        <ActionButton label="返信" onClick={() => openCompose({ mode: "reply", target: event })}>
-          <ReplyIcon />
-        </ActionButton>
-        {children}
+        <div className={styles.primaryActions}>
+          <ActionButton label="返信" onClick={() => openCompose({ mode: "reply", target: event })}>
+            <ReplyIcon />
+          </ActionButton>
+          {children}
+        </div>
+        {more}
       </fieldset>
     </div>
   );

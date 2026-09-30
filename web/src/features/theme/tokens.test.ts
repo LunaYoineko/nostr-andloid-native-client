@@ -195,3 +195,9 @@ it("[#674] 廃人モードのアクションサイズは標準表示（s）で 2
   const px = evalCalc(readVar(denseBlock, "action-size"), STANDARD_VARS);
   expect(px).toBeGreaterThanOrEqual(28);
 });
+
+/** [#683] 返信〜Zap のボタン群（NoteFooter.module.css .primaryActions）の最大幅トークンが存在する */
+it("[#683] --action-row-max が存在する", () => {
+  const px = evalCalc(readVar(darkBlock, "action-row-max"), STANDARD_VARS);
+  expect(px).toBeGreaterThan(0);
+});

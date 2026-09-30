@@ -8,16 +8,30 @@
   margin-top: var(--action-row-my);
 }
 
-/* タッチ箱の内側余白ぶん左右へ出す（ネイティブの offset(-iconInset)）。fieldset の既定の枠・余白は消す */
+/* タッチ箱の内側余白ぶん左右へ出す（ネイティブの offset(-iconInset)）。fieldset の既定の枠・余白は消す。
+   [#683] 直下の子は primaryActions（返信〜Zap）と more（⋯）の2つ。space-between で ⋯ を常に行の右端へ */
 .actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--sp-1);
   align-self: stretch;
   min-width: 0;
   margin: 0 calc((var(--icon-md) - var(--action-size)) / 2);
   padding: 0;
   border: 0;
+}
+
+/* [#683] 返信〜Zap を行の幅いっぱいに均等配置する（justify-content: space-between 相当）。
+   --action-row-max を超える幅では伸びを止め、左寄せのまま内側の間隔だけ均等にする（間延び防止）。 */
+.primaryActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1);
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: var(--action-row-max);
 }
 
 .action {

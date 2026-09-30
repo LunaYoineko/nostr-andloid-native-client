@@ -12,7 +12,7 @@ import { relativeTime } from "../../lib/time";
 import { displayName, pictureOf, useEventByPointer, useProfile, useRepostedEvent } from "../../nostr/loaders";
 import { CatEars } from "../../ui/CatEars";
 import { useNyanApplies } from "../../ui/nyan";
-import { NoteActionButtons } from "../actions/NoteActionButtons";
+import { NoteActionButtons, NoteMoreMenu } from "../actions/NoteActionButtons";
 import { ArticleCards } from "../article/ArticleCard";
 import { NoteFooter } from "../compose/NoteFooter";
 import { LinkCards } from "../linkcard/LinkCard";
@@ -238,7 +238,7 @@ function NoteBody({
               <ArticleCards content={event.content} />
             </>
           )}
-          <NoteFooter event={event}>
+          <NoteFooter event={event} more={<NoteMoreMenu event={event} />}>
             <NoteActionButtons event={event} />
           </NoteFooter>
         </div>

@@ -60,7 +60,9 @@ function warn(message: string) {
 
 /**
  * 投稿のアクション行の「返信」の後ろ（NoteItem から NoteFooter の children として呼ぶ唯一の入口）:
- * リポスト → 既定リアクション（♡ / ☆）→ 絵文字 → ⚡ → 余白 → ⋯。数は Zap の合計だけ出す（他は押下状態だけ）。
+ * リポスト → 既定リアクション（♡ / ☆）→ 絵文字 → ⚡。数は Zap の合計だけ出す（他は押下状態だけ）。
+ * [#683] ⋯（NoteMoreMenu）はここには含めない。NoteFooter の primaryActions（返信〜Zap を行の幅に
+ * 均等配置する箱）の外に置き、行の右端に固定するため NoteFooter の more props へ別に渡す。
  */
 export function NoteActionButtons({ event }: { event: NostrEvent }) {
   const me = useSession((s) => s.pubkey);
@@ -73,8 +75,6 @@ export function NoteActionButtons({ event }: { event: NostrEvent }) {
       <DefaultReactionButton event={event} />
       <EmojiReactionButton event={event} />
       <ZapAction event={event} />
-      <span className={styles.spacer} aria-hidden="true" />
-      <MoreMenu event={event} />
     </>
   );
 }
@@ -266,8 +266,11 @@ function ownListFailureMessage(e: unknown): string {
   return "変更できませんでした";
 }
 
-/** ⋯ メニュー（並びは moreMenuEntries）と、そこから開く確認・通報・イベント JSON のダイアログ */
-function MoreMenu({ event }: { event: NostrEvent }) {
+/**
+ * ⋯ メニュー（並びは moreMenuEntries）と、そこから開く確認・通報・イベント JSON のダイアログ。
+ * [#683] NoteFooter の more props へ渡す（行の右端に固定。primaryActions の均等配置には含めない）。
+ */
+export function NoteMoreMenu({ event }: { event: NostrEvent }) {
   const me = useSession((s) => s.pubkey);
   const author = useProfile(event.pubkey);
   const contacts = use$(() => (me ? eventStore.replaceable({ kind: 3, pubkey: me }) : undefined), [me]);

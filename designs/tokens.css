@@ -126,6 +126,9 @@
   --note-gap:   var(--sp-2);        /* ノート行内の gap（アバター⇔本文・meta⇔本文など） */
   --action-size: var(--touch-sm);   /* アクション行のボタン（NoteFooter.module.css .action）の一辺 */
   --action-row-my: var(--sp-1);     /* アクション行の余白（NoteFooter.module.css .footer margin-top） */
+  /* [#683] 返信〜Zap のボタン群（NoteFooter.module.css .primaryActions）の最大幅。Expanded の広いカラムで
+     均等配置しても間延びしないための上限（⋯ は別枠でこの外・行の右端に残る） */
+  --action-row-max: calc(360px * var(--web-base) * var(--ui-scale));
   --avatar-size: 38px;              /* タイムラインのアバター（NoteItem.module.css .avatar。表示 38px はネイティブの DeckDimens.AvatarSize） */
 
   /* --- 左レール（Compose DeckDimens.Rail* と 1対1）--- */
