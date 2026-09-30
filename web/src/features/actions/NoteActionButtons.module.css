@@ -97,8 +97,3 @@
   left: calc(var(--sp-1) * -1);
   font-size: var(--type-label);
 }
-
-/* ⋯ を右端へ寄せる */
-.spacer {
-  flex: 1;
-}

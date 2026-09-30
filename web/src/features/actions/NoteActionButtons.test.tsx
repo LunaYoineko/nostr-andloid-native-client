@@ -18,7 +18,7 @@ import { EMPTY_MUTE_LIST, setMuteList } from "../mute/muteList";
 import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
 import { toggleFollow } from "../profile/follow";
 import { setDeveloperMode } from "../settings/devMode";
-import { NoteActionButtons, REACTION_PENDING_MS } from "./NoteActionButtons";
+import { NoteActionButtons, NoteMoreMenu, REACTION_PENDING_MS } from "./NoteActionButtons";
 import styles from "./NoteActionButtons.module.css";
 import { setDefaultReaction, useDefaultReaction } from "./reactionPrefs";
 
@@ -116,7 +116,7 @@ function addMine(kind: number, content: string, tags: string[][]): NostrEvent {
 
 function renderRow(event: NostrEvent) {
   return renderWithRouter(
-    <NoteFooter event={event}>
+    <NoteFooter event={event} more={<NoteMoreMenu event={event} />}>
       <NoteActionButtons event={event} />
     </NoteFooter>,
   );
