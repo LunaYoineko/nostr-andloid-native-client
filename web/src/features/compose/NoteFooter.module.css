@@ -34,18 +34,18 @@
   max-width: var(--action-row-max);
 }
 
-/* [#692] タッチ端末では右手の親指で届くよう、返信〜Zap を右端の ⋯ の隣に右寄せで詰める
-   （PC は #683 の均等配置のまま。タップ領域 --action-size は変えない） */
-@media (hover: none) {
-  .actions {
-    justify-content: flex-end;
-  }
+/* [#695] 廃人モードだけ、返信〜Zap を右寄せにして左に隙間を作る（右手の親指で届くように）。
+   ボタン間の中心間隔は通常モード（--touch-sm + --sp-1）と同じにして詰めすぎない。
+   通常モードは #683 の均等配置のまま。タップ領域 --action-size は変えない */
+:root[data-density="dense"] .actions {
+  justify-content: flex-end;
+}
 
-  .primaryActions {
-    justify-content: flex-end;
-    flex: 0 0 auto;
-    max-width: 100%;
-  }
+:root[data-density="dense"] .primaryActions {
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  max-width: 100%;
+  gap: calc(var(--touch-sm) - var(--action-size) + var(--sp-1));
 }
 
 .action {
