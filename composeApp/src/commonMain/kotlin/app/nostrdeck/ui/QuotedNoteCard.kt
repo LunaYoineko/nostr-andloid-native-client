@@ -38,6 +38,7 @@ import app.nostrdeck.model.NoteUi
 import app.nostrdeck.model.removeUrls
 import app.nostrdeck.model.videoUrlsIn
 import app.nostrdeck.theme.DeckColors
+import app.nostrdeck.theme.DeckDensity
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckRadius
 import app.nostrdeck.theme.DeckType
@@ -60,7 +61,7 @@ fun QuotedNoteCard(
             .clip(RoundedCornerShape(DeckRadius.Md))
             .clickable(enabled = nav != null) { nav?.onEvent?.invoke(note.event.id) }
             .background(DeckColors.Surface2, RoundedCornerShape(DeckRadius.Md))
-            .padding(DeckSpace.Sm),
+            .padding(DeckDensity.NoteGap),   // [#675] 廃人モードで Sm → Xs（Web .quote の --note-gap）
     ) {
         // ヘッダは「アバター(小) + 名前」の横並び。アバターは文字サイズに合わせてコンパクト(16dp)。
         Row(verticalAlignment = Alignment.CenterVertically) {

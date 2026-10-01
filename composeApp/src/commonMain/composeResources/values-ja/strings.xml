@@ -696,6 +696,10 @@
     <string name="nyan_mode_off">オフ</string>
     <string name="nyan_mode_self">自分のみ</string>
     <string name="nyan_mode_all">全員</string>
+    <!-- [#675] 廃人モード（Web #674 と同じ文言） -->
+    <string name="dense_mode_title">廃人モード</string>
+    <string name="dense_mode_desc">カラムの間隔・余白・行の高さを詰めて情報量を増やします</string>
+    <string name="dense_mode_toggle">廃人モードを使う</string>
     <!-- [#326] カード化したリンクのURLを本文から畳む -->
     <string name="embed_hide_carded_urls">カードを出したリンクのURLを本文から隠す</string>
     <!-- [#351] 開発者モード / イベントJSONビューア -->

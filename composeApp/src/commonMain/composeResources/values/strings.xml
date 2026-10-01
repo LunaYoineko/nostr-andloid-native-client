@@ -700,6 +700,10 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="nyan_mode_off">Off</string>
     <string name="nyan_mode_self">Me only</string>
     <string name="nyan_mode_all">Everyone</string>
+    <!-- [#675] 廃人モード（Web #674 と同じ文言） -->
+    <string name="dense_mode_title">Dense mode</string>
+    <string name="dense_mode_desc">Tightens column gaps, padding and row height to fit more on screen</string>
+    <string name="dense_mode_toggle">Use dense mode</string>
     <!-- [#326] カード化したリンクのURLを本文から畳む -->
     <string name="embed_hide_carded_urls">Hide the URL text when a card is shown</string>
     <!-- [#351] 開発者モード / イベントJSONビューア -->

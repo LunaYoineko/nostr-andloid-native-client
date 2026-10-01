@@ -1408,6 +1408,20 @@ private fun AppearanceSettings() {
     }
     Spacer(Modifier.size(DeckSpace.Xl))
 
+    // [#675] 廃人モード（Web #674 と同じ並び・文言）。カラムの間隔・余白・行の高さを詰める。端末ローカル。
+    SectionCaption(stringResource(Res.string.dense_mode_title))
+    Spacer(Modifier.height(DeckSpace.Xs))
+    Text(
+        stringResource(Res.string.dense_mode_desc),
+        color = DeckColors.Text3, fontSize = DeckType.Label,
+    )
+    Spacer(Modifier.height(DeckSpace.Xs))
+    run {
+        val dense by repo.denseModeFlow().collectAsState()
+        SettingToggle(stringResource(Res.string.dense_mode_toggle), dense) { repo.setDenseMode(it) }
+    }
+    Spacer(Modifier.height(DeckSpace.Lg))
+
     SectionCaption(stringResource(Res.string.embed_section))
     Spacer(Modifier.size(DeckSpace.Xs))
     Text(
