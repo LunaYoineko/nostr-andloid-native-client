@@ -700,6 +700,9 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="nyan_mode_off">Off</string>
     <string name="nyan_mode_self">Me only</string>
     <string name="nyan_mode_all">Everyone</string>
+    <!-- [#478] 自分のリストを編集する直前の取り直し -->
+    <string name="own_list_unreachable">Couldn't get your latest list from the relays, so nothing was changed. Check your connection and try again.</string>
+    <string name="own_list_stale">This was updated on another device. The latest version is loaded — please try again.</string>
     <!-- [#326] カード化したリンクのURLを本文から畳む -->
     <string name="embed_hide_carded_urls">Hide the URL text when a card is shown</string>
     <!-- [#351] 開発者モード / イベントJSONビューア -->
