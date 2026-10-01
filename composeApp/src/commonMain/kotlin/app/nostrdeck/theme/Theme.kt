@@ -97,6 +97,40 @@ object DeckWeight {
     val Body:   FontWeight get() = if (bold.value) FontWeight.SemiBold else FontWeight.Normal    // 本文・メタ
 }
 
+/**
+ * [#675] 廃人モード（密度）の寸法トークン。Web の tokens.css `:root[data-density="dense"]`（#674）と 1対1。
+ * 通常モードの値は今までの固定値そのまま（通常の見た目は 1dp も変えない）。
+ * DeckWeight と同じく snapshot state で持ち、App が設定 Flow から [apply] する。
+ */
+object DeckDensity {
+    private val dense = mutableStateOf(false)
+
+    /** App が設定 Flow から呼ぶ。値が変わる時のみ代入（DeckWeight.apply と同じ作法）。 */
+    fun apply(enabled: Boolean) { if (dense.value != enabled) dense.value = enabled }
+
+    val isDense: Boolean get() = dense.value
+
+    /** カラム間のガター（--column-gap） */
+    val ColumnGap: Dp get() = if (dense.value) 2.dp else DeckSpace.Sm
+    /** ノート行・通知行の内側の左右余白（--note-pad-x） */
+    val NotePadX: Dp get() = if (dense.value) DeckSpace.Sm else DeckSpace.Md
+    /** 同・上下（--note-pad-y） */
+    val NotePadY: Dp get() = if (dense.value) DeckSpace.Sm else DeckSpace.Md
+    /** 行内の間隔（アバター⇔本文・名前行⇔本文・本文⇔メディア。--note-gap） */
+    val NoteGap: Dp get() = if (dense.value) DeckSpace.Xs else DeckSpace.Sm
+    /** アクション行のボタンのタッチ領域（--action-size）。廃人でも 28dp 以上を保つ */
+    val ActionSize: Dp get() = if (dense.value) 28.dp else DeckDimens.TouchTargetSm
+    /** アクション行の上の追加余白（--action-row-my）。本文⇔アクション行は NoteGap + これ */
+    val ActionRowMy: Dp get() = if (dense.value) 0.dp else DeckSpace.Xs
+    /** タイムラインのアバター・通知の種別マーク列の幅（--avatar-size） */
+    val AvatarSize: Dp get() = if (dense.value) 28.dp else DeckDimens.AvatarSize
+    /**
+     * [#695] 廃人モードのアクション行（右寄せ）のボタン間隔。中心間隔を通常（TouchTargetSm + Xs）と
+     * 同じにして詰めすぎない（--touch-sm - --action-size + --sp-1）。
+     */
+    val DenseActionGap: Dp get() = DeckDimens.TouchTargetSm - ActionSize + DeckSpace.Xs
+}
+
 /** 角丸トークン。tokens.css --r-*（8/12/18/full）と 1対1。実装はこれへ完全スナップ。 */
 object DeckRadius {
     val Sm   = 8.dp

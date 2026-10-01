@@ -399,6 +399,7 @@ class EventRepository(
         // 表示サイズ（標準/大きめ/最大）を KV から復元。
         loadUiScale()
         loadBoldText()   // [#327]
+        loadDenseMode()  // [#675]
         loadNyanMode()   // [#378]
         loadDeveloperMode()   // [#351]
         loadNoteAccentStyle()
@@ -4465,6 +4466,19 @@ class EventRepository(
         boldTextState.value = q.getSetting(BOLD_TEXT_KEY).executeAsOneOrNull() == "1"
     }
 
+    // ---- [#675] 廃人モード（密度。既定OFF）----
+    // カラムの間隔・余白・行の高さを詰めて情報量を増やす。Web（#674）の density と同じく
+    // 端末ローカル設定で、#374 の SettingsSync ホワイトリストには入れない。値も Web と同じ normal/dense。
+    private val denseModeState = MutableStateFlow(false)
+    fun denseModeFlow(): StateFlow<Boolean> = denseModeState
+    fun setDenseMode(enabled: Boolean) {
+        denseModeState.value = enabled
+        putSettingAsync(DENSITY_KEY, if (enabled) "dense" else "normal")
+    }
+    private fun loadDenseMode() {
+        denseModeState.value = q.getSetting(DENSITY_KEY).executeAsOneOrNull() == "dense"
+    }
+
     // ---- [#378] にゃにゃにゃウイルス（オフ/自分のみ/全員。既定オフ）----
     // お遊びの猫化モード。**この端末の表示だけ**の演出で、発行イベントには一切影響しない。
     // 端末ローカル設定（#374 の SettingsSync ホワイトリストには入れない）。
@@ -5316,6 +5330,7 @@ class EventRepository(
         const val BOLD_TEXT_KEY = "appearance_bold_text"   // [#327]       // [#appearance] 表示サイズ（s/m/l）
         const val DEVELOPER_MODE_KEY = "developer_mode"   // [#351]
         const val NYAN_MODE_KEY = "ui:nyan_mode"   // [#378] にゃにゃにゃウイルス（off/self/all）
+        const val DENSITY_KEY = "ui:density"       // [#675] 廃人モード（normal/dense）
         const val NOTE_ACCENT_STYLE_KEY = "ui:note_accent"  // [#256][#257] 種別の視覚表示（none/line/bg）
         const val THEME_CUSTOM_BG = "ui:theme_custom_bg"         // [#258] カスタムテーマ 背景色
         const val THEME_CUSTOM_TEXT = "ui:theme_custom_text"     // [#258] カスタムテーマ 文字色

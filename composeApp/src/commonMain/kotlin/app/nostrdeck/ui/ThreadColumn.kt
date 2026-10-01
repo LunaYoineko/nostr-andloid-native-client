@@ -44,6 +44,7 @@ import app.nostrdeck.model.ReactionUi
 import app.nostrdeck.model.ThreadEntry
 import app.nostrdeck.model.ZapUi
 import app.nostrdeck.theme.DeckColors
+import app.nostrdeck.theme.DeckDensity
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -169,7 +170,8 @@ private fun FocusNoteMeta(note: NoteUi) {
     Text(
         if (client != null) "$time · ${stringResource(Res.string.thread_posted_via_fmt, client)}" else time,
         color = DeckColors.Text3, fontSize = DeckType.Label,
-        modifier = Modifier.padding(start = DeckSpace.Md, end = DeckSpace.Md, bottom = DeckSpace.Sm),
+        // [#675] Web ThreadRow .meta と同じく note-pad-x / note-gap（廃人モードで詰まる）。
+        modifier = Modifier.padding(start = DeckDensity.NotePadX, end = DeckDensity.NotePadX, bottom = DeckDensity.NoteGap),
     )
 }
 

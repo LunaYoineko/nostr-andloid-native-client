@@ -48,6 +48,7 @@ import app.nostrdeck.model.NotificationKind
 import app.nostrdeck.model.NotificationUi
 import app.nostrdeck.state.DeckState
 import app.nostrdeck.theme.DeckColors
+import app.nostrdeck.theme.DeckDensity
 import app.nostrdeck.theme.DeckDimens
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
@@ -259,59 +260,75 @@ fun NoticeRow(n: NotificationUi, selected: Boolean = false, onClick: () -> Unit,
                     drawRect(color = selBar, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height))
                 }
             }
-            .clickable(onClick = onClick).padding(DeckSpace.Md),
+            .clickable(onClick = onClick)
+            .padding(horizontal = DeckDensity.NotePadX, vertical = DeckDensity.NotePadY),   // [#675]
         verticalAlignment = Alignment.Top,
     ) {
-        // 左端の種別マーク。ここが縦に揃うので、探している種類を目で拾える。
-        // [#300] 列の幅は通常投稿のアバターと同じ AvatarSize。こうすると本体の開始位置が
-        // タイムラインと一致する（以前は 22dp 固定で 16dp 内側にずれていた）。マーク自体は
-        // 中央寄せするだけで拡大しない。
-        Box(
-            Modifier.width(DeckDimens.AvatarSize).padding(top = DeckSpace.Xs),
-            contentAlignment = Alignment.TopCenter,
-        ) {
-            KindMark(n)
+        // [#675] 廃人モードは NoteItem と同じ規則: 1行目 = 種別マーク + 見出し、本体はその下に全幅。
+        val dense = DeckDensity.isDense
+        if (!dense) {
+            // 左端の種別マーク。ここが縦に揃うので、探している種類を目で拾える。
+            // [#300] 列の幅は通常投稿のアバターと同じ AvatarSize。こうすると本体の開始位置が
+            // タイムラインと一致する（以前は 22dp 固定で 16dp 内側にずれていた）。マーク自体は
+            // 中央寄せするだけで拡大しない。
+            Box(
+                Modifier.width(DeckDimens.AvatarSize).padding(top = DeckSpace.Xs),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                KindMark(n)
+            }
+            Spacer(Modifier.width(DeckSpace.Sm))
         }
-        Spacer(Modifier.width(DeckSpace.Sm))
         Column(Modifier.weight(1f)) {
             // ---- 見出し行 ----
-            if (isReply) {
-                // 返信は「何への返信か」。対象は自分の投稿なのでアバターは付けない
-                // （本体側が投稿フォーマットでアバターを出すため、丸が縦に2つ並ぶのを避ける）。
-                Text(
-                    oneLine(n.targetSnippet.orEmpty()), color = DeckColors.Text3, fontSize = DeckType.Sub,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Avatar(
-                        n.actor.name, n.actor.pictureUrl,
-                        Modifier.clickable(onClick = onActorClick), size = 20.dp,
-                    )
-                    Spacer(Modifier.width(DeckSpace.Xs))
-                    // [#299] 残り幅は名前が全部取る（fill=true）。以前は名前と Spacer の
-                    // 両方に weight(1f) を掛けていたため余白が 50:50 に割られ、名前が短いほど
-                    // 時刻が左へ寄っていた。時刻は weight を持たないので常に右端に来る。
+            val heading: @Composable () -> Unit = {
+                if (isReply) {
+                    // 返信は「何への返信か」。対象は自分の投稿なのでアバターは付けない
+                    // （本体側が投稿フォーマットでアバターを出すため、丸が縦に2つ並ぶのを避ける）。
                     Text(
-                        n.actor.name, color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,
+                        oneLine(n.targetSnippet.orEmpty()), color = DeckColors.Text3, fontSize = DeckType.Sub,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f).clickable(onClick = onActorClick),
                     )
-                    if (n.kind == NotificationKind.ZAP) {
-                        Spacer(Modifier.width(DeckSpace.Xs))
-                        Text(
-                            "⚡ ${n.zapSats ?: 0}", color = DeckColors.Zap, fontSize = DeckType.Label,
-                            fontWeight = DeckWeight.Name, maxLines = 1,
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(
+                            n.actor.name, n.actor.pictureUrl,
+                            Modifier.clickable(onClick = onActorClick), size = 20.dp,
                         )
+                        Spacer(Modifier.width(DeckSpace.Xs))
+                        // [#299] 残り幅は名前が全部取る（fill=true）。以前は名前と Spacer の
+                        // 両方に weight(1f) を掛けていたため余白が 50:50 に割られ、名前が短いほど
+                        // 時刻が左へ寄っていた。時刻は weight を持たないので常に右端に来る。
+                        Text(
+                            n.actor.name, color = DeckColors.Text, fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).clickable(onClick = onActorClick),
+                        )
+                        if (n.kind == NotificationKind.ZAP) {
+                            Spacer(Modifier.width(DeckSpace.Xs))
+                            Text(
+                                "⚡ ${n.zapSats ?: 0}", color = DeckColors.Zap, fontSize = DeckType.Label,
+                                fontWeight = DeckWeight.Name, maxLines = 1,
+                            )
+                        }
+                        Spacer(Modifier.width(DeckSpace.Sm))
+                        HintText(relativeTime(n.createdAt))
                     }
-                    Spacer(Modifier.width(DeckSpace.Sm))
-                    HintText(relativeTime(n.createdAt))
                 }
             }
+            if (dense) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.width(DeckDensity.AvatarSize), contentAlignment = Alignment.Center) { KindMark(n) }
+                    Spacer(Modifier.width(DeckDensity.NoteGap))
+                    Box(Modifier.weight(1f)) { heading() }
+                }
+            } else {
+                heading()
+            }
 
-            Spacer(Modifier.size(DeckSpace.Sm))
+            Spacer(Modifier.size(DeckDensity.NoteGap))
 
-            // ---- 本体（字下げ = 種別マークの右側に収まる） ----
+            // ---- 本体（字下げ = 種別マークの右側に収まる。[#675] 廃人モードは全幅） ----
             if (isReply) {
                 val note = n.note
                 if (note != null) {

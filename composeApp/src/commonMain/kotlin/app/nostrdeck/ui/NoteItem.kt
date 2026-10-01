@@ -69,6 +69,7 @@ import nostr_deck_client.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.getString
 import app.nostrdeck.theme.DeckDimens
+import app.nostrdeck.theme.DeckDensity
 import app.nostrdeck.theme.scaledByText
 import app.nostrdeck.theme.DeckRadius
 import app.nostrdeck.theme.DeckSpace
@@ -205,32 +206,30 @@ fun NoteItem(
             modifier = Modifier.padding(start = DeckSpace.Md, end = DeckSpace.Md, top = DeckSpace.Sm),
         )
     }
-    Row(Modifier.fillMaxWidth().padding(horizontal = DeckSpace.Md, vertical = DeckSpace.Md)) {
-        // アバターを少し下げて名前の文字位置に揃える。
-        Avatar(note.author.name, note.author.pictureUrl, Modifier.padding(top = DeckSpace.Xs).then(authorTap),
-            size = DeckDimens.AvatarSize, pubkey = note.event.pubkey)   // [#378] 猫耳判定用
-        Spacer(Modifier.width(DeckSpace.Sm))
+    // [#675] 廃人モードは「1行目 = アバター + 名前 + 時刻、本文・メディア・アクション行はその下に全幅」。
+    // アバターを外側の Row から名前行の先頭へ移すだけで、本文側の構造は通常と共通にする。
+    val dense = DeckDensity.isDense
+    Row(Modifier.fillMaxWidth().padding(horizontal = DeckDensity.NotePadX, vertical = DeckDensity.NotePadY)) {
+        if (!dense) {
+            // アバターを少し下げて名前の文字位置に揃える。
+            Avatar(note.author.name, note.author.pictureUrl, Modifier.padding(top = DeckSpace.Xs).then(authorTap),
+                size = DeckDimens.AvatarSize, pubkey = note.event.pubkey)   // [#378] 猫耳判定用
+            Spacer(Modifier.width(DeckSpace.Sm))
+        }
         Column(Modifier.weight(1f)) {
-            // 名前+ハンドルを左、時刻は右端に固定（残り幅はグループが占有）。
-            Row(verticalAlignment = Alignment.Bottom) {
-                Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom) {
-                    Text(
-                        note.author.name, color = DeckColors.Text,
-                        fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false).then(authorTap),
-                    )
-                    Spacer(Modifier.width(DeckSpace.Xs))
-                    Text(
-                        note.author.handle, color = DeckColors.Text3, fontSize = DeckType.Label,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
+            if (dense) {
+                // [#675] 名前はアバターの縦中央に揃える（Web は上端揃え。ネイティブは行を低くできる中央揃え）。
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Avatar(note.author.name, note.author.pictureUrl, authorTap,
+                        size = DeckDensity.AvatarSize, pubkey = note.event.pubkey)
+                    Spacer(Modifier.width(DeckDensity.NoteGap))
+                    NoteMetaLine(note, authorTap, Modifier.weight(1f))
                 }
-                Spacer(Modifier.width(DeckSpace.Sm))
-                HintText(relativeTime(note.event.createdAt))
+            } else {
+                NoteMetaLine(note, authorTap)
             }
             // [施策4] 名前行(ヘッダ群)↔本文は Sm で段差を付け、テキスト羅列→UIブロック化。
-            Spacer(Modifier.size(DeckSpace.Sm))
+            Spacer(Modifier.size(DeckDensity.NoteGap))
             // [#5] NIP-36 コンテンツ警告: 未開封なら本文/メディアを隠して警告のみ表示。
             val cw = note.contentWarning
             if (cw != null && !cwRevealed) {
@@ -254,7 +253,7 @@ fun NoteItem(
             // [#356] 翻訳は原文の下に別ブロックで表示する（原文は残し、突き合わせて読めるように）。
             // 初回はモデルのダウンロードが走り数秒かかることがあるため、その間はスピナーを出す。
             if (translating || (showTranslation && translation != null)) {
-                Spacer(Modifier.size(DeckSpace.Sm))
+                Spacer(Modifier.size(DeckDensity.NoteGap))
                 Column(
                     Modifier.fillMaxWidth()
                         .clip(RoundedCornerShape(DeckRadius.Sm))
@@ -282,13 +281,13 @@ fun NoteItem(
 
             // [M8-repost] 引用リポスト（q タグ）の埋め込みカード（従来どおり）
             note.quoted?.let {
-                Spacer(Modifier.size(DeckSpace.Sm))
+                Spacer(Modifier.size(DeckDensity.NoteGap))
                 QuotedNoteCard(it)
             }
 
             // 画像: 1枚=単一 / 複数=グリッド / 10枚以上=カルーセル。タップで Lightbox。
             if (note.images.isNotEmpty()) {
-                Spacer(Modifier.size(DeckSpace.Sm))
+                Spacer(Modifier.size(DeckDensity.NoteGap))
                 NoteImages(note.images, imeta = note.imeta)
             }
             // [M14] リンク埋め込み（YouTube/Spotify/OGP）。設定で表示可否/画像読込を制御。
@@ -297,7 +296,7 @@ fun NoteItem(
             // そちらを渡すとインラインプレイヤーが出なくなる。
             LinkEmbeds(
                 note.event.content, tags = note.event.tags,
-                imeta = note.imeta, modifier = Modifier.padding(top = DeckSpace.Sm),
+                imeta = note.imeta, modifier = Modifier.padding(top = DeckDensity.NoteGap),
             )
             // [#217] 本文が参照する naddr(kind:30023 長文記事)を OGP 風カードで展開。
             NoteNaddrEmbeds(note.event.content)
@@ -305,58 +304,68 @@ fun NoteItem(
             // [#423] 自分の投稿で受理を確認できていないもの。アクション行は幅が埋まっている(#348)ので
             // 別の行に出す。押すと [再送] [下書きに戻す]。
             if (note.unsent && note.event.pubkey == me && repo != null) {
-                Spacer(Modifier.size(DeckSpace.Sm))
+                Spacer(Modifier.size(DeckDensity.NoteGap))
                 UnsentChip(note.event.id, repo)
             }
             // [施策4] 本文/メディア↔アクション群は Md で明確に分離（別ブロック化）。
-            Spacer(Modifier.size(DeckSpace.Md))
+            // [#675] = NoteGap + ActionRowMy（通常 8+4=12dp / 廃人 4+0=4dp。Web の .main gap + .footer margin-top）。
+            Spacer(Modifier.size(DeckDensity.NoteGap + DeckDensity.ActionRowMy))
             // アクションはアイコンのみ・左揃え。返信/リポスト/♡/絵文字を左に密に、Zap だけ右端へ。
             // 40dpタッチ箱の内側余白ぶん左へ寄せ、先頭アイコンの左端を本文テキストに光学的に揃える。
-            val iconInset = (DeckDimens.TouchTargetSm - DeckDimens.IconMd) / 2
+            // [#695][#675] 廃人モードは返信〜Zap を右寄せ（左に隙間）にして右手の親指で届くようにし、
+            // ⋯ は右端のまま。ボタン群と ⋯ の間は Xs（Web と同じ）。光学合わせは右側（⋯ の右端を本文の右端へ）。
+            val iconInset = (DeckDensity.ActionSize - DeckDimens.IconMd) / 2
             // [reaction] アクションボタンの左右間隔を +20%（DeckSpace.Xs）広げる。
             Row(
-                Modifier.fillMaxWidth().offset(x = -iconInset),
+                Modifier.fillMaxWidth().offset(x = if (dense) iconInset else -iconInset),
                 horizontalArrangement = Arrangement.spacedBy(DeckSpace.Xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ActionButton(Icons.AutoMirrored.Outlined.Reply, DeckColors.Text3, onClick = onReply)
-                Box {
-                    ActionButton(
-                        Icons.Outlined.Repeat,
-                        if (note.mineReposted) DeckColors.Boost else DeckColors.Text3,
-                        onClick = { repostMenu = true },
-                    )
-                    DeckDropdownMenu(expanded = repostMenu, onDismissRequest = { repostMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.note_repost)) },
-                            onClick = { repostMenu = false; scope.launch { repo?.publishRepost(note.event) } },
+                if (dense) Spacer(Modifier.weight(1f))
+                // 返信〜Zap。廃人モードは中心間隔を通常（TouchTargetSm + Xs）と同じにして詰めすぎない。
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(if (dense) DeckDensity.DenseActionGap else DeckSpace.Xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ActionButton(Icons.AutoMirrored.Outlined.Reply, DeckColors.Text3, onClick = onReply)
+                    Box {
+                        ActionButton(
+                            Icons.Outlined.Repeat,
+                            if (note.mineReposted) DeckColors.Boost else DeckColors.Text3,
+                            onClick = { repostMenu = true },
                         )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.note_quote_repost)) },
-                            onClick = { repostMenu = false; onQuote?.invoke() },
+                        DeckDropdownMenu(expanded = repostMenu, onDismissRequest = { repostMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(Res.string.note_repost)) },
+                                onClick = { repostMenu = false; scope.launch { repo?.publishRepost(note.event) } },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(Res.string.note_quote_repost)) },
+                                onClick = { repostMenu = false; onQuote?.invoke() },
+                            )
+                        }
+                    }
+                    // デフォルトリアクション（設定で ♡/☆/絵文字を変更可）。押すと送信し、押下状態になる。
+                    DefaultReactionButton(
+                        content = defaultReaction.first, active = note.mineReacted,
+                        onClick = {
+                            // 付与済み→取り消し(kind:5)は確認を挟む。未付与→即送信。絵文字ピッカーは別途何度でも可。
+                            if (note.mineReacted) confirmUnreact = true
+                            else scope.launch { repo?.reactWithDefault(note.event) }
+                        },
+                    )
+                    // 絵文字リアクション（ピッカーから任意の Unicode/カスタム絵文字で kind:7）。
+                    ActionButton(Icons.Outlined.AddReaction, DeckColors.Text3, onClick = { showReactionPicker = true })
+                    // Zap は絵文字の隣。lud16 があれば送信可、Zap 受領があれば合計 sats を表示。
+                    if (!note.author.lud16.isNullOrBlank() || zapSats > 0) {
+                        ZapAction(
+                            sats = zapSats,
+                            tint = if (zapSats > 0) DeckColors.Zap else DeckColors.Text3,
+                            onClick = if (!note.author.lud16.isNullOrBlank()) ({ showZap = true }) else null,
                         )
                     }
                 }
-                // デフォルトリアクション（設定で ♡/☆/絵文字を変更可）。押すと送信し、押下状態になる。
-                DefaultReactionButton(
-                    content = defaultReaction.first, active = note.mineReacted,
-                    onClick = {
-                        // 付与済み→取り消し(kind:5)は確認を挟む。未付与→即送信。絵文字ピッカーは別途何度でも可。
-                        if (note.mineReacted) confirmUnreact = true
-                        else scope.launch { repo?.reactWithDefault(note.event) }
-                    },
-                )
-                // 絵文字リアクション（ピッカーから任意の Unicode/カスタム絵文字で kind:7）。
-                ActionButton(Icons.Outlined.AddReaction, DeckColors.Text3, onClick = { showReactionPicker = true })
-                // Zap は絵文字の隣。lud16 があれば送信可、Zap 受領があれば合計 sats を表示。
-                if (!note.author.lud16.isNullOrBlank() || zapSats > 0) {
-                    ZapAction(
-                        sats = zapSats,
-                        tint = if (zapSats > 0) DeckColors.Zap else DeckColors.Text3,
-                        onClick = if (!note.author.lud16.isNullOrBlank()) ({ showZap = true }) else null,
-                    )
-                }
-                Spacer(Modifier.weight(1f))
+                if (!dense) Spacer(Modifier.weight(1f))
                 // 3点リーダー（追加操作）は右端。ミュート/各種コピー。
                 Box {
                     ActionButton(Icons.Outlined.MoreHoriz, DeckColors.Text3, onClick = { moreMenu = true })
@@ -674,7 +683,7 @@ private fun ZapAction(sats: Long, tint: Color, onClick: (() -> Unit)?) {
             .padding(horizontal = if (sats > 0) DeckSpace.Xs else 0.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(DeckDimens.TouchTargetSm), contentAlignment = Alignment.Center) {   // [#348] 領域は40dpのまま
+        Box(Modifier.size(DeckDensity.ActionSize), contentAlignment = Alignment.Center) {   // [#348] 領域は40dpのまま（[#675] 廃人 28dp）
             Icon(Icons.Outlined.Bolt, contentDescription = "Zap", tint = tint, modifier = Modifier.size(DeckDimens.IconMd.scaledByText()))
         }
         if (sats > 0) {
@@ -700,7 +709,7 @@ private fun ActionButton(icon: ImageVector, tint: Color, onClick: (() -> Unit)? 
         // [#339][#348] グリフだけ文字サイズに追従させ、タッチ領域は 40dp のまま。
         // 領域ごと拡大するとアクション行(元々264/270dpで満杯 #312)が fontScale 1.3 で
         // 344dp まで膨らみ、Zap のある投稿で末尾の ⋯ が押し出されて押せなくなる。
-        Modifier.size(DeckDimens.TouchTargetSm)
+        Modifier.size(DeckDensity.ActionSize)   // [#675] 廃人モードは 28dp
             .let { if (onClick != null) it.clip(CircleShape).clickable(onClick = onClick) else it },
         contentAlignment = Alignment.Center,
     ) {
@@ -737,7 +746,7 @@ private fun DefaultReactionButton(content: String, active: Boolean, onClick: () 
         else -> Icons.Outlined.FavoriteBorder
     }
     Box(
-        Modifier.size(DeckDimens.TouchTargetSm).clip(CircleShape).clickable {
+        Modifier.size(DeckDensity.ActionSize).clip(CircleShape).clickable {   // [#675]
             if (!active) pending = true   // 楽観的に押下状態へ
             onClick()
         },
@@ -749,6 +758,31 @@ private fun DefaultReactionButton(content: String, active: Boolean, onClick: () 
         } else {
             Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(DeckDimens.IconMd))
         }
+    }
+}
+
+/**
+ * ノートの名前行（名前 + ハンドルを左、時刻は右端に固定。残り幅はグループが占有）。
+ * [#675] 通常はアバターの右の列の先頭、廃人モードはアバターと同じ行に置くので切り出している。
+ */
+@Composable
+private fun NoteMetaLine(note: NoteUi, authorTap: Modifier, modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.Bottom) {
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom) {
+            Text(
+                note.author.name, color = DeckColors.Text,
+                fontSize = DeckType.Sub, fontWeight = DeckWeight.Name,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false).then(authorTap),
+            )
+            Spacer(Modifier.width(DeckSpace.Xs))
+            Text(
+                note.author.handle, color = DeckColors.Text3, fontSize = DeckType.Label,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(DeckSpace.Sm))
+        HintText(relativeTime(note.event.createdAt))
     }
 }
 

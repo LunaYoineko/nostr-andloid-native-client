@@ -25,6 +25,7 @@ import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
 import app.nostrdeck.theme.DeckWeight
+import app.nostrdeck.theme.DeckDensity
 import app.nostrdeck.data.SampleData
 import app.nostrdeck.signer.SignerProvider
 import app.nostrdeck.state.DeckState
@@ -160,6 +161,10 @@ fun App(
         val boldText by (repository?.boldTextFlow()?.collectAsState()
             ?: remember { mutableStateOf(false) })
         DeckWeight.apply(boldText)
+        // [#675] 廃人モード。DeckDensity も snapshot state なので apply するだけで全体に効く。
+        val denseMode by (repository?.denseModeFlow()?.collectAsState()
+            ?: remember { mutableStateOf(false) })
+        DeckDensity.apply(denseMode)
         // [#378] にゃにゃにゃウイルス。Nyan は snapshot state なので apply するだけで
         // 猫耳(Avatar)とにゃいず(noteAnnotated)の両方に効く。表示専用・発行には無関係。
         val nyanMode by (repository?.nyanModeFlow()?.collectAsState()
