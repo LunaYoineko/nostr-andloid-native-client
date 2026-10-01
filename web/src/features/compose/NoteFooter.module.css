@@ -34,6 +34,20 @@
   max-width: var(--action-row-max);
 }
 
+/* [#692] タッチ端末では右手の親指で届くよう、返信〜Zap を右端の ⋯ の隣に右寄せで詰める
+   （PC は #683 の均等配置のまま。タップ領域 --action-size は変えない） */
+@media (hover: none) {
+  .actions {
+    justify-content: flex-end;
+  }
+
+  .primaryActions {
+    justify-content: flex-end;
+    flex: 0 0 auto;
+    max-width: 100%;
+  }
+}
+
 .action {
   display: grid;
   place-items: center;
