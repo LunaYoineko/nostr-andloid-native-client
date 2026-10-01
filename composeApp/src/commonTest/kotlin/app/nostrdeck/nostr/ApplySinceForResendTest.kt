@@ -37,4 +37,16 @@ class ApplySinceForResendTest {
         val out = applySinceForResend(listOf(stream), lastEventAt = 30, marginSec = 60)
         assertEquals(0L, out.single().since)
     }
+
+    // [#547] gift wrap は created_at が最大2日過去へずらされるので、差分にすると取りこぼす。
+    @Test
+    fun kind1059を含むフィルタにはsinceを付けない() {
+        val giftWrap = Filter(kinds = listOf(1059), pTags = listOf("me"))
+        val mixed = Filter(kinds = listOf(4, 1059), pTags = listOf("me"))
+        val legacyDm = Filter(kinds = listOf(4), pTags = listOf("me"))
+        val out = applySinceForResend(listOf(giftWrap, mixed, legacyDm), lastEventAt = 1_000_000, marginSec = 60)
+        assertEquals(giftWrap, out[0])
+        assertEquals(mixed, out[1])
+        assertEquals(999_940L, out[2].since)   // kind:4 は created_at が実時刻なので差分のまま
+    }
 }

@@ -36,6 +36,9 @@ private const val FUTURE_SKEW_SEC = 300L
  * [#365] 再接続時の張り直し用フィルタ調整（純ロジック・テスト可能）。
  * [lastEventAt]（その購読で受信済みの最大 created_at）があれば、since/until が明示されていない
  * フィルタへ `since = lastEventAt - margin` を差し込む。無ければ従来どおり全量。
+ * [#547] kind:1059 を含むフィルタには付けない。gift wrap の created_at は最大2日過去へずらされる
+ * （NIP-59）ため、切断中に届いた DM が since より古くなり取りこぼす。毎回全量を取り直し、
+ * 再復号は processedWraps（処理済み id）で防ぐ。
  */
 internal fun applySinceForResend(
     filters: List<Filter>,
@@ -44,7 +47,9 @@ internal fun applySinceForResend(
 ): List<Filter> {
     if (lastEventAt == null) return filters
     val since = (lastEventAt - marginSec).coerceAtLeast(0)
-    return filters.map { if (it.since != null || it.until != null) it else it.copy(since = since) }
+    return filters.map {
+        if (it.since != null || it.until != null || it.kinds?.contains(1059) == true) it else it.copy(since = since)
+    }
 }
 
 /** [#364] 購読(subId)単位の受信量。EVENT フレームのバイト数を購読に帰属させた概算。 */
@@ -212,6 +217,7 @@ class RelayClient(
      *  - 元のフィルタに since/until が明示されている場合は上書きしない
      *  - limit は安全上限としてそのまま残す（since が効けば通常は届かない）
      *  - 受信記録が無い購読（初回接続・AUTH 直後リセット等）は従来どおり全量
+     *  - [#547] kind:1059（gift wrap）を含むフィルタは常に全量（created_at がランダム化されるため）
      * マージンは順不同で届く遅延イベントの取りこぼし対策。重複分はローカル DB が
      * イベント id で弾くため、通信は増えても処理コストはほぼ無い。
      */
