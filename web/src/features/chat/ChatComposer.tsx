@@ -1,6 +1,7 @@
 import { npubEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { type MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { t } from "../../i18n";
 import { oneLine } from "../../lib/content/labels";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { currentSigner, useSession } from "../../signer/session";
@@ -41,9 +42,6 @@ const MENTION_DELAY_MS = 120;
 /** 候補の件数（ネイティブ ChannelRoomColumn の Composer: メンション 4・絵文字 8） */
 const MENTION_MAX = 4;
 const EMOJI_MAX = 8;
-/** ネイティブ chat_upload_failed */
-const UPLOAD_FAILED = "添付をアップロードできませんでした。設定 → メディアサーバーを確認してください。";
-const SEND_FAILED = "メッセージを送れませんでした";
 /** 添付を選ぶ input の accept（スマホではカメラ / ギャラリーが開く） */
 const ATTACH_ACCEPT = "image/*,video/*";
 
@@ -190,7 +188,7 @@ export function ChatComposer({
           urls = media.map((m) => m.url);
         } catch (e) {
           console.warn("[chat] 添付のアップロードに失敗", e);
-          showToast(UPLOAD_FAILED);
+          showToast(t("chat_upload_failed"));
           return;
         }
       }
@@ -210,7 +208,7 @@ export function ChatComposer({
       onSent?.();
     } catch (e) {
       console.warn("[chat] 送信に失敗", e);
-      showToast(SEND_FAILED);
+      showToast(t("dm_send_failed"));
     } finally {
       setSending(false);
     }

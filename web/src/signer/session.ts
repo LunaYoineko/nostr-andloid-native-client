@@ -2,6 +2,7 @@ import { nsecEncode } from "nostr-tools/nip19";
 import { getPublicKey } from "nostr-tools/pure";
 import { create } from "zustand";
 import { requestPersistentStorage } from "../db";
+import { t } from "../i18n";
 import { createNip07Signer, type Signer } from "../nostr/signer";
 import { showToast } from "../ui/toast";
 import { createLocalSigner } from "./localSigner";
@@ -278,9 +279,6 @@ function nip46LoginError(e: unknown): LoginError {
   return new LoginError(e instanceof Nip46Error ? e.reason : "rejected", { cause: e });
 }
 
-/** パスキーで解錠するまで署名・復号を拒否するときのトースト（ネイティブの NosskeyLockedException に相当） */
-const PASSKEY_LOCKED_MESSAGE = "パスキーで解錠してください";
-
 /**
  * いまのセッションの署名者。未ログインなら null。署名者の解決はここ 1 か所。
  * [#543] local 行がパスキー(WebAuthn PRF)で保護されていて未解錠のときも、既存の「署名者が無い」経路と
@@ -294,7 +292,8 @@ export function currentSigner(): Signer | null {
     const passkey = getPasskeyVault();
     if (passkey.isProtected()) {
       if (!passkey.isUnlocked()) {
-        showToast(PASSKEY_LOCKED_MESSAGE);
+        // パスキーで解錠するまで署名・復号を拒否する（ネイティブの NosskeyLockedException に相当）
+        showToast(t("web_passkey_unlock_request"));
         return null;
       }
       return createLocalSigner(pubkey, passkey.asKeyVault());

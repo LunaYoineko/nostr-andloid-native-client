@@ -1,5 +1,6 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { Virtuoso } from "react-virtuoso";
+import { useT } from "../../i18n";
 import { type ColumnSpec, defaultFilter } from "../../lib/columns";
 import { MyReactionRow } from "../actions/MyReactionRow";
 import { useColumnFeed } from "../deck/useColumnFeed";
@@ -20,7 +21,8 @@ const FAVS_SPEC: ColumnSpec = {
 type FooterContext = { loadingOlder: boolean };
 
 function Footer({ context }: { context?: FooterContext }) {
-  return context?.loadingOlder ? <p className={styles.more}>過去を読み込み中…</p> : null;
+  const t = useT();
+  return context?.loadingOlder ? <p className={styles.more}>{t("feed_loading_older")}</p> : null;
 }
 
 const COMPONENTS = { Footer };
@@ -30,12 +32,13 @@ const COMPONENTS = { Footer };
  * 下端で過去を読む（無限スクロール）。
  */
 export function FavsSection() {
+  const t = useT();
   const { loading, events, loadingOlder, loadOlder } = useColumnFeed(FAVS_SPEC);
   if (events.length === 0) {
-    if (loading) return <p className={styles.empty}>読み込み中…</p>;
+    if (loading) return <p className={styles.empty}>{t("loading")}</p>;
     return (
       <>
-        <p className={styles.empty}>ふぁぼした投稿はまだありません。</p>
+        <p className={styles.empty}>{t("favs_empty")}</p>
         <p className={styles.hint}>各投稿の ♡ でふぁぼできます。</p>
       </>
     );

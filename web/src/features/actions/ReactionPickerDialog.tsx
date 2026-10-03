@@ -1,5 +1,6 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { useT } from "../../i18n";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { useSession } from "../../signer/session";
@@ -28,6 +29,7 @@ export function ReactionPickerDialog({
   onPick(content: string, imageUrl: string | null): void;
   onClose(): void;
 }) {
+  const t = useT();
   const [query, setQuery] = useState("");
   const [recent] = useState(loadRecentEmojis);
   const me = useSession((s) => s.pubkey);
@@ -129,7 +131,7 @@ export function ReactionPickerDialog({
             )}
           </>
         ) : matchedCustom.length === 0 && matchedUnicode.length === 0 ? (
-          <p className={styles.empty}>一致する絵文字がありません</p>
+          <p className={styles.empty}>{t("picker_no_match")}</p>
         ) : (
           <>
             {matchedCustom.length > 0 && (

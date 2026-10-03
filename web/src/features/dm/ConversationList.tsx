@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForProfile } from "../../lib/content/labels";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { badgeText } from "../../ui/badge";
@@ -27,6 +28,7 @@ export function ConversationList({
   showBanners: boolean;
   showNewRow: boolean;
 }) {
+  const t = useT();
   const conversations = useConversations();
   const loaded = useDm((s) => s.loaded);
   const [composing, setComposing] = useState(false);
@@ -49,7 +51,7 @@ export function ConversationList({
         />
       )}
       {conversations.length === 0 ? (
-        <p className={styles.empty}>{loaded ? "まだ会話がありません" : "読み込み中…"}</p>
+        <p className={styles.empty}>{loaded ? t("dm_empty") : t("loading")}</p>
       ) : (
         <ul className={styles.rows}>
           {conversations.map((conversation) => (

@@ -1,6 +1,7 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useEffect, useMemo, useState } from "react";
+import { t } from "../../i18n";
 import { clientNameOf } from "../../lib/content/tags";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
@@ -249,21 +250,21 @@ function ZapAction({ event }: { event: NostrEvent }) {
 /** ミュート・解除の失敗の文言 */
 function muteFailureMessage(e: unknown): string {
   if (e instanceof MuteListError && e.reason === "no-mute-list") {
-    return "最新のミュートリストを取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
+    return t("web_mute_no_base");
   }
   if (e instanceof MuteListError && e.reason === "no-cipher") {
-    return "この署名方式は暗号化に対応していないため、非公開でミュートできません（公開では追加しません）";
+    return t("web_mute_no_cipher");
   }
   // ネイティブ note_mute_locked
-  return "ミュートリストが変更できません（ロック中の可能性）";
+  return t("note_mute_locked");
 }
 
 /** ブックマーク・固定の失敗の文言（#531。#478 と同じデータ保護の理由） */
 function ownListFailureMessage(e: unknown): string {
   if (e instanceof OwnListError && e.reason === "unreachable") {
-    return "最新の状態を取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
+    return t("web_own_list_no_base");
   }
-  return "変更できませんでした";
+  return t("mute_change_failed");
 }
 
 /**
@@ -291,8 +292,8 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
     toggleFollow(me, event.pubkey, action).catch((e) => {
       showToast(
         e instanceof FollowError && e.reason === "no-contacts"
-          ? "フォローリストを取得できませんでした。通信状態を確認してもう一度お試しください"
-          : "フォローを更新できませんでした",
+          ? t("web_follow_no_list")
+          : t("web_follow_update_failed"),
       );
     });
   }
@@ -301,7 +302,7 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
     if (!me) return;
     const run = action === "mute" ? muteUser(me, event.pubkey) : unmuteUser(me, event.pubkey);
     run.then(
-      () => showToast(action === "mute" ? "ミュートしました" : "ミュートを解除しました"),
+      () => showToast(action === "mute" ? t("muted_toast") : t("note_unmuted_toast")),
       (e) => showToast(muteFailureMessage(e)),
     );
   }
@@ -309,7 +310,7 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
   function bookmark(action: "bookmark" | "unbookmark") {
     if (!me) return;
     toggleBookmark(me, event.id, action).then(
-      () => showToast(action === "bookmark" ? "ブックマークしました" : "ブックマークを解除しました"),
+      () => showToast(action === "bookmark" ? t("web_bookmark_added") : t("web_bookmark_removed")),
       (e) => showToast(ownListFailureMessage(e)),
     );
   }
@@ -317,7 +318,7 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
   function pin(action: "pin" | "unpin") {
     if (!me) return;
     togglePinned(me, event.id, action).then(
-      () => showToast(action === "pin" ? "プロフィールに固定しました" : "固定を解除しました"),
+      () => showToast(action === "pin" ? t("web_pin_added") : t("web_pin_removed")),
       (e) => showToast(ownListFailureMessage(e)),
     );
   }
@@ -352,7 +353,7 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
       viewJson: () => setDialog("json"),
       translate: () => {
         void requestTranslation(event.id, plainTextOf(event)).then((ok) => {
-          if (!ok) showToast("翻訳できませんでした");
+          if (!ok) showToast(t("note_translate_failed"));
         });
       },
       hideTranslation: () => hideTranslation(event.id),
@@ -399,7 +400,7 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
           onConfirm={() => {
             setDialog(null);
             void requestDelete(event).then((ok) =>
-              showToast(ok ? "削除をリクエストしました" : "削除をリクエストできませんでした"),
+              showToast(ok ? t("note_delete_sent") : t("note_delete_failed")),
             );
           }}
           onDismiss={() => setDialog(null)}

@@ -2,6 +2,7 @@ import { getSeenRelays } from "applesauce-core/helpers/relays";
 import type { NostrEvent } from "nostr-tools/pure";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import { useT } from "../../i18n";
 import { avatarInitial, avatarShade } from "../../lib/avatar";
 import { hrefForEvent, hrefForProfile } from "../../lib/content/labels";
 import { isBlankContent, parseNoteContent, withoutLinks, withoutMention } from "../../lib/content/parse";
@@ -122,6 +123,7 @@ function PostItem({
 }
 
 function RepostItem({ repost, openable }: { repost: NostrEvent; openable: boolean }) {
+  const t = useT();
   const original = useRepostedEvent(repost);
   const ref = useRef<HTMLElement>(null);
   // 開く先は元投稿（未解決の間は開かない）
@@ -148,7 +150,7 @@ function RepostItem({ repost, openable }: { repost: NostrEvent; openable: boolea
       {original ? (
         <NoteBody event={original} threadHref={href} />
       ) : (
-        <p className={styles.missing}>元の投稿を読み込み中…</p>
+        <p className={styles.missing}>{t("web_note_loading_original")}</p>
       )}
     </article>
   );

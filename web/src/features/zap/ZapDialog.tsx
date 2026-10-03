@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { t } from "../../i18n";
 import { requestZapInvoice } from "../../lib/lnurl";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { QrCode } from "../../ui/QrCode";
@@ -24,7 +25,7 @@ const DEFAULT_AMOUNT = 100;
 // ネイティブ zap_invoice_failed
 export const ZAP_INVOICE_FAILED = "invoice を取得できませんでした。lud16/リレー設定を確認してください。";
 // ネイティブ nwc_paid
-export const ZAP_PAID = "Zapを送金しました ⚡";
+export const ZAP_PAID = t("nwc_paid");
 // ネイティブ nwc_via（#537）
 const NWC_VIA = "接続済みウォレットからアプリ内で送金します（毎回確認）。";
 // ネイティブ nwc_pay_confirm_title

@@ -2,6 +2,7 @@ import type { EventPointer } from "applesauce-core/helpers/pointers";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useState } from "react";
 import { Link } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForEvent } from "../../lib/content/labels";
 import { isBlankContent, parseNoteContent } from "../../lib/content/parse";
 import { contentWarningOf } from "../../lib/content/tags";
@@ -27,8 +28,9 @@ export function QuoteCard({
   encoded: string | null;
   compact?: boolean;
 }) {
+  const t = useT();
   const quoted = useEventByPointer(pointer);
-  if (!quoted) return <p className={`${styles.quote} ${styles.loading}`}>引用元を読み込み中…</p>;
+  if (!quoted) return <p className={`${styles.quote} ${styles.loading}`}>{t("web_quote_loading")}</p>;
   return (
     <Link className={styles.quote} to={hrefForEvent(encoded ?? pointer)} aria-label="引用元の投稿を開く">
       <QuotedNote quoted={quoted} compact={compact} />

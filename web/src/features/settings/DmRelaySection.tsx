@@ -2,6 +2,7 @@ import { use$ } from "applesauce-react/hooks/use-$";
 import type { NostrEvent } from "nostr-tools/pure";
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { map } from "rxjs";
+import { t } from "../../i18n";
 import { displayRelayUrl } from "../../nostr/outbox";
 import { useRelays } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
@@ -31,12 +32,12 @@ export function useOwnDmRelays(): { latest: NostrEvent | null | undefined; urls:
 /** 公開の失敗の文言（relayList.ts の failureMessage と同じ考え方） */
 function failureMessage(e: unknown): string {
   if (e instanceof DmRelayListError && e.reason === "no-relay-list") {
-    return "最新のDMリレーを取得できなかったため、公開しませんでした。接続を確認してもう一度お試しください";
+    return t("web_dmrelays_no_base");
   }
   if (e instanceof DmRelayListError && e.reason === "stale") {
-    return "DMリレーが更新されていたため、公開しませんでした。最新の内容を表示したので、確認してもう一度操作してください";
+    return t("web_dmrelays_stale");
   }
-  return "公開に失敗しました（鍵を確認してください）";
+  return t("relays_publish_failed");
 }
 
 /**
@@ -56,7 +57,7 @@ export function DmRelaySection() {
     setBusy(true);
     try {
       await publishDmRelayList(me, next, latest?.id ?? null);
-      showToast("DMリレーを公開しました");
+      showToast(t("web_dmrelays_published"));
     } catch (e) {
       showToast(failureMessage(e));
     } finally {

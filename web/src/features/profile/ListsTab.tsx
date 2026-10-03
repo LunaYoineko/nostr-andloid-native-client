@@ -1,5 +1,6 @@
 import type { EventPointer } from "applesauce-core/helpers/pointers";
 import { useState } from "react";
+import { useT } from "../../i18n";
 import { buildListColumn } from "../../lib/columns";
 import { proxied } from "../../lib/imageProxy";
 import { unixNow } from "../../lib/time";
@@ -22,11 +23,12 @@ export const LIST_NOTES_SHOWN = 30;
  * 対象の投稿（イベント id）。a タグ（記事等）は件数には数えるが、記事タブが無いのでここでは出さない（#534）。
  */
 export function ListsTab({ pubkey }: { pubkey: string }) {
+  const t = useT();
   const { loading, sets } = useProfileLists(pubkey);
   return (
     <div role="tabpanel" id="profile-tabpanel" className={styles.own}>
       {sets.length === 0 ? (
-        <p className={styles.empty}>{loading ? "読み込み中…" : "公開されているリストはありません"}</p>
+        <p className={styles.empty}>{loading ? t("loading") : t("profile_no_lists")}</p>
       ) : (
         <ul className={styles.list}>
           {sets.map((set) => (
@@ -90,8 +92,9 @@ function ListSetRow({ set }: { set: Nip51Set }) {
 
 /** ブックマークセットの 1 件（イベント id を解決して投稿として描く。届くまではネイティブと同じ md_resolving。P5） */
 function BookmarkedNote({ id }: { id: string }) {
+  const t = useT();
   const pointer: EventPointer = { id };
   const event = useEventByPointer(pointer);
-  if (!event) return <p className={styles.loading}>参照を解決中…</p>;
+  if (!event) return <p className={styles.loading}>{t("md_resolving")}</p>;
   return <NoteItem event={event} />;
 }

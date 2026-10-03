@@ -1,6 +1,7 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { type ListRange, Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { t, useT } from "../../i18n";
 import { PullToRefreshIndicator } from "../../ui/PullToRefreshIndicator";
 import { usePullToRefresh } from "../../ui/usePullToRefresh";
 import { KbRow, useKbList } from "../keyboard/KbList";
@@ -32,7 +33,8 @@ type ListContext = { loadingOlder: boolean; header?: ReactNode };
 
 /** 末尾の「過去を読み込み中…」 */
 function OlderFooter({ context }: { context?: ListContext }) {
-  return context?.loadingOlder ? <p className={styles.empty}>過去を読み込み中…</p> : null;
+  const t = useT();
+  return context?.loadingOlder ? <p className={styles.empty}>{t("feed_loading_older")}</p> : null;
 }
 
 /**
@@ -63,7 +65,7 @@ export function Timeline<T extends { id: string } = NostrEvent>({
   loading,
   onEndReached,
   loadingOlder = false,
-  emptyText = "投稿がありません",
+  emptyText = t("feed_empty"),
   renderItem,
   postOf,
   header,
@@ -83,6 +85,7 @@ export function Timeline<T extends { id: string } = NostrEvent>({
   /** 引っ張って更新（#601） */
   onRefresh?: () => void;
 }) {
+  const t = useT();
   // renderItem を省くのは投稿の一覧だけ（T = NostrEvent）
   const render = renderItem ?? (renderNote as unknown as (item: T) => ReactNode);
   const toPost = postOf ?? (renderItem ? undefined : (item: T) => item as unknown as NostrEvent);
@@ -137,7 +140,7 @@ export function Timeline<T extends { id: string } = NostrEvent>({
       <div className={styles.timeline} ref={scrollerRef}>
         <PullToRefreshIndicator progress={progress} refreshing={refreshing} />
         {header}
-        <p className={styles.empty}>{loading ? "読み込み中…" : emptyText}</p>
+        <p className={styles.empty}>{loading ? t("loading") : emptyText}</p>
       </div>
     );
   }

@@ -1,5 +1,6 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { t, useT } from "../../i18n";
 import { proxied } from "../../lib/imageProxy";
 import { refetchOwnReplaceable } from "../../nostr/ownReplaceable";
 import { eventStore } from "../../nostr/store";
@@ -18,17 +19,15 @@ import {
 import styles from "./ProfileEditSection.module.css";
 import sectionStyles from "./SettingsSections.module.css";
 
-const UPLOAD_FAILED = "画像をアップロードできませんでした。設定 → メディアサーバーを確認してください。";
-
 /** 保存の失敗の文言 */
 function failureMessage(e: unknown): string {
   if (e instanceof ProfileEditError && e.reason === "unreachable") {
-    return "リレーから最新のプロフィールを取得できませんでした。接続を確認してください";
+    return t("web_profile_edit_no_base");
   }
   if (e instanceof ProfileEditError && e.reason === "stale") {
-    return "別の端末でプロフィールが更新されています。開き直してから編集してください";
+    return t("web_profile_edit_stale");
   }
-  return "プロフィールを保存できませんでした。ログイン/署名の状態を確認して、もう一度お試しください。";
+  return t("profile_save_failed");
 }
 
 type ImageField = "picture" | "banner";
@@ -49,6 +48,7 @@ export function ProfileEditSection() {
 }
 
 function ProfileEditForm({ me }: { me: string }) {
+  const t = useT();
   const latest = use$(() => eventStore.replaceable(0, me), [me]) ?? null;
   const current = useMemo(() => profileFieldsOf(latest), [latest]);
   // 開いた直後の取り直しが終わるまで（応答が無くても終われば編集できる。保存の直前にもう一度確かめる）
@@ -94,7 +94,7 @@ function ProfileEditForm({ me }: { me: string }) {
     const signal = controller.current?.signal;
     const signer = currentSigner();
     if (!signer || !file.type.startsWith("image/")) {
-      showToast(UPLOAD_FAILED);
+      showToast(t("channel_icon_upload_failed"));
       return;
     }
     // 選んだ時点の版で編集を始める（アップロード中に届いた版で上書きしない）
@@ -105,9 +105,9 @@ function ProfileEditForm({ me }: { me: string }) {
       const result = await uploadMedia(processed, uploadServers(mediaServer), signer, signal);
       if (signal?.aborted) return;
       if (result) edit({ [field]: result.url });
-      else showToast(UPLOAD_FAILED);
+      else showToast(t("channel_icon_upload_failed"));
     } catch {
-      if (!signal?.aborted) showToast(UPLOAD_FAILED);
+      if (!signal?.aborted) showToast(t("channel_icon_upload_failed"));
     } finally {
       if (!signal?.aborted) setUploading((u) => ({ ...u, [field]: false }));
     }
@@ -144,7 +144,7 @@ function ProfileEditForm({ me }: { me: string }) {
       </p>
       {!loaded && (
         <p className={sectionStyles.desc} role="status">
-          読み込み中…
+          {t("loading")}
         </p>
       )}
       <TextField label="表示名" value={fields.name} disabled={disabled} onChange={(v) => edit({ name: v })} />
@@ -328,6 +328,7 @@ function ImageUrlField({
 
 /** URL 欄のプレビュー（読み込み中/失敗/成功。S16）。呼び出し側で key={url} を付け、URL が変わったら作り直す */
 function ImagePreview({ url, banner, label }: { url: string; banner: boolean; label: string }) {
+  const t = useT();
   const [state, setState] = useState<"loading" | "loaded" | "error">("loading");
   const src = proxied(url, banner ? 800 : 256, 80);
   return (
@@ -342,8 +343,8 @@ function ImagePreview({ url, banner, label }: { url: string; banner: boolean; la
         onLoad={() => setState("loaded")}
         onError={() => setState("error")}
       />
-      {state === "loading" && <span className={styles.previewHint}>読み込み中…</span>}
-      {state === "error" && <span className={styles.previewError}>画像を読み込めません</span>}
+      {state === "loading" && <span className={styles.previewHint}>{t("loading")}</span>}
+      {state === "error" && <span className={styles.previewError}>{t("image_load_failed")}</span>}
     </div>
   );
 }

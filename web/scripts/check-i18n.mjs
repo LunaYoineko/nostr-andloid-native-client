@@ -10,7 +10,18 @@ import { fileURLToPath } from "node:url";
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** 辞書化済みのファイル（web/ からの相対）。辞書化が済むたびに足し、全体が済んだら全ファイル検査に切り替える */
-export const MIGRATED = ["src/features/settings/DisplaySection.tsx"];
+export const MIGRATED = [
+  "src/features/settings/DisplaySection.tsx",
+  "src/app/LoginGate.tsx",
+  "src/app/Loading.tsx",
+  "src/features/actions/noteLinks.ts",
+  "src/features/deck/useColumnFeed.ts",
+  "src/features/hashtags/pinnedHashtags.ts",
+  "src/features/notifications/NotificationList.tsx",
+  "src/features/profile/ProfileArticleList.tsx",
+  "src/signer/nip46.ts",
+  "src/signer/session.ts",
+];
 
 const JA = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 

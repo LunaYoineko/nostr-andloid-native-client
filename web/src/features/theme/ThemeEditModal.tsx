@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { t } from "../../i18n";
 import { useSession } from "../../signer/session";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { showToast } from "../../ui/toast";
@@ -209,13 +210,13 @@ function themePublishFailureMessage(e: unknown): string {
   if (e instanceof ThemePublishError) {
     switch (e.reason) {
       case "no-theme":
-        return "最新の状態を取得できなかったため、公開しませんでした。接続を確認してもう一度お試しください";
+        return t("web_theme_publish_no_base");
       case "stale":
-        return "別の端末で更新されていたため、公開しませんでした。もう一度お試しください";
+        return t("web_theme_publish_stale");
     }
   }
   // ネイティブ theme_publish_failed
-  return "テーマを公開できませんでした。";
+  return t("theme_publish_failed");
 }
 
 /**
@@ -249,7 +250,7 @@ function PublishThemeDialog({
     setBusy(true);
     try {
       await publishTheme(me, trimmed, colors);
-      showToast("テーマを公開しました。");
+      showToast(t("theme_publish_ok"));
       onDismiss();
     } catch (err) {
       showToast(themePublishFailureMessage(err));

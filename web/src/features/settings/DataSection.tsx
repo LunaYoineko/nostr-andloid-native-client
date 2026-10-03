@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { t } from "../../i18n";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { showToast } from "../../ui/toast";
 import { RelaySyncSection } from "../sync/RelaySyncSection";
@@ -100,9 +101,9 @@ function ProtocolHandlerBlock() {
         onClick={() => {
           try {
             navigator.registerProtocolHandler("web+nostr", "/open?uri=%s");
-            showToast("登録しました");
+            showToast(t("web_data_handler_registered"));
           } catch {
-            showToast("登録できませんでした");
+            showToast(t("web_data_handler_failed"));
           }
         }}
       >

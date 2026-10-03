@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { Virtuoso } from "react-virtuoso";
+import { useT } from "../../i18n";
 import { buildSearchColumn } from "../../lib/columns";
 import { hrefForProfile, oneLine } from "../../lib/content/labels";
 import { unixNow } from "../../lib/time";
@@ -18,6 +19,7 @@ type Tab = "posts" | "users";
  * 実行し直すたびに呼び出し側の key で作り直す（REQ の張り直しと「投稿」への戻り）。
  */
 export function ResultsPane({ tokens, onBack }: { tokens: readonly string[]; onBack?: () => void }) {
+  const t = useT();
   // 条件の中身が変わったときだけ作り直す（語に空白・改行は入らない）
   const key = tokens.join("\n");
   const spec = useMemo(() => searchSpecOf(key === "" ? [] : key.split("\n")), [key]);
@@ -70,7 +72,7 @@ export function ResultsPane({ tokens, onBack }: { tokens: readonly string[]; onB
       <div className={styles.body} role="tabpanel">
         {tab === "posts" ? (
           posts.length === 0 ? (
-            <StateView loading={loading} emptyText="検索結果がありません" />
+            <StateView loading={loading} emptyText={t("search_no_results")} />
           ) : (
             <Virtuoso
               data={posts}
@@ -80,7 +82,7 @@ export function ResultsPane({ tokens, onBack }: { tokens: readonly string[]; onB
             />
           )
         ) : users.length === 0 ? (
-          <StateView loading={usersLoading} emptyText="条件に合うユーザーがいません。" />
+          <StateView loading={usersLoading} emptyText={t("search_no_users")} />
         ) : (
           <Virtuoso
             data={users}
@@ -96,11 +98,12 @@ export function ResultsPane({ tokens, onBack }: { tokens: readonly string[]; onB
 
 /** 読み込み中 / 空（ネイティブ ColumnStateView） */
 function StateView({ loading, emptyText }: { loading: boolean; emptyText: string }) {
+  const t = useT();
   if (loading) {
     return (
       <div className={styles.state} role="status">
         <span className={styles.spinner} aria-hidden="true" />
-        <span>読み込み中…</span>
+        <span>{t("loading")}</span>
       </div>
     );
   }

@@ -3,6 +3,7 @@ import { npubEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { t } from "../../i18n";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
@@ -116,10 +117,10 @@ export function ProfileHeaderCard({
     try {
       await navigator.clipboard.writeText(npub);
     } catch {
-      showToast("コピーできませんでした");
+      showToast(t("web_copy_failed"));
       return;
     }
-    showToast("npub をコピーしました");
+    showToast(t("npub_copied"));
   }
 
   return (

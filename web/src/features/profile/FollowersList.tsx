@@ -1,4 +1,5 @@
 import { Virtuoso } from "react-virtuoso";
+import { useT } from "../../i18n";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import own from "./FollowersList.module.css";
 import { UserRow } from "./FollowingList";
@@ -39,6 +40,7 @@ export function FollowersList({
   onLoadMore: () => void;
   onBack: () => void;
 }) {
+  const t = useT();
   const { followers, hasMore, loading } = state;
   return (
     <div className={styles.screen}>
@@ -47,9 +49,9 @@ export function FollowersList({
       <p className={own.note}>リレーで観測できた範囲のみ表示しています（全数ではありません）</p>
       <hr className={styles.divider} />
       {followers === null ? (
-        <p className={styles.empty}>集計中…</p>
+        <p className={styles.empty}>{t("aggregating")}</p>
       ) : followers.length === 0 && !hasMore ? (
-        <p className={styles.empty}>見つかりませんでした</p>
+        <p className={styles.empty}>{t("not_found")}</p>
       ) : (
         <Virtuoso
           data={followers}

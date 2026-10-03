@@ -1,5 +1,6 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { t, useT } from "../../i18n";
 import { currentSigner } from "../../signer/session";
 import { CloseIcon } from "../../ui/icons";
 import { showToast } from "../../ui/toast";
@@ -17,9 +18,6 @@ import {
   useOwnChannelMeta,
 } from "./channelEdit";
 import { type Channel, upsertLocalChannel } from "./channels";
-
-const UPLOAD_FAILED = "画像をアップロードできませんでした。設定 → メディアサーバーを確認してください。";
-const CREATE_FAILED = "作成できませんでした。ログイン/署名の状態を確認して、もう一度お試しください。";
 
 type Draft = { basedOnId: string | null; fields: ChannelFields };
 
@@ -48,12 +46,12 @@ function metaFieldsOf(
 /** 保存の失敗の文言（編集。#478 と同じ理由。ProfileEditSection と同じ言い回し） */
 function failureMessage(e: unknown): string {
   if (e instanceof ChannelEditError && e.reason === "unreachable") {
-    return "最新のスレッド情報を取得できなかったため、保存しませんでした。接続を確認してもう一度お試しください";
+    return t("web_channel_no_base");
   }
   if (e instanceof ChannelEditError && e.reason === "stale") {
-    return "別の端末でスレッドが更新されています。開き直してから編集してください";
+    return t("web_channel_stale");
   }
-  return "保存できませんでした。ログイン/署名の状態を確認して、もう一度お試しください。";
+  return t("web_channel_save_failed");
 }
 
 /**
@@ -75,6 +73,7 @@ export function ChannelEditDialog({
   onDone(channel: Channel): void;
   onDismiss(): void;
 }) {
+  const t = useT();
   const isEdit = channel !== null;
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -132,7 +131,7 @@ export function ChannelEditDialog({
     const signal = controller.current?.signal;
     const signer = currentSigner();
     if (!signer || !file.type.startsWith("image/")) {
-      showToast(UPLOAD_FAILED);
+      showToast(t("channel_icon_upload_failed"));
       return;
     }
     // 選んだ時点の版で編集を始める（アップロード中に届いた版で上書きしない）
@@ -143,9 +142,9 @@ export function ChannelEditDialog({
       const result = await uploadMedia(processed, uploadServers(mediaServer), signer, signal);
       if (signal?.aborted) return;
       if (result) edit({ picture: result.url });
-      else showToast(UPLOAD_FAILED);
+      else showToast(t("channel_icon_upload_failed"));
     } catch {
-      if (!signal?.aborted) showToast(UPLOAD_FAILED);
+      if (!signal?.aborted) showToast(t("channel_icon_upload_failed"));
     } finally {
       if (!signal?.aborted) setUploading(false);
     }
@@ -192,7 +191,7 @@ export function ChannelEditDialog({
         onDone(created);
       }
     } catch (err) {
-      showToast(isEdit ? failureMessage(err) : CREATE_FAILED);
+      showToast(isEdit ? failureMessage(err) : t("web_channel_create_failed"));
     } finally {
       setSaving(false);
     }
@@ -226,7 +225,7 @@ export function ChannelEditDialog({
       )}
       {isEdit && !loaded && (
         <p className={styles.note} role="status">
-          読み込み中…
+          {t("loading")}
         </p>
       )}
       <form className={styles.form} onSubmit={submit}>

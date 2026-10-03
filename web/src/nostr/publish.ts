@@ -22,8 +22,6 @@ export const ACK_TIMEOUT_MS = 10_000;
 export const MAX_AUTO_RETRY = 5;
 /** 自動再送・未送信トーストの最短間隔（ネイティブ PublishAck.RETRY_MIN_INTERVAL_SEC） */
 export const RETRY_MIN_INTERVAL_MS = 30_000;
-/** 受理を確認できなかったときのトースト（ネイティブ ja リソースと同じ文言） */
-export const UNCONFIRMED_MESSAGE = "送信を確認できませんでした。接続が戻ったら自動で再送します";
 
 /** 発行する中身（署名前）。created_at を省けば発行時刻 */
 export type EventDraft = { kind: number; content: string; tags: string[][]; created_at?: number };

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { ColumnMenu, DeckColumn } from "../../features/deck/DeckColumn";
 import { KbColumn } from "../../features/keyboard/KbList";
+import { useT } from "../../i18n";
 import { useDeck } from "../../store/deck";
 import { ColumnTabs } from "../../ui/ColumnTabs";
 import { prefersReducedMotion, scrollBehavior, scrollToLeft, useLayoutMode } from "../../ui/useLayoutMode";
@@ -20,6 +21,7 @@ const FLIP_DURATION_MS = 280;
  * 3 モードとも同じ strip 要素にカラムを並べるので、モードを切り替えてもカラム（購読・仮想リスト）を作り直さない。
  */
 export function DeckScreen() {
+  const t = useT();
   const columns = useDeck((s) => s.columns);
   const widths = useDeck((s) => s.widths);
   const jumpTarget = useDeck((s) => s.jumpTarget);
@@ -217,7 +219,7 @@ export function DeckScreen() {
             </button>
           </div>
         )}
-        {columns.length === 0 && <p className={styles.empty}>カラムがありません。＋ から追加できます</p>}
+        {columns.length === 0 && <p className={styles.empty}>{t("web_deck_empty")}</p>}
       </div>
     </div>
   );

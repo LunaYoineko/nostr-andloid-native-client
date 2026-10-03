@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useT } from "../../i18n";
 import { avatarInitial, avatarShade } from "../../lib/avatar";
 import { isDataSaver, markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { useSession } from "../../signer/session";
@@ -26,6 +27,7 @@ export function ChannelList({
   onSelect(channel: Channel): void;
   onPin(channel: Channel): void;
 }) {
+  const t = useT();
   const channels = useChannels((s) => s.channels);
   const failed = useChannels((s) => s.failed);
   const me = useSession((s) => s.pubkey);
@@ -51,7 +53,7 @@ export function ChannelList({
       {channels === null || channels.length === 0 ? (
         <p className={styles.empty}>
           {channels === null && !failed
-            ? "読み込み中…"
+            ? t("loading")
             : channels === null
               ? "チャンネルの一覧を取得できませんでした"
               : "チャンネルがありません"}
