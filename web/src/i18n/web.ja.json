@@ -1,5 +1,24 @@
 {
+  "web_account_nosskey_confirm_text": "秘密鍵をパスキー(生体認証)の PRF で暗号化して保護します（WebAuthn PRF）。 nsec を控えてから保護してください。",
+  "web_columns_nav": "カラム",
+  "web_connection_pill_label": "リレーに接続中",
+  "web_data_purge_text": "保存済みのイベント・プロフィール・送信待ち・リンクカードをすべて削除し、再読み込みしてリレーから取り直します。DM の復号済みメッセージも消えます。NIP-07 / NIP-46 では次に開いたとき再び承認を求められます。鍵・リレー・カラムの設定は消えません。この操作は元に戻せません。",
   "web_display_datasaver_desc": "オンの間は画像を小さく・低画質で読み込み、通信量を抑えます。再読み込みやブラウザのデータセーバー設定の変更で、ブラウザの設定に戻ります。",
   "web_display_datasaver_title": "データセーバー",
-  "web_display_datasaver_toggle": "データセーバーを使う"
+  "web_display_datasaver_toggle": "データセーバーを使う",
+  "web_eventjson_copy_failed": "コピーできませんでした",
+  "web_logout_text_local": "この端末のログイン情報を削除します。秘密鍵（nsec）はこのブラウザから消去され、Web 版では書き出せないため、別の場所に控えていなければ元に戻せません。",
+  "web_logout_text_nip07": "この端末のログイン情報を削除します。秘密鍵は拡張機能に残ります。",
+  "web_logout_text_nip46": "この端末のログイン情報（署名アプリとの接続）を削除します。秘密鍵は署名アプリに残ります。",
+  "web_nav_main": "メイン",
+  "web_nav_unread_label": "%1$s（未読 %2$d 件）",
+  "web_nip46_auth_open": "承認ページを開く",
+  "web_nip46_auth_text": "開いたページで承認すると、処理が続きます。（接続先: %1$s）",
+  "web_nip46_auth_title": "署名アプリでの承認が必要です",
+  "web_note_unfollow_text": "%1$s のフォローを解除します。",
+  "web_profile_unmute_text": "このユーザーの投稿が再びタイムラインに表示されるようになります。",
+  "web_relay_connection_label": "リレー接続 %1$d/%2$d",
+  "web_relays_publish_text": "現在の Read / Write の設定を kind:10002 として署名し、Write リレーとインデクサへ送ります。ネットワークに公開される操作です。",
+  "web_wallet_disconnect_text": "保存済みの接続情報（secret を含む）をこのブラウザから削除します。",
+  "web_zap_pay_confirm_text": "%1$s に ⚡ %2$d sats を送金します。よろしいですか？"
 }

@@ -1,27 +1,29 @@
 import { useState } from "react";
+import { useT } from "../i18n";
 import { useSession } from "../signer/session";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 
 /** ログアウト（確認つき）。見た目は置き場所ごとに className で渡す（#463 の設定画面もこれを使う） */
 export function LogoutButton({ className }: { className?: string }) {
+  const t = useT();
   const method = useSession((s) => s.method);
   const [confirming, setConfirming] = useState(false);
   return (
     <>
       <button type="button" className={className} onClick={() => setConfirming(true)}>
-        ログアウト
+        {t("logout")}
       </button>
       {confirming && (
         <ConfirmDialog
-          title="ログアウトしますか？"
+          title={t("logout_title")}
           text={
             method === "local"
-              ? "この端末のログイン情報を削除します。秘密鍵（nsec）はこのブラウザから消去され、Web 版では書き出せないため、別の場所に控えていなければ元に戻せません。"
+              ? t("web_logout_text_local")
               : method === "nip46"
-                ? "この端末のログイン情報（署名アプリとの接続）を削除します。秘密鍵は署名アプリに残ります。"
-                : "この端末のログイン情報を削除します。秘密鍵は拡張機能に残ります。"
+                ? t("web_logout_text_nip46")
+                : t("web_logout_text_nip07")
           }
-          confirmLabel="ログアウト"
+          confirmLabel={t("logout")}
           destructive
           onConfirm={() => {
             setConfirming(false);

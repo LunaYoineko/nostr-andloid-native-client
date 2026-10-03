@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useT } from "../../i18n";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { showToast } from "../../ui/toast";
 import { RelaySyncSection } from "../sync/RelaySyncSection";
@@ -25,6 +26,7 @@ export function DataSection() {
 
 /** キャッシュの強制消去（ネイティブ purgeCache）。確認のうえ消して再読み込みする */
 function PurgeCacheBlock() {
+  const t = useT();
   const [confirming, setConfirming] = useState(false);
   return (
     <div className={styles.block}>
@@ -43,9 +45,9 @@ function PurgeCacheBlock() {
       </button>
       {confirming && (
         <ConfirmDialog
-          title="キャッシュを消去しますか？"
-          text="保存済みのイベント・プロフィール・送信待ち・リンクカードをすべて削除し、再読み込みしてリレーから取り直します。DM の復号済みメッセージも消えます。NIP-07 / NIP-46 では次に開いたとき再び承認を求められます。鍵・リレー・カラムの設定は消えません。この操作は元に戻せません。"
-          confirmLabel="消去する"
+          title={t("data_purge_title")}
+          text={t("web_data_purge_text")}
+          confirmLabel={t("data_purge_confirm")}
           destructive
           onConfirm={() => {
             setConfirming(false);

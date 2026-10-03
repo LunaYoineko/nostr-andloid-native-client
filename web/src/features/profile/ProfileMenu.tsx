@@ -1,6 +1,7 @@
 import { nprofileEncode } from "nostr-tools/nip19";
 import { useEffect, useRef, useState } from "react";
 import { useCloseMenuOnBack } from "../../app/history";
+import { useT } from "../../i18n";
 import { relayHintsOf } from "../../nostr/outbox";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { Icon } from "../../ui/icons";
@@ -38,6 +39,7 @@ export function ProfileMenu({
   muted: boolean;
   onCopied: (message: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<"mute" | "report" | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -156,9 +158,9 @@ export function ProfileMenu({
       {dialog === "mute" &&
         (muted ? (
           <ConfirmDialog
-            title="ミュートを解除しますか？"
-            text="このユーザーの投稿が再びタイムラインに表示されるようになります。"
-            confirmLabel="解除する"
+            title={t("unmute_confirm_title")}
+            text={t("web_profile_unmute_text")}
+            confirmLabel={t("lift_confirm")}
             onConfirm={() => {
               setDialog(null);
               mute("unmute");
@@ -167,9 +169,9 @@ export function ProfileMenu({
           />
         ) : (
           <ConfirmDialog
-            title="このユーザーをミュートしますか？"
-            text="このユーザーの投稿がタイムラインに表示されなくなります。ミュートは非公開（NIP-51）で保存されます。"
-            confirmLabel="ミュート"
+            title={t("mute_confirm_title")}
+            text={t("mute_confirm_text2")}
+            confirmLabel={t("mute_confirm")}
             destructive
             onConfirm={() => {
               setDialog(null);

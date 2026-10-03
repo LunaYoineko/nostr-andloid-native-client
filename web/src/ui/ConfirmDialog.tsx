@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from "react";
+import { useT } from "../i18n";
 import styles from "./ConfirmDialog.module.css";
 
 /**
@@ -10,7 +11,7 @@ export function ConfirmDialog({
   text,
   confirmLabel,
   destructive = false,
-  dismissLabel = "キャンセル",
+  dismissLabel,
   onConfirm,
   onDismiss,
 }: {
@@ -22,6 +23,7 @@ export function ConfirmDialog({
   onConfirm(): void;
   onDismiss(): void;
 }) {
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const textId = useId();
@@ -50,7 +52,7 @@ export function ConfirmDialog({
       </p>
       <div className={styles.buttons}>
         <button type="button" className={`${styles.button} ${styles.dismiss}`} onClick={onDismiss}>
-          {dismissLabel}
+          {dismissLabel ?? t("common_cancel")}
         </button>
         <button
           type="button"

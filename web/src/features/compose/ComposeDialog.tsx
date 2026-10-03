@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useT } from "../../i18n";
 import { oneLine } from "../../lib/content/labels";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
@@ -109,6 +110,7 @@ function hasFiles(e: DragEvent<HTMLElement>): boolean {
  * 画面上端寄せのカードをモーダルで開く。本文・入力補完・添付（画像・動画）・返信先 / 引用元・センシティブ指定・送信。
  */
 export function ComposeDialog({ request }: { request: ComposeRequest }) {
+  const t = useT();
   const { mode } = request;
   const dialog = useRef<HTMLDialogElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -774,9 +776,9 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
       </dialog>
       {confirmDiscard && (
         <ConfirmDialog
-          title="入力内容を破棄しますか？"
-          text="作成中の本文と添付画像は保存されません。"
-          confirmLabel="破棄する"
+          title={t("compose_discard_title")}
+          text={t("compose_discard_text")}
+          confirmLabel={t("compose_discard_confirm")}
           destructive
           onConfirm={() => {
             // 返信・引用の破棄では新規投稿の下書きを消さない（ネイティブの onDispose と同じ）

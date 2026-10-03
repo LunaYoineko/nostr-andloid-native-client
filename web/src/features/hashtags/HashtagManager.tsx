@@ -1,5 +1,6 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { type DragEvent, type FormEvent, useId, useMemo, useState } from "react";
+import { useT } from "../../i18n";
 import { formatAbsoluteTime } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
@@ -54,6 +55,7 @@ export function HashtagManager({ onDismiss }: { onDismiss(): void }) {
 }
 
 function Manager({ me, onDismiss }: { me: string; onDismiss(): void }) {
+  const t = useT();
   const latest = use$(() => eventStore.replaceable({ kind: 30015, pubkey: me, identifier: "pinned" }), [me]);
   const current = useMemo(() => pinnedHashtagsFrom(latest), [latest]);
   const [draft, setDraft] = useState<string[] | null>(null);
@@ -197,9 +199,9 @@ function Manager({ me, onDismiss }: { me: string; onDismiss(): void }) {
       </ModalSheet>
       {confirmClose && (
         <ConfirmDialog
-          title="変更を破棄しますか？"
-          text="ピン留めの変更はまだ保存されていません。"
-          confirmLabel="破棄する"
+          title={t("hashtags_discard_title")}
+          text={t("hashtags_discard_text")}
+          confirmLabel={t("hashtags_discard_confirm")}
           destructive
           onConfirm={onDismiss}
           onDismiss={() => setConfirmClose(false)}

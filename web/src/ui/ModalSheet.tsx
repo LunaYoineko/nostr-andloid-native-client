@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef } from "react";
+import { useT } from "../i18n";
 import { CloseIcon } from "./icons";
 import styles from "./ModalSheet.module.css";
 
@@ -17,6 +18,7 @@ export function ModalSheet({
   onDismiss(): void;
   children: ReactNode;
 }) {
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const latestOnDismiss = useRef(onDismiss);
@@ -62,7 +64,7 @@ export function ModalSheet({
           <h2 id={titleId} className={styles.title}>
             {title}
           </h2>
-          <button type="button" className={styles.close} aria-label="閉じる" onClick={onDismiss}>
+          <button type="button" className={styles.close} aria-label={t("common_close")} onClick={onDismiss}>
             <CloseIcon className={styles.closeIcon} />
           </button>
         </div>

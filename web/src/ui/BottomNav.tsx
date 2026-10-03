@@ -1,4 +1,5 @@
-import { NAV_LABEL, NAV_ORDER, type NavKey } from "../app/navState";
+import { NAV_ORDER, type NavKey, navLabel } from "../app/navState";
+import { useT } from "../i18n";
 import { AccountAvatar } from "./AccountAvatar";
 import styles from "./BottomNav.module.css";
 import { badgeText } from "./badge";
@@ -32,8 +33,9 @@ export function BottomNav({
   badges?: Partial<Record<NavKey, number>>;
   onSelect(key: NavKey): void;
 }) {
+  const t = useT();
   return (
-    <nav className={styles.nav} aria-label="メイン">
+    <nav className={styles.nav} aria-label={t("web_nav_main")}>
       {NAV_ORDER.map((key) => {
         const badge = badges?.[key] ?? 0;
         return (
@@ -41,8 +43,8 @@ export function BottomNav({
             key={key}
             type="button"
             className={styles.item}
-            aria-label={badge > 0 ? `${NAV_LABEL[key]}（未読 ${badge} 件）` : NAV_LABEL[key]}
-            title={NAV_LABEL[key]}
+            aria-label={badge > 0 ? t("web_nav_unread_label", navLabel(key), badge) : navLabel(key)}
+            title={navLabel(key)}
             aria-current={selected[key] ? "page" : undefined}
             onClick={() => onSelect(key)}
           >
