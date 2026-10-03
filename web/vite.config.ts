@@ -17,13 +17,14 @@ export default defineConfig({
         id: "/",
         name: "Nostrism",
         short_name: "Nostrism",
-        description: "デッキ型の Nostr クライアント（Web 版）",
+        description: "A deck-style Nostr client: timelines, hashtags, notifications and chat side by side.",
         start_url: "/",
         scope: "/",
         display: "standalone",
         background_color: "#0C0C10",
         theme_color: "#0C0C10",
-        lang: "ja",
+        lang: "en",
+        dir: "ltr",
         // public/icons/ は scripts/make-icons.mjs（npm run icons）で生成してコミットする
         icons: [
           { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
