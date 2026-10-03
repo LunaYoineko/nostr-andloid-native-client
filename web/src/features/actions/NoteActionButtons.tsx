@@ -1,7 +1,7 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useEffect, useMemo, useState } from "react";
-import { t } from "../../i18n";
+import { t, useT } from "../../i18n";
 import { clientNameOf } from "../../lib/content/tags";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
@@ -111,6 +111,7 @@ function RepostButton({ event }: { event: NostrEvent }) {
  * 付与済みを押すと確認してから取り消す（kind:5）。
  */
 function DefaultReactionButton({ event }: { event: NostrEvent }) {
+  const t = useT();
   const content = useDefaultReaction((s) => s.content);
   const isStar = content === "⭐" || content === "★";
   const active = useIsReacted(event.id);
@@ -157,9 +158,9 @@ function DefaultReactionButton({ event }: { event: NostrEvent }) {
       </ActionButton>
       {confirming && (
         <ConfirmDialog
-          title="リアクションを取り消しますか？"
-          text="削除イベント（kind:5）を発行してリアクションを取り消します。リレーによっては削除が反映されない場合があります。"
-          confirmLabel="取り消す"
+          title={t("unreact_title")}
+          text={t("unreact_text")}
+          confirmLabel={t("unreact_confirm")}
           destructive
           onConfirm={() => {
             setConfirming(false);
@@ -272,6 +273,7 @@ function ownListFailureMessage(e: unknown): string {
  * [#683] NoteFooter の more props へ渡す（行の右端に固定。primaryActions の均等配置には含めない）。
  */
 export function NoteMoreMenu({ event }: { event: NostrEvent }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const author = useProfile(event.pubkey);
   const contacts = use$(() => (me ? eventStore.replaceable({ kind: 3, pubkey: me }) : undefined), [me]);
@@ -367,9 +369,9 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
       </MenuButton>
       {dialog === "unfollow" && (
         <ConfirmDialog
-          title="フォローを解除しますか？"
-          text={`${displayName(author, event.pubkey)} のフォローを解除します。`}
-          confirmLabel="解除する"
+          title={t("unfollow_title")}
+          text={t("web_note_unfollow_text", displayName(author, event.pubkey))}
+          confirmLabel={t("unfollow_confirm")}
           destructive
           onConfirm={() => {
             setDialog(null);
@@ -380,9 +382,9 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
       )}
       {dialog === "mute" && (
         <ConfirmDialog
-          title="このユーザーをミュートしますか？"
-          text="この人の投稿と通知を表示しなくなります。設定 → ミュート でいつでも解除できます。"
-          confirmLabel="ミュート"
+          title={t("mute_confirm_title")}
+          text={t("mute_confirm_text")}
+          confirmLabel={t("mute_confirm")}
           destructive
           onConfirm={() => {
             setDialog(null);
@@ -393,9 +395,9 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
       )}
       {dialog === "delete" && (
         <ConfirmDialog
-          title="この投稿の削除をリクエストしますか？"
-          text="削除イベント(kind:5)を発行します。リレーが応じるとは限らず、すでに取得済みのクライアントでは表示が残ることがあります。この端末からは消えます。"
-          confirmLabel="リクエストする"
+          title={t("note_delete_title")}
+          text={t("note_delete_text")}
+          confirmLabel={t("note_delete_confirm")}
           destructive
           onConfirm={() => {
             setDialog(null);

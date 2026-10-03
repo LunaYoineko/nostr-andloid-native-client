@@ -1,6 +1,6 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { useMemo, useState } from "react";
-import { t } from "../../i18n";
+import { useT } from "../../i18n";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
@@ -53,6 +53,7 @@ export function ThemeStoreSection({
   /** 行タップ・コード取り込みで下書きへ反映する */
   onSelect(colors: CustomColors, name: string | null): void;
 }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const { loading, entries } = useThemeStoreEntries();
   const current = useThemePrefs((s) => s.custom);
@@ -216,9 +217,9 @@ export function ThemeStoreSection({
 
       {deleteTarget && (
         <ConfirmDialog
-          title="このテーマの削除をリクエストしますか？"
-          text="削除イベント(kind:5)を発行します。リレーが応じるとは限らず、すでに適用した人の手元には残ります。この端末からは消えます。"
-          confirmLabel="削除をリクエスト"
+          title={t("theme_delete_title")}
+          text={t("theme_delete_text")}
+          confirmLabel={t("theme_delete")}
           destructive
           onConfirm={() => void confirmDelete()}
           onDismiss={() => setDeleteTarget(null)}

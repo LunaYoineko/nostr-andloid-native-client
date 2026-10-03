@@ -1,4 +1,5 @@
 import type { UIMatch } from "react-router";
+import { t } from "../i18n";
 
 /** 宛先（URL のパス）。messages = DM、channels = パブリックチャット（どちらもナビの「メッセージ」）。notFound = どのナビも選択しない */
 export type Dest = "home" | "search" | "messages" | "channels" | "notifications" | "settings" | "notFound";
@@ -26,13 +27,21 @@ export type NavKey = "home" | "search" | "messages" | "notifications" | "setting
 /** 下部ナビの順（ネイティブ BottomBar と同じ） */
 export const NAV_ORDER: readonly NavKey[] = ["home", "search", "messages", "notifications", "settings"];
 
-export const NAV_LABEL: Record<NavKey, string> = {
-  home: "ホーム",
-  search: "検索",
-  messages: "メッセージ",
-  notifications: "通知",
-  settings: "設定",
-};
+/** ナビの表示名。言語の切り替えに追従するよう、定数ではなく呼ぶたびに引く */
+export function navLabel(key: NavKey): string {
+  switch (key) {
+    case "home":
+      return t("nav_home");
+    case "search":
+      return t("nav_search");
+    case "messages":
+      return t("nav_messages");
+    case "notifications":
+      return t("nav_notifications");
+    case "settings":
+      return t("settings_title");
+  }
+}
 
 export const NAV_PATH: Record<NavKey, string> = {
   home: "/",

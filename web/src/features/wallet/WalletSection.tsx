@@ -1,4 +1,5 @@
 import { type FormEvent, useId, useState } from "react";
+import { useT } from "../../i18n";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import styles from "../settings/SettingsSections.module.css";
 import { NwcError } from "./nwc";
@@ -32,6 +33,7 @@ function connectFailureMessage(e: unknown): string {
  * （ネイティブは「接続を解除」でだけ消す）。
  */
 export function WalletSection() {
+  const t = useT();
   const connection = useNwc((s) => s.connection);
   const inputId = useId();
   const [value, setValue] = useState("");
@@ -132,9 +134,9 @@ export function WalletSection() {
       </p>
       {confirmDisconnect && (
         <ConfirmDialog
-          title="ウォレット接続を解除しますか？"
-          text="保存済みの接続情報（secret を含む）をこのブラウザから削除します。"
-          confirmLabel="接続を解除"
+          title={t("nwc_disconnect_confirm_title")}
+          text={t("web_wallet_disconnect_text")}
+          confirmLabel={t("nwc_disconnect")}
           destructive
           onConfirm={() => {
             disconnectNwc();

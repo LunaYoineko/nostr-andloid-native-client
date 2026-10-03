@@ -367,6 +367,7 @@ function warn(message: string) {
  * [#538] ⚡ は発言者の kind:0 に lud16 があるときだけ。
  */
 function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine: boolean; onReply(): void }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const author = useProfile(message.pubkey);
   const lud16 = typeof author?.lud16 === "string" ? author.lud16.trim() : "";
@@ -475,9 +476,9 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       )}
       {dialog === "unreact" && (
         <ConfirmDialog
-          title="リアクションを取り消しますか？"
-          text="削除イベント（kind:5）を発行してリアクションを取り消します。リレーによっては削除が反映されない場合があります。"
-          confirmLabel="取り消す"
+          title={t("unreact_title")}
+          text={t("unreact_text")}
+          confirmLabel={t("unreact_confirm")}
           destructive
           onConfirm={() => {
             setDialog(null);
@@ -488,9 +489,9 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       )}
       {dialog === "mute" && (
         <ConfirmDialog
-          title="このユーザーをミュートしますか？"
-          text="この人の投稿と通知を表示しなくなります。設定 → ミュート でいつでも解除できます。"
-          confirmLabel="ミュート"
+          title={t("mute_confirm_title")}
+          text={t("mute_confirm_text")}
+          confirmLabel={t("mute_confirm")}
           destructive
           onConfirm={() => {
             setDialog(null);

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../i18n";
 import { useRelayConnections } from "../nostr/pool";
 import styles from "./RelayIndicator.module.css";
 import { RelayStatusDialog } from "./RelayStatusDialog";
@@ -16,9 +17,10 @@ export function relayAggregate(connected: number, total: number): RelayAggregate
  * horizontal = Compact のタブ列の右端、vertical = レールの下。
  */
 export function RelayIndicator({ orientation }: { orientation: "horizontal" | "vertical" }) {
+  const t = useT();
   const { connected, total } = useRelayConnections();
   const [open, setOpen] = useState(false);
-  const label = `リレー接続 ${connected}/${total}`;
+  const label = t("web_relay_connection_label", connected, total);
   return (
     <>
       <button

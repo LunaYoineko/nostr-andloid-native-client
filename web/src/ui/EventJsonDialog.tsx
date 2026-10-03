@@ -1,6 +1,7 @@
 import type { EventPointer } from "applesauce-core/helpers/pointers";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useMemo, useState } from "react";
+import { useT } from "../i18n";
 import { useEventByPointer } from "../nostr/loaders";
 import styles from "./EventJsonDialog.module.css";
 import { InfoDialog } from "./InfoDialog";
@@ -50,6 +51,7 @@ export function referencedEvents(e: NostrEvent): EventRef[] {
  * 届くまでは「イベントを取得中…」）。「テキストをコピー」で表示中の JSON をクリップボードへ。
  */
 export function EventJsonDialog({ event, onDismiss }: { event: NostrEvent; onDismiss(): void }) {
+  const t = useT();
   // 潜った参照先（末尾が表示中）。空なら event そのもの
   const [stack, setStack] = useState<EventRef[]>([]);
   const top = stack.at(-1) ?? null;
@@ -62,30 +64,30 @@ export function EventJsonDialog({ event, onDismiss }: { event: NostrEvent; onDis
     if (json === null) return;
     try {
       await navigator.clipboard.writeText(json);
-      showToast("JSONをコピーしました");
+      showToast(t("json_copied_toast"));
     } catch {
-      showToast("コピーできませんでした");
+      showToast(t("web_eventjson_copy_failed"));
     }
   }
 
   return (
     <InfoDialog
-      title="イベントJSON"
+      title={t("json_dialog_title")}
       subtitle={current ? `kind:${current.kind}` : undefined}
       onBack={stack.length > 0 ? () => setStack((s) => s.slice(0, -1)) : undefined}
-      action={{ label: "テキストをコピー", onClick: () => void copy(), disabled: json === null }}
+      action={{ label: t("note_copy_text"), onClick: () => void copy(), disabled: json === null }}
       onDismiss={onDismiss}
     >
       <div className={styles.json}>
         {json !== null ? (
           <pre className={styles.pre}>{json}</pre>
         ) : (
-          <p className={styles.loading}>イベントを取得中…</p>
+          <p className={styles.loading}>{t("json_loading")}</p>
         )}
       </div>
       {refs.length > 0 && (
         <>
-          <h3 className={styles.caption}>参照先イベント</h3>
+          <h3 className={styles.caption}>{t("json_refs")}</h3>
           <ul className={styles.refs}>
             {refs.map((r) => (
               <li key={r.pointer.id}>
