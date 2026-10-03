@@ -322,7 +322,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
       .then((result) => {
         if (result === "limit") showToast(pinLimitMessage());
       })
-      .catch(() => showToast("ピン留めの変更に失敗しました"));
+      .catch(() => showToast(t("web_compose_pin_failed")));
   }
 
   // ---- 連投（新規投稿のみ。ネイティブ ComposeSheet の threadParts / onEdit / onDelete） ----
@@ -469,7 +469,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
           setAttachments([]);
           setProcessedSizes(new Map());
         }
-        showToast(`${sentCount}件目までは送信済み。残りは新しい連投として下書きに残しました`);
+        showToast(t("web_compose_thread_partial", sentCount));
       } else {
         setSendError(SEND_FAILED);
       }

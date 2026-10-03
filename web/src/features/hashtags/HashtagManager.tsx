@@ -1,6 +1,6 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { type DragEvent, type FormEvent, useId, useMemo, useState } from "react";
-import { useT } from "../../i18n";
+import { t, useT } from "../../i18n";
 import { formatAbsoluteTime } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
@@ -28,13 +28,13 @@ function failureMessage(e: unknown): string {
   if (e instanceof PinnedHashtagsError) {
     switch (e.reason) {
       case "no-pinned-list":
-        return "最新のピン留めを取得できなかったため、保存しませんでした。接続を確認してもう一度お試しください";
+        return t("web_hashtags_no_base");
       case "stale":
-        return "ピン留めが更新されていたため、保存しませんでした。最新の内容を表示したので、確認してもう一度編集してください";
+        return t("web_hashtags_stale");
     }
   }
   // ネイティブ hashtags_save_failed
-  return "ピン留めを保存できませんでした";
+  return t("hashtags_save_failed");
 }
 
 /**
@@ -96,7 +96,7 @@ function Manager({ me, onDismiss }: { me: string; onDismiss(): void }) {
   function deleteUsed(tag: string) {
     removeUsedHashtag(tag);
     setUsedList((u) => u.filter((x) => x.tag !== tag));
-    showToast("履歴から削除しました");
+    showToast(t("hashtags_used_deleted"));
   }
 
   async function save() {
@@ -104,7 +104,7 @@ function Manager({ me, onDismiss }: { me: string; onDismiss(): void }) {
     try {
       await publishPinnedHashtags(me, list, draft === null ? (latest?.id ?? null) : basedOnId);
       setDraft(null);
-      showToast("ピン留めを保存しました");
+      showToast(t("hashtags_saved"));
     } catch (e) {
       // 最新版と食い違っていたら下書きを捨てて最新の内容を出し直す
       if (e instanceof PinnedHashtagsError && e.reason === "stale") setDraft(null);

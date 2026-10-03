@@ -78,7 +78,7 @@ export function ThemeStoreSection({
     if (!target) return;
     setDeleteTarget(null);
     const ok = await requestDeleteTheme(target);
-    showToast(ok ? "削除リクエストを送信しました。" : "削除リクエストを送信できませんでした。");
+    showToast(ok ? t("web_theme_delete_sent") : t("web_theme_delete_failed"));
   }
 
   async function copyCode() {
@@ -86,10 +86,10 @@ export function ThemeStoreSection({
     try {
       await navigator.clipboard.writeText(code);
     } catch {
-      showToast("コピーできませんでした。");
+      showToast(t("web_theme_copy_failed"));
       return;
     }
-    showToast("この配色をコピーしました。");
+    showToast(t("web_theme_code_copied"));
   }
 
   async function pasteCode() {
@@ -104,7 +104,7 @@ export function ThemeStoreSection({
   function importCode() {
     const decoded = decodeThemeCode(code);
     if (!decoded) {
-      showToast("共有コードの形式が正しくありません。");
+      showToast(t("theme_code_invalid"));
       return;
     }
     onSelect(decoded.colors, decoded.name);

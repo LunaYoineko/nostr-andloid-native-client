@@ -3,6 +3,7 @@ import type { NostrEvent } from "nostr-tools/pure";
 import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { DmMessageRow } from "../../db/schema";
+import { t } from "../../i18n";
 import { hrefForProfile } from "../../lib/content/labels";
 import { extractMedia } from "../../lib/media";
 import { shortNpub } from "../../lib/npub";
@@ -171,14 +172,12 @@ export function ConversationView({
 }
 
 /** 送信結果ごとのトースト（ネイティブ ja リソースと同じ文言。sent / sent-no-peer-relays は別扱い） */
-const SEND_FAILURES: Record<Exclude<DmSendResult, "sent" | "sent-no-peer-relays">, string> = {
-  failed: "メッセージを送れませんでした",
-  "no-nip44": "この拡張機能は NIP-44 に対応していないため、このメッセージを送れません",
-  "no-nip04": "この拡張機能は NIP-04 に対応していないため、このメッセージを送れません",
-  "no-relays": "送り先のリレーがありません",
-};
-const NO_PEER_RELAYS_WARN = "相手がDMリレーを公開していないため、届かない可能性があります";
-const UPLOAD_FAILED = "添付をアップロードできませんでした。設定 → メディアサーバーを確認してください。";
+const sendFailures = (): Record<Exclude<DmSendResult, "sent" | "sent-no-peer-relays">, string> => ({
+  failed: t("dm_send_failed"),
+  "no-nip44": t("web_dm_no_nip44"),
+  "no-nip04": t("web_dm_no_nip04"),
+  "no-relays": t("web_dm_no_relays"),
+});
 /** 絵文字候補の件数（ComposeDialog と同じ） */
 const EMOJI_SUGGEST_MAX = 12;
 /** 連続入力中はメンションを探さない（ComposeDialog と同じ 120ms） */
@@ -312,7 +311,7 @@ function Composer({
       const signer = currentSigner();
       if (!signer) {
         setSending(false);
-        showToast(UPLOAD_FAILED);
+        showToast(t("chat_upload_failed"));
         return;
       }
       try {
@@ -321,7 +320,7 @@ function Composer({
         text = [text, ...media.map((m) => m.url)].filter((s) => s !== "").join("\n");
       } catch (e) {
         setSending(false);
-        showToast(e instanceof UploadFailedError ? UPLOAD_FAILED : SEND_FAILURES.failed);
+        showToast(e instanceof UploadFailedError ? t("chat_upload_failed") : sendFailures().failed);
         return;
       }
     }
@@ -335,11 +334,11 @@ function Composer({
       onSent();
       if (result === "sent-no-peer-relays" && !warnedNoPeerRelays.has(peer)) {
         warnedNoPeerRelays.add(peer);
-        showToast(NO_PEER_RELAYS_WARN);
+        showToast(t("dm_no_relays_warn"));
       }
       return;
     }
-    showToast(SEND_FAILURES[result]);
+    showToast(sendFailures()[result]);
   }
 
   if (nip17 === "no-nip44" && nip04 === "no-nip04") {

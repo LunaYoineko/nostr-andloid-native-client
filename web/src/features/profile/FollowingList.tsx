@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { Virtuoso } from "react-virtuoso";
+import { useT } from "../../i18n";
 import { hrefForProfile } from "../../lib/content/labels";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { ScreenHeader } from "../../ui/ScreenHeader";
@@ -11,12 +12,13 @@ import styles from "./FollowingList.module.css";
  * 行を押すとその人のプロフィール。プロフィールは表示された行の分だけまとめて取りに行く。
  */
 export function FollowingList({ pubkeys, onBack }: { pubkeys: readonly string[]; onBack: () => void }) {
+  const t = useT();
   return (
     <div className={styles.screen}>
       <ScreenHeader title="フォロー中" onBack={onBack} />
       <hr className={styles.divider} />
       {pubkeys.length === 0 ? (
-        <p className={styles.empty}>見つかりませんでした</p>
+        <p className={styles.empty}>{t("not_found")}</p>
       ) : (
         <Virtuoso
           data={pubkeys}

@@ -1,4 +1,5 @@
 import { Virtuoso } from "react-virtuoso";
+import { useT } from "../../i18n";
 import { useNotesByIds } from "../lists/notesByIds";
 import { useBookmarkedIds } from "../lists/ownLists";
 import { NoteItem } from "../timeline/NoteItem";
@@ -10,13 +11,14 @@ import styles from "./BookmarksSection.module.css";
  * （ownLists.ts の startOwnLists）張ったままなので、ここでは購読しない。
  */
 export function BookmarksSection() {
+  const t = useT();
   const ids = useBookmarkedIds();
   const notes = useNotesByIds(ids);
 
   if (ids.length === 0) {
     return (
       <>
-        <p className={styles.empty}>ブックマークはまだありません。</p>
+        <p className={styles.empty}>{t("bookmarks_empty")}</p>
         <p className={styles.hint}>各投稿の ⋯ メニュー →「ブックマーク」で追加できます。</p>
       </>
     );

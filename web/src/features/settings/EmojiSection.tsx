@@ -1,6 +1,7 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import type { NostrEvent } from "nostr-tools/pure";
 import { type FormEvent, useId, useMemo, useState } from "react";
+import { t } from "../../i18n";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
@@ -20,13 +21,13 @@ function failureMessage(e: unknown): string {
   if (e instanceof EmojiListError) {
     switch (e.reason) {
       case "no-emoji-list":
-        return "最新の絵文字リストを取得できなかったため、公開しませんでした。接続を確認してもう一度お試しください";
+        return t("web_emoji_no_base");
       case "stale":
-        return "絵文字リストが更新されていたため、公開しませんでした。最新の内容を表示したので、確認してもう一度編集してください";
+        return t("web_emoji_stale");
     }
   }
   // ネイティブ emoji_save_failed
-  return "絵文字リストを公開できませんでした。";
+  return t("emoji_save_failed");
 }
 
 /** 自分の kind:10030 直下の emoji タグ（30030 セット由来は含まない。ネイティブ myEmojiListFlow 相当） */
@@ -61,7 +62,7 @@ export function EmojiSection() {
     try {
       await publishEmojiList(me, list, draft === null ? (latest?.id ?? null) : basedOnId);
       setDraft(null);
-      showToast("絵文字リストを公開しました。");
+      showToast(t("emoji_saved"));
     } catch (e) {
       // 最新版と食い違っていたら下書きを捨てて最新の内容を出し直す
       if (e instanceof EmojiListError && e.reason === "stale") setDraft(null);

@@ -3,6 +3,7 @@ import { isAddressPointer } from "applesauce-core/helpers/pointers";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
+import { useT } from "../../i18n";
 import { useEventByAddress } from "../../nostr/loaders";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { ArticleReader } from "../article/ArticleReader";
@@ -65,6 +66,7 @@ export function ThreadScreen({
   onBack: () => void;
   onReply?: (target: NostrEvent) => void;
 }) {
+  const t = useT();
   const isAddress = isAddressPointer(pointer);
   const { event: addrEvent, failed: addrFailed } = useEventByAddress(isAddress ? pointer : null);
   const effectivePointer: EventPointer | null = isAddress
@@ -88,7 +90,7 @@ export function ThreadScreen({
     return (
       <>
         <ScreenHeader title="記事" subtitle="NIP-23 · kind:30023" onBack={onBack} />
-        <p className={styles.empty}>{addrFailed ? "記事を取得できませんでした" : "読み込み中…"}</p>
+        <p className={styles.empty}>{addrFailed ? t("web_article_failed") : t("loading")}</p>
       </>
     );
   }
@@ -105,7 +107,7 @@ export function ThreadScreen({
           {entries.length === 0 ? (
             <>
               <LeadCard focus={focus} />
-              <p className={styles.empty}>{loading ? "読み込み中…" : "見つかりませんでした"}</p>
+              <p className={styles.empty}>{loading ? t("loading") : t("not_found")}</p>
             </>
           ) : (
             <Virtuoso

@@ -1,6 +1,7 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { useState } from "react";
 import { map } from "rxjs";
+import { t } from "../../i18n";
 import { displayRelayUrl, relayPrefsFromEvent } from "../../nostr/outbox";
 import { addRelay, useRelayRows } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
@@ -45,7 +46,7 @@ export function ProfileRelays({ pubkey }: { pubkey: string }) {
                   aria-label={`${displayRelayUrl(p.url)} を自分のリレーに追加`}
                   onClick={() => {
                     addRelay(p.url);
-                    showToast("自分のリレーに追加しました");
+                    showToast(t("relay_added"));
                   }}
                 >
                   追加

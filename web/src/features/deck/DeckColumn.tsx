@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useCloseMenuOnBack } from "../../app/history";
+import { useT } from "../../i18n";
 import {
   type ColumnKind,
   type ColumnSpec,
@@ -69,10 +70,11 @@ export function DeckColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader:
 
 /** 同期などで入ってきた未対応の種別。⋯ から削除だけできる */
 function UnsupportedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
+  const t = useT();
   return (
     <section className={styles.column} aria-label={spec.title}>
       {showHeader && <ColumnHeader spec={spec} />}
-      <p className={styles.empty}>この種類のカラムは Web 版ではまだ使えません</p>
+      <p className={styles.empty}>{t("web_deck_unsupported_column")}</p>
     </section>
   );
 }
@@ -125,6 +127,7 @@ function ChannelListColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader:
 
 /** NIP-28 のルームカラム（ネイティブ LiveChannelRoom の deckMode）。⋯ の「ミュートを表示」が効く */
 function RoomColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
+  const t = useT();
   const revealed = useDeck((s) => isMutedRevealed(s, spec.id));
   const header = showHeader ? <ColumnHeader spec={spec} /> : null;
   const channelId = spec.filter.channelId;
@@ -132,7 +135,7 @@ function RoomColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
     return (
       <section className={styles.column} aria-label={spec.title}>
         {header}
-        <p className={styles.empty}>チャンネルが指定されていません</p>
+        <p className={styles.empty}>{t("web_deck_channel_missing")}</p>
       </section>
     );
   }
@@ -149,6 +152,7 @@ function RoomColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
 }
 
 function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
+  const t = useT();
   const { loading, events, rows, loadingOlder, loadOlder, refresh, emptyText } = useColumnFeed(spec);
   // 表示中の投稿への Zap 受領（アクション行の ⚡ の合計）
   useZapReceipts(zapTargetIds(events));
@@ -159,7 +163,9 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
     <section className={styles.column} aria-label={spec.title} aria-busy={loading}>
       {showHeader && <ColumnHeader spec={spec} onRefresh={refresh} />}
       <div className={styles.body}>
-        {loading && <div className={styles.progress} role="progressbar" aria-label="読み込み中" />}
+        {loading && (
+          <div className={styles.progress} role="progressbar" aria-label={t("web_deck_loading_aria")} />
+        )}
         {spec.kind === "FAVS" ? (
           <FavsList
             reactions={events}
@@ -245,7 +251,8 @@ function feedRowPost(row: FeedRow): NostrEvent | null {
 type FooterContext = { loadingOlder: boolean };
 
 function FavsFooter({ context }: { context?: FooterContext }) {
-  return context?.loadingOlder ? <p className={styles.empty}>過去を読み込み中…</p> : null;
+  const t = useT();
+  return context?.loadingOlder ? <p className={styles.empty}>{t("feed_loading_older")}</p> : null;
 }
 
 const FAVS_COMPONENTS = { Footer: FavsFooter };
@@ -262,11 +269,12 @@ function FavsList({
   onEndReached: () => void;
   loadingOlder: boolean;
 }) {
+  const t = useT();
   const list = useRef<VirtuosoHandle>(null);
   // キー操作の対象にする（ふぁぼの行は r / t / f の対象外）
   useKbList(list, reactions.length);
   if (reactions.length === 0) {
-    return <p className={styles.empty}>{loading ? "読み込み中…" : "投稿がありません"}</p>;
+    return <p className={styles.empty}>{loading ? t("loading") : t("feed_empty")}</p>;
   }
   return (
     <Virtuoso

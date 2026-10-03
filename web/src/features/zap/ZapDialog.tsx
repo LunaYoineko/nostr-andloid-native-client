@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
-import { useT } from "../../i18n";
+import { t, useT } from "../../i18n";
 import { requestZapInvoice } from "../../lib/lnurl";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { QrCode } from "../../ui/QrCode";
@@ -25,7 +25,7 @@ const DEFAULT_AMOUNT = 100;
 // ネイティブ zap_invoice_failed
 export const ZAP_INVOICE_FAILED = "invoice を取得できませんでした。lud16/リレー設定を確認してください。";
 // ネイティブ nwc_paid
-export const ZAP_PAID = "Zapを送金しました ⚡";
+export const ZAP_PAID = t("nwc_paid");
 
 /** カスタム額（数字だけ）。1 以上の整数ならそれ、それ以外は null（プリセットを使う） */
 function customSats(value: string): number | null {

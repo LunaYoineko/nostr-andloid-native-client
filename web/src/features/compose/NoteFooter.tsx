@@ -1,5 +1,6 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import type { ReactNode } from "react";
+import { t } from "../../i18n";
 import { retryUnsentNow, useIsUnsent } from "../../nostr/publish";
 import { useSession } from "../../signer/session";
 import { ReplyIcon } from "../../ui/icons";
@@ -87,7 +88,7 @@ function UnsentChip({ eventId }: { eventId: string }) {
           type: "item",
           label: "下書きに戻す",
           onSelect: () => {
-            if (unsentToDraft(eventId)) showToast("下書きに戻しました");
+            if (unsentToDraft(eventId)) showToast(t("unsent_moved_to_draft"));
           },
         },
       ]}

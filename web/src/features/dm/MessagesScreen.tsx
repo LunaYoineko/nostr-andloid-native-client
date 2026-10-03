@@ -2,6 +2,7 @@ import { npubEncode } from "nostr-tools/nip19";
 import { useEffect, useMemo } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { parseProfileRef } from "../../app/overlays/refs";
+import { useT } from "../../i18n";
 import { badgeText } from "../../ui/badge";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { type LayoutMode, useLayoutMode } from "../../ui/useLayoutMode";
@@ -252,6 +253,7 @@ function RoomPane({
   onBack?: () => void;
   onClose?: () => void;
 }) {
+  const t = useT();
   const channel = useChannel(channelId);
   const listLoading = useChannels((s) => s.channels === null && !s.failed);
   useEffect(() => {
@@ -263,7 +265,7 @@ function RoomPane({
       <div className={styles.invalid}>
         {onBack && <ScreenHeader title="メッセージ" onBack={onBack} />}
         <p className={styles.placeholder}>
-          {channelId === null ? "チャンネルを読み取れません" : "チャンネルを読み込み中…"}
+          {channelId === null ? t("web_chat_channel_unreadable") : t("chat_loading_channel")}
         </p>
       </div>
     );

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { setPublishAccount, UNCONFIRMED_MESSAGE, unconfirmed$ } from "../../nostr/publish";
+import { t } from "../../i18n";
+import { setPublishAccount, unconfirmed$ } from "../../nostr/publish";
 import { useSession } from "../../signer/session";
 import { EditIcon } from "../../ui/icons";
 import { Toaster } from "../../ui/Toaster";
@@ -21,7 +22,7 @@ export function ComposeHost({ showFab }: { showFab: boolean }) {
   }, [me]);
 
   useEffect(() => {
-    const subscription = unconfirmed$.subscribe(() => showToast(UNCONFIRMED_MESSAGE));
+    const subscription = unconfirmed$.subscribe(() => showToast(t("publish_unconfirmed")));
     return () => subscription.unsubscribe();
   }, []);
 

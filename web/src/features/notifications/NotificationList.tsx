@@ -1,6 +1,7 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { useMemo, useRef } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { useT } from "../../i18n";
 import { useSession } from "../../signer/session";
 import { isMutedRevealed, useDeck } from "../../store/deck";
 import { PullToRefreshIndicator } from "../../ui/PullToRefreshIndicator";
@@ -28,6 +29,7 @@ export function NotificationList({
   columnId: string;
   onRefresh?: () => void;
 }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const revealed = useDeck((s) => isMutedRevealed(s, columnId));
   const dms = useDmNotices(me !== null, revealed);
@@ -40,7 +42,7 @@ export function NotificationList({
     return (
       <div className={styles.root} ref={scrollerRef}>
         <PullToRefreshIndicator progress={progress} refreshing={refreshing} />
-        <p className={styles.empty}>{loading ? "読み込み中…" : "通知はまだありません"}</p>
+        <p className={styles.empty}>{loading ? t("loading") : t("notif_empty")}</p>
       </div>
     );
   }

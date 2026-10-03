@@ -3,6 +3,7 @@ import { use$ } from "applesauce-react/hooks/use-$";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { combineLatest, map, type Subscription, startWith } from "rxjs";
+import { useT } from "../../i18n";
 import {
   type Ctx,
   LOADING_TIMEOUT_MS,
@@ -25,9 +26,6 @@ import { useFollows } from "./useFollows";
 
 /** following = フォロー + 自分、column = フォロー中以外のカラム */
 export type FeedMode = "following" | "column";
-
-/** フォロー 0 件（未ログイン含む）の空表示（ネイティブ feed_empty と同じ文言。#583） */
-export const FOLLOWING_EMPTY_TEXT = "投稿がありません";
 
 export type ColumnFeed = {
   mode: FeedMode;
@@ -66,6 +64,7 @@ const NO_IDS: ReadonlySet<string> = new Set();
  * 1 カラムの購読と表示。カラムの REQ を張ったままにし（アンマウントで CLOSE）、EventStore から条件に合う投稿を読む。
  */
 export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   // フック呼び出しの順を変えないよう常に呼ぶ（フォロー中以外は me を渡さず購読しない）
   const follows = useFollows(spec.kind === "FOLLOWING" ? me : null);
@@ -148,8 +147,8 @@ export function useColumnFeed(spec: ColumnSpec): ColumnFeed {
   const refresh = useCallback(() => setEpoch((e) => e + 1), []);
 
   const mode: FeedMode = spec.kind !== "FOLLOWING" ? "column" : "following";
-  // フォロー中カラムで REQ を出していない（未ログインでフォローも無い）ときだけ空表示の文言を出す（#583）
-  const emptyText = spec.kind === "FOLLOWING" && plan === null ? FOLLOWING_EMPTY_TEXT : undefined;
+  // フォロー中カラムで REQ を出していない（未ログインでフォローも無い）ときだけ空表示の文言を出す（#583。ネイティブ feed_empty）
+  const emptyText = spec.kind === "FOLLOWING" && plan === null ? t("feed_empty") : undefined;
   return { mode, loading, emptyText, events: visible, rows, loadingOlder, loadOlder, refresh };
 }
 

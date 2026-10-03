@@ -1,4 +1,5 @@
 import type { EventTemplate, NostrEvent } from "nostr-tools/pure";
+import { t } from "../../i18n";
 import { unixNow } from "../../lib/time";
 import { refetchOwnReplaceable } from "../../nostr/ownReplaceable";
 import { PublishError, type PublishFailure, publishEvent } from "../../nostr/publish";
@@ -19,7 +20,7 @@ export function normalizeHashtag(raw: string): string | null {
 
 /** ピン留めの上限に達したときの文言（ネイティブ tag_pin_limit_fmt） */
 export function pinLimitMessage(max = PINNED_MAX): string {
-  return `ピン留めは${max}件までです。整理画面で整理してください。`;
+  return t("tag_pin_limit_fmt", max);
 }
 
 /**

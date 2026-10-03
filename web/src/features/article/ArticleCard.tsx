@@ -3,6 +3,7 @@ import { decode, naddrEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForEvent } from "../../lib/content/labels";
 import { tokenizeNostrContent } from "../../lib/content/tokenize";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
@@ -74,6 +75,7 @@ function ArticleThumb({ url }: { url: string }) {
  * 解決中・解決できなければ淡色メッセージ（それでもカード自体は記事の URL へのリンク）。
  */
 export function ArticleCard({ addr }: { addr: AddressPointer }) {
+  const t = useT();
   const { event, failed } = useEventByAddress(addr);
   const href = useMemo(() => hrefForEvent(naddrEncode(addr)), [addr]);
   return (
@@ -81,7 +83,7 @@ export function ArticleCard({ addr }: { addr: AddressPointer }) {
       {event && event.kind === 30023 ? (
         <ArticleCardBody event={event} />
       ) : (
-        <p className={styles.pending}>{failed ? "記事を取得できませんでした" : "読み込み中…"}</p>
+        <p className={styles.pending}>{failed ? t("web_article_failed") : t("loading")}</p>
       )}
     </Link>
   );

@@ -1,4 +1,5 @@
 import { type FormEvent, useId, useState } from "react";
+import { t, useT } from "../../i18n";
 import { shortNpub } from "../../lib/npub";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { currentSigner, useSession } from "../../signer/session";
@@ -15,29 +16,22 @@ const CATEGORY_LABELS: readonly { category: MuteCategory; label: string }[] = [
   { category: "e", label: "スレッド" },
 ];
 
-/** ネイティブ mute_locked */
-const LOCKED_MESSAGE = "復号できない非公開項目があるため編集できません（上書きで失うのを防いでいます）";
-
-/** 署名者が暗号（NIP-44 / NIP-04）を使えない（ネイティブに無い web 独自の案内。#478） */
-const NO_CIPHER_MESSAGE =
-  "この署名方式は暗号化に対応していないため、非公開でミュートできません（公開では追加しません）";
-
 /** 変更の失敗の文言 */
 function failureMessage(e: unknown): string {
   if (e instanceof MuteListError) {
     switch (e.reason) {
       case "no-mute-list":
-        return "最新のミュートリストを取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
+        return t("web_mute_no_base");
       case "stale":
-        return "ミュートリストが更新されていたため、変更しませんでした。最新の内容を表示したので、確認してもう一度操作してください";
+        return t("web_mute_stale");
       case "locked":
-        return LOCKED_MESSAGE;
+        return t("mute_locked");
       case "no-cipher":
-        return NO_CIPHER_MESSAGE;
+        return t("web_mute_no_cipher");
     }
   }
   // ネイティブ mute_save_failed
-  return "保存に失敗しました（鍵を確認してください）";
+  return t("mute_save_failed");
 }
 
 /** 編集中の下書き。basedOnId = 編集を始めた時点の版の id（無ければ null。ネイティブに無い web 独自の #478 対策） */
@@ -51,6 +45,7 @@ type Draft = { basedOnId: string | null; entries: MuteEntry[] };
  * ⋯ メニューからの 1 件のミュート / 解除（muteUser / unmuteUser）はここを介さず、その場で発行する。
  */
 export function MuteSection() {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const list = useMute((s) => s.list);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -82,7 +77,7 @@ export function MuteSection() {
       await saveMuteList(me, draft.entries, draft.basedOnId);
       setDraft(null);
       // ネイティブ mute_saved
-      showToast("ミュートリストを保存しました");
+      showToast(t("mute_saved"));
     } catch (e) {
       // 最新版と食い違っていたら下書きを捨てて最新の内容を出し直す
       if (e instanceof MuteListError && e.reason === "stale") setDraft(null);
@@ -95,9 +90,7 @@ export function MuteSection() {
   function addWord(word: string) {
     if (!me || !list || list.locked) return;
     addMuteWord(me, word, list.eventId)
-      .then((result) =>
-        showToast(result === "done" ? "ミュートワードを追加しました" : "追加できませんでした"),
-      )
+      .then((result) => showToast(result === "done" ? t("mute_word_added") : t("mute_add_failed")))
       .catch((e: unknown) => showToast(failureMessage(e)));
   }
 
@@ -117,8 +110,8 @@ export function MuteSection() {
           </p>
         ) : (
           <>
-            {list.locked && <p className={styles.note}>{LOCKED_MESSAGE}</p>}
-            {!canPrivate && <p className={styles.note}>{NO_CIPHER_MESSAGE}</p>}
+            {list.locked && <p className={styles.note}>{t("mute_locked")}</p>}
+            {!canPrivate && <p className={styles.note}>{t("web_mute_no_cipher")}</p>}
             {entries.length === 0 ? (
               <p className={styles.desc}>ミュートしている項目はありません</p>
             ) : (

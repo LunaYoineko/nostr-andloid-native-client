@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useT } from "../../i18n";
+import { t, useT } from "../../i18n";
 import { oneLine } from "../../lib/content/labels";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { extractMedia } from "../../lib/media";
@@ -82,6 +82,7 @@ export function ChannelRoom({
   header: ReactNode;
   revealMuted?: boolean;
 }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const { loading, messages, reactions, channelRelays } = useChannelRoom(channelId, revealMuted);
   const [replyTo, setReplyTo] = useState<NostrEvent | null>(null);
@@ -130,7 +131,7 @@ export function ChannelRoom({
       {header}
       <div ref={scroller} className={mode === "screen" ? styles.chatScroller : styles.feedScroller}>
         {messages.length === 0 ? (
-          <p className={styles.empty}>{loading ? "読み込み中…" : "まだ発言がありません"}</p>
+          <p className={styles.empty}>{loading ? t("loading") : t("web_chat_empty")}</p>
         ) : (
           rows
         )}
@@ -348,12 +349,12 @@ function ReactionImage({ url, text }: { url: string; text: string }) {
 /** ミュート・解除の失敗の文言（NoteActionButtons と同じ） */
 function muteFailureMessage(e: unknown): string {
   if (e instanceof MuteListError && e.reason === "no-mute-list") {
-    return "最新のミュートリストを取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
+    return t("web_mute_no_base");
   }
   if (e instanceof MuteListError && e.reason === "no-cipher") {
-    return "この署名方式は暗号化に対応していないため、非公開でミュートできません（公開では追加しません）";
+    return t("web_mute_no_cipher");
   }
-  return "ミュートリストが変更できません（ロック中の可能性）";
+  return t("note_mute_locked");
 }
 
 function warn(message: string) {
@@ -386,7 +387,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
     if (!me) return;
     const run = action === "mute" ? muteUser(me, message.pubkey) : unmuteUser(me, message.pubkey);
     run.then(
-      () => showToast(action === "mute" ? "ミュートしました" : "ミュートを解除しました"),
+      () => showToast(action === "mute" ? t("muted_toast") : t("note_unmuted_toast")),
       (e) => showToast(muteFailureMessage(e)),
     );
   }

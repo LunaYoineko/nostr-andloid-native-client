@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { t } from "../../i18n";
 import type { MediaItem } from "../../lib/media";
 import {
   ChevronLeftIcon,
@@ -265,9 +266,9 @@ export function Lightbox({ items, index: initialIndex, onClose }: Props) {
       } finally {
         URL.revokeObjectURL(objectUrl);
       }
-      showToast("画像を保存しました");
+      showToast(t("img_saved"));
     } catch {
-      showToast("保存に失敗しました");
+      showToast(t("img_save_failed"));
     }
   }
 

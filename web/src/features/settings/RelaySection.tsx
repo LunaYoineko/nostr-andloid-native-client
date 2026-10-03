@@ -1,7 +1,7 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { map } from "rxjs";
-import { useT } from "../../i18n";
+import { t, useT } from "../../i18n";
 import { displayRelayUrl } from "../../nostr/outbox";
 import { addRelay, type RelayRow, removeRelay, setRelayReadWrite, useRelayRows } from "../../nostr/pool";
 import { type AuthPolicy, setAuthPolicy, useAuthPolicy } from "../../nostr/relayAuth";
@@ -25,12 +25,12 @@ const SOURCE_LABEL: Record<RelayRow["source"], string> = { nip65: "NIP-65", manu
 /** 保存の失敗の文言 */
 function failureMessage(e: unknown): string {
   if (e instanceof RelayListError && e.reason === "no-relay-list") {
-    return "最新のリレーリストを取得できなかったため、公開しませんでした。接続を確認してもう一度お試しください";
+    return t("web_relays_no_base");
   }
   if (e instanceof RelayListError && e.reason === "stale") {
-    return "リレーリストが更新されていたため、公開しませんでした。最新の内容を表示したので、確認してもう一度編集してください";
+    return t("web_relays_stale");
   }
-  return "公開に失敗しました（鍵を確認してください）";
+  return t("relays_publish_failed");
 }
 
 /**
@@ -63,7 +63,7 @@ export function RelaySection() {
     try {
       const prefs = rows.map(({ url, read, write }) => ({ url, read, write }));
       await publishRelayList(me, prefs, latest?.id ?? null);
-      showToast("リレーリストを公開しました");
+      showToast(t("relays_published"));
     } catch (e) {
       showToast(failureMessage(e));
     } finally {
