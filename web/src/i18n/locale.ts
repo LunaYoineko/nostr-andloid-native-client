@@ -38,10 +38,21 @@ function browserLanguages(): readonly string[] {
  * 設定とブラウザの言語から辞書の系統を決める（純関数）。
  * auto は先頭の言語が ja* なら ja、それ以外（無しを含む）は en。関西弁は ja のときだけ効く。
  */
-export function resolveLocale(setting: LocaleSetting, kansai: boolean, languages: readonly string[]): Locale {
-  const base = setting === "auto" ? (/^ja\b/i.test(languages[0] ?? "") ? "ja" : "en") : setting;
+export function resolveLocale(
+  setting: LocaleSetting,
+  kansai: boolean,
+  languages: readonly string[],
+  englishAvailable: boolean = ENGLISH_AVAILABLE,
+): Locale {
+  const detected = /^ja\b/i.test(languages[0] ?? "") ? "ja" : "en";
+  const wanted = setting === "auto" ? detected : setting;
+  // 英語辞書が揃う（#708）までは en を出さない（辞書が無いキーが日本語で混ざった画面になるため）
+  const base = wanted === "en" && !englishAvailable ? "ja" : wanted;
   return kansai && base === "ja" ? "ja-kansai" : base;
 }
+
+/** 英語 UI を出してよいか。`web.en.json` が `web.ja.json` と同じキーを持つ #708 で true にする */
+export const ENGLISH_AVAILABLE = false;
 
 interface LocaleState {
   setting: LocaleSetting;
