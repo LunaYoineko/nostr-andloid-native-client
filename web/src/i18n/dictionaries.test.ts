@@ -50,4 +50,12 @@ describe("辞書の整合（ja / en / ja-kansai）", () => {
   it("web 辞書のキーは web_ 始まり", () => {
     expect(Object.keys(webEn).filter((k) => !k.startsWith("web_"))).toEqual([]);
   });
+
+  it("見出し 3 つ（にゃにゃにゃウイルス / 廃人モード / うにゅうと握手）とそのトグルは ja と同一（戻せなくならないように）", () => {
+    const kansai: Dict = jaKansai;
+    for (const k of ["nyan_mode_title", "dense_mode_title", "web_kansai_title", "web_kansai_toggle"]) {
+      expect(JA[k]).toBeTruthy();
+      expect(kansai[k] ?? JA[k]).toBe(JA[k]);
+    }
+  });
 });
