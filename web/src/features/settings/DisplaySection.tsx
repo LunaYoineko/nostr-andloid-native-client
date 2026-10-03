@@ -1,6 +1,7 @@
 import type { ChangeEvent } from "react";
 import { useId, useState } from "react";
 import { useT } from "../../i18n";
+import { type LocaleSetting, setLocaleSetting, useLocale } from "../../i18n/locale";
 import { isDataSaver, setDataSaver } from "../../lib/imageProxy";
 import { type NyanMode, setNyanMode, useNyanMode } from "../../ui/nyan";
 import { type EmbedPrefs, setEmbedPref, useEmbedPrefs } from "../linkcard/embedPrefs";
@@ -9,7 +10,7 @@ import { setDensity, useThemePrefs } from "../theme/themePrefs";
 import styles from "./SettingsSections.module.css";
 
 /**
- * 表示（ネイティブ設定 > 表示と同じ順: テーマ・種別の視覚表示・表示サイズ・文字サイズ・太字（#464。
+ * 表示（先頭に言語（#542, Web 追加）。以降はネイティブ設定 > 表示と同じ順: テーマ・種別の視覚表示・表示サイズ・文字サイズ・太字（#464。
  * ここまでは ThemeSettings）→ にゃんモード → 廃人モード（#674, Web 追加）→ 埋め込み表示 →
  * データセーバー（Web 追加、末尾のまま #587）。
  * 「デフォルトのリアクション」はネイティブと同じく独立セクション（ReactionSection）に戻した。
@@ -17,6 +18,7 @@ import styles from "./SettingsSections.module.css";
 export function DisplaySection() {
   return (
     <>
+      <LanguageBlock />
       <div className={styles.block}>
         <ThemeSettings />
       </div>
@@ -25,6 +27,35 @@ export function DisplaySection() {
       <EmbedPrefsBlock />
       <DataSaverBlock />
     </>
+  );
+}
+
+/**
+ * [#542] 言語（自動 / 日本語 / English）。端末ごとの設定で NIP-78 の同期には入れない。
+ * 「日本語」「English」のラベルはどの言語でも同じ表記（辞書の ja / en に同じ値）。
+ */
+function LanguageBlock() {
+  const t = useT();
+  const setting = useLocale((s) => s.setting);
+  const choice = (value: LocaleSetting, label: string) => (
+    <button
+      type="button"
+      className={styles.choice}
+      aria-pressed={setting === value}
+      onClick={() => setLocaleSetting(value)}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>{t("web_language_title")}</h3>
+      <div className={styles.choices}>
+        {choice("auto", t("web_language_auto"))}
+        {choice("ja", t("web_language_ja"))}
+        {choice("en", t("web_language_en"))}
+      </div>
+    </div>
   );
 }
 

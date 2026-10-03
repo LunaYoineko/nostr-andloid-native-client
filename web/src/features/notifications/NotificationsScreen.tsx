@@ -1,4 +1,4 @@
-import { t, useT } from "../../i18n";
+import { useT } from "../../i18n";
 import { type ColumnSpec, defaultFilter } from "../../lib/columns";
 import { Icon } from "../../ui/icons";
 import { ScreenHeader } from "../../ui/ScreenHeader";
@@ -13,7 +13,8 @@ import styles from "./NotificationsScreen.module.css";
  */
 export const NOTIFICATIONS_SCREEN_SPEC: ColumnSpec = {
   id: "notifications",
-  title: t("nav_notifications"),
+  // 見出しは画面側で t() を引く（ここは購読の指定だけ。モジュール定数で訳すと言語の切替に追従しない）
+  title: "",
   subtitle: "",
   kind: "NOTIFICATIONS",
   renderer: "FEED",

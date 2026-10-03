@@ -51,8 +51,8 @@ export function resolveLocale(
   return kansai && base === "ja" ? "ja-kansai" : base;
 }
 
-/** 英語 UI を出してよいか。`web.en.json` が `web.ja.json` と同じキーを持つ #708 で true にする */
-export const ENGLISH_AVAILABLE = false;
+/** 英語 UI を出してよいか。en 辞書が ja と同じキーを持つ（#708）ので true */
+export const ENGLISH_AVAILABLE = true;
 
 interface LocaleState {
   setting: LocaleSetting;
