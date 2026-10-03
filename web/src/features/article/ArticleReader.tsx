@@ -1,6 +1,7 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { useState } from "react";
 import { Link } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForProfile } from "../../lib/content/labels";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { relativeTime } from "../../lib/time";
@@ -47,15 +48,16 @@ export function ArticleReader({
   comments: readonly ThreadEntry[];
   onBack: () => void;
 }) {
+  const t = useT();
   const profile = useProfile(article.pubkey);
-  const title = tagValue(article, "title") ?? "無題の記事";
+  const title = tagValue(article, "title") ?? t("article_untitled");
   const image = tagValue(article, "image");
   const summary = tagValue(article, "summary");
   const publishedAt = Number(tagValue(article, "published_at")) || article.created_at;
 
   return (
     <>
-      <ScreenHeader title="記事" subtitle="NIP-23 · kind:30023" onBack={onBack} />
+      <ScreenHeader title={t("article_title")} subtitle="NIP-23 · kind:30023" onBack={onBack} />
       <div className={styles.screen}>
         <h1 className={styles.title}>{title}</h1>
         <Link className={styles.author} to={hrefForProfile(article.pubkey)}>
@@ -69,7 +71,10 @@ export function ArticleReader({
         <ArticleMarkdown content={article.content} />
         <hr className={styles.divider} />
         <div className={styles.actions}>
-          <ActionButton label="コメント" onClick={() => openCompose({ mode: "reply", target: article })}>
+          <ActionButton
+            label={t("article_comment")}
+            onClick={() => openCompose({ mode: "reply", target: article })}
+          >
             <ReplyIcon />
           </ActionButton>
           <DefaultReactionButton event={article} />
@@ -77,7 +82,7 @@ export function ArticleReader({
         </div>
         {comments.length > 0 && (
           <>
-            <p className={styles.commentsHeader}>{`コメント (${comments.length})`}</p>
+            <p className={styles.commentsHeader}>{t("article_comments_fmt", comments.length)}</p>
             {comments.map((entry) => (
               <NoteItem key={entry.event.id} event={entry.event} />
             ))}
@@ -118,15 +123,16 @@ function ArticleBanner({ url }: { url: string }) {
 
 /** 既定リアクション（♡ / ☆）。押すたびに付与・取り消しをトグルする（記事の行では確認を挟まない） */
 function DefaultReactionButton({ event }: { event: NostrEvent }) {
+  const t = useT();
   const content = useDefaultReaction((s) => s.content);
   const isStar = content === "⭐" || content === "★";
   const active = useIsReacted(event.id);
   const Glyph = isStar ? (active ? StarIcon : StarBorderIcon) : active ? FavoriteIcon : FavoriteBorderIcon;
   return (
     <ActionButton
-      label="リアクション"
+      label={t("section_reaction")}
       pressed={active}
-      onClick={() => void reactWithDefault(event).catch(warn("リアクションに失敗"))}
+      onClick={() => void reactWithDefault(event).catch(warn(t("web_log_react_failed")))}
     >
       <Glyph />
     </ActionButton>
@@ -135,16 +141,17 @@ function DefaultReactionButton({ event }: { event: NostrEvent }) {
 
 /** 絵文字でリアクション（ピッカーを開き、選んだものを送る） */
 function EmojiReactionButton({ event }: { event: NostrEvent }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <ActionButton label="絵文字でリアクション" onClick={() => setOpen(true)}>
+      <ActionButton label={t("web_note_emoji_reaction")} onClick={() => setOpen(true)}>
         <AddReactionIcon />
       </ActionButton>
       {open && (
         <ReactionPickerDialog
           target={event}
-          onPick={(c, url) => void publishReaction(event, c, url).catch(warn("リアクションに失敗"))}
+          onPick={(c, url) => void publishReaction(event, c, url).catch(warn(t("web_log_react_failed")))}
           onClose={() => setOpen(false)}
         />
       )}

@@ -6,6 +6,7 @@ import {
   getEventPointerFromQTag,
 } from "applesauce-core/helpers/pointers";
 import type { NostrEvent } from "nostr-tools/pure";
+import { t } from "../../i18n";
 import { eventStore } from "../../nostr/store";
 import { parseNoteContent } from "./parse";
 
@@ -94,10 +95,10 @@ export function replyParentPointerOf(event: NostrEvent): EventPointer | null {
 export function commentRootLabelOf(event: NostrEvent): string | null {
   if (event.kind !== 1111) return null;
   const external = event.tags.find((t) => t[0] === "I" && t[1])?.[1];
-  if (external) return `${externalLabel(external)} へのコメント`;
+  if (external) return t("comment_root_url_fmt", externalLabel(external));
   const kind = event.tags.find((t) => t[0] === "K")?.[1];
-  if (kind && /^\d+$/.test(kind)) return `kind ${kind} へのコメント`;
-  return "コメント対象を取得中…";
+  if (kind && /^\d+$/.test(kind)) return t("comment_root_kind_fmt", kind);
+  return t("comment_root_loading");
 }
 
 /** I タグの値。URL ならホスト名、それ以外はそのまま */

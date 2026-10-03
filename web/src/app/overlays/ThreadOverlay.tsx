@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { openCompose } from "../../features/compose/composeStore";
 import { ThreadScreen } from "../../features/thread/ThreadScreen";
+import { useT } from "../../i18n";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { ComingSoon } from "../screens/ComingSoon";
 import { parseEventRef } from "./refs";
@@ -10,12 +11,13 @@ import { parseEventRef } from "./refs";
  * ヘッダは ThreadScreen が持つ（起点が kind:30023 なら「記事」、それ以外は「スレッド」。ProfileOverlay と同じ構成）。
  */
 export function ThreadOverlay({ refParam, onBack }: { refParam: string; onBack: () => void }) {
+  const t = useT();
   const ref = useMemo(() => parseEventRef(refParam), [refParam]);
   if (!ref) {
     return (
       <>
-        <ScreenHeader title="スレッド" subtitle="NIP-10" onBack={onBack} />
-        <ComingSoon>URL が正しくありません</ComingSoon>
+        <ScreenHeader title={t("thread_title")} subtitle="NIP-10" onBack={onBack} />
+        <ComingSoon>{t("web_route_invalid_url")}</ComingSoon>
       </>
     );
   }

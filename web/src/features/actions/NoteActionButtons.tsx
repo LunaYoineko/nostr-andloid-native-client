@@ -82,20 +82,21 @@ export function NoteActionButtons({ event }: { event: NostrEvent }) {
 
 /** リポスト。押すと「リポスト」「引用リポスト」。自分がリポスト済みなら緑 */
 function RepostButton({ event }: { event: NostrEvent }) {
+  const t = useT();
   const reposted = useIsReposted(event.id);
   return (
     <MenuButton
-      label="リポスト"
+      label={t("note_repost")}
       triggerClassName={reposted ? `${ACTION_BUTTON_CLASS} ${styles.reposted}` : ACTION_BUTTON_CLASS}
       entries={[
         {
           type: "item",
-          label: "リポスト",
-          onSelect: () => void publishRepost(event).catch(warn("リポストに失敗")),
+          label: t("note_repost"),
+          onSelect: () => void publishRepost(event).catch(warn(t("web_log_repost_failed"))),
         },
         {
           type: "item",
-          label: "引用リポスト",
+          label: t("note_quote_repost"),
           onSelect: () => openCompose({ mode: "quote", target: event }),
         },
       ]}
@@ -141,14 +142,14 @@ function DefaultReactionButton({ event }: { event: NostrEvent }) {
     if (pending) return;
     setPending(true);
     reactWithDefault(event).catch((e) => {
-      warn("リアクションに失敗")(e);
+      warn(t("web_log_react_failed"))(e);
       setPending(false);
     });
   }
 
   return (
     <>
-      <ActionButton label="リアクション" pressed={on} busy={busy} onClick={onClick}>
+      <ActionButton label={t("section_reaction")} pressed={on} busy={busy} onClick={onClick}>
         <span
           className={on ? `${styles.glyph} ${isStar ? styles.star : styles.heart}` : styles.glyph}
           data-shape={isStar ? "star" : "heart"}
@@ -164,7 +165,7 @@ function DefaultReactionButton({ event }: { event: NostrEvent }) {
           destructive
           onConfirm={() => {
             setConfirming(false);
-            reactWithDefault(event).catch(warn("リアクションの取り消しに失敗"));
+            reactWithDefault(event).catch(warn(t("web_log_unreact_failed")));
           }}
           onDismiss={() => setConfirming(false)}
         />
@@ -175,16 +176,17 @@ function DefaultReactionButton({ event }: { event: NostrEvent }) {
 
 /** 絵文字でリアクション（ピッカーを開き、選んだものを送る） */
 function EmojiReactionButton({ event }: { event: NostrEvent }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <ActionButton label="絵文字でリアクション" onClick={() => setOpen(true)}>
+      <ActionButton label={t("web_note_emoji_reaction")} onClick={() => setOpen(true)}>
         <AddReactionIcon />
       </ActionButton>
       {open && (
         <ReactionPickerDialog
           target={event}
-          onPick={(c, url) => void publishReaction(event, c, url).catch(warn("リアクションに失敗"))}
+          onPick={(c, url) => void publishReaction(event, c, url).catch(warn(t("web_log_react_failed")))}
           onClose={() => setOpen(false)}
         />
       )}
@@ -364,7 +366,7 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
 
   return (
     <>
-      <MenuButton label="その他の操作" triggerClassName={ACTION_BUTTON_CLASS} entries={entries}>
+      <MenuButton label={t("web_note_more_actions")} triggerClassName={ACTION_BUTTON_CLASS} entries={entries}>
         <MoreHorizIcon />
       </MenuButton>
       {dialog === "unfollow" && (
@@ -412,7 +414,7 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
         <ReportDialog
           onPick={(type) => {
             setDialog(null);
-            reportNote(event, type).catch(warn("通報に失敗"));
+            reportNote(event, type).catch(warn(t("web_log_report_failed")));
           }}
           onDismiss={() => setDialog(null)}
         />

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { t } from "../../i18n";
 
 /**
  * NIP-28 のチャンネル一覧（ネイティブ EventRepository.refreshChannels / channelsFlow の Web 版）。
@@ -124,7 +125,7 @@ export function refreshChannels(
       if (channels === null) throw new Error("unexpected body");
       useChannels.setState({ channels, loading: false, failed: false });
     } catch (e) {
-      console.warn("[chat] チャンネル一覧を取得できませんでした", e);
+      console.warn(`[chat] ${t("web_log_chat_channels_failed")}`, e);
       useChannels.setState({ loading: false, failed: true });
     } finally {
       inFlight = null;

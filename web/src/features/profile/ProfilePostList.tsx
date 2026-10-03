@@ -53,7 +53,7 @@ export function ProfilePostList({
           itemContent={(_, row) =>
             row.type === "pinnedLabel" ? (
               <p className={styles.pinnedLabel}>
-                <span aria-hidden="true">📌</span> 固定された投稿
+                <span aria-hidden="true">📌</span> {t("pinned_post")}
               </p>
             ) : (
               <NoteItem event={row.event} />

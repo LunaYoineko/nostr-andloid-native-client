@@ -1,6 +1,7 @@
 import type { EventStore } from "applesauce-core/event-store";
 import type { NostrEvent } from "nostr-tools/pure";
 import { bufferTime, filter } from "rxjs";
+import { t } from "../i18n";
 import { addVerifiedTo, deletionRecorded$, loadDeletionMemory } from "../nostr/store";
 import { EVENTS_TRIM_TO, fromRow, hydratedSymbol, PERSIST_KINDS, toRow, trimEvents } from "./events";
 import type { NostrismDb } from "./schema";
@@ -37,7 +38,7 @@ export function attachPersistence(eventStore: EventStore, db: NostrismDb, me: st
     )
     .subscribe((batch) => {
       db.events.bulkDelete(batch.map((e) => e.id)).catch((e: unknown) => {
-        console.warn("[db] イベントの削除に失敗", e);
+        console.warn(`[db] ${t("web_log_db_delete_event_failed")}`, e);
       });
     });
 
@@ -58,7 +59,7 @@ async function putEvents(db: NostrismDb, batch: NostrEvent[], me: string | null)
     return;
   } catch (e) {
     if (!isQuotaExceeded(e)) {
-      console.warn("[db] イベントの保存に失敗", e);
+      console.warn(`[db] ${t("web_log_db_save_event_failed")}`, e);
       return;
     }
   }
@@ -68,7 +69,7 @@ async function putEvents(db: NostrismDb, batch: NostrEvent[], me: string | null)
     await trimEvents(db, { me, cap: trimTo, trimTo });
     await db.events.bulkPut(rows);
   } catch (e) {
-    console.warn("[db] 容量超過で保存できないので捨てる", e);
+    console.warn(`[db] ${t("web_log_db_quota")}`, e);
   }
 }
 
@@ -113,7 +114,7 @@ export function attachDeletionPersistence(db: NostrismDb): () => void {
         ? db.deletedEvents.put({ id: record.id, deletedAt: record.deletedAt })
         : db.deletedAddrs.put({ coord: record.coord, deletedAt: record.deletedAt });
     put.catch((e: unknown) => {
-      console.warn("[db] 削除記録の保存に失敗", e);
+      console.warn(`[db] ${t("web_log_db_save_deletion_failed")}`, e);
     });
   });
   return () => subscription.unsubscribe();

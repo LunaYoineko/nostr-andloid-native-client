@@ -1,6 +1,7 @@
 import { type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 import { tabScrollTarget } from "../app/deck/geometry";
 import { useT } from "../i18n";
+import { columnDisplayTitle } from "../i18n/columnTitles";
 import styles from "./ColumnTabs.module.css";
 import { RelayIndicator } from "./RelayIndicator";
 import { scrollBehavior, scrollToLeft } from "./useLayoutMode";
@@ -79,7 +80,7 @@ export function ColumnTabs({
                   onClick={() => onSelect(c.id)}
                   onKeyDown={(e) => onKeyDown(e, i)}
                 >
-                  {c.title}
+                  {columnDisplayTitle(c.title)}
                 </button>
               </li>
             );

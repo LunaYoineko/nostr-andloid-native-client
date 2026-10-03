@@ -20,14 +20,15 @@ function tagValue(event: NostrEvent, name: string): string | null {
  * タイトル 2 行・概要（summary タグ、無ければ本文の最初の空でない行）2 行。プロフィールの記事タブでも使う。
  */
 export function ArticleCardBody({ event }: { event: NostrEvent }) {
-  const title = tagValue(event, "title") ?? "無題の記事";
+  const t = useT();
+  const title = tagValue(event, "title") ?? t("article_untitled");
   const image = tagValue(event, "image");
   const excerpt = tagValue(event, "summary") ?? firstNonBlankLine(event.content);
   return (
     <div className={styles.body}>
       {image && <ArticleThumb url={image} />}
       <div className={styles.texts}>
-        <p className={styles.label}>記事</p>
+        <p className={styles.label}>{t("article_title")}</p>
         <p className={styles.title}>{title}</p>
         {excerpt && <p className={styles.excerpt}>{excerpt}</p>}
       </div>

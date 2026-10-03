@@ -1,3 +1,4 @@
+import { t, useT } from "../../i18n";
 import { type ColumnSpec, defaultFilter } from "../../lib/columns";
 import { Icon } from "../../ui/icons";
 import { ScreenHeader } from "../../ui/ScreenHeader";
@@ -12,7 +13,7 @@ import styles from "./NotificationsScreen.module.css";
  */
 export const NOTIFICATIONS_SCREEN_SPEC: ColumnSpec = {
   id: "notifications",
-  title: "通知",
+  title: t("nav_notifications"),
   subtitle: "",
   kind: "NOTIFICATIONS",
   renderer: "FEED",
@@ -23,12 +24,13 @@ export const NOTIFICATIONS_SCREEN_SPEC: ColumnSpec = {
 
 /** 通知画面（/notifications。ネイティブの NotificationsScreen）。通知カラムと同じ一覧を 1 カラムで */
 export function NotificationsScreen() {
+  const t = useT();
   const { events, loading, refresh } = useColumnFeed(NOTIFICATIONS_SCREEN_SPEC);
   return (
     <SingleColumnPane>
       <ScreenHeader
-        title="通知"
-        subtitle="メンション・リアクション・リポスト"
+        title={t("nav_notifications")}
+        subtitle={t("notif_subtitle")}
         icon={<Icon name="notifications" size="lg" />}
       />
       <hr className={styles.divider} />

@@ -92,7 +92,7 @@ export function ProfileMenu({
     setDialog(null);
     reportUser(pubkey, type).then(
       () => showToast(t("reported_toast")),
-      (e) => console.warn("[profile] 通報に失敗", e),
+      (e) => console.warn(`[profile] ${t("web_log_profile_report_failed")}`, e),
     );
   }
 
@@ -102,7 +102,7 @@ export function ProfileMenu({
         ref={button}
         type="button"
         className={styles.circle}
-        aria-label="メニュー"
+        aria-label={t("menu")}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
@@ -110,14 +110,14 @@ export function ProfileMenu({
         <Icon name="moreHoriz" size="md" />
       </button>
       {open && (
-        <div role="menu" aria-label="メニュー" className={styles.menu}>
+        <div role="menu" aria-label={t("menu")} className={styles.menu}>
           <button
             type="button"
             role="menuitem"
             className={styles.menuItem}
             onClick={() => copy(nprofile(), t("nprofile_copied"))}
           >
-            nprofile をコピー
+            {t("copy_nprofile")}
           </button>
           <button
             type="button"
@@ -125,7 +125,7 @@ export function ProfileMenu({
             className={styles.menuItem}
             onClick={() => copy(`https://njump.me/${nprofile()}`, t("link_copied"))}
           >
-            リンクをコピー（njump）
+            {t("note_copy_link")}
           </button>
           {me !== null && (
             <>
@@ -138,7 +138,7 @@ export function ProfileMenu({
                   setDialog("mute");
                 }}
               >
-                {muted ? "ミュートを解除" : "ミュート"}
+                {muted ? t("note_unmute_user") : t("mute_confirm")}
               </button>
               <button
                 type="button"
@@ -149,7 +149,7 @@ export function ProfileMenu({
                   setDialog("report");
                 }}
               >
-                通報
+                {t("note_report")}
               </button>
             </>
           )}
@@ -181,7 +181,7 @@ export function ProfileMenu({
           />
         ))}
       {dialog === "report" && (
-        <ReportDialog title="このユーザーを通報" onPick={report} onDismiss={() => setDialog(null)} />
+        <ReportDialog title={t("report_user_title")} onPick={report} onDismiss={() => setDialog(null)} />
       )}
     </div>
   );

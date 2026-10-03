@@ -1,6 +1,6 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import type { ReactNode } from "react";
-import { t } from "../../i18n";
+import { useT } from "../../i18n";
 import { retryUnsentNow, useIsUnsent } from "../../nostr/publish";
 import { useSession } from "../../signer/session";
 import { ReplyIcon } from "../../ui/icons";
@@ -58,14 +58,18 @@ export function NoteFooter({
   more?: ReactNode;
   children?: ReactNode;
 }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const unsent = useIsUnsent(event.id);
   return (
     <div className={styles.footer}>
       {event.pubkey === me && unsent && <UnsentChip eventId={event.id} />}
-      <fieldset aria-label="操作" className={styles.actions}>
+      <fieldset aria-label={t("web_note_actions_label")} className={styles.actions}>
         <div className={styles.primaryActions}>
-          <ActionButton label="返信" onClick={() => openCompose({ mode: "reply", target: event })}>
+          <ActionButton
+            label={t("compose_reply")}
+            onClick={() => openCompose({ mode: "reply", target: event })}
+          >
             <ReplyIcon />
           </ActionButton>
           {children}
@@ -78,22 +82,23 @@ export function NoteFooter({
 
 /** 「未送信」（ネイティブ UnsentChip）。押すと「再送」「下書きに戻す」 */
 function UnsentChip({ eventId }: { eventId: string }) {
+  const t = useT();
   return (
     <MenuButton
-      label="未送信"
+      label={t("unsent_label")}
       triggerClassName={styles.unsent}
       entries={[
-        { type: "item", label: "再送", onSelect: () => retryUnsentNow(eventId) },
+        { type: "item", label: t("unsent_retry"), onSelect: () => retryUnsentNow(eventId) },
         {
           type: "item",
-          label: "下書きに戻す",
+          label: t("unsent_to_draft"),
           onSelect: () => {
             if (unsentToDraft(eventId)) showToast(t("unsent_moved_to_draft"));
           },
         },
       ]}
     >
-      未送信
+      {t("unsent_label")}
     </MenuButton>
   );
 }

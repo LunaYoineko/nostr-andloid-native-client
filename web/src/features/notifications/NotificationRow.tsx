@@ -1,5 +1,6 @@
 import { memo, type ReactNode, useRef, useState } from "react";
 import { Link } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForProfile } from "../../lib/content/labels";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { relativeTime } from "../../lib/time";
@@ -11,10 +12,10 @@ import { useNow } from "../timeline/useNow";
 import { useOpenOnClick } from "../timeline/useOpenOnClick";
 import styles from "./NotificationRow.module.css";
 import {
-  NOTIFICATION_KIND_LABEL,
   type NotificationItem,
   type NotificationKind,
   notificationHref,
+  notificationKindLabel,
   notificationSnippet,
 } from "./notificationModel";
 
@@ -35,6 +36,7 @@ const KIND_ICON: Record<Exclude<NotificationKind, "reaction">, typeof ReplyIcon>
  * 行を押すと対象のスレッド（対象が無ければ通知そのもの。DM は相手との会話）を開く。
  */
 export const NotificationRow = memo(function NotificationRow({ item }: { item: NotificationItem }) {
+  const t = useT();
   const isReply = item.kind === "reply" || item.kind === "mention";
   const profile = useProfile(item.actor);
   const picture = pictureOf(profile);
@@ -86,7 +88,7 @@ export const NotificationRow = memo(function NotificationRow({ item }: { item: N
     );
     body =
       item.kind === "dm" ? (
-        <p className={styles.dmText}>{dmReceivedText(item.dmUnread ?? 0)}</p>
+        <p className={styles.dmText}>{dmReceivedText(t, item.dmUnread ?? 0)}</p>
       ) : item.target ? (
         <QuoteCard pointer={item.target} encoded={null} compact={item.kind !== "repost"} />
       ) : null;
@@ -106,16 +108,17 @@ export const NotificationRow = memo(function NotificationRow({ item }: { item: N
 });
 
 /** DM の行の本文（ネイティブ notif_dm_received / notif_dm_received_n） */
-function dmReceivedText(unread: number): string {
-  return unread > 1 ? `${unread}件のメッセージが届いています` : "メッセージが届きました";
+function dmReceivedText(t: ReturnType<typeof useT>, unread: number): string {
+  return unread > 1 ? t("notif_dm_received_n", unread) : t("notif_dm_received");
 }
 
 /** 左端の種別マーク。リアクションは絵文字そのもの（カスタム絵文字は画像）、他はアイコン */
 function KindMark({ item }: { item: NotificationItem }) {
+  const t = useT();
   if (item.kind !== "reaction") {
     const Icon = KIND_ICON[item.kind];
     return (
-      <span className={styles.markInner} role="img" aria-label={NOTIFICATION_KIND_LABEL[item.kind]}>
+      <span className={styles.markInner} role="img" aria-label={notificationKindLabel(item.kind, t)}>
         <Icon className={styles.markIcon} />
       </span>
     );
@@ -123,7 +126,7 @@ function KindMark({ item }: { item: NotificationItem }) {
   const display = item.reaction?.display ?? "❤️";
   const imageUrl = item.reaction?.imageUrl ?? null;
   return (
-    <span className={styles.markInner} role="img" aria-label={`リアクション ${display}`}>
+    <span className={styles.markInner} role="img" aria-label={t("web_notif_reaction_mark", display)}>
       {imageUrl !== null && /^https:\/\//i.test(imageUrl) ? (
         <ReactionImage key={imageUrl} url={imageUrl} text={display} />
       ) : (

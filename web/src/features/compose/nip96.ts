@@ -1,4 +1,5 @@
 import type { NostrEvent } from "nostr-tools/pure";
+import { t } from "../../i18n";
 import { unixNow } from "../../lib/time";
 import type { Signer } from "../../nostr/signer";
 
@@ -137,7 +138,7 @@ export async function uploadMedia(
       if (result) return result;
     } catch (e) {
       if (signal?.aborted) throw e;
-      console.warn(`[upload] ${server} に失敗`, e);
+      console.warn(`[upload] ${t("web_log_upload_server_failed", server)}`, e);
     }
   }
   signal?.throwIfAborted();

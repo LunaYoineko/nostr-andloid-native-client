@@ -3,7 +3,7 @@ import type { NostrEvent } from "nostr-tools/pure";
 import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import type { DmMessageRow } from "../../db/schema";
-import { t } from "../../i18n";
+import { t, useT } from "../../i18n";
 import { hrefForProfile } from "../../lib/content/labels";
 import { extractMedia } from "../../lib/media";
 import { shortNpub } from "../../lib/npub";
@@ -37,7 +37,7 @@ import { type CustomEmoji, useCustomEmojis } from "../compose/customEmojis";
 import {
   type ImageResolution,
   maxDimFor,
-  RESOLUTIONS,
+  resolutions,
   useImageCompression,
 } from "../compose/imageCompression";
 import { uploadServers, useMediaServer } from "../compose/mediaServer";
@@ -86,6 +86,7 @@ export function ConversationView({
   onBack?: () => void;
   onClose?: () => void;
 }) {
+  const t = useT();
   const me = useDm((s) => s.owner);
   const messages = useMessagesWith(peer);
   const conversation = useConversations().find((c) => c.peer === peer);
@@ -136,7 +137,7 @@ export function ConversationView({
     <section className={styles.root} aria-label={name}>
       <header className={styles.header}>
         {onBack && (
-          <button type="button" className={styles.back} aria-label="戻る" onClick={onBack}>
+          <button type="button" className={styles.back} aria-label={t("common_back")} onClick={onBack}>
             <ArrowBackIcon className={styles.backIcon} />
           </button>
         )}
@@ -148,7 +149,7 @@ export function ConversationView({
           </span>
         </Link>
         {onClose && (
-          <button type="button" className={styles.back} aria-label="選択を解除" onClick={onClose}>
+          <button type="button" className={styles.back} aria-label={t("web_chat_deselect")} onClick={onClose}>
             <CloseIcon className={styles.backIcon} />
           </button>
         )}
@@ -157,7 +158,7 @@ export function ConversationView({
         {rows}
         {start > 0 && (
           <button type="button" className={styles.more} onClick={() => setLimit((n) => n + PAGE_SIZE)}>
-            さらに表示
+            {t("web_dm_show_more")}
           </button>
         )}
       </div>
@@ -208,6 +209,7 @@ function Composer({
   onCancelReply(): void;
   onSent(): void;
 }) {
+  const t = useT();
   const nip17 = useDm((s) => s.nip17);
   const nip04 = useDm((s) => s.nip04);
   const me = useDm((s) => s.owner);
@@ -342,7 +344,7 @@ function Composer({
   }
 
   if (nip17 === "no-nip44" && nip04 === "no-nip04") {
-    return <p className={styles.cannotSend}>このログイン方法では DM を送れません</p>;
+    return <p className={styles.cannotSend}>{t("web_dm_cannot_send")}</p>;
   }
   return (
     <div className={styles.composerColumn}>
@@ -386,9 +388,9 @@ function Composer({
       )}
       {attachments.some((a) => a.kind === "image") && (
         <fieldset className={styles.resolutionRow}>
-          <legend className={styles.resolutionLegend}>解像度</legend>
+          <legend className={styles.resolutionLegend}>{t("compose_resolution")}</legend>
           <div className={styles.resolutionGroup}>
-            {RESOLUTIONS.map(([value, label]) => (
+            {resolutions().map(([value, label]) => (
               <button
                 key={value}
                 type="button"
@@ -408,7 +410,7 @@ function Composer({
         <textarea
           ref={textarea}
           className={styles.input}
-          aria-label="メッセージ"
+          aria-label={t("nav_messages")}
           rows={1}
           value={value.text}
           disabled={sending}
@@ -430,7 +432,7 @@ function Composer({
         <button
           type="button"
           className={styles.attachButton}
-          aria-label="画像・動画を添付"
+          aria-label={t("web_chat_attach_media")}
           disabled={sending}
           onClick={() => fileInput.current?.click()}
         >
@@ -451,7 +453,7 @@ function Composer({
         <button
           type="button"
           className={styles.send}
-          aria-label="送信"
+          aria-label={t("send")}
           aria-busy={sending || undefined}
           disabled={!canSend}
           onClick={() => void send()}
@@ -489,23 +491,29 @@ function AttachmentList({
   removable: boolean;
   onRemove(attachment: Attachment): void;
 }) {
+  const t = useT();
   const ordered = [
     ...attachments.filter((a) => a.kind === "image"),
     ...attachments.filter((a) => a.kind === "video"),
   ];
   return (
-    <ul className={styles.attachments} aria-label="添付">
+    <ul className={styles.attachments} aria-label={t("web_chat_attachments")}>
       {ordered.map((a) => (
         <li key={a.id} className={styles.attachment}>
           <div className={styles.thumb}>
             {a.kind === "image" ? (
-              <img className={styles.thumbMedia} src={a.preview} alt="添付画像" decoding="async" />
+              <img
+                className={styles.thumbMedia}
+                src={a.preview}
+                alt={t("compose_attachment")}
+                decoding="async"
+              />
             ) : (
               <>
                 <video
                   className={styles.thumbMedia}
                   src={a.preview}
-                  aria-label="添付動画"
+                  aria-label={t("web_chat_attachment_video")}
                   muted
                   playsInline
                   preload="metadata"
@@ -517,7 +525,7 @@ function AttachmentList({
               <button
                 type="button"
                 className={styles.remove}
-                aria-label="添付を外す"
+                aria-label={t("chat_attach_remove")}
                 onClick={() => onRemove(a)}
               >
                 <CloseIcon className={styles.removeIcon} />
@@ -548,6 +556,7 @@ function Bubble({
   parent: DmMessageRow | undefined;
   onReply(): void;
 }) {
+  const t = useT();
   // 本文の描画用に kind:14 のイベントの形にする（EventStore には入れない）
   const event = useMemo<NostrEvent>(() => dmEvent(message), [message]);
   const media = extractMedia(event);
@@ -573,7 +582,7 @@ function Bubble({
         {mine && unsent && (
           // 暗号文しか残っていないので「下書きに戻す」は出さない（ネイティブ ChannelRoomColumn の未送信）
           <button type="button" className={styles.unsent} onClick={() => retryUnsentNow(message.id)}>
-            未送信・タップで再送
+            {t("unsent_tap_retry")}
           </button>
         )}
       </div>
@@ -583,8 +592,15 @@ function Bubble({
 
 /** 吹き出し横のリプライボタン（ネイティブ MessageActions の Reply アイコン。DM はリアクション・Zap 無し） */
 function ReplyButton({ onClick }: { onClick(): void }) {
+  const t = useT();
   return (
-    <button type="button" className={styles.action} aria-label="リプライ" title="リプライ" onClick={onClick}>
+    <button
+      type="button"
+      className={styles.action}
+      aria-label={t("chat_reply")}
+      title={t("chat_reply")}
+      onClick={onClick}
+    >
       <ReplyIcon className={styles.actionIcon} />
     </button>
   );

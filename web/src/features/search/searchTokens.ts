@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { buildSearchColumn, type ColumnSpec } from "../../lib/columns";
 
 /**
@@ -44,5 +45,5 @@ export function searchSpecOf(tokens: readonly string[]): ColumnSpec {
 
 /** 結果の見出し「検索: <条件>」 */
 export function searchSummary(tokens: readonly string[]): string {
-  return `検索: ${tokens.join(" ")}`;
+  return t("search_summary_fmt", tokens.join(" "));
 }

@@ -1,5 +1,14 @@
 import { type FormEvent, useId, useState } from "react";
-import { buildColumn, type ColumnSpec, type ColumnTemplate, NOTIF_KINDS } from "../../lib/columns";
+import { useT } from "../../i18n";
+import {
+  buildColumn,
+  type ColumnSpec,
+  type ColumnTemplate,
+  NOTIF_KINDS,
+  notifKindLabel,
+  templateHint,
+  templateLabel,
+} from "../../lib/columns";
 import { unixNow } from "../../lib/time";
 import { useReadRelays } from "../../nostr/pool";
 import { useSession } from "../../signer/session";
@@ -45,6 +54,7 @@ export function ColumnConfigForm({
   onCancel: () => void;
   onSubmit: (spec: ColumnSpec) => void;
 }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const pinnedTags = usePinnedHashtags(me);
   const [usedTags] = useState(loadUsedHashtags);
@@ -112,8 +122,8 @@ export function ColumnConfigForm({
             type="text"
             className={styles.input}
             value={text}
-            placeholder={template.hint}
-            aria-label={template.label}
+            placeholder={templateHint(template.template)}
+            aria-label={templateLabel(template.template)}
             aria-invalid={invalid}
             aria-describedby={invalid ? errorId : undefined}
             autoComplete="off"
@@ -124,12 +134,12 @@ export function ColumnConfigForm({
           />
           {invalid && (
             <p id={errorId} className={styles.error}>
-              npub または hex を入力
+              {t("web_columnform_npub_required")}
             </p>
           )}
           {(template.template === "HASHTAG" || template.template === "SEARCH") &&
             (pinnedTags.length > 0 || recentTags.length > 0) && (
-              <ul className={styles.chips} aria-label="ピン留め・最近使ったタグ">
+              <ul className={styles.chips} aria-label={t("web_columnform_chips")}>
                 {[...pinnedTags, ...recentTags].map((tag) => (
                   <li key={tag}>
                     <button
@@ -150,7 +160,7 @@ export function ColumnConfigForm({
       )}
       {template.config === "NOTIF_FILTER" && (
         <fieldset className={styles.kinds}>
-          <legend className={styles.caption}>表示する種別</legend>
+          <legend className={styles.caption}>{t("add_column_kinds")}</legend>
           {NOTIF_KINDS.map((k) => (
             <label key={k.kind} className={styles.check}>
               <input
@@ -158,7 +168,7 @@ export function ColumnConfigForm({
                 checked={kinds.has(k.kind)}
                 onChange={(e) => toggleKind(k.kind, e.target.checked)}
               />
-              {k.label}
+              {notifKindLabel(k.kind)}
             </label>
           ))}
         </fieldset>
@@ -166,7 +176,7 @@ export function ColumnConfigForm({
       {template.config === "RELAY_SET" && (
         <fieldset className={styles.relaySet}>
           <legend className={styles.caption}>
-            {relays.length === 0 ? "未選択＝全リレーから取得" : `${relays.length} 件のリレーへ配信`}
+            {relays.length === 0 ? t("relayset_all") : t("relayset_count_fmt", relays.length)}
           </legend>
           <div className={styles.relayList}>
             {relayRows.map((url) => (
@@ -185,8 +195,8 @@ export function ColumnConfigForm({
               type="text"
               className={styles.input}
               value={customRelay}
-              placeholder="wss://…（任意で追加）"
-              aria-label="配信先リレーの URL"
+              placeholder={t("web_columnform_relay_placeholder")}
+              aria-label={t("web_columnform_relay_url")}
               autoComplete="off"
               spellCheck={false}
               onChange={(e) => setCustomRelay(e.target.value)}
@@ -194,11 +204,11 @@ export function ColumnConfigForm({
             <button
               type="button"
               className={styles.ghost}
-              aria-label="配信先リレーを追加"
+              aria-label={t("web_columnform_relay_add")}
               disabled={normalizeCustomRelay(customRelay) === null}
               onClick={addCustomRelay}
             >
-              追加
+              {t("common_add")}
             </button>
           </div>
         </fieldset>

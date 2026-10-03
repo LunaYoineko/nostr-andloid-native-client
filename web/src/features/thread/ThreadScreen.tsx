@@ -28,10 +28,10 @@ type ListContext = { focus: NostrEvent | undefined; zaps: readonly CommentedZap[
  * kind:30023（記事）は ThreadScreen 側で ArticleReader に切り替わるので、ここには来ない（#534）。
  */
 function LeadCard({ focus }: { focus: NostrEvent | undefined }) {
+  const t = useT();
   if (!focus) return null;
   if (focus.kind === 1111) return <CommentRootCard focus={focus} />;
-  if (focus.kind !== 1)
-    return <GenericRootCard label={`kind ${focus.kind} の投稿は Web 版ではまだ表示できません`} />;
+  if (focus.kind !== 1) return <GenericRootCard label={t("web_thread_unsupported_kind", focus.kind)} />;
   return null;
 }
 
@@ -89,7 +89,7 @@ export function ThreadScreen({
   if (!effectivePointer) {
     return (
       <>
-        <ScreenHeader title="記事" subtitle="NIP-23 · kind:30023" onBack={onBack} />
+        <ScreenHeader title={t("article_title")} subtitle="NIP-23 · kind:30023" onBack={onBack} />
         <p className={styles.empty}>{addrFailed ? t("web_article_failed") : t("loading")}</p>
       </>
     );
@@ -101,7 +101,7 @@ export function ThreadScreen({
 
   return (
     <>
-      <ScreenHeader title="スレッド" subtitle="NIP-10" onBack={onBack} />
+      <ScreenHeader title={t("thread_title")} subtitle="NIP-10" onBack={onBack} />
       <div className={styles.screen}>
         <div className={styles.list}>
           {entries.length === 0 ? (

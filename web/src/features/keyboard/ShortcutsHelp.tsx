@@ -1,29 +1,6 @@
 import { useEffect, useId, useRef } from "react";
+import { useT } from "../../i18n";
 import styles from "./ShortcutsHelp.module.css";
-
-/**
- * 一覧の行（ネイティブ KeyboardShortcuts.kt の SHORTCUTS。文言はそのまま）。
- * ⌘/Ctrl + R はブラウザの再読み込みに任せる（同じ効果）。
- */
-export const SHORTCUTS: readonly (readonly [keys: string, description: string])[] = [
-  ["j / ↓", "次の投稿"],
-  ["k / ↑", "前の投稿"],
-  ["l / →", "右のカラム"],
-  ["h / ←", "左のカラム"],
-  ["g / G", "先頭 / 末尾"],
-  ["Enter / o", "スレッドを開く"],
-  ["r", "返信"],
-  ["t", "リポスト"],
-  ["f", "いいね / リアクション"],
-  ["b", "ブックマーク追加/解除"],
-  ["n", "新規投稿"],
-  ["⌘/Ctrl + Enter", "投稿する（作成中）"],
-  ["/", "検索"],
-  [".", "先頭へ（新着）"],
-  ["⌘/Ctrl + R", "再接続（タイムライン再構築）"],
-  ["?", "このヘルプ"],
-  ["Esc", "戻る / 閉じる"],
-];
 
 /** 一覧の <dialog>（KeyboardShortcuts が「ほかのダイアログが開いている」から除く） */
 export const HELP_SELECTOR = "[data-shortcuts-help]";
@@ -33,6 +10,30 @@ export const HELP_SELECTOR = "[data-shortcuts-help]";
  * マウントしたらモーダルで開く。スクリムを押すか Esc で閉じる。
  */
 export function ShortcutsHelp({ onClose }: { onClose(): void }) {
+  const t = useT();
+  /**
+   * 一覧の行（ネイティブ KeyboardShortcuts.kt の SHORTCUTS。文言はそのまま）。
+   * ⌘/Ctrl + R はブラウザの再読み込みに任せる（同じ効果）。
+   */
+  const shortcuts: readonly (readonly [keys: string, description: string])[] = [
+    ["j / ↓", t("web_shortcut_next_note")],
+    ["k / ↑", t("web_shortcut_prev_note")],
+    ["l / →", t("web_shortcut_right_column")],
+    ["h / ←", t("web_shortcut_left_column")],
+    ["g / G", t("web_shortcut_top_bottom")],
+    ["Enter / o", t("web_shortcut_open_thread")],
+    ["r", t("compose_reply")],
+    ["t", t("note_repost")],
+    ["f", t("web_shortcut_react")],
+    ["b", t("web_shortcut_bookmark")],
+    ["n", t("web_shortcut_new_post")],
+    ["⌘/Ctrl + Enter", t("web_shortcut_send")],
+    ["/", t("nav_search")],
+    [".", t("web_shortcut_to_latest")],
+    ["⌘/Ctrl + R", t("web_shortcut_reconnect")],
+    ["?", t("web_shortcut_this_help")],
+    ["Esc", t("web_shortcut_back_close")],
+  ];
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -53,13 +54,19 @@ export function ShortcutsHelp({ onClose }: { onClose(): void }) {
       }}
     >
       {/* スクリムはカードの兄弟（外側のクリックだけを拾う） */}
-      <button type="button" className={styles.scrim} aria-label="閉じる" tabIndex={-1} onClick={onClose} />
+      <button
+        type="button"
+        className={styles.scrim}
+        aria-label={t("common_close")}
+        tabIndex={-1}
+        onClick={onClose}
+      />
       <div className={styles.card}>
         <h2 id={titleId} className={styles.title}>
-          キーボードショートカット
+          {t("web_shortcuts_title")}
         </h2>
         <dl className={styles.list}>
-          {SHORTCUTS.map(([keys, description]) => (
+          {shortcuts.map(([keys, description]) => (
             <div key={keys} className={styles.row}>
               <dt>
                 <kbd className={styles.keys}>{keys}</kbd>
@@ -68,7 +75,7 @@ export function ShortcutsHelp({ onClose }: { onClose(): void }) {
             </div>
           ))}
         </dl>
-        <p className={styles.hint}>Esc または画面タップで閉じる</p>
+        <p className={styles.hint}>{t("web_shortcuts_hint")}</p>
       </div>
     </dialog>
   );

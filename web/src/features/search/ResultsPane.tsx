@@ -40,15 +40,15 @@ export function ResultsPane({ tokens, onBack }: { tokens: readonly string[]; onB
       <div className={styles.head}>
         {onBack && (
           <button type="button" className={styles.textButton} onClick={onBack}>
-            ← 履歴
+            {t("search_back_history")}
           </button>
         )}
         <p className={styles.summary}>{searchSummary(tokens)}</p>
         <button type="button" className={styles.ghost} onClick={addToDeck}>
-          Deckに追加
+          {t("search_add_deck")}
         </button>
       </div>
-      <div role="tablist" aria-label="検索結果の種類" className={styles.tabs}>
+      <div role="tablist" aria-label={t("web_search_result_tabs_label")} className={styles.tabs}>
         <button
           type="button"
           role="tab"
@@ -56,7 +56,8 @@ export function ResultsPane({ tokens, onBack }: { tokens: readonly string[]; onB
           className={styles.tab}
           onClick={() => setTab("posts")}
         >
-          投稿{posts.length > 0 ? ` ${posts.length}` : ""}
+          {t("search_tab_posts")}
+          {posts.length > 0 ? ` ${posts.length}` : ""}
         </button>
         <button
           type="button"
@@ -65,7 +66,8 @@ export function ResultsPane({ tokens, onBack }: { tokens: readonly string[]; onB
           className={styles.tab}
           onClick={() => setTab("users")}
         >
-          ユーザー{users.length > 0 ? ` ${users.length}` : ""}
+          {t("search_tab_users")}
+          {users.length > 0 ? ` ${users.length}` : ""}
         </button>
       </div>
       <hr className={styles.divider} />

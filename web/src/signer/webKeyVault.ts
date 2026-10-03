@@ -1,6 +1,7 @@
 import Dexie, { type Table } from "dexie";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import type { VaultRow } from "../db/schema";
+import { t } from "../i18n";
 import { unixNow } from "../lib/time";
 
 /**
@@ -220,7 +221,7 @@ async function remove(db: KeyVaultDb): Promise<void> {
     await db.vault.delete(VAULT_ROW_ID);
   } catch {
     // 行や鍵をログに出さない
-    console.warn("[vault] 削除に失敗");
+    console.warn(`[vault] ${t("web_log_vault_delete_failed")}`);
   }
 }
 
@@ -257,7 +258,7 @@ export function openVaultDatabase(): Promise<KeyVaultDb | null> {
     try {
       await instance.open();
     } catch (e) {
-      console.warn("[vault] 鍵の保管先を開けない", (e as { name?: string } | null)?.name);
+      console.warn(`[vault] ${t("web_log_vault_open_failed")}`, (e as { name?: string } | null)?.name);
       opening = null;
       return null;
     }

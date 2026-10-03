@@ -47,7 +47,7 @@ export function ChannelList({
       {me && (
         <button type="button" className={styles.createRow} onClick={() => setShowCreate(true)}>
           <Icon name="add" size="sm" className={styles.createIcon} />
-          新しいスレッドを作成
+          {t("channel_create_row")}
         </button>
       )}
       {channels === null || channels.length === 0 ? (
@@ -55,8 +55,8 @@ export function ChannelList({
           {channels === null && !failed
             ? t("loading")
             : channels === null
-              ? "チャンネルの一覧を取得できませんでした"
-              : "チャンネルがありません"}
+              ? t("web_chat_channels_failed")
+              : t("web_chat_channels_empty")}
         </p>
       ) : (
         <ul className={styles.rows}>
@@ -112,6 +112,7 @@ function ChannelRow({
   /** 自分が作成した kind:40 のときだけ渡る */
   onEdit?: () => void;
 }) {
+  const t = useT();
   return (
     <li className={styles.item}>
       <button
@@ -130,8 +131,8 @@ function ChannelRow({
         <button
           type="button"
           className={styles.edit}
-          aria-label="スレッドを編集"
-          title="スレッドを編集"
+          aria-label={t("channel_edit_title")}
+          title={t("channel_edit_title")}
           onClick={onEdit}
         >
           <EditIcon className={styles.editIcon} />
@@ -140,9 +141,9 @@ function ChannelRow({
       <button
         type="button"
         className={styles.pin}
-        aria-label="ピン留め"
+        aria-label={t("channel_pin")}
         aria-pressed={pinned}
-        title="ピン留め"
+        title={t("channel_pin")}
         onClick={() => onPin(channel)}
       >
         <Icon name="pushPin" size="sm" />

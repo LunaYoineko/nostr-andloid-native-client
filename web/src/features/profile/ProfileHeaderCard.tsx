@@ -3,7 +3,7 @@ import { npubEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { t } from "../../i18n";
+import { useT } from "../../i18n";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
@@ -88,6 +88,7 @@ export function ProfileHeaderCard({
   onShowFollowing: () => void;
   onShowFollowers: () => void;
 }) {
+  const t = useT();
   const navigate = useNavigate();
   const profile = useProfile(pubkey);
   const profileEvent = use$(() => eventStore.replaceable(0, pubkey), [pubkey]);
@@ -136,7 +137,7 @@ export function ProfileHeaderCard({
           <button
             type="button"
             className={styles.ring}
-            aria-label="画像を表示"
+            aria-label={t("img_view")}
             onClick={() => setZoom(zoomablePicture)}
           >
             <Avatar key={picture} url={picture} size="xxl" seed={name} pubkey={pubkey} />
@@ -160,7 +161,7 @@ export function ProfileHeaderCard({
               className={`${styles.pill} ${styles.ghost}`}
               onClick={() => navigate("/settings/profile-edit", { replace: true })}
             >
-              編集
+              {t("edit")}
             </button>
           ) : (
             <FollowButton me={me} target={pubkey} following={following} onError={showError} />
@@ -175,8 +176,8 @@ export function ProfileHeaderCard({
         )}
         <div className={styles.nameRow}>
           <h2 className={styles.name}>{name}</h2>
-          {followsMe && <span className={styles.badge}>フォローされています</span>}
-          {muted && <span className={styles.badge}>ミュート中</span>}
+          {followsMe && <span className={styles.badge}>{t("follows_you")}</span>}
+          {muted && <span className={styles.badge}>{t("muted_badge")}</span>}
         </div>
         {nip05 && (
           <div className={styles.line}>
@@ -188,7 +189,7 @@ export function ProfileHeaderCard({
           <button
             type="button"
             className={`${styles.circle} ${styles.copy}`}
-            aria-label="npub をコピー"
+            aria-label={t("npub_copy")}
             onClick={copyNpub}
           >
             <ContentCopyIcon className={styles.icon} />
@@ -197,10 +198,10 @@ export function ProfileHeaderCard({
         <div className={styles.counts}>
           <button type="button" className={styles.count} onClick={onShowFollowing}>
             <span className={styles.countNum}>{followingCount}</span>
-            <span className={styles.hint}>フォロー中</span>
+            <span className={styles.hint}>{t("tpl_following")}</span>
           </button>
           <button type="button" className={styles.followers} onClick={onShowFollowers}>
-            フォロワーを確認
+            {t("followers_check")}
           </button>
         </div>
         {aboutRoot && (
@@ -251,6 +252,7 @@ export function ProfileHeaderCard({
  * （Avatar と同じ）。url が変わったら呼び出し側の key で作り直す。
  */
 function Banner({ url, onOpen }: { url: string; onOpen: () => void }) {
+  const t = useT();
   const [src, setSrc] = useState<string | null>(() => proxied(url, 900, 80, true));
   if (!src) return <div className={styles.banner} />;
 
@@ -265,7 +267,7 @@ function Banner({ url, onOpen }: { url: string; onOpen: () => void }) {
   }
 
   return (
-    <button type="button" className={styles.banner} aria-label="画像を表示" onClick={onOpen}>
+    <button type="button" className={styles.banner} aria-label={t("img_view")} onClick={onOpen}>
       <img src={src} alt="" decoding="async" referrerPolicy="no-referrer" onError={onError} />
     </button>
   );

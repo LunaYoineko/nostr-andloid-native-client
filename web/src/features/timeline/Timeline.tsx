@@ -130,7 +130,7 @@ export function Timeline<T extends { id: string } = NostrEvent>({
   );
 
   const newCount = atTop ? 0 : positionOf(events, anchor.seenTopId);
-  const pill = newCount > 0 ? `${newCount} 件の新着` : scrolledAway ? "最新へ戻る" : null;
+  const pill = newCount > 0 ? t("pill_new_fmt", newCount) : scrolledAway ? t("pill_back_latest") : null;
 
   const { ref: scrollerRef, progress, refreshing } = usePullToRefresh(onRefresh);
 

@@ -1,6 +1,7 @@
 import type { EventPointer } from "applesauce-core/helpers/pointers";
 import { npubEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
+import { t } from "../../i18n";
 import { hrefForEvent, oneLine } from "../../lib/content/labels";
 import { articleTitleOf } from "../../lib/content/tags";
 import { zapAmountSats, zapSenderOf } from "../../lib/nip57";
@@ -144,11 +145,20 @@ export function notificationHref(item: NotificationItem, target?: NostrEvent): s
   return hrefForEvent(item.target ?? { id: item.id });
 }
 
-export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
-  reply: "返信",
-  mention: "メンション",
-  reaction: "リアクション",
-  repost: "リポスト",
-  zap: "Zap",
-  dm: "メッセージ",
-};
+/** 種別の表示名。コンポーネントからは useT() の t を渡す（言語の変更で再描画される） */
+export function notificationKindLabel(kind: NotificationKind, tr: typeof t = t): string {
+  switch (kind) {
+    case "reply":
+      return tr("compose_reply");
+    case "mention":
+      return tr("notif_mention");
+    case "reaction":
+      return tr("note_kind_reaction");
+    case "repost":
+      return tr("note_kind_repost");
+    case "zap":
+      return "Zap";
+    case "dm":
+      return tr("nav_messages");
+  }
+}

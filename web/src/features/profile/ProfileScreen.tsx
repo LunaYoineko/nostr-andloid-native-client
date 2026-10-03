@@ -1,4 +1,5 @@
 import { type UIEvent, useEffect, useRef, useState } from "react";
+import { useT } from "../../i18n";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { useSession } from "../../signer/session";
 import { PullToRefreshIndicator } from "../../ui/PullToRefreshIndicator";
@@ -64,6 +65,7 @@ export function ProfileScreen({
   relayHints: readonly string[];
   onBack: () => void;
 }) {
+  const t = useT();
   const mode = useLayoutMode();
   const me = useSession((s) => s.pubkey);
   const isMe = me === pubkey;
@@ -178,8 +180,8 @@ export function ProfileScreen({
 
   return (
     <div className={styles.screen} data-layout="expanded">
-      <aside className={styles.side} aria-label="プロフィール詳細">
-        <ScreenHeader title="プロフィール" onBack={onBack} />
+      <aside className={styles.side} aria-label={t("web_profile_side_label")}>
+        <ScreenHeader title={t("profile_section")} onBack={onBack} />
         <hr className={styles.divider} />
         {header}
       </aside>

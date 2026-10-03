@@ -1,6 +1,7 @@
 import type { AddressPointer } from "applesauce-core/helpers/pointers";
 import type { NostrEvent } from "nostr-tools/pure";
 import { Link } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForEvent } from "../../lib/content/labels";
 import { useEventByPointer } from "../../nostr/loaders";
 import { ArticleCard, ArticleCardBody } from "../article/ArticleCard";
@@ -28,8 +29,9 @@ function articleAddressOf(rootA: string): AddressPointer | null {
  * 「kind N へのコメント」、ルート I → 「<ホスト> へのコメント」+ URL。
  */
 export function CommentRootCard({ focus }: { focus: NostrEvent }) {
+  const t = useT();
   const rootA = firstTagValue(focus, "A");
-  const eTag = focus.tags.find((t) => t[0] === "E" && typeof t[1] === "string" && t[1] !== "");
+  const eTag = focus.tags.find((tag) => tag[0] === "E" && typeof tag[1] === "string" && tag[1] !== "");
   const rootI = firstTagValue(focus, "I");
   const k = firstTagValue(focus, "K");
   const rootK = k !== null && /^\d+$/.test(k) ? k : null;
@@ -44,7 +46,7 @@ export function CommentRootCard({ focus }: { focus: NostrEvent }) {
       );
     }
     const kind = rootA.split(":")[0];
-    return <GenericRootCard label={`kind ${/^\d+$/.test(kind) ? kind : (rootK ?? "?")} へのコメント`} />;
+    return <GenericRootCard label={t("comment_root_kind_fmt", /^\d+$/.test(kind) ? kind : (rootK ?? "?"))} />;
   }
   if (eTag) {
     const hint = eTag[2]?.startsWith("wss://") ? eTag[2] : undefined;
@@ -52,7 +54,7 @@ export function CommentRootCard({ focus }: { focus: NostrEvent }) {
   }
   if (rootI) {
     const isUrl = /^https?:\/\//i.test(rootI);
-    const label = `${isUrl ? hostOf(rootI) : rootI} へのコメント`;
+    const label = t("comment_root_url_fmt", isUrl ? hostOf(rootI) : rootI);
     return isUrl ? (
       <GenericRootCard label={label} subtitle={rootI} externalHref={rootI} />
     ) : (
@@ -71,6 +73,7 @@ function hostOf(url: string): string {
 }
 
 function EventRootCard({ id, hint, rootK }: { id: string; hint: string | undefined; rootK: string | null }) {
+  const t = useT();
   const root = useEventByPointer({ id, relays: hint ? [hint] : undefined });
   if (root) {
     if (root.kind === 1 || root.kind === 1111) return null;
@@ -83,9 +86,11 @@ function EventRootCard({ id, hint, rootK }: { id: string; hint: string | undefin
         </div>
       );
     }
-    return <GenericRootCard label={`kind ${root.kind} へのコメント`} to={hrefForEvent({ id })} />;
+    return <GenericRootCard label={t("comment_root_kind_fmt", root.kind)} to={hrefForEvent({ id })} />;
   }
-  return <GenericRootCard label={rootK !== null ? `kind ${rootK} へのコメント` : "コメント対象を取得中…"} />;
+  return (
+    <GenericRootCard label={rootK !== null ? t("comment_root_kind_fmt", rootK) : t("comment_root_loading")} />
+  );
 }
 
 /**

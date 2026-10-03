@@ -62,7 +62,7 @@ import {
 } from "./completion";
 import { type ComposeRequest, closeCompose } from "./composeStore";
 import { type CustomEmoji, useCustomEmojis } from "./customEmojis";
-import { type ImageResolution, maxDimFor, RESOLUTIONS, useImageCompression } from "./imageCompression";
+import { type ImageResolution, maxDimFor, resolutions, useImageCompression } from "./imageCompression";
 import { uploadServers, useMediaServer } from "./mediaServer";
 import { ProfileAvatar } from "./ProfileAvatar";
 import { storeRelayHints } from "./relayHints";
@@ -83,9 +83,6 @@ import {
   usePinnedHashtags,
 } from "./storage";
 
-const DIALOG_LABELS = { new: "投稿", reply: "返信", quote: "引用" } as const;
-const SEND_LABELS = { new: "送信", reply: "返信", quote: "引用" } as const;
-const SEND_FAILED = "投稿に失敗しました。添付はそのままなので、もう一度お試しください。";
 /** 連続入力中はメンションを探さない（ネイティブと同じ 120ms） */
 const MENTION_DELAY_MS = 120;
 /** 絵文字候補の件数（ネイティブと同じ） */
@@ -377,12 +374,21 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
   const canSend =
     !sending &&
     (value.text.trim() !== "" || attachments.length > 0 || mode === "quote" || threadSegments.length > 0);
-  const sendLabel = mode === "new" && threadSegments.length > 0 ? "連投" : SEND_LABELS[mode];
+  const sendLabel =
+    mode === "new" && threadSegments.length > 0
+      ? t("compose_thread")
+      : mode === "reply"
+        ? t("compose_reply")
+        : mode === "quote"
+          ? t("compose_quote")
+          : t("compose_send");
+  const dialogLabel =
+    mode === "reply" ? t("compose_reply") : mode === "quote" ? t("compose_quote") : t("fab_post");
 
   async function send() {
     if (!canSend) return;
     if (me === null) {
-      setSendError(SEND_FAILED);
+      setSendError(t("compose_send_failed"));
       return;
     }
     const content = value.text.trim() === "" ? "" : value.text.trimEnd();
@@ -471,7 +477,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
         }
         showToast(t("web_compose_thread_partial", sentCount));
       } else {
-        setSendError(SEND_FAILED);
+        setSendError(t("compose_send_failed"));
       }
       setSending(false);
     } finally {
@@ -491,7 +497,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
       <dialog
         ref={dialog}
         className={styles.dialog}
-        aria-label={DIALOG_LABELS[mode]}
+        aria-label={dialogLabel}
         onCancel={(e) => {
           e.preventDefault();
           attemptClose();
@@ -516,11 +522,13 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
         <div className={styles.card}>
           <div className={styles.head}>
             {me !== null && <ProfileAvatar pubkey={me} size={22} />}
-            <span className={styles.name}>{me !== null ? displayName(profile, me, "npub") : "あなた"}</span>
+            <span className={styles.name}>
+              {me !== null ? displayName(profile, me, "npub") : t("compose_you")}
+            </span>
             <button
               type="button"
               className={styles.close}
-              aria-label="閉じる"
+              aria-label={t("common_close")}
               disabled={sending}
               onClick={attemptClose}
             >
@@ -539,8 +547,8 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
             <textarea
               ref={textarea}
               className={styles.body}
-              aria-label="本文"
-              placeholder="いまどうしてる？"
+              aria-label={t("web_compose_body_label")}
+              placeholder={t("compose_placeholder")}
               value={value.text}
               onChange={(e) => {
                 const el = e.currentTarget;
@@ -559,7 +567,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
             />
             {emojiHits.length > 0 ? (
               <>
-                <p className={styles.hint}>絵文字候補</p>
+                <p className={styles.hint}>{t("compose_emoji_suggest")}</p>
                 <div className={styles.chips}>
                   {emojiHits.map((emoji) => (
                     <EmojiChip
@@ -572,7 +580,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
               </>
             ) : mentionHits.length > 0 ? (
               <>
-                <p className={styles.hint}>メンション候補</p>
+                <p className={styles.hint}>{t("compose_mention_suggest")}</p>
                 <div className={styles.mentions}>
                   {mentionHits.map((hit) => (
                     <button
@@ -595,7 +603,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
               <>
                 {suggestions.length > 0 && (
                   <>
-                    <p className={styles.hint}>候補</p>
+                    <p className={styles.hint}>{t("compose_suggest")}</p>
                     <div className={styles.chips}>
                       {suggestions.map((tag) => (
                         <TagChip
@@ -610,7 +618,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                   </>
                 )}
                 {/* [#393] 「📌 ピン留め」は常時表示（末尾に「整理…」）→「最近のタグ」の2段（ネイティブと同じ。C3） */}
-                <p className={styles.hint}>📌 ピン留め</p>
+                <p className={styles.hint}>{t("compose_pinned_tags")}</p>
                 <div className={styles.chips}>
                   {pinned.map((tag) => (
                     <TagChip
@@ -627,12 +635,12 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                     onMouseDown={keepFocus}
                     onClick={() => openHashtagManager()}
                   >
-                    整理…
+                    {t("compose_manage_tags")}
                   </button>
                 </div>
                 {recent.length > 0 && (
                   <>
-                    <p className={styles.hint}>最近のタグ</p>
+                    <p className={styles.hint}>{t("compose_recent_tags")}</p>
                     <div className={styles.chips}>
                       {recent.map((tag) => (
                         <TagChip
@@ -658,9 +666,9 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
             )}
             {attachments.some((a) => a.kind === "image") && (
               <fieldset className={styles.resolutionRow}>
-                <legend className={styles.hint}>解像度</legend>
+                <legend className={styles.hint}>{t("compose_resolution")}</legend>
                 <div className={styles.resolutionGroup}>
-                  {RESOLUTIONS.map(([value, label]) => (
+                  {resolutions().map(([value, label]) => (
                     <button
                       key={value}
                       type="button"
@@ -694,8 +702,8 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
               <input
                 type="text"
                 className={styles.reasonInput}
-                aria-label="センシティブの理由"
-                placeholder="理由（任意）"
+                aria-label={t("web_compose_cw_reason_label")}
+                placeholder={t("compose_cw_reason_hint")}
                 value={cwReason}
                 onChange={(e) => setCwReason(e.currentTarget.value)}
               />
@@ -707,12 +715,12 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                 <span className={styles.spinner} aria-hidden="true" />
                 <span className={styles.sendingText}>
                   {attachments.length > 0
-                    ? `画像 ${uploadDone}/${attachments.length} アップロード中…`
-                    : "投稿中…"}
+                    ? t("compose_uploading_fmt", uploadDone, attachments.length)
+                    : t("compose_posting")}
                 </span>
                 <span className={styles.spacer} />
                 <button type="button" className={styles.cancel} onClick={cancelSend}>
-                  キャンセル
+                  {t("common_cancel")}
                 </button>
               </>
             ) : (
@@ -721,7 +729,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                   <button
                     type="button"
                     className={styles.tool}
-                    aria-label="画像・動画を添付"
+                    aria-label={t("web_compose_attach_media")}
                     onClick={() => fileInput.current?.click()}
                   >
                     <ImageIcon className={styles.toolIcon} />
@@ -744,7 +752,7 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                     type="button"
                     className={styles.tool}
                     aria-pressed={sensitive}
-                    aria-label={sensitive ? "センシティブ: ON" : "センシティブ指定"}
+                    aria-label={sensitive ? t("compose_sensitive_on") : t("compose_sensitive")}
                     onClick={() => setSensitive((v) => !v)}
                   >
                     <VisibilityOffIcon className={styles.toolIcon} />
@@ -754,14 +762,16 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                       <button
                         type="button"
                         className={styles.tool}
-                        aria-label="連投に追加"
+                        aria-label={t("compose_add_thread")}
                         disabled={value.text.trim() === ""}
                         onClick={addToThread}
                       >
                         <PlaylistAddIcon className={styles.toolIcon} />
                       </button>
                       {threadSegments.length > 0 && (
-                        <span className={styles.threadCount}>{`連投 ${editIdx + 1}`}</span>
+                        <span className={styles.threadCount}>
+                          {t("compose_thread_count_fmt", editIdx + 1)}
+                        </span>
                       )}
                     </>
                   )}
@@ -811,18 +821,19 @@ function AttachmentList({
   removable: boolean;
   onRemove(attachment: Attachment): void;
 }) {
+  const t = useT();
   const ordered = [
     ...attachments.filter((a) => a.kind === "image"),
     ...attachments.filter((a) => a.kind === "video"),
   ];
   return (
-    <ul className={styles.attachments} aria-label="添付">
+    <ul className={styles.attachments} aria-label={t("web_compose_attachments")}>
       {ordered.map((a) => {
         const original = a.file.size;
         const processed = processedSizes.get(a.id);
         const label =
           a.kind === "image" && processed === undefined
-            ? "圧縮中…"
+            ? t("compose_compressing")
             : processed !== undefined && processed < original
               ? `${humanSize(original)}→${humanSize(processed)}`
               : humanSize(original);
@@ -830,13 +841,18 @@ function AttachmentList({
           <li key={a.id} className={styles.attachment}>
             <div className={styles.thumb}>
               {a.kind === "image" ? (
-                <img className={styles.thumbMedia} src={a.preview} alt="添付画像" decoding="async" />
+                <img
+                  className={styles.thumbMedia}
+                  src={a.preview}
+                  alt={t("compose_attachment")}
+                  decoding="async"
+                />
               ) : (
                 <>
                   <video
                     className={styles.thumbMedia}
                     src={a.preview}
-                    aria-label="添付動画"
+                    aria-label={t("web_compose_attachment_video")}
                     muted
                     playsInline
                     preload="metadata"
@@ -845,7 +861,12 @@ function AttachmentList({
                 </>
               )}
               {removable && (
-                <button type="button" className={styles.remove} aria-label="削除" onClick={() => onRemove(a)}>
+                <button
+                  type="button"
+                  className={styles.remove}
+                  aria-label={t("common_delete")}
+                  onClick={() => onRemove(a)}
+                >
                   <CloseIcon className={styles.removeIcon} />
                 </button>
               )}
@@ -873,8 +894,9 @@ function ThreadSegmentList({
   onEdit(i: number): void;
   onDelete(i: number): void;
 }) {
+  const t = useT();
   return (
-    <ol className={styles.threadList} aria-label="連投">
+    <ol className={styles.threadList} aria-label={t("compose_thread")}>
       {parts.map((part, i) => {
         const editing = i === editIndex;
         const rowClass = editing ? `${styles.threadRow} ${styles.threadRowEditing}` : styles.threadRow;
@@ -890,12 +912,12 @@ function ThreadSegmentList({
               </button>
             )}
             {editing ? (
-              <span className={styles.threadEditing}>編集中</span>
+              <span className={styles.threadEditing}>{t("compose_thread_editing")}</span>
             ) : (
               <button
                 type="button"
                 className={styles.threadRemove}
-                aria-label="この段落を取り消す"
+                aria-label={t("compose_thread_remove")}
                 onClick={() => onDelete(i)}
               >
                 <CloseIcon className={styles.threadRemoveIcon} />
@@ -923,6 +945,7 @@ function TagChip({
   onClick(): void;
   onToggle(pin: boolean): void;
 }) {
+  const t = useT();
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const longPressed = useRef(false);
   const pressTimer = useRef<number | null>(null);
@@ -972,7 +995,7 @@ function TagChip({
         <TagMenu
           x={menu.x}
           y={menu.y}
-          label={pinned ? "ピン留めを解除" : "ピン留め"}
+          label={pinned ? t("tag_unpin") : t("tag_pin")}
           onSelect={() => onToggle(!pinned)}
           onDismiss={() => setMenu(null)}
         />
@@ -1085,10 +1108,11 @@ function ReplyTargetLine({ target }: { target: NostrEvent }) {
 
 /** 引用元のカード（見出し・作者・本文 2 行） */
 function QuoteContextCard({ target }: { target: NostrEvent }) {
+  const t = useT();
   const profile = useProfile(target.pubkey);
   return (
     <div className={styles.quote}>
-      <p className={styles.quoteLabel}>引用元</p>
+      <p className={styles.quoteLabel}>{t("compose_quote_of")}</p>
       <div className={styles.quoteAuthor}>
         <ProfileAvatar pubkey={target.pubkey} size={28} />
         <span className={styles.quoteName}>{displayName(profile, target.pubkey, "npub")}</span>

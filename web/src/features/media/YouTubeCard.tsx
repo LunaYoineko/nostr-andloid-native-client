@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../../i18n";
 import { useYouTubeInfo } from "../linkcard/youtubeInfo";
 import styles from "./YouTubeCard.module.css";
 
@@ -39,10 +40,11 @@ function ActiveYouTube({ id }: { id: string }) {
  * 押すと iframe（自動再生）に差し替える。
  */
 function YouTubeThumb({ id, onPlay }: { id: string; onPlay: () => void }) {
+  const t = useT();
   const [failed, setFailed] = useState(false);
   const info = useYouTubeInfo(id);
   return (
-    <button type="button" className={styles.card} onClick={onPlay} aria-label="YouTube を再生">
+    <button type="button" className={styles.card} onClick={onPlay} aria-label={t("web_youtube_play")}>
       <img
         className={failed ? `${styles.thumb} ${styles.hidden}` : styles.thumb}
         src={`https://img.youtube.com/vi/${id}/hqdefault.jpg`}

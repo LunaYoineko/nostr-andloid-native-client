@@ -212,17 +212,13 @@ export function ChannelEditDialog({
     >
       <div className={styles.head}>
         <h2 id={titleId} className={styles.title}>
-          {isEdit ? "スレッドを編集" : "スレッドを作成"}
+          {isEdit ? t("channel_edit_title") : t("channel_create_title")}
         </h2>
-        <button type="button" className={styles.close} aria-label="閉じる" onClick={onDismiss}>
+        <button type="button" className={styles.close} aria-label={t("common_close")} onClick={onDismiss}>
           <CloseIcon className={styles.closeIcon} />
         </button>
       </div>
-      {!isEdit && (
-        <p className={styles.note}>
-          パブリックチャットのスレッド（NIP-28）を作成します。誰でも参加できます。
-        </p>
-      )}
+      {!isEdit && <p className={styles.note}>{t("channel_create_note")}</p>}
       {isEdit && !loaded && (
         <p className={styles.note} role="status">
           {t("loading")}
@@ -231,7 +227,7 @@ export function ChannelEditDialog({
       <form className={styles.form} onSubmit={submit}>
         <div className={styles.field}>
           <label htmlFor={nameId} className={styles.label}>
-            スレッド名
+            {t("channel_field_name")}
           </label>
           <input
             id={nameId}
@@ -244,7 +240,7 @@ export function ChannelEditDialog({
         </div>
         <div className={styles.field}>
           <label htmlFor={aboutId} className={styles.label}>
-            説明（任意）
+            {t("channel_field_about")}
           </label>
           <textarea
             id={aboutId}
@@ -257,7 +253,7 @@ export function ChannelEditDialog({
         </div>
         <div className={styles.field}>
           <label htmlFor={pictureId} className={styles.label}>
-            画像URL（任意）
+            {t("channel_field_picture")}
           </label>
           <div className={styles.iconRow}>
             <ChannelIcon key={fields.picture} name={fields.name} url={fields.picture || null} />
@@ -280,13 +276,13 @@ export function ChannelEditDialog({
               disabled={disabled || uploading}
               onClick={() => fileInput.current?.click()}
             >
-              {uploading ? "アップロード中…" : "選択"}
+              {uploading ? t("web_channel_icon_uploading") : t("channel_icon_pick")}
             </button>
             {fields.picture !== "" && !uploading && (
               <button
                 type="button"
                 className={styles.clear}
-                aria-label="画像を外す"
+                aria-label={t("channel_icon_clear")}
                 disabled={disabled}
                 onClick={() => edit({ picture: "" })}
               >
@@ -298,7 +294,7 @@ export function ChannelEditDialog({
               type="file"
               accept="image/*"
               hidden
-              aria-label="画像のファイル"
+              aria-label={t("web_channel_icon_file")}
               onChange={(e) => {
                 const input = e.currentTarget;
                 const file = input.files?.[0];
@@ -310,10 +306,10 @@ export function ChannelEditDialog({
         </div>
         <div className={styles.footer}>
           <button type="button" className={styles.textButton} onClick={onDismiss}>
-            キャンセル
+            {t("common_cancel")}
           </button>
           <button type="submit" className={styles.primary} disabled={!canSubmit}>
-            {saving ? "保存中…" : isEdit ? "保存" : "作成"}
+            {saving ? t("common_saving") : isEdit ? t("channel_edit_submit") : t("channel_create_submit")}
           </button>
         </div>
       </form>

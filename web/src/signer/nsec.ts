@@ -1,5 +1,6 @@
 import { decode } from "nostr-tools/nip19";
 import { getPublicKey } from "nostr-tools/pure";
+import { t } from "../i18n";
 
 /** nsec の読み取り結果。format = nsec1 で始まらない、key = 秘密鍵として読めない（チェックサム違い・範囲外） */
 export type NsecParse = { ok: true; secretKey: Uint8Array } | { ok: false; reason: "format" | "key" };
@@ -29,5 +30,5 @@ export function parseNsec(input: string): NsecParse {
 /** エラー表示用の入力の先頭（空白を除いた 8 文字。空なら「(空)」） */
 export function nsecHead(input: string): string {
   const s = input.replace(/\s+/g, "");
-  return s === "" ? "(空)" : s.slice(0, 8);
+  return s === "" ? t("nsec_empty_head") : s.slice(0, 8);
 }

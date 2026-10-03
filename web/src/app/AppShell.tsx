@@ -12,6 +12,7 @@ import { KeyboardShortcuts } from "../features/keyboard/KeyboardShortcuts";
 import { NotificationsScreen } from "../features/notifications/NotificationsScreen";
 import { SearchScreen } from "../features/search/SearchScreen";
 import { SettingsScreen } from "../features/settings/SettingsScreen";
+import { useT } from "../i18n";
 import { notificationsColumnId, pinnedColumns, useDeck } from "../store/deck";
 import { BottomNav } from "../ui/BottomNav";
 import { ConnectionPill } from "../ui/ConnectionPill";
@@ -79,6 +80,7 @@ export function AppShell() {
     handle && "overlay" in handle ? { kind: handle.overlay, ref: params.ref ?? "" } : null;
   const overlayKind = overlay?.kind ?? null;
 
+  const t = useT();
   useTransientHistory();
   const closeOverlay = useCloseOverlay();
   const { open, openColumn } = useNavActions();
@@ -133,7 +135,7 @@ export function AppShell() {
         {overlay && (
           <DetailOverlay
             kind={overlay.kind}
-            label={overlay.kind === "thread" ? "スレッド" : "プロフィール"}
+            label={overlay.kind === "thread" ? t("thread_title") : t("profile_section")}
             onClose={closeOverlay}
           >
             {overlay.kind === "thread" ? (
