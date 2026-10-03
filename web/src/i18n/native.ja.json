@@ -1,0 +1,18 @@
+{
+  "dense_mode_desc": "カラムの間隔・余白・行の高さを詰めて情報量を増やします",
+  "dense_mode_title": "廃人モード",
+  "dense_mode_toggle": "廃人モードを使う",
+  "embed_hide_carded_urls": "カードを出したリンクのURLを本文から隠す",
+  "embed_ogp": "その他リンクの OGP カードを表示",
+  "embed_ogp_images": "OGP カードの画像を読み込む",
+  "embed_section": "リンクの埋め込み表示",
+  "embed_section_desc": "本文中のリンクをカードやサムネイルで表示します。通信量が気になる場合はオフにできます。",
+  "embed_spotify": "Spotify のカードを表示",
+  "embed_video": "動画（mp4 等）をインライン再生",
+  "embed_youtube": "YouTube のサムネイルを表示",
+  "nyan_mode_all": "全員",
+  "nyan_mode_desc": "お遊びの猫化モード。アバターに猫耳が生え、本文の「な」が「にゃ」に化けます。この端末の表示だけの演出で、実際の投稿内容は変わりません。",
+  "nyan_mode_off": "オフ",
+  "nyan_mode_self": "自分のみ",
+  "nyan_mode_title": "にゃにゃにゃウイルス"
+}

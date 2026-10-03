@@ -7,6 +7,7 @@ import { startDm } from "./features/dm/dmService";
 import { startOwnLists } from "./features/lists/ownLists";
 import { startMuteList } from "./features/mute/muteSync";
 import { initTheme } from "./features/theme/themePrefs";
+import { initLocale } from "./i18n/locale";
 import { startBackgroundPause } from "./nostr/backgroundPause";
 import { startConnStats } from "./nostr/connStats";
 import { startOwnRelayList } from "./nostr/outbox";
@@ -19,6 +20,8 @@ import "./styles/global.css";
 // 保存済みのテーマ・文字サイズ・太字を React の描画前に同期的に当てる（初回描画のちらつきを避ける。
 // CSP で inline script は置けないので、ここが一番早い）
 initTheme();
+// <html lang> と data-dialect を当てる（言語の解決は描画前に済ませる）
+initLocale();
 // iOS 判定を <html data-os="ios"> に反映する（#598。BottomNav.module.css の下端インセット分岐で使う）
 applyOsAttribute();
 // 旧 scope（/app/）の Service Worker が残っていれば解除する（#647）
