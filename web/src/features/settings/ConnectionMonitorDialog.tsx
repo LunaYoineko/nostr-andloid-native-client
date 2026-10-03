@@ -1,3 +1,4 @@
+import { useT } from "../../i18n";
 import {
   connMonitorSnapshot,
   formatChars,
@@ -16,25 +17,28 @@ import styles from "./ConnectionMonitorDialog.module.css";
  * リレーはプールのもの（リレーヒント由来も含む）と read / write リレーを受信量の多い順に並べる。
  */
 export function ConnectionMonitorDialog({ onDismiss }: { onDismiss(): void }) {
+  const t = useT();
   const snapshot = usePolled(connMonitorSnapshot);
   const tier = usePolled(networkTier);
   const connected = snapshot.relays.filter((r) => r.state === "connected").length;
   return (
-    <InfoDialog title="接続と通信量" onDismiss={onDismiss}>
+    <InfoDialog title={t("conn_monitor_title")} onDismiss={onDismiss}>
       <dl className={styles.summary}>
         {tier && (
           <div className={styles.kv}>
-            <dt>回線</dt>
+            <dt>{t("conn_monitor_network")}</dt>
             <dd>{NETWORK_TIER_LABEL[tier]}</dd>
           </div>
         )}
         <div className={styles.kv}>
-          <dt>購読中のREQ</dt>
+          <dt>{t("conn_monitor_reqs")}</dt>
           <dd>{snapshot.reqs}</dd>
         </div>
       </dl>
-      <h3 className={styles.header}>{`リレー（接続 ${connected} / ${snapshot.relays.length}）`}</h3>
-      <ul className={styles.relays} aria-label="リレーの接続状態">
+      <h3 className={styles.header}>
+        {t("web_settings_connmon_relays_header", connected, snapshot.relays.length)}
+      </h3>
+      <ul className={styles.relays} aria-label={t("web_settings_connmon_relays_label")}>
         {snapshot.relays.map((r) => (
           <li key={r.url} className={styles.relay}>
             <span className={styles.line}>
@@ -49,7 +53,7 @@ export function ConnectionMonitorDialog({ onDismiss }: { onDismiss(): void }) {
                 `⬇ ${formatChars(r.chars)}`,
                 `${r.events}ev`,
                 `REQ ${r.reqs}`,
-                r.authenticated ? "認証済み" : null,
+                r.authenticated ? t("web_settings_connmon_authenticated") : null,
                 r.read ? "read" : null,
                 r.write ? "write" : null,
               ]

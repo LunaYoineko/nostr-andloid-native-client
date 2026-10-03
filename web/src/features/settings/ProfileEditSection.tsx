@@ -138,25 +138,28 @@ function ProfileEditForm({ me }: { me: string }) {
 
   return (
     <div className={sectionStyles.block}>
-      <h3 className={sectionStyles.caption}>プロフィール</h3>
-      <p className={sectionStyles.desc}>
-        変更を保存すると kind:0 を発行します。既存の独自項目は保持されます。
-      </p>
+      <h3 className={sectionStyles.caption}>{t("tile_profile")}</h3>
+      <p className={sectionStyles.desc}>{t("profile_publish_note")}</p>
       {!loaded && (
         <p className={sectionStyles.desc} role="status">
           {t("loading")}
         </p>
       )}
-      <TextField label="表示名" value={fields.name} disabled={disabled} onChange={(v) => edit({ name: v })} />
       <TextField
-        label="自己紹介"
+        label={t("field_display_name")}
+        value={fields.name}
+        disabled={disabled}
+        onChange={(v) => edit({ name: v })}
+      />
+      <TextField
+        label={t("field_about")}
         value={fields.about}
         disabled={disabled}
         multiline
         onChange={(v) => edit({ about: v })}
       />
       <ImageUrlField
-        label="アイコン画像"
+        label={t("field_icon")}
         value={fields.picture}
         disabled={disabled}
         uploading={uploading.picture}
@@ -165,7 +168,7 @@ function ProfileEditForm({ me }: { me: string }) {
         onPick={(file) => void upload("picture", file)}
       />
       <ImageUrlField
-        label="バナー画像"
+        label={t("field_banner")}
         value={fields.banner}
         disabled={disabled}
         uploading={uploading.banner}
@@ -174,7 +177,7 @@ function ProfileEditForm({ me }: { me: string }) {
         onPick={(file) => void upload("banner", file)}
       />
       <TextField
-        label="Lightning アドレス (lud16)"
+        label={t("field_lud16")}
         value={fields.lud16}
         disabled={disabled}
         inputMode="email"
@@ -188,7 +191,7 @@ function ProfileEditForm({ me }: { me: string }) {
         onChange={(v) => edit({ nip05: v })}
       />
       <TextField
-        label="Web サイト"
+        label={t("field_website")}
         value={fields.website}
         disabled={disabled}
         inputMode="url"
@@ -200,7 +203,7 @@ function ProfileEditForm({ me }: { me: string }) {
         disabled={!canSave}
         onClick={() => void save()}
       >
-        {saving ? "保存中…" : saved ? "保存しました ✓" : "保存"}
+        {saving ? t("common_saving") : saved ? t("saved_check") : t("common_save")}
       </button>
     </div>
   );
@@ -300,18 +303,18 @@ function ImageUrlField({
         <button
           type="button"
           className={sectionStyles.ghost}
-          aria-label={`${label}を選ぶ`}
+          aria-label={t("web_settings_profile_pick_label", label)}
           disabled={disabled || uploading}
           onClick={() => fileInput.current?.click()}
         >
-          {uploading ? "アップロード中…" : "画像を選ぶ"}
+          {uploading ? t("web_settings_profile_uploading") : t("web_settings_profile_pick_image")}
         </button>
         <input
           ref={fileInput}
           type="file"
           accept="image/*"
           hidden
-          aria-label={`${label}のファイル`}
+          aria-label={t("web_settings_profile_file_label", label)}
           onChange={(e) => {
             const input = e.currentTarget;
             const file = input.files?.[0];

@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
-import { t } from "../../i18n";
+import { t, useT } from "../../i18n";
 import { useSession } from "../../signer/session";
 import { ModalSheet } from "../../ui/ModalSheet";
 import { showToast } from "../../ui/toast";
@@ -14,7 +14,7 @@ import {
 import styles from "./ThemeEditModal.module.css";
 import { ThemeSwatch, ThemeUndoBar } from "./ThemeSettings";
 import { ThemeStoreSection } from "./ThemeStoreSection";
-import { applyCustomColors, THEME_MODE_LABELS, useThemePrefs, useThemeUndo } from "./themePrefs";
+import { applyCustomColors, themeModeLabel, useThemePrefs, useThemeUndo } from "./themePrefs";
 import { publishTheme, ThemePublishError } from "./themeStore";
 
 export type ThemeEditTab = "customize" | "store";
@@ -29,6 +29,7 @@ function sameColors(a: CustomColors, b: CustomColors): boolean {
  * 上部のプレビューカードにのみ反映し、「適用」を押して初めて applyCustomColors で全体へ反映する。
  */
 export function ThemeEditModal({ initialTab, onDismiss }: { initialTab: ThemeEditTab; onDismiss(): void }) {
+  const t = useT();
   const current = useThemePrefs((s) => s.custom);
   const undo = useThemeUndo();
   const [tab, setTab] = useState<ThemeEditTab>(initialTab);
@@ -49,7 +50,7 @@ export function ThemeEditModal({ initialTab, onDismiss }: { initialTab: ThemeEdi
   const dirty = !sameColors(draft, current);
 
   return (
-    <ModalSheet title="テーマ" onDismiss={onDismiss}>
+    <ModalSheet title={t("theme_title")} onDismiss={onDismiss}>
       <div className={styles.tabs}>
         <button
           type="button"
@@ -57,7 +58,7 @@ export function ThemeEditModal({ initialTab, onDismiss }: { initialTab: ThemeEdi
           aria-pressed={tab === "customize"}
           onClick={() => setTab("customize")}
         >
-          カスタマイズ
+          {t("group_customize")}
         </button>
         <button
           type="button"
@@ -65,11 +66,11 @@ export function ThemeEditModal({ initialTab, onDismiss }: { initialTab: ThemeEdi
           aria-pressed={tab === "store"}
           onClick={() => setTab("store")}
         >
-          ストア
+          {t("theme_tab_store")}
         </button>
       </div>
 
-      <p className={styles.previewLabel}>プレビュー — 「適用」を押すまで全体には反映されません。</p>
+      <p className={styles.previewLabel}>{t("theme_preview_label")}</p>
       <ThemePreviewCard colors={draft} />
 
       <div className={styles.page}>
@@ -85,9 +86,9 @@ export function ThemeEditModal({ initialTab, onDismiss }: { initialTab: ThemeEdi
         type="button"
         className={styles.apply}
         disabled={!dirty}
-        onClick={() => applyCustomColors(draft, draftName ?? THEME_MODE_LABELS.custom)}
+        onClick={() => applyCustomColors(draft, draftName ?? themeModeLabel("custom"))}
       >
-        適用
+        {t("common_apply")}
       </button>
     </ModalSheet>
   );
@@ -98,6 +99,7 @@ export function ThemeEditModal({ initialTab, onDismiss }: { initialTab: ThemeEdi
  * 投稿カードのモックを描き、面・補助文字・アクセントまで適用後の見た目を伝える。
  */
 function ThemePreviewCard({ colors }: { colors: CustomColors }) {
+  const t = useT();
   const p = customPalette(colors);
   return (
     <div className={styles.previewCard} style={{ background: p.bg, borderColor: p.border }}>
@@ -109,11 +111,11 @@ function ThemePreviewCard({ colors }: { colors: CustomColors }) {
             <span style={{ color: p.text3 }}>· 1m</span>
           </div>
           <p className={styles.previewText} style={{ color: p.text2 }}>
-            サンプル投稿です。配色の見え方をここで確認できます。
+            {t("theme_preview_sample_body")}
           </p>
           <div className={styles.previewFoot}>
             <span className={styles.previewAction} style={{ background: p.accent, color: p.bg }}>
-              ボタン
+              {t("theme_preview_sample_action")}
             </span>
             <span className={styles.previewBar} style={{ background: p.accentWeak }} />
           </div>
@@ -140,9 +142,7 @@ function ThemeCustomizeTab({
   const [publishOpen, setPublishOpen] = useState(false);
   return (
     <div className={styles.customize}>
-      <p className={styles.desc}>
-        背景・文字・アクセントの3色を選ぶと、面・境界線・補助文字は自動で導出されます。
-      </p>
+      <p className={styles.desc}>{t("theme_custom_desc")}</p>
       <div className={styles.presets}>
         {CUSTOM_PRESETS.map((preset) => (
           <button
@@ -157,39 +157,34 @@ function ThemeCustomizeTab({
           </button>
         ))}
       </div>
-      <ColorField label="背景" value={draft.bg} onChange={(hex) => onDraft({ ...draft, bg: hex }, null)} />
       <ColorField
-        label="文字"
+        label={t("theme_color_bg")}
+        value={draft.bg}
+        onChange={(hex) => onDraft({ ...draft, bg: hex }, null)}
+      />
+      <ColorField
+        label={t("theme_color_text")}
         value={draft.text}
         onChange={(hex) => onDraft({ ...draft, text: hex }, null)}
       />
       <ColorField
-        label="アクセント"
+        label={t("theme_color_accent")}
         value={draft.accent}
         onChange={(hex) => onDraft({ ...draft, accent: hex }, null)}
       />
-      {textRatio < 4.5 && (
-        <p className={styles.warn}>
-          コントラストが低いです（{ratioLabel(textRatio)}:1）。読みにくい可能性があります — 4.5:1 以上を推奨。
-        </p>
-      )}
+      {textRatio < 4.5 && <p className={styles.warn}>{t("theme_contrast_warn", ratioLabel(textRatio))}</p>}
       {accentRatio < 3.0 && (
-        <p className={styles.warn}>
-          アクセントのコントラストが低いです（{ratioLabel(accentRatio)}
-          :1）。ボタンやリンクが見えにくい可能性があります — 3:1 以上を推奨。
-        </p>
+        <p className={styles.warn}>{t("theme_contrast_warn_accent", ratioLabel(accentRatio))}</p>
       )}
       <button type="button" className={styles.reset} onClick={() => onDraft(DEFAULT_CUSTOM_COLORS, null)}>
-        既定に戻す
+        {t("img_reset_defaults")}
       </button>
       {me && (
         <>
           <hr className={styles.divider} />
-          <p className={styles.desc}>
-            この配色をテーマストアに公開すると、他の人が探して使えるようになります。同じ名前で再公開すると更新されます。
-          </p>
+          <p className={styles.desc}>{t("theme_publish_note")}</p>
           <button type="button" className={styles.reset} onClick={() => setPublishOpen(true)}>
-            テーマストアに公開
+            {t("theme_publish_open")}
           </button>
         </>
       )}
@@ -273,16 +268,16 @@ function PublishThemeDialog({
     >
       <form onSubmit={(e) => void submit(e)}>
         <h2 id={titleId} className={styles.dialogTitle}>
-          テーマストアに公開
+          {t("theme_publish_open")}
         </h2>
         <label htmlFor={inputId} className="srOnly">
-          テーマ名
+          {t("theme_publish_name_hint")}
         </label>
         <input
           id={inputId}
           className={styles.dialogInput}
           type="text"
-          placeholder="テーマ名"
+          placeholder={t("theme_publish_name_hint")}
           value={name}
           onChange={(e) => setName(e.target.value)}
           disabled={busy}
@@ -294,14 +289,14 @@ function PublishThemeDialog({
             onClick={onDismiss}
             disabled={busy}
           >
-            キャンセル
+            {t("common_cancel")}
           </button>
           <button
             type="submit"
             className={`${styles.dialogButton} ${styles.dialogConfirm}`}
             disabled={name.trim() === "" || busy}
           >
-            {busy ? "公開中…" : "公開"}
+            {busy ? t("web_settings_emoji_publishing") : t("theme_publish")}
           </button>
         </div>
       </form>
@@ -334,7 +329,7 @@ function ColorField({
       <div className={styles.colorRow}>
         <input
           type="color"
-          aria-label={`${label}の色を選ぶ`}
+          aria-label={t("web_theme_color_pick_label", label)}
           value={value.toLowerCase()}
           onChange={(e) => onChange(e.target.value)}
         />

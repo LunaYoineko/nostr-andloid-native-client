@@ -1,6 +1,6 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { useMemo, useState } from "react";
-import { useT } from "../../i18n";
+import { t, useT } from "../../i18n";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
@@ -23,15 +23,15 @@ import {
   useThemeStoreEntries,
 } from "./themeStore";
 
-const SCOPE_OPTIONS: readonly { value: ThemeStoreScope; label: string }[] = [
-  { value: "all", label: "すべて" },
-  { value: "following", label: "フォロー中" },
-  { value: "mine", label: "自分" },
+const scopeOptions = (): readonly { value: ThemeStoreScope; label: string }[] => [
+  { value: "all", label: t("theme_scope_all") },
+  { value: "following", label: t("theme_scope_following") },
+  { value: "mine", label: t("theme_scope_mine") },
 ];
 
-const SORT_OPTIONS: readonly { value: ThemeStoreSort; label: string }[] = [
-  { value: "newest", label: "新着" },
-  { value: "name", label: "名前" },
+const sortOptions = (): readonly { value: ThemeStoreSort; label: string }[] => [
+  { value: "newest", label: t("theme_sort_newest") },
+  { value: "name", label: t("theme_sort_name") },
 ];
 
 function sameColors(a: CustomColors, b: CustomColors): boolean {
@@ -113,24 +113,22 @@ export function ThemeStoreSection({
 
   return (
     <div className={settingsStyles.block}>
-      <p className={settingsStyles.desc}>
-        他の人が公開したテーマ（NIP-78）。タップでプレビューし、「適用」で反映します。新しいアプリ版向けのテーマには印が付きますが、適用は可能です。
-      </p>
+      <p className={settingsStyles.desc}>{t("theme_store_desc")}</p>
       <label className="srOnly" htmlFor="theme-store-search">
-        テーマ名・作者名で検索
+        {t("theme_search_hint")}
       </label>
       <input
         id="theme-store-search"
         className={settingsStyles.input}
         type="text"
-        placeholder="テーマ名・作者名で検索"
+        placeholder={t("theme_search_hint")}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
       <fieldset className={styles.fieldset}>
-        <legend className={settingsStyles.caption}>範囲</legend>
+        <legend className={settingsStyles.caption}>{t("web_theme_store_scope_label")}</legend>
         <div className={settingsStyles.choices}>
-          {SCOPE_OPTIONS.map((o) => (
+          {scopeOptions().map((o) => (
             <button
               key={o.value}
               type="button"
@@ -144,9 +142,9 @@ export function ThemeStoreSection({
         </div>
       </fieldset>
       <fieldset className={styles.fieldset}>
-        <legend className={settingsStyles.caption}>並び</legend>
+        <legend className={settingsStyles.caption}>{t("theme_sort_label")}</legend>
         <div className={settingsStyles.choices}>
-          {SORT_OPTIONS.map((o) => (
+          {sortOptions().map((o) => (
             <button
               key={o.value}
               type="button"
@@ -160,19 +158,15 @@ export function ThemeStoreSection({
         </div>
       </fieldset>
       {entries.length >= THEME_LIST_CAP && (
-        <p className={settingsStyles.desc}>{`最大 ${THEME_LIST_CAP} 件まで表示します。`}</p>
+        <p className={settingsStyles.desc}>{t("theme_list_capped", THEME_LIST_CAP)}</p>
       )}
 
       {entries.length === 0 ? (
-        <p className={settingsStyles.desc}>
-          {loading
-            ? "テーマを取得中…"
-            : "まだテーマが見つかりません。「カスタマイズ」タブから自分のテーマを公開するか、下の共有コードから取り込めます。"}
-        </p>
+        <p className={settingsStyles.desc}>{loading ? t("theme_loading") : t("theme_store_empty")}</p>
       ) : shown.length === 0 ? (
-        <p className={settingsStyles.desc}>条件に合うテーマがありません。</p>
+        <p className={settingsStyles.desc}>{t("theme_search_no_match")}</p>
       ) : (
-        <ul className={styles.list} aria-label="テーマストアの一覧">
+        <ul className={styles.list} aria-label={t("web_theme_store_list_label")}>
           {shown.map((entry) => (
             <ThemeStoreRow
               key={`${entry.author}:${entry.dTag}`}
@@ -186,12 +180,12 @@ export function ThemeStoreSection({
         </ul>
       )}
 
-      <h3 className={settingsStyles.caption}>共有コード</h3>
+      <h3 className={settingsStyles.caption}>{t("theme_share_section")}</h3>
       <div className={settingsStyles.row}>
         <input
           className={settingsStyles.input}
           type="text"
-          placeholder="共有コード"
+          placeholder={t("theme_share_section")}
           value={code}
           onChange={(e) => setCode(e.target.value)}
         />
@@ -201,17 +195,17 @@ export function ThemeStoreSection({
           disabled={code.trim() === ""}
           onClick={importCode}
         >
-          取り込む
+          {t("theme_code_import")}
         </button>
       </div>
       <div className={settingsStyles.row}>
         {canPaste && (
           <button type="button" className={settingsStyles.ghost} onClick={() => void pasteCode()}>
-            貼り付け
+            {t("theme_code_paste")}
           </button>
         )}
         <button type="button" className={settingsStyles.ghost} onClick={() => void copyCode()}>
-          この配色をコピー
+          {t("theme_code_copy")}
         </button>
       </div>
 
@@ -246,6 +240,7 @@ function ThemeStoreRow({
   onSelect(): void;
   onDelete: (() => void) | null;
 }) {
+  const t = useT();
   const profile = useProfile(entry.author);
   const author = displayName(profile, entry.author, "npub");
   return (
@@ -257,14 +252,14 @@ function ThemeStoreRow({
           <span className={settingsStyles.relayMeta}>{author}</span>
         </span>
         {applied ? (
-          <span className={styles.badge}>適用中</span>
+          <span className={styles.badge}>{t("theme_in_use")}</span>
         ) : selected ? (
-          <span className={styles.badge}>プレビュー中</span>
+          <span className={styles.badge}>{t("theme_previewing")}</span>
         ) : null}
       </button>
       {onDelete && (
         <button type="button" className={settingsStyles.textButton} onClick={onDelete}>
-          削除をリクエスト
+          {t("note_request_delete")}
         </button>
       )}
     </li>

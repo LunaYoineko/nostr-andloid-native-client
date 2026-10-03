@@ -2,7 +2,7 @@ import { use$ } from "applesauce-react/hooks/use-$";
 import type { NostrEvent } from "nostr-tools/pure";
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { map } from "rxjs";
-import { t } from "../../i18n";
+import { t, useT } from "../../i18n";
 import { displayRelayUrl } from "../../nostr/outbox";
 import { useRelays } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
@@ -47,6 +47,7 @@ function failureMessage(e: unknown): string {
  * publishDmRelayList が持つ）。取り直した最新版は EventStore に入るので、一覧は自動でそれに戻る。
  */
 export function DmRelaySection() {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const read = useRelays((s) => s.read);
   const { latest, urls } = useOwnDmRelays();
@@ -70,16 +71,14 @@ export function DmRelaySection() {
   return (
     <>
       <div className={styles.block}>
-        <h3 className={styles.caption}>DMの受信リレー（NIP-17 / kind:10050）</h3>
-        <p className={styles.desc}>
-          ここに宣言したリレーへ相手からのDMが届きます。プライバシー保護のため少数の専用リレーを推奨。未設定なら初回送信時に受信リレーから自動作成します。
-        </p>
+        <h3 className={styles.caption}>{t("dmrelay_title")}</h3>
+        <p className={styles.desc}>{t("dmrelay_desc")}</p>
         <AddDmRelayForm list={urls} disabled={busy} onAdd={(url) => void run([...urls, url])} />
       </div>
       <div className={styles.block}>
         {urls.length === 0 ? (
           <>
-            <p className={styles.desc}>未設定です。</p>
+            <p className={styles.desc}>{t("dmrelay_unset")}</p>
             {reads.length > 0 && (
               <button
                 type="button"
@@ -87,12 +86,12 @@ export function DmRelaySection() {
                 disabled={busy}
                 onClick={() => void run(reads)}
               >
-                現在の受信リレーから作成
+                {t("dmrelay_create_from_reads")}
               </button>
             )}
           </>
         ) : (
-          <ul className={styles.relays} aria-label="DMリレーの一覧">
+          <ul className={styles.relays} aria-label={t("web_settings_dmrelay_list_label")}>
             {urls.map((url) => (
               <li key={url} className={styles.relay}>
                 <span className={styles.relayUrl} title={url}>
@@ -102,10 +101,10 @@ export function DmRelaySection() {
                   type="button"
                   className={styles.textButton}
                   disabled={busy}
-                  aria-label={`${displayRelayUrl(url)} を削除`}
+                  aria-label={t("web_settings_relay_remove_label", displayRelayUrl(url))}
                   onClick={() => void run(urls.filter((u) => u !== url))}
                 >
-                  削除
+                  {t("common_delete")}
                 </button>
               </li>
             ))}
@@ -141,11 +140,11 @@ function AddDmRelayForm({
     if (disabled) return;
     const url = parseRelayInput(value);
     if (!url) {
-      setError("wss:// で始まるリレーの URL を入力してください");
+      setError(t("web_settings_relay_url_invalid"));
       return;
     }
     if (list.includes(url)) {
-      setError("このリレーは追加済みです");
+      setError(t("web_settings_relay_already_added"));
       return;
     }
     onAdd(url);
@@ -156,7 +155,7 @@ function AddDmRelayForm({
   return (
     <form className={styles.row} onSubmit={submit}>
       <label htmlFor={inputId} className="srOnly">
-        追加するDMリレーの URL
+        {t("web_settings_dmrelay_url_label")}
       </label>
       <input
         id={inputId}
@@ -175,7 +174,7 @@ function AddDmRelayForm({
         }}
       />
       <button type="submit" className={styles.ghost} disabled={disabled || value.trim() === ""}>
-        追加
+        {t("common_add")}
       </button>
       {error && (
         <p className={styles.error} role="alert">
@@ -231,28 +230,31 @@ function DmRelayRecsBlock({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        {open ? "▲ 候補を閉じる" : "▼ 候補から追加（おすすめ）"}
+        {open ? t("recs_close") : t("recs_open")}
       </button>
       {open &&
         (recs === null ? (
-          <p className={styles.desc}>フォロー中のDMリレー(kind:10050)を集計中…</p>
+          <p className={styles.desc}>{t("dmrelay_recs_loading")}</p>
         ) : recs.length > 0 ? (
           remaining.length > 0 && (
             <>
-              <p className={styles.desc}>フォロー中がDM受信に使っているリレー</p>
-              <ul className={styles.chips} aria-label="おすすめのDMリレー">
+              <p className={styles.desc}>{t("dmrelay_recs_title")}</p>
+              <ul className={styles.chips} aria-label={t("web_settings_dmrelay_recs_label")}>
                 {remaining.map((r) => (
                   <li key={r.url}>
-                    <DmRelayChip url={r.url} note={`${r.count}人`} disabled={disabled} onAdd={onAdd} />
+                    <DmRelayChip
+                      url={r.url}
+                      note={t("presets_users_fmt", r.count)}
+                      disabled={disabled}
+                      onAdd={onAdd}
+                    />
                   </li>
                 ))}
               </ul>
             </>
           )
         ) : (
-          <p className={styles.desc}>
-            集計できませんでした（フォローが無い・kind:10050 を公開している人がいない等）。
-          </p>
+          <p className={styles.desc}>{t("dmrelay_recs_empty")}</p>
         ))}
     </>
   );
@@ -276,7 +278,7 @@ function DmRelayChip({
       type="button"
       className={styles.chip}
       disabled={disabled}
-      aria-label={`${label} を追加（${note}）`}
+      aria-label={t("web_settings_relay_add_label_note", label, note)}
       onClick={() => onAdd(url)}
     >
       <span className={styles.chipPlus} aria-hidden="true">

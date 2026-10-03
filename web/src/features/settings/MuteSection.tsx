@@ -9,11 +9,11 @@ import { addMuteWord, MuteListError, saveMuteList, signerCanPrivateMute } from "
 import styles from "./SettingsSections.module.css";
 
 /** 種別の見出し（ネイティブ mute_cat_*）と並び */
-const CATEGORY_LABELS: readonly { category: MuteCategory; label: string }[] = [
-  { category: "p", label: "ユーザー" },
-  { category: "word", label: "ワード" },
-  { category: "t", label: "ハッシュタグ" },
-  { category: "e", label: "スレッド" },
+const categoryLabels = (): readonly { category: MuteCategory; label: string }[] => [
+  { category: "p", label: t("mute_cat_users") },
+  { category: "word", label: t("mute_cat_words") },
+  { category: "t", label: t("mute_cat_hashtags") },
+  { category: "e", label: t("mute_cat_threads") },
 ];
 
 /** 変更の失敗の文言 */
@@ -97,27 +97,25 @@ export function MuteSection() {
   return (
     <>
       <div className={styles.block}>
-        <h3 className={styles.caption}>ミュートリスト（NIP-51 / kind:10000）</h3>
-        <p className={styles.desc}>
-          公開／非公開を切り替えて「保存」で再発行します。両方のチェックを外すと解除です。
-        </p>
+        <h3 className={styles.caption}>{t("mute_list_title")}</h3>
+        <p className={styles.desc}>{t("mute_list_desc")}</p>
         <AddWordForm entries={entries} disabled={!editable} onAdd={addWord} />
       </div>
       <div className={styles.block}>
         {list === null ? (
           <p className={styles.desc} role="status">
-            リレーから取得中…
+            {t("mute_loading")}
           </p>
         ) : (
           <>
             {list.locked && <p className={styles.note}>{t("mute_locked")}</p>}
             {!canPrivate && <p className={styles.note}>{t("web_mute_no_cipher")}</p>}
             {entries.length === 0 ? (
-              <p className={styles.desc}>ミュートしている項目はありません</p>
+              <p className={styles.desc}>{t("mute_empty")}</p>
             ) : (
               <>
                 <MuteLegend />
-                {CATEGORY_LABELS.map(({ category, label }) => (
+                {categoryLabels().map(({ category, label }) => (
                   <MuteGroup
                     key={category}
                     label={label}
@@ -155,7 +153,7 @@ function AddWordForm({
     const word = value.trim();
     if (word === "" || disabled) return;
     if (entries.some((m) => m.category === "word" && m.value.toLowerCase() === word.toLowerCase())) {
-      setError("このワードは追加済みです");
+      setError(t("web_settings_mute_word_already_added"));
       return;
     }
     onAdd(word);
@@ -166,7 +164,7 @@ function AddWordForm({
   return (
     <form className={styles.row} onSubmit={submit}>
       <label htmlFor={inputId} className="srOnly">
-        ミュートするワード
+        {t("web_settings_mute_word_label")}
       </label>
       <input
         id={inputId}
@@ -175,7 +173,7 @@ function AddWordForm({
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
-        placeholder="ミュートするワード（/正規表現/ 可）"
+        placeholder={t("mute_word_placeholder")}
         value={value}
         aria-invalid={error !== null}
         onChange={(e) => {
@@ -184,7 +182,7 @@ function AddWordForm({
         }}
       />
       <button type="submit" className={styles.ghost} disabled={disabled || value.trim() === ""}>
-        追加
+        {t("common_add")}
       </button>
       {error && (
         <p className={styles.error} role="alert">
@@ -197,10 +195,11 @@ function AddWordForm({
 
 /** 公開 / 非公開の列見出し（ネイティブ ColumnLegend） */
 function MuteLegend() {
+  const t = useT();
   return (
     <div className={styles.muteLegend} aria-hidden="true">
-      <span className={styles.muteLegendLabel}>公開</span>
-      <span className={styles.muteLegendLabel}>非公開</span>
+      <span className={styles.muteLegendLabel}>{t("mute_public")}</span>
+      <span className={styles.muteLegendLabel}>{t("mute_private")}</span>
     </div>
   );
 }
@@ -265,7 +264,7 @@ function MuteRow({
         <span className={styles.muteCheck}>
           <input
             type="checkbox"
-            aria-label={`${label} を公開でミュート`}
+            aria-label={t("web_settings_mute_public_label", label)}
             checked={entry.isPublic}
             disabled={!editable}
             onChange={(e) => onToggle({ isPublic: e.target.checked })}
@@ -274,7 +273,7 @@ function MuteRow({
         <span className={styles.muteCheck}>
           <input
             type="checkbox"
-            aria-label={`${label} を非公開でミュート`}
+            aria-label={t("web_settings_mute_private_label", label)}
             checked={entry.isPrivate}
             disabled={!editable || !canPrivate}
             onChange={(e) => onToggle({ isPrivate: e.target.checked })}
@@ -311,17 +310,18 @@ function MutedUserLabel({ pubkey, dimmed }: { pubkey: string; dimmed: boolean })
 
 /** 変更があるときだけ出す保存バー（ネイティブ SaveBar）。保存中は安定するまで入力をロックする */
 function SaveBar({ saving, onSave }: { saving: boolean; onSave(): void }) {
+  const t = useT();
   return (
     <div className={styles.saveBar}>
       <p className={styles.caption} role="status">
         {
           saving
-            ? "保存中…（安定するまでお待ちください）" // ネイティブ mute_saving_wait
-            : "変更があります" /* ネイティブ mute_dirty */
+            ? t("mute_saving_wait") // ネイティブ mute_saving_wait
+            : t("mute_dirty") /* ネイティブ mute_dirty */
         }
       </p>
       <button type="button" className={styles.primary} disabled={saving} onClick={onSave}>
-        {saving ? "保存中…" : "保存"}
+        {saving ? t("common_saving") : t("common_save")}
       </button>
     </div>
   );

@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useId, useState } from "react";
+import { useT } from "../../i18n";
 import {
   DEFAULT_LOW_DIM,
   DEFAULT_MID_DIM,
@@ -34,6 +35,7 @@ function hostOf(url: string): string {
  * 候補から選ぶか URL を入力して 1 つ選ぶ。選ばない間は既定の一覧を順に試す（ネイティブの初期状態と同じ）。
  */
 export function MediaSection() {
+  const t = useT();
   const server = useMediaServer((s) => s.server);
   const current = uploadServers(server)[0];
   const choices = [...new Set([...DEFAULT_MEDIA_SERVERS, ...MEDIA_PRESETS, ...(server ? [server] : [])])];
@@ -45,7 +47,7 @@ export function MediaSection() {
     e.preventDefault();
     const url = parseServerInput(value);
     if (!url) {
-      setError("https:// で始まるサーバーの URL を入力してください");
+      setError(t("web_settings_media_url_invalid"));
       return;
     }
     setMediaServer(url);
@@ -56,11 +58,11 @@ export function MediaSection() {
   return (
     <>
       <div className={styles.block}>
-        <h3 className={styles.caption}>画像アップロード先（NIP-96 / 認証は NIP-98）</h3>
+        <h3 className={styles.caption}>{t("media_title")}</h3>
         <p className={styles.desc}>
-          投稿に画像・動画を添付すると、選択中のサーバへアップロードします。
+          {t("web_settings_media_desc")}
           {server === null &&
-            `未選択の間は ${DEFAULT_MEDIA_SERVERS.map(hostOf).join(" → ")} の順に試します。`}
+            t("web_settings_media_default_order", DEFAULT_MEDIA_SERVERS.map(hostOf).join(" → "))}
         </p>
         <div className={styles.choices}>
           {choices.map((url) => (
@@ -77,7 +79,7 @@ export function MediaSection() {
         </div>
         <form className={styles.row} onSubmit={submit}>
           <label htmlFor={inputId} className="srOnly">
-            アップロード先サーバーの URL
+            {t("web_settings_media_url_label")}
           </label>
           <input
             id={inputId}
@@ -96,7 +98,7 @@ export function MediaSection() {
             }}
           />
           <button type="submit" className={styles.ghost} disabled={value.trim() === ""}>
-            選択
+            {t("pick")}
           </button>
           {error && (
             <p className={styles.error} role="alert">
@@ -110,7 +112,7 @@ export function MediaSection() {
             className={`${styles.ghost} ${styles.alignStart}`}
             onClick={() => setMediaServer(null)}
           >
-            既定に戻す
+            {t("img_reset_defaults")}
           </button>
         )}
       </div>
@@ -125,6 +127,7 @@ export function MediaSection() {
  * 再エンコードする（プラポリ 4.4。ネイティブは「高」= 無加工だが Web はこちらを優先）。
  */
 function ImageCompressionBlock() {
+  const t = useT();
   const prefs = useImageCompression((s) => s.prefs);
   const [low, setLow] = useState(String(prefs.lowMaxDim));
   const [mid, setMid] = useState(String(prefs.midMaxDim));
@@ -139,16 +142,22 @@ function ImageCompressionBlock() {
 
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>画像アップロードの圧縮</h3>
+      <h3 className={styles.caption}>{t("img_compress_title")}</h3>
       <p className={styles.desc}>
-        投稿画像は「低 / 中」選択時に下の長辺（px）へリサイズして再エンコードします（WebP。書けなければ
-        JPEG）。「高」は縮小しませんが、位置情報などの EXIF を取り除くため同じ品質で再エンコードします。
-        既定値: 低 = {DEFAULT_LOW_DIM}px・中 = {DEFAULT_MID_DIM}px・品質 ={` ${DEFAULT_QUALITY}%`}（範囲: 長辺{" "}
-        {DIM_MIN}〜{DIM_MAX} / 品質 {QUALITY_MIN}〜{QUALITY_MAX}）。
+        {t(
+          "web_settings_media_compress_desc",
+          DEFAULT_LOW_DIM,
+          DEFAULT_MID_DIM,
+          DEFAULT_QUALITY,
+          DIM_MIN,
+          DIM_MAX,
+          QUALITY_MIN,
+          QUALITY_MAX,
+        )}
       </p>
       <div className={styles.row}>
         <label className={styles.field}>
-          「低」の長辺（px）
+          {t("img_low_dim_label")}
           <input
             className={styles.input}
             type="number"
@@ -161,7 +170,7 @@ function ImageCompressionBlock() {
           />
         </label>
         <label className={styles.field}>
-          「中」の長辺（px）
+          {t("img_mid_dim_label")}
           <input
             className={styles.input}
             type="number"
@@ -174,7 +183,7 @@ function ImageCompressionBlock() {
           />
         </label>
         <label className={styles.field}>
-          再エンコード品質（%）
+          {t("img_quality_label")}
           <input
             className={styles.input}
             type="number"
@@ -190,10 +199,10 @@ function ImageCompressionBlock() {
       <button
         type="button"
         className={`${styles.ghost} ${styles.alignStart}`}
-        aria-label="画像アップロードの圧縮を既定に戻す"
+        aria-label={t("web_settings_media_compress_reset_label")}
         onClick={() => resetImageCompression()}
       >
-        既定に戻す
+        {t("img_reset_defaults")}
       </button>
     </div>
   );

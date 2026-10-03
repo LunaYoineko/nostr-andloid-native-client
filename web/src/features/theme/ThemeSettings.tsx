@@ -1,4 +1,5 @@
 import { type ReactNode, useId, useState } from "react";
+import { t, useT } from "../../i18n";
 import type { CustomColors } from "./customPalette";
 import type { NoteAccentKind, NoteAccentStyle } from "./noteAccent";
 import { ThemeEditModal, type ThemeEditTab } from "./ThemeEditModal";
@@ -10,8 +11,8 @@ import {
   setThemeMode,
   setUiScale,
   type TextScale,
-  THEME_MODE_LABELS,
   type ThemeMode,
+  themeModeLabel,
   type UiScale,
   undoTheme,
   useThemePrefs,
@@ -21,37 +22,36 @@ import {
 type Option<T extends string> = { value: T; label: string };
 
 /** ネイティブ theme_system / theme_light / theme_dark / theme_custom */
-const MODE_OPTIONS: readonly Option<ThemeMode>[] = (["system", "light", "dark", "custom"] as const).map(
-  (value) => ({ value, label: THEME_MODE_LABELS[value] }),
-);
+const modeOptions = (): readonly Option<ThemeMode>[] =>
+  (["system", "light", "dark", "custom"] as const).map((value) => ({ value, label: themeModeLabel(value) }));
 
 /** ネイティブ note_accent_none / line / bg */
-const NOTE_ACCENT_OPTIONS: readonly Option<NoteAccentStyle>[] = [
-  { value: "none", label: "なし" },
-  { value: "line", label: "縦ライン" },
-  { value: "bg", label: "背景色" },
+const noteAccentOptions = (): readonly Option<NoteAccentStyle>[] => [
+  { value: "none", label: t("note_accent_none") },
+  { value: "line", label: t("note_accent_line") },
+  { value: "bg", label: t("note_accent_bg") },
 ];
 
 /** 種別→色の凡例（ネイティブ NoteAccentKind.entries と同じ順・note_kind_* と同じ文言。S11） */
-const NOTE_ACCENT_KINDS: readonly Option<NoteAccentKind>[] = [
-  { value: "repost", label: "リポスト" },
-  { value: "quote", label: "引用" },
-  { value: "reply", label: "リプライ" },
-  { value: "reaction", label: "リアクション" },
+const noteAccentKinds = (): readonly Option<NoteAccentKind>[] => [
+  { value: "repost", label: t("note_kind_repost") },
+  { value: "quote", label: t("note_kind_quote") },
+  { value: "reply", label: t("note_kind_reply") },
+  { value: "reaction", label: t("note_kind_reaction") },
 ];
 
 /** ネイティブ ui_scale_small / medium / large */
-const UI_SCALE_OPTIONS: readonly Option<UiScale>[] = [
-  { value: "s", label: "標準" },
-  { value: "m", label: "大きめ" },
-  { value: "l", label: "最大" },
+const uiScaleOptions = (): readonly Option<UiScale>[] => [
+  { value: "s", label: t("ui_scale_small") },
+  { value: "m", label: t("ui_scale_medium") },
+  { value: "l", label: t("ui_scale_large") },
 ];
 
 /** ネイティブ text_scale_small / medium / large */
-const TEXT_SCALE_OPTIONS: readonly Option<TextScale>[] = [
-  { value: "s", label: "小" },
-  { value: "m", label: "中" },
-  { value: "l", label: "大" },
+const textScaleOptions = (): readonly Option<TextScale>[] => [
+  { value: "s", label: t("text_scale_small") },
+  { value: "m", label: t("text_scale_medium") },
+  { value: "l", label: t("text_scale_large") },
 ];
 
 /**
@@ -60,6 +60,7 @@ const TEXT_SCALE_OPTIONS: readonly Option<TextScale>[] = [
  * カスタムを選ぶと、色の編集・テーマストアはここではなく上寄せモーダル（ThemeEditModal）へ導線を出す。
  */
 export function ThemeSettings() {
+  const t = useT();
   const mode = useThemePrefs((s) => s.mode);
   const custom = useThemePrefs((s) => s.custom);
   const noteAccent = useThemePrefs((s) => s.noteAccent);
@@ -72,23 +73,23 @@ export function ThemeSettings() {
   return (
     <div className={styles.settings}>
       <ChoiceGroup
-        legend="テーマ"
+        legend={t("theme_title")}
         name={`${id}-mode`}
-        options={MODE_OPTIONS}
+        options={modeOptions()}
         value={mode}
         onChange={setThemeMode}
       />
       {mode === "custom" && (
         <div className={styles.navRows}>
           <ThemeNavRow
-            label="色をカスタマイズ"
+            label={t("theme_customize_open")}
             sublabel={`${custom.bg} / ${custom.text} / ${custom.accent}`}
             leading={<ThemeSwatch colors={custom} />}
             onClick={() => setEditTab("customize")}
           />
           <ThemeNavRow
-            label="テーマストアから取得"
-            sublabel="他の人が公開したテーマを探す"
+            label={t("theme_store_open")}
+            sublabel={t("theme_store_open_sub")}
             onClick={() => setEditTab("store")}
           />
           {/* [#264][#268] 取り消しはモーダルを閉じた後も効くようここにも出す。開いている間は二重に出さない */}
@@ -96,17 +97,17 @@ export function ThemeSettings() {
         </div>
       )}
       <ChoiceGroup
-        legend="種別の視覚表示"
-        desc="リポスト・引用・リプライ・リアクションを色で区別します。既定は「なし」（モノクロ基調のまま）。"
+        legend={t("note_accent_title")}
+        desc={t("note_accent_desc")}
         name={`${id}-note-accent`}
-        options={NOTE_ACCENT_OPTIONS}
+        options={noteAccentOptions()}
         value={noteAccent}
         onChange={setNoteAccent}
       />
       {/* 種別→色の凡例。表示 ON のときだけ出す（ネイティブと同じ。S11） */}
       {noteAccent !== "none" && (
-        <ul className={styles.accentLegend} aria-label="種別の色の凡例">
-          {NOTE_ACCENT_KINDS.map((k) => (
+        <ul className={styles.accentLegend} aria-label={t("web_theme_accent_legend_label")}>
+          {noteAccentKinds().map((k) => (
             <li key={k.value} className={styles.accentLegendRow}>
               <span className={styles.accentSwatch} data-kind={k.value} />
               {k.label}
@@ -115,29 +116,27 @@ export function ThemeSettings() {
         </ul>
       )}
       <ChoiceGroup
-        legend="表示サイズ"
-        desc="文字・アイコン・余白を含む画面全体の大きさ。"
+        legend={t("ui_scale_title")}
+        desc={t("ui_scale_desc")}
         name={`${id}-ui-scale`}
-        options={UI_SCALE_OPTIONS}
+        options={uiScaleOptions()}
         value={uiScale}
         onChange={setUiScale}
       />
       <ChoiceGroup
-        legend="文字サイズ"
-        desc="文字だけをさらに大きく。"
+        legend={t("text_scale_title")}
+        desc={t("text_scale_desc")}
         name={`${id}-text-scale`}
-        options={TEXT_SCALE_OPTIONS}
+        options={textScaleOptions()}
         value={textScale}
         onChange={setTextScale}
       />
       <fieldset className={styles.group}>
-        <legend className={styles.caption}>文字を太くする</legend>
-        <p className={styles.desc}>
-          全体の文字を1段太くします。コントラストの低いテーマで読みやすくなります。
-        </p>
+        <legend className={styles.caption}>{t("bold_text_title")}</legend>
+        <p className={styles.desc}>{t("bold_text_desc")}</p>
         <label className={styles.check}>
           <input type="checkbox" checked={bold} onChange={(e) => setBoldText(e.target.checked)} />
-          太い文字を使う
+          {t("bold_text_toggle")}
         </label>
       </fieldset>
       {editTab && <ThemeEditModal initialTab={editTab} onDismiss={() => setEditTab(null)} />}
@@ -173,13 +172,14 @@ function ThemeNavRow({
  * テーマ編集モーダル（ThemeEditModal）でも、開いている間だけ同じバーを出すために export する。
  */
 export function ThemeUndoBar() {
+  const t = useT();
   const undo = useThemeUndo();
   if (!undo) return null;
   return (
     <div className={styles.undoBar}>
-      <p className={styles.undoText}>「{undo.label}」を適用しました</p>
+      <p className={styles.undoText}>{t("theme_applied_fmt", undo.label)}</p>
       <button type="button" className={styles.undoButton} onClick={undoTheme}>
-        元に戻す
+        {t("theme_undo")}
       </button>
     </div>
   );
