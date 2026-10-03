@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
+import { useLocale } from "../i18n/locale";
 
 /**
  * テストではリレーへ実際に接続しない。jsdom の WebSocket は本物の通信をするので、
@@ -48,6 +49,11 @@ globalThis.TextEncoder = class extends JsdomTextEncoder {
     return new Uint8Array(super.encode(input));
   }
 };
+
+// jsdom の navigator.language は en-US。UI の言語が auto のまま en にならないよう ja に固定する
+// （localStorage に nostrism.locale を置くと「localStorage が空」を確かめる既存テストが落ち、
+//  navigator.language を替えるとリレーの既定（pool.ts）が変わるため、ストアの状態で固定する）
+useLocale.setState({ setting: "ja", kansai: false, resolved: "ja" });
 
 // globals を有効にしていないので、描画した DOM の後始末を明示する
 afterEach(() => {

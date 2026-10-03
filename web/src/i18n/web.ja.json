@@ -1,0 +1,5 @@
+{
+  "web_display_datasaver_desc": "オンの間は画像を小さく・低画質で読み込み、通信量を抑えます。再読み込みやブラウザのデータセーバー設定の変更で、ブラウザの設定に戻ります。",
+  "web_display_datasaver_title": "データセーバー",
+  "web_display_datasaver_toggle": "データセーバーを使う"
+}

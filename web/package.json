@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:functions": "vitest run -c vitest.functions.config.ts",
     "lint": "biome check .",
+    "check": "biome check . && node scripts/check-i18n.mjs",
     "format": "biome format --write .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.functions.json --noEmit"
   },

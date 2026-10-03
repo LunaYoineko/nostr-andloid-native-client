@@ -1,5 +1,6 @@
 import type { ChangeEvent } from "react";
 import { useId, useState } from "react";
+import { useT } from "../../i18n";
 import { isDataSaver, setDataSaver } from "../../lib/imageProxy";
 import { type NyanMode, setNyanMode, useNyanMode } from "../../ui/nyan";
 import { type EmbedPrefs, setEmbedPref, useEmbedPrefs } from "../linkcard/embedPrefs";
@@ -32,6 +33,7 @@ export function DisplaySection() {
  * 表示だけの猫化モード。localStorage のみで NIP-78 の同期には入れない。
  */
 function NyanModeBlock() {
+  const t = useT();
   const mode = useNyanMode((s) => s.mode);
   const choice = (value: NyanMode, label: string) => (
     <button
@@ -45,14 +47,12 @@ function NyanModeBlock() {
   );
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>にゃにゃにゃウイルス</h3>
-      <p className={styles.desc}>
-        お遊びの猫化モード。アバターに猫耳が生え、本文の「な」が「にゃ」に化けます。この端末の表示だけの演出で、実際の投稿内容は変わりません。
-      </p>
+      <h3 className={styles.caption}>{t("nyan_mode_title")}</h3>
+      <p className={styles.desc}>{t("nyan_mode_desc")}</p>
       <div className={styles.choices}>
-        {choice("off", "オフ")}
-        {choice("self", "自分のみ")}
-        {choice("all", "全員")}
+        {choice("off", t("nyan_mode_off"))}
+        {choice("self", t("nyan_mode_self"))}
+        {choice("all", t("nyan_mode_all"))}
       </div>
     </div>
   );
@@ -63,12 +63,13 @@ function NyanModeBlock() {
  * （settingsSync.ts のホワイトリストに追加していない）。
  */
 function DensityBlock() {
+  const t = useT();
   const id = useId();
   const density = useThemePrefs((s) => s.density);
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>廃人モード</h3>
-      <p className={styles.desc}>カラムの間隔・余白・行の高さを詰めて情報量を増やします</p>
+      <h3 className={styles.caption}>{t("dense_mode_title")}</h3>
+      <p className={styles.desc}>{t("dense_mode_desc")}</p>
       <label className={styles.check} htmlFor={id}>
         <input
           id={id}
@@ -76,7 +77,7 @@ function DensityBlock() {
           checked={density === "dense"}
           onChange={(e) => setDensity(e.target.checked ? "dense" : "normal")}
         />
-        廃人モードを使う
+        {t("dense_mode_toggle")}
       </label>
     </div>
   );
@@ -112,6 +113,7 @@ function EmbedToggle({
  * 6 項目、既定はすべて ON。ogp が OFF の間は ogpImages を無効にする（ON にしても効かないため）。
  */
 function EmbedPrefsBlock() {
+  const t = useT();
   const prefs = useEmbedPrefs();
   const set =
     <K extends keyof EmbedPrefs>(key: K) =>
@@ -120,22 +122,20 @@ function EmbedPrefsBlock() {
 
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>リンクの埋め込み表示</h3>
-      <p className={styles.desc}>
-        本文中のリンクをカードやサムネイルで表示します。通信量が気になる場合はオフにできます。
-      </p>
-      <EmbedToggle label="動画（mp4 等）をインライン再生" checked={prefs.video} onChange={set("video")} />
-      <EmbedToggle label="YouTube のサムネイルを表示" checked={prefs.youtube} onChange={set("youtube")} />
-      <EmbedToggle label="Spotify のカードを表示" checked={prefs.spotify} onChange={set("spotify")} />
-      <EmbedToggle label="その他リンクの OGP カードを表示" checked={prefs.ogp} onChange={set("ogp")} />
+      <h3 className={styles.caption}>{t("embed_section")}</h3>
+      <p className={styles.desc}>{t("embed_section_desc")}</p>
+      <EmbedToggle label={t("embed_video")} checked={prefs.video} onChange={set("video")} />
+      <EmbedToggle label={t("embed_youtube")} checked={prefs.youtube} onChange={set("youtube")} />
+      <EmbedToggle label={t("embed_spotify")} checked={prefs.spotify} onChange={set("spotify")} />
+      <EmbedToggle label={t("embed_ogp")} checked={prefs.ogp} onChange={set("ogp")} />
       <EmbedToggle
-        label="OGP カードの画像を読み込む"
+        label={t("embed_ogp_images")}
         checked={prefs.ogpImages}
         disabled={!prefs.ogp}
         onChange={set("ogpImages")}
       />
       <EmbedToggle
-        label="カードを出したリンクのURLを本文から隠す"
+        label={t("embed_hide_carded_urls")}
         checked={prefs.hideCardedUrls}
         onChange={set("hideCardedUrls")}
       />
@@ -145,14 +145,13 @@ function EmbedPrefsBlock() {
 
 /** データセーバー（画像のプロキシを縮小・低画質にする。imageProxy の setDataSaver） */
 function DataSaverBlock() {
+  const t = useT();
   const id = useId();
   const [on, setOn] = useState(isDataSaver);
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>データセーバー</h3>
-      <p className={styles.desc}>
-        オンの間は画像を小さく・低画質で読み込み、通信量を抑えます。再読み込みやブラウザのデータセーバー設定の変更で、ブラウザの設定に戻ります。
-      </p>
+      <h3 className={styles.caption}>{t("web_display_datasaver_title")}</h3>
+      <p className={styles.desc}>{t("web_display_datasaver_desc")}</p>
       <label className={styles.check} htmlFor={id}>
         <input
           id={id}
@@ -163,7 +162,7 @@ function DataSaverBlock() {
             setOn(e.target.checked);
           }}
         />
-        データセーバーを使う
+        {t("web_display_datasaver_toggle")}
       </label>
     </div>
   );

@@ -1,0 +1,18 @@
+{
+  "dense_mode_desc": "Tightens column gaps, padding and row height to fit more on screen",
+  "dense_mode_title": "Dense mode",
+  "dense_mode_toggle": "Use dense mode",
+  "embed_hide_carded_urls": "Hide the URL text when a card is shown",
+  "embed_ogp": "Show preview cards for other links",
+  "embed_ogp_images": "Load images in preview cards",
+  "embed_section": "Link previews",
+  "embed_section_desc": "Show links in posts as cards and thumbnails. Turn off to save data.",
+  "embed_spotify": "Show Spotify cards",
+  "embed_video": "Play videos (mp4 etc.) inline",
+  "embed_youtube": "Show YouTube previews",
+  "nyan_mode_all": "Everyone",
+  "nyan_mode_desc": "A just-for-fun cat mode: cat ears on avatars and \"nya-ized\" text (na → nya). Display-only on this device — your actual posts are never changed.",
+  "nyan_mode_off": "Off",
+  "nyan_mode_self": "Me only",
+  "nyan_mode_title": "Nyan-nyan-nya virus"
+}
