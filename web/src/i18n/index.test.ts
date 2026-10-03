@@ -8,10 +8,12 @@ it("ja の辞書の値を返す（テストは ja 固定）", () => {
   expect(t("nyan_mode_title")).toBe("にゃにゃにゃウイルス");
 });
 
-it("en に切り替えると en の値、en に無いキーは ja にフォールバックする", () => {
-  // 英語辞書が揃うまでは setLocaleSetting("en") も ja に落ちる（ENGLISH_AVAILABLE）ので、解決済みの値を直接置く
-  useLocale.setState({ setting: "en", resolved: "en" });
+it("en に切り替えると en の値を返し、戻すと ja に戻る", () => {
+  setLocaleSetting("en");
+  expect(useLocale.getState().resolved).toBe("en");
   expect(t("nyan_mode_title")).toBe("Nyan-nyan-nya virus");
+  expect(t("web_display_datasaver_title")).toBe("Data saver");
+  setLocaleSetting("ja");
   expect(t("web_display_datasaver_title")).toBe("データセーバー");
 });
 

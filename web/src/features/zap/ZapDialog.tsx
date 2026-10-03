@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
-import { t, useT } from "../../i18n";
+import { useT } from "../../i18n";
 import { requestZapInvoice } from "../../lib/lnurl";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { QrCode } from "../../ui/QrCode";
@@ -21,11 +21,6 @@ declare global {
 /** 金額のプリセット（sats。ネイティブ ZAP_PRESETS） */
 export const ZAP_PRESETS: readonly number[] = [21, 100, 500, 1000, 5000, 10000];
 const DEFAULT_AMOUNT = 100;
-
-// ネイティブ zap_invoice_failed
-export const ZAP_INVOICE_FAILED = t("zap_invoice_failed");
-// ネイティブ nwc_paid
-export const ZAP_PAID = t("nwc_paid");
 
 /** カスタム額（数字だけ）。1 以上の整数ならそれ、それ以外は null（プリセットを使う） */
 function customSats(value: string): number | null {
@@ -125,7 +120,7 @@ export function ZapDialog({
       setInvoice(pr);
       return;
     }
-    showToast(ZAP_PAID);
+    showToast(t("nwc_paid"));
     onClose();
   }
 
@@ -143,7 +138,7 @@ export function ZapDialog({
       return;
     }
     setBusy(false);
-    showToast(ZAP_PAID);
+    showToast(t("nwc_paid"));
     onClose();
   }
 

@@ -3,6 +3,7 @@ import type { NostrEvent } from "nostr-tools/pure";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useT } from "../../i18n";
+import { formatDateTimeLocal } from "../../i18n/format";
 import { avatarInitial, avatarShade } from "../../lib/avatar";
 import { hrefForEvent, hrefForProfile } from "../../lib/content/labels";
 import { isBlankContent, parseNoteContent, withoutLinks, withoutMention } from "../../lib/content/parse";
@@ -281,7 +282,7 @@ function RelativeTime({ createdAt, client }: { createdAt: number; client: string
   // created_at は任意の数値なので、Date の範囲外なら属性を付けない（toISOString が例外を投げる）
   const valid = Number.isFinite(date.getTime());
   const title = valid
-    ? `${date.toLocaleString()}${client ? ` · ${t("note_posted_via_fmt", client)}` : ""}`
+    ? `${formatDateTimeLocal(date)}${client ? ` · ${t("note_posted_via_fmt", client)}` : ""}`
     : undefined;
   return (
     <time className={styles.time} dateTime={valid ? date.toISOString() : undefined} title={title}>
