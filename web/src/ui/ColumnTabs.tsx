@@ -1,5 +1,6 @@
 import { type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 import { tabScrollTarget } from "../app/deck/geometry";
+import { useT } from "../i18n";
 import styles from "./ColumnTabs.module.css";
 import { RelayIndicator } from "./RelayIndicator";
 import { scrollBehavior, scrollToLeft } from "./useLayoutMode";
@@ -27,6 +28,7 @@ export function ColumnTabs({
   menu: ReactNode;
   showRelay: boolean;
 }) {
+  const t = useT();
   const strip = useRef<HTMLUListElement>(null);
   const tabs = useRef(new Map<string, HTMLButtonElement>());
 
@@ -54,7 +56,7 @@ export function ColumnTabs({
 
   return (
     <div className={styles.bar}>
-      <nav aria-label="カラム" className={styles.tabsNav}>
+      <nav aria-label={t("web_columns_nav")} className={styles.tabsNav}>
         <ul ref={strip} className={styles.strip}>
           {columns.map((c, i) => {
             const active = c.id === activeId;
@@ -83,7 +85,7 @@ export function ColumnTabs({
             );
           })}
           <li>
-            <button type="button" className={styles.add} aria-label="カラム追加" onClick={onAdd}>
+            <button type="button" className={styles.add} aria-label={t("nav_add_column")} onClick={onAdd}>
               ＋
             </button>
           </li>

@@ -10,7 +10,30 @@ import { fileURLToPath } from "node:url";
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** 辞書化済みのファイル（web/ からの相対）。辞書化が済むたびに足し、全体が済んだら全ファイル検査に切り替える */
-export const MIGRATED = ["src/features/settings/DisplaySection.tsx"];
+export const MIGRATED = [
+  "src/features/settings/DisplaySection.tsx",
+  "src/app/navState.ts",
+  "src/ui/AccountAvatar.tsx",
+  "src/ui/BottomNav.tsx",
+  "src/ui/CatEars.tsx",
+  "src/ui/ColumnTabs.tsx",
+  "src/ui/ConfirmDialog.tsx",
+  "src/ui/ConnectionPill.tsx",
+  "src/ui/DetailOverlay.tsx",
+  "src/ui/EventJsonDialog.tsx",
+  "src/ui/InfoDialog.tsx",
+  "src/ui/MenuButton.tsx",
+  "src/ui/ModalSheet.tsx",
+  "src/ui/NavRail.tsx",
+  "src/ui/PullToRefreshIndicator.tsx",
+  "src/ui/QrCode.tsx",
+  "src/ui/RelayIndicator.tsx",
+  "src/ui/RelayStatusDialog.tsx",
+  "src/ui/ScreenHeader.tsx",
+  "src/ui/SingleColumnPane.tsx",
+  "src/ui/Toaster.tsx",
+  "src/ui/icons.tsx",
+];
 
 const JA = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 

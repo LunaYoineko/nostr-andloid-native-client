@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useT } from "../../i18n";
 import { useSession } from "../../signer/session";
 import { pinnedColumns, useDeck } from "../../store/deck";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
@@ -67,6 +68,7 @@ function saveFailureMessage(e: unknown): string {
 }
 
 export function RelaySyncSection() {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const [confirmSave, setConfirmSave] = useState(false);
   const [busySave, setBusySave] = useState(false);
@@ -157,9 +159,9 @@ export function RelaySyncSection() {
       )}
       {confirmSave && (
         <ConfirmDialog
-          title="リレーへ保存しますか？"
-          text="設定とカラム構成の2イベント（kind:30078）を書き込みリレーへ発行し、以前のスナップショットを置き換えます。"
-          confirmLabel="保存"
+          title={t("sync_save_confirm_title")}
+          text={t("sync_save_confirm_text")}
+          confirmLabel={t("common_save")}
           onConfirm={() => void save()}
           onDismiss={() => setConfirmSave(false)}
         />

@@ -1,6 +1,7 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { map } from "rxjs";
+import { useT } from "../../i18n";
 import { displayRelayUrl } from "../../nostr/outbox";
 import { addRelay, type RelayRow, removeRelay, setRelayReadWrite, useRelayRows } from "../../nostr/pool";
 import { type AuthPolicy, setAuthPolicy, useAuthPolicy } from "../../nostr/relayAuth";
@@ -38,6 +39,7 @@ function failureMessage(e: unknown): string {
  * （直前に最新の kind:10002 を取り直し、取れなければ公開しない。basedOnId が食い違えば stale。#478）。
  */
 export function RelaySection() {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const rows = useRelayRows();
   // 一覧はネイティブ allRelays（ORDER BY source ASC, url ASC）と同じ並び: 既定 → 手動 → NIP-65、URL 昇順
@@ -106,9 +108,9 @@ export function RelaySection() {
       </div>
       {confirming && (
         <ConfirmDialog
-          title="リレーリストを公開しますか？"
-          text="現在の Read / Write の設定を kind:10002 として署名し、Write リレーとインデクサへ送ります。ネットワークに公開される操作です。"
-          confirmLabel="公開する"
+          title={t("relays_publish_title")}
+          text={t("web_relays_publish_text")}
+          confirmLabel={t("relays_publish_confirm")}
           onConfirm={() => void save()}
           onDismiss={() => setConfirming(false)}
         />

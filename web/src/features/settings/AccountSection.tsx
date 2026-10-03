@@ -1,6 +1,7 @@
 import { npubEncode } from "nostr-tools/nip19";
 import { useEffect, useMemo, useState } from "react";
 import { LogoutButton } from "../../app/LogoutButton";
+import { useT } from "../../i18n";
 import { shortNpub } from "../../lib/npub";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { getPasskeyVault, isPasskeySupported } from "../../signer/passkeyVault";
@@ -9,30 +10,10 @@ import { AccountAvatar } from "../../ui/AccountAvatar";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import styles from "./SettingsSections.module.css";
 
-// [#543] composeApp/src/commonMain/composeResources/values-ja/strings.xml の nosskey_* と同じ文言
-const NOSSKEY_TITLE = "パスキーで保護（Nosskey）";
-const NOSSKEY_DESC = "秘密鍵をパスキー(生体認証)の PRF で暗号化して保護します（WebAuthn PRF）。";
-const NOSSKEY_PROTECTED_UNLOCKED = "● パスキーで保護中（解錠済み）";
-const NOSSKEY_UNPROTECT_LOCAL = "保護を解除（ローカル鍵に戻す）";
-const NOSSKEY_PROTECTED_LOCKED = "● パスキーで保護中（未解錠）";
-const NOSSKEY_UNLOCKING = "解錠中…";
-const NOSSKEY_UNLOCK = "パスキーで解錠";
-const NOSSKEY_UNLOCK_FAILED = "解錠に失敗しました";
-const NOSSKEY_UNPROTECT = "保護を解除";
-const NOSSKEY_ENROLLING = "登録中…";
-const NOSSKEY_ENROLL = "パスキーで保護する";
-const NOSSKEY_ENROLL_FAILED = "登録に失敗しました（PRF 非対応/キャンセル/ドメイン未関連付け）";
-const NOSSKEY_LOCAL_ONLY = "ローカル鍵のときにパスキー保護を設定できます。";
-
 // [#588] composeApp/src/commonMain/composeResources/values-ja/strings.xml の account_* / relogin_* と同じ文言
 const ACCOUNT_LOGIN_METHOD_LABEL = "ログイン方法: ";
 const ACCOUNT_ACTIVE = "● 有効";
 const ACCOUNT_SWITCH_SECTION = "別のアカウントを使う";
-const ACCOUNT_RELOGIN_ROW = "別のアカウントでログインし直す";
-const RELOGIN_TITLE = "ログインし直しますか？";
-const RELOGIN_TEXT =
-  "現在のログインを切り替える操作です。続行すると、端末内に保存しているキャッシュ（タイムライン履歴・プロフィール等）を消去します。ローカル鍵はバックアップ（nsec）が無いと復元できません。";
-const RELOGIN_CONFIRM = "続行する";
 
 const METHOD_LABEL: Record<SessionMethod, string> = {
   nip07: "拡張機能（NIP-07）",
@@ -96,6 +77,7 @@ function AccountCard({ me, method }: { me: string; method: SessionMethod | null 
  * RequireSession が status: "out" を見て自動で送る。
  */
 function ReloginBlock() {
+  const t = useT();
   const [confirming, setConfirming] = useState(false);
   return (
     <div className={styles.block}>
@@ -105,13 +87,13 @@ function ReloginBlock() {
         className={`${styles.ghost} ${styles.alignStart}`}
         onClick={() => setConfirming(true)}
       >
-        {ACCOUNT_RELOGIN_ROW}
+        {t("account_relogin_row")}
       </button>
       {confirming && (
         <ConfirmDialog
-          title={RELOGIN_TITLE}
-          text={RELOGIN_TEXT}
-          confirmLabel={RELOGIN_CONFIRM}
+          title={t("relogin_title")}
+          text={t("relogin_text")}
+          confirmLabel={t("relogin_confirm")}
           destructive
           onConfirm={() => {
             setConfirming(false);
@@ -131,6 +113,7 @@ function ReloginBlock() {
  * PRF に対応していない・判定できない環境では項目自体を出さない。
  */
 function NosskeyBlock() {
+  const t = useT();
   const method = useSession((s) => s.method);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [tick, setTick] = useState(0);
@@ -174,9 +157,9 @@ function NosskeyBlock() {
     try {
       const pubkey = await vault.enroll();
       if (pubkey) setTick((t) => t + 1);
-      else setError(NOSSKEY_ENROLL_FAILED);
+      else setError(t("nosskey_enroll_failed"));
     } catch {
-      setError(NOSSKEY_ENROLL_FAILED);
+      setError(t("nosskey_enroll_failed"));
     } finally {
       setBusy(false);
     }
@@ -188,9 +171,9 @@ function NosskeyBlock() {
     try {
       const pubkey = await vault.unlock();
       if (pubkey) setTick((t) => t + 1);
-      else setError(NOSSKEY_UNLOCK_FAILED);
+      else setError(t("nosskey_unlock_failed"));
     } catch {
-      setError(NOSSKEY_UNLOCK_FAILED);
+      setError(t("nosskey_unlock_failed"));
     } finally {
       setBusy(false);
     }
@@ -202,9 +185,9 @@ function NosskeyBlock() {
     try {
       const ok = await vault.unprotect();
       if (ok) setTick((t) => t + 1);
-      else setError(NOSSKEY_UNLOCK_FAILED);
+      else setError(t("nosskey_unlock_failed"));
     } catch {
-      setError(NOSSKEY_UNLOCK_FAILED);
+      setError(t("nosskey_unlock_failed"));
     } finally {
       setBusy(false);
     }
@@ -212,30 +195,30 @@ function NosskeyBlock() {
 
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>{NOSSKEY_TITLE}</h3>
-      <p className={styles.desc}>{NOSSKEY_DESC}</p>
+      <h3 className={styles.caption}>{t("nosskey_title")}</h3>
+      <p className={styles.desc}>{t("nosskey_desc")}</p>
       {unlocked ? (
         <>
-          <p className={styles.value}>{NOSSKEY_PROTECTED_UNLOCKED}</p>
+          <p className={styles.value}>{t("nosskey_protected_unlocked")}</p>
           <button
             type="button"
             className={`${styles.ghost} ${styles.alignStart}`}
             disabled={busy}
             onClick={() => void unprotect()}
           >
-            {NOSSKEY_UNPROTECT_LOCAL}
+            {t("nosskey_unprotect_local")}
           </button>
         </>
       ) : isProtected ? (
         <>
-          <p className={styles.value}>{NOSSKEY_PROTECTED_LOCKED}</p>
+          <p className={styles.value}>{t("nosskey_protected_locked")}</p>
           <button
             type="button"
             className={`${styles.primary} ${styles.alignStart}`}
             disabled={busy}
             onClick={() => void unlock()}
           >
-            {busy ? NOSSKEY_UNLOCKING : NOSSKEY_UNLOCK}
+            {busy ? t("nosskey_unlocking") : t("nosskey_unlock")}
           </button>
           <button
             type="button"
@@ -243,7 +226,7 @@ function NosskeyBlock() {
             disabled={busy}
             onClick={() => void unprotect()}
           >
-            {NOSSKEY_UNPROTECT}
+            {t("nosskey_unprotect")}
           </button>
         </>
       ) : method === "local" ? (
@@ -254,13 +237,13 @@ function NosskeyBlock() {
             disabled={busy}
             onClick={() => setConfirming(true)}
           >
-            {busy ? NOSSKEY_ENROLLING : NOSSKEY_ENROLL}
+            {busy ? t("nosskey_enrolling") : t("nosskey_enroll")}
           </button>
           {confirming && (
             <ConfirmDialog
-              title={NOSSKEY_TITLE}
-              text={`${NOSSKEY_DESC} nsec を控えてから保護してください。`}
-              confirmLabel={NOSSKEY_ENROLL}
+              title={t("nosskey_title")}
+              text={t("web_account_nosskey_confirm_text")}
+              confirmLabel={t("nosskey_enroll")}
               onConfirm={() => {
                 setConfirming(false);
                 void enroll();
@@ -270,7 +253,7 @@ function NosskeyBlock() {
           )}
         </>
       ) : (
-        <p className={styles.desc}>{NOSSKEY_LOCAL_ONLY}</p>
+        <p className={styles.desc}>{t("nosskey_local_only")}</p>
       )}
       {error && <p className={styles.error}>{error}</p>}
     </div>

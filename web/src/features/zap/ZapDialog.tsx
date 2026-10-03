@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { useT } from "../../i18n";
 import { requestZapInvoice } from "../../lib/lnurl";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { QrCode } from "../../ui/QrCode";
@@ -25,12 +26,6 @@ const DEFAULT_AMOUNT = 100;
 export const ZAP_INVOICE_FAILED = "invoice を取得できませんでした。lud16/リレー設定を確認してください。";
 // ネイティブ nwc_paid
 export const ZAP_PAID = "Zapを送金しました ⚡";
-// ネイティブ nwc_via（#537）
-const NWC_VIA = "接続済みウォレットからアプリ内で送金します（毎回確認）。";
-// ネイティブ nwc_pay_confirm_title
-const NWC_PAY_CONFIRM_TITLE = "ウォレットから送金";
-// ネイティブ nwc_pay_confirm
-const NWC_PAY_CONFIRM = "送金する";
 
 /** カスタム額（数字だけ）。1 以上の整数ならそれ、それ以外は null（プリセットを使う） */
 function customSats(value: string): number | null {
@@ -68,6 +63,7 @@ export function ZapDialog({
   payWithWallet?: (pr: string) => Promise<void>;
   onClose(): void;
 }) {
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const descId = useId();
@@ -248,7 +244,7 @@ export function ZapDialog({
             {error}
           </p>
         )}
-        {payWithWallet && invoice === null && <p className={styles.desc}>{NWC_VIA}</p>}
+        {payWithWallet && invoice === null && <p className={styles.desc}>{t("nwc_via")}</p>}
         <div className={styles.footer}>
           <span className={styles.to}>{`送信先: ${lud16}`}</span>
           {busy ? (
@@ -271,9 +267,9 @@ export function ZapDialog({
       </dialog>
       {confirmInvoice !== null && (
         <ConfirmDialog
-          title={NWC_PAY_CONFIRM_TITLE}
-          text={`${recipientName} に ⚡ ${effectiveAmount} sats を送金します。よろしいですか？`}
-          confirmLabel={NWC_PAY_CONFIRM}
+          title={t("nwc_pay_confirm_title")}
+          text={t("web_zap_pay_confirm_text", recipientName, effectiveAmount)}
+          confirmLabel={t("nwc_pay_confirm")}
           onConfirm={() => void confirmPay(confirmInvoice)}
           onDismiss={() => setConfirmInvoice(null)}
         />

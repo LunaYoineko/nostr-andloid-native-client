@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { NAV_LABEL, type NavKey } from "../app/navState";
+import { type NavKey, navLabel } from "../app/navState";
+import { useT } from "../i18n";
 import type { ColumnKind } from "../lib/columns";
 import { AccountAvatar } from "./AccountAvatar";
 import { badgeText } from "./badge";
@@ -33,14 +34,15 @@ export function NavRail({
   onOpenColumn(id: string): void;
   onAddColumn(): void;
 }) {
+  const t = useT();
   const dest = (key: NavKey, active: boolean, icon: ReactNode) => {
     const badge = badges?.[key] ?? 0;
     return (
       <button
         type="button"
         className={styles.slot}
-        aria-label={badge > 0 ? `${NAV_LABEL[key]}（未読 ${badge} 件）` : NAV_LABEL[key]}
-        title={NAV_LABEL[key]}
+        aria-label={badge > 0 ? t("web_nav_unread_label", navLabel(key), badge) : navLabel(key)}
+        title={navLabel(key)}
         aria-current={active ? "page" : undefined}
         onClick={() => onSelect(key)}
       >
@@ -55,7 +57,7 @@ export function NavRail({
   };
 
   return (
-    <nav className={styles.rail} aria-label="メイン">
+    <nav className={styles.rail} aria-label={t("web_nav_main")}>
       <div className={`${styles.block} ${styles.top}`}>
         <span className={styles.brandSlot}>
           <img
@@ -87,8 +89,8 @@ export function NavRail({
       <button
         type="button"
         className={`${styles.slot} ${styles.add}`}
-        aria-label="カラム追加"
-        title="カラム追加"
+        aria-label={t("nav_add_column")}
+        title={t("nav_add_column")}
         onClick={onAddColumn}
       >
         <AddIcon className={styles.icon} />
