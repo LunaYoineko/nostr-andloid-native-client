@@ -20,6 +20,13 @@ describe("manifest.webmanifest（#541・#647）", () => {
       });
       const manifest = JSON.parse(readFileSync(join(outDir, "manifest.webmanifest"), "utf8"));
       expect(manifest.id).toBe("/");
+      expect(manifest.name).toBe("Nostrism");
+      expect(manifest.short_name).toBe("Nostrism");
+      expect(manifest.description).toBe(
+        "A deck-style Nostr client: timelines, hashtags, notifications and chat side by side.",
+      );
+      expect(manifest.lang).toBe("en");
+      expect(manifest.dir).toBe("ltr");
       expect(manifest.start_url).toBe("/");
       expect(manifest.scope).toBe("/");
       expect(manifest.share_target).toEqual({
