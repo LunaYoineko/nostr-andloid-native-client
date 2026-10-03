@@ -1,5 +1,6 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { useMemo, useState } from "react";
+import { useT } from "../../i18n";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { BoltIcon, RepeatIcon } from "../../ui/icons";
 import type { NoteZaps } from "../zap/zapTotals";
@@ -22,6 +23,7 @@ export function FocusNoteStats({
   events: readonly NostrEvent[];
   zaps: NoteZaps;
 }) {
+  const t = useT();
   const { replies, reposts, groups, reposters } = useMemo(
     () => ({
       ...countEngagement(events, noteId),
@@ -37,9 +39,9 @@ export function FocusNoteStats({
   if (replies === 0 && reposts === 0 && total === 0 && zaps.zaps.length === 0) return null;
 
   const summary = [
-    replies > 0 ? `リプライ ${replies}` : null,
-    reposts > 0 ? `リポスト ${reposts}` : null,
-    total > 0 ? `リアクション ${total}` : null,
+    replies > 0 ? t("thread_stat_replies_fmt", replies) : null,
+    reposts > 0 ? t("thread_stat_reposts_fmt", reposts) : null,
+    total > 0 ? t("thread_stat_reactions_fmt", total) : null,
   ].filter((s) => s !== null);
 
   return (

@@ -1,5 +1,6 @@
 import { decode } from "nostr-tools/nip19";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { useT } from "../../i18n";
 import styles from "./NewConversationDialog.module.css";
 
 const HEX64 = /^[0-9a-f]{64}$/i;
@@ -28,6 +29,7 @@ export function NewConversationDialog({
   onOpen(pubkey: string): void;
   onDismiss(): void;
 }) {
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const inputId = useId();
@@ -56,10 +58,10 @@ export function NewConversationDialog({
     >
       <form onSubmit={submit}>
         <h2 id={titleId} className={styles.title}>
-          新しいメッセージ
+          {t("dm_new_title")}
         </h2>
         <label htmlFor={inputId} className="srOnly">
-          相手の npub または hex
+          {t("web_dm_new_peer_label")}
         </label>
         <input
           id={inputId}
@@ -68,16 +70,16 @@ export function NewConversationDialog({
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
-          placeholder="npub または hex"
+          placeholder={t("tpl_profile_hint")}
           value={value}
           onChange={(e) => setValue(e.target.value)}
         />
         <div className={styles.buttons}>
           <button type="button" className={`${styles.button} ${styles.dismiss}`} onClick={onDismiss}>
-            キャンセル
+            {t("common_cancel")}
           </button>
           <button type="submit" className={`${styles.button} ${styles.confirm}`} disabled={pubkey === null}>
-            開く
+            {t("dm_open")}
           </button>
         </div>
       </form>

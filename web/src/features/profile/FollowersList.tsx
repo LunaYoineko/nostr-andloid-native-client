@@ -10,6 +10,7 @@ type FooterContext = { hasMore: boolean; loading: boolean; onLoadMore: () => voi
 
 /** 末尾の「さらに読み込む」（続きがあり得る間だけ。取得中は「集計中…」） */
 function LoadMoreFooter({ context }: { context?: FooterContext }) {
+  const t = useT();
   if (!context || (!context.hasMore && !context.loading)) return null;
   return (
     <div className={own.more}>
@@ -19,7 +20,7 @@ function LoadMoreFooter({ context }: { context?: FooterContext }) {
         disabled={context.loading}
         onClick={context.onLoadMore}
       >
-        {context.loading ? "集計中…" : "さらに読み込む"}
+        {context.loading ? t("aggregating") : t("load_more")}
       </button>
     </div>
   );
@@ -44,9 +45,9 @@ export function FollowersList({
   const { followers, hasMore, loading } = state;
   return (
     <div className={styles.screen}>
-      <ScreenHeader title="フォロワー" onBack={onBack} />
+      <ScreenHeader title={t("list_followers")} onBack={onBack} />
       <hr className={styles.divider} />
-      <p className={own.note}>リレーで観測できた範囲のみ表示しています（全数ではありません）</p>
+      <p className={own.note}>{t("followers_scope_note")}</p>
       <hr className={styles.divider} />
       {followers === null ? (
         <p className={styles.empty}>{t("aggregating")}</p>

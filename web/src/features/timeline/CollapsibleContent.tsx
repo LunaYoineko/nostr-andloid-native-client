@@ -1,5 +1,6 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { useT } from "../../i18n";
 import { ExpandLessIcon, ExpandMoreIcon } from "../../ui/icons";
 import styles from "./CollapsibleContent.module.css";
 
@@ -8,6 +9,7 @@ import styles from "./CollapsibleContent.module.css";
  * はみ出しているとき（または展開中）だけ「もっと見る」/「閉じる」を出す。開閉はこの投稿の間だけ覚える。
  */
 export function CollapsibleContent({ event, children }: { event: NostrEvent; children: ReactNode }) {
+  const t = useT();
   const body = useRef<HTMLDivElement>(null);
   // 開いた投稿の id。別の投稿に差し替わったら閉じた状態に戻る
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export function CollapsibleContent({ event, children }: { event: NostrEvent; chi
           aria-expanded={expanded}
           onClick={() => setExpandedId(expanded ? null : event.id)}
         >
-          {expanded ? "閉じる" : "もっと見る"}
+          {expanded ? t("common_close") : t("show_more")}
           {expanded ? (
             <ExpandLessIcon className={styles.chevron} />
           ) : (

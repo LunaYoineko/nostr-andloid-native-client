@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { ColumnMenu, DeckColumn } from "../../features/deck/DeckColumn";
 import { KbColumn } from "../../features/keyboard/KbList";
 import { useT } from "../../i18n";
+import { columnLabel } from "../../lib/columns";
 import { useDeck } from "../../store/deck";
 import { ColumnTabs } from "../../ui/ColumnTabs";
 import { prefersReducedMotion, scrollBehavior, scrollToLeft, useLayoutMode } from "../../ui/useLayoutMode";
@@ -200,7 +201,7 @@ export function DeckScreen() {
             id={`deck-col-${c.id}`}
             className={styles.slot}
             data-width={widths[c.id] ?? "M"}
-            aria-label={c.title}
+            aria-label={columnLabel(c)}
           >
             <KbColumn id={c.id}>
               <DeckColumn spec={c} showHeader={mode === "expanded"} />
@@ -212,7 +213,7 @@ export function DeckScreen() {
             <button
               type="button"
               className={styles.addButton}
-              aria-label="カラム追加"
+              aria-label={t("nav_add_column")}
               onClick={openAddColumn}
             >
               ＋

@@ -1,5 +1,6 @@
 import { getPublicKey } from "nostr-tools/pure";
 import type { VaultRow } from "../db/schema";
+import { t } from "../i18n";
 import { unixNow } from "../lib/time";
 import { getKeyVault, type KeyVault, type KeyVaultDb, openVaultDatabase, VaultError } from "./webKeyVault";
 
@@ -163,7 +164,7 @@ export function createPasskeyVault(opts: {
       await db.vault.delete(PASSKEY_ROW_ID);
     } catch {
       // 行や鍵をログに出さない
-      console.warn("[vault] 削除に失敗");
+      console.warn(`[vault] ${t("web_log_vault_delete_failed")}`);
     }
   }
 

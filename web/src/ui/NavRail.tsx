@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { type NavKey, navLabel } from "../app/navState";
 import { useT } from "../i18n";
+import { columnDisplayTitle } from "../i18n/columnTitles";
 import type { ColumnKind } from "../lib/columns";
 import { AccountAvatar } from "./AccountAvatar";
 import { badgeText } from "./badge";
@@ -76,8 +77,8 @@ export function NavRail({
             key={c.id}
             type="button"
             className={styles.slot}
-            aria-label={c.title}
-            title={c.title}
+            aria-label={columnDisplayTitle(c.title)}
+            title={columnDisplayTitle(c.title)}
             aria-current={c.active ? "true" : undefined}
             onClick={() => onOpenColumn(c.id)}
           >

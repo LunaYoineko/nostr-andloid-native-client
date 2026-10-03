@@ -1,80 +1,47 @@
-// 辞書化済みのファイル（許可リスト）に日本語リテラルが残っていないか確かめる。残っていれば非 0。
-//   node scripts/check-i18n.mjs                 許可リストを検査する
+// 本体コードに日本語リテラルが残っていないか確かめる（全ファイル禁止）。残っていれば非 0。
+//   node scripts/check-i18n.mjs                 web/src の本体コード全体を検査する
 //   node scripts/check-i18n.mjs <file>...       指定したファイルを検査する（テスト用）
 // コメントは無視する。文字列リテラル・テンプレート・JSX テキストの日本語（ひらがな・カタカナ・漢字）を検出する。
 // 限界: JSX テキスト中の ' や // は文字列・コメントの開始と見なす（辞書化後のファイルには日本語が無い前提）。
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** 辞書化済みのファイル（web/ からの相対）。辞書化が済むたびに足し、全体が済んだら全ファイル検査に切り替える */
-export const MIGRATED = [
-  "src/features/settings/DisplaySection.tsx",
-  "src/app/LoginGate.tsx",
-  "src/app/Loading.tsx",
-  "src/features/actions/noteLinks.ts",
-  "src/features/deck/useColumnFeed.ts",
-  "src/features/hashtags/pinnedHashtags.ts",
-  "src/features/notifications/NotificationList.tsx",
-  "src/features/profile/ProfileArticleList.tsx",
-  "src/signer/nip46.ts",
-  "src/signer/session.ts",
-  "src/app/navState.ts",
-  "src/ui/AccountAvatar.tsx",
-  "src/ui/BottomNav.tsx",
-  "src/ui/CatEars.tsx",
-  "src/ui/ColumnTabs.tsx",
-  "src/ui/ConfirmDialog.tsx",
-  "src/ui/ConnectionPill.tsx",
-  "src/ui/DetailOverlay.tsx",
-  "src/ui/EventJsonDialog.tsx",
-  "src/ui/InfoDialog.tsx",
-  "src/ui/MenuButton.tsx",
-  "src/ui/ModalSheet.tsx",
-  "src/ui/NavRail.tsx",
-  "src/ui/PullToRefreshIndicator.tsx",
-  "src/ui/QrCode.tsx",
-  "src/ui/RelayIndicator.tsx",
-  "src/ui/RelayStatusDialog.tsx",
-  "src/ui/ScreenHeader.tsx",
-  "src/ui/SingleColumnPane.tsx",
-  "src/ui/Toaster.tsx",
-  "src/ui/icons.tsx",
-  "src/features/settings/AboutSection.tsx",
-  "src/features/settings/AccountSection.tsx",
-  "src/features/settings/BookmarksSection.tsx",
-  "src/features/settings/ConnectionMonitorDialog.tsx",
-  "src/features/settings/DataSection.tsx",
-  "src/features/settings/DmRelaySection.tsx",
-  "src/features/settings/EmojiSection.tsx",
-  "src/features/settings/FavsSection.tsx",
-  "src/features/settings/HashtagSection.tsx",
-  "src/features/settings/MediaSection.tsx",
-  "src/features/settings/MuteSection.tsx",
-  "src/features/settings/ProfileEditSection.tsx",
-  "src/features/settings/ReactionSection.tsx",
-  "src/features/settings/RelaySection.tsx",
-  "src/features/settings/SettingsScreen.tsx",
-  "src/features/settings/cache.ts",
-  "src/features/settings/devMode.ts",
-  "src/features/settings/dmRelayList.ts",
-  "src/features/settings/dmRelayRecs.ts",
-  "src/features/settings/relayList.ts",
-  "src/features/settings/relayRecs.ts",
-  "src/features/settings/sections.ts",
-  "src/features/theme/ThemeEditModal.tsx",
-  "src/features/theme/ThemeSettings.tsx",
-  "src/features/theme/ThemeStoreSection.tsx",
-  "src/features/theme/customPalette.ts",
-  "src/features/theme/noteAccent.ts",
-  "src/features/theme/themeEntry.ts",
-  "src/features/theme/themePrefs.ts",
-  "src/features/theme/themeStore.ts",
-];
+/**
+ * 検査から外すファイル（web/src からの相対）。
+ *  - テスト・i18n/（辞書とカラムの正準タイトル）・test/（セットアップ）
+ *  - emojiCatalog.ts: 絵文字の検索キーワード（日本語の検索語そのもの）
+ *  - ui/nyan.ts: 「にゃいず」の置換規則（表示文言ではなく、日本語の文字そのものを置換する処理）
+ */
+const EXCLUDED = [/\.test\.tsx?$/, /^i18n\//, /^test\//, /(^|\/)emojiCatalog\.ts$/, /^ui\/nyan\.ts$/];
+
+function* walk(dir) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, e.name);
+    if (e.isDirectory()) yield* walk(path);
+    else yield path;
+  }
+}
+
+/** 検査する本体コード（絶対パス） */
+export function targetFiles() {
+  const srcDir = join(webRoot, "src");
+  return [...walk(srcDir)]
+    .filter((f) => /\.tsx?$/.test(f))
+    .filter((f) => !EXCLUDED.some((re) => re.test(relative(srcDir, f).split(sep).join("/"))))
+    .sort();
+}
 
 const JA = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
+
+/** 直前のコードから見て、ここの / が正規表現リテラルの開始か（割り算ではないか） */
+function regexAllowed(before) {
+  const prev = before.trimEnd();
+  if (prev === "") return true;
+  return /[(,=:[!&|?{};+\-*%<>~^]$/.test(prev) || /(?:^|[^\w$])(?:return|typeof|case|in|of)$/.test(prev);
+}
 
 /** コメントを空白に置き換えたコードを返す（文字列・テンプレートの中の // や /* は消さない。改行は保つ） */
 export function stripComments(src) {
@@ -100,6 +67,19 @@ export function stripComments(src) {
       const stop = end < 0 ? src.length : end + 2;
       out += src.slice(i, stop).replace(/[^\n]/g, " ");
       i = stop;
+    } else if (c === "/" && regexAllowed(out)) {
+      // 正規表現リテラル。中の ' " ` を文字列の開始と見なさないよう、閉じの / まで読む（中身は残す）
+      let inClass = false;
+      let j = i + 1;
+      while (j < src.length && src[j] !== "\n") {
+        if (src[j] === "\\") j++;
+        else if (src[j] === "[") inClass = true;
+        else if (src[j] === "]") inClass = false;
+        else if (src[j] === "/" && !inClass) break;
+        j++;
+      }
+      out += src.slice(i, j + 1);
+      i = j + 1;
     } else {
       if (c === '"' || c === "'" || c === "`") quote = c;
       out += c;
@@ -118,7 +98,7 @@ export function findJapanese(src) {
 
 function main() {
   const args = process.argv.slice(2);
-  const files = args.length > 0 ? args : MIGRATED.map((f) => join(webRoot, f));
+  const files = args.length > 0 ? args : targetFiles();
   let bad = 0;
   for (const file of files) {
     for (const { line, text } of findJapanese(readFileSync(file, "utf8"))) {

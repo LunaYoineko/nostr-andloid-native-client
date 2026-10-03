@@ -1,5 +1,6 @@
 import { ExtensionSigner } from "applesauce-signers/signers/extension-signer";
 import type { EventTemplate, NostrEvent } from "nostr-tools/pure";
+import { t } from "../i18n";
 
 export type SignerCap = "sign" | "nip44" | "nip04";
 
@@ -46,7 +47,7 @@ export function createNip07Signer(): Signer {
 function cipherOf(get: () => Cipher | undefined): Cipher {
   const current = (): Cipher => {
     const cipher = get();
-    if (!cipher) throw new Error("拡張機能がこの暗号方式に対応していない");
+    if (!cipher) throw new Error(t("web_signer_no_cipher"));
     return cipher;
   };
   return {

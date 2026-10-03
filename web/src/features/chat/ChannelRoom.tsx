@@ -154,7 +154,7 @@ export function ChannelRoom({
               setComposing(true);
             }}
           >
-            ✏️ メッセージを書く
+            {t("chat_write_message")}
           </button>
         </div>
       )}
@@ -200,10 +200,11 @@ export function RoomHeader({
   onBack?: () => void;
   onClose?: () => void;
 }) {
+  const t = useT();
   return (
     <header className={styles.header}>
       {onBack && (
-        <button type="button" className={styles.back} aria-label="戻る" onClick={onBack}>
+        <button type="button" className={styles.back} aria-label={t("common_back")} onClick={onBack}>
           <ArrowBackIcon className={styles.backIcon} />
         </button>
       )}
@@ -213,7 +214,7 @@ export function RoomHeader({
         {subtitle !== "" && <span className={styles.headerSubtitle}>{subtitle}</span>}
       </span>
       {onClose && (
-        <button type="button" className={styles.back} aria-label="選択を解除" onClick={onClose}>
+        <button type="button" className={styles.back} aria-label={t("web_chat_deselect")} onClick={onClose}>
           <CloseIcon className={styles.backIcon} />
         </button>
       )}
@@ -236,6 +237,7 @@ function MessageRow({
   reactions: ReactionGroup[] | undefined;
   onReply(): void;
 }) {
+  const t = useT();
   const profile = useProfile(message.pubkey);
   const picture = pictureOf(profile);
   const name = displayName(profile, message.pubkey);
@@ -268,7 +270,7 @@ function MessageRow({
         {reactions && reactions.length > 0 && <ReactionChips groups={reactions} />}
         {mine && unsent && (
           <button type="button" className={styles.unsent} onClick={() => retryUnsentNow(message.id)}>
-            未送信・タップで再送
+            {t("unsent_tap_retry")}
           </button>
         )}
       </div>
@@ -296,8 +298,9 @@ export function ReplyQuote({ parent }: { parent: NostrEvent }) {
 
 /** 集約したリアクション（絵文字 + 件数。ネイティブ ReactionRow） */
 function ReactionChips({ groups }: { groups: readonly ReactionGroup[] }) {
+  const t = useT();
   return (
-    <ul className={styles.reactions} aria-label="リアクション">
+    <ul className={styles.reactions} aria-label={t("note_kind_reaction")}>
       {groups.map((g) => (
         <li
           key={`${g.display}\n${g.imageUrl ?? ""}`}
@@ -393,20 +396,20 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
   }
 
   const entries: MenuEntry[] = [
-    { type: "item", label: "テキストをコピー", onSelect: () => void copyText(plainTextOf(message)) },
+    { type: "item", label: t("note_copy_text"), onSelect: () => void copyText(plainTextOf(message)) },
   ];
   if (!mine) {
     entries.push(
       isMuted
-        ? { type: "item", label: "ミュートを解除", onSelect: () => mute("unmute") }
-        : { type: "item", label: "このユーザーをミュート", onSelect: () => setDialog("mute") },
-      { type: "item", label: "通報", onSelect: () => setDialog("report"), tone: "danger" },
+        ? { type: "item", label: t("note_unmute_user"), onSelect: () => mute("unmute") }
+        : { type: "item", label: t("note_mute_user"), onSelect: () => setDialog("mute") },
+      { type: "item", label: t("note_report"), onSelect: () => setDialog("report"), tone: "danger" },
     );
   }
   if (developerMode) {
     entries.push(
       { type: "separator" },
-      { type: "item", label: "イベントJSONを表示", onSelect: () => setDialog("json") },
+      { type: "item", label: t("note_view_json"), onSelect: () => setDialog("json") },
     );
   }
 
@@ -415,8 +418,8 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       <button
         type="button"
         className={styles.action}
-        aria-label="リプライ"
-        title="リプライ"
+        aria-label={t("chat_reply")}
+        title={t("chat_reply")}
         onClick={onReply}
       >
         <ReplyIcon className={styles.actionIcon} />
@@ -424,12 +427,12 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       <button
         type="button"
         className={styles.action}
-        aria-label="リアクション"
+        aria-label={t("note_kind_reaction")}
         aria-pressed={reacted}
         data-shape={isStar ? "star" : "heart"}
         onClick={() => {
           if (reacted) setDialog("unreact");
-          else reactWithDefault(message).catch(warn("リアクションに失敗"));
+          else reactWithDefault(message).catch(warn(t("web_log_chat_react_failed")));
         }}
       >
         <Glyph className={styles.actionIcon} />
@@ -437,7 +440,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       <button
         type="button"
         className={styles.action}
-        aria-label="絵文字でリアクション"
+        aria-label={t("web_chat_react_emoji")}
         onClick={() => setDialog("picker")}
       >
         <AddReactionIcon className={styles.actionIcon} />
@@ -453,7 +456,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
           <BoltIcon className={styles.actionIcon} />
         </button>
       )}
-      <MenuButton label="その他の操作" triggerClassName={styles.action} entries={entries}>
+      <MenuButton label={t("web_chat_more_actions")} triggerClassName={styles.action} entries={entries}>
         <MoreHorizIcon className={styles.actionIcon} />
       </MenuButton>
       {dialog === "zap" && (
@@ -470,7 +473,9 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       {dialog === "picker" && (
         <ReactionPickerDialog
           target={message}
-          onPick={(c, url) => void publishReaction(message, c, url).catch(warn("リアクションに失敗"))}
+          onPick={(c, url) =>
+            void publishReaction(message, c, url).catch(warn(t("web_log_chat_react_failed")))
+          }
           onClose={() => setDialog(null)}
         />
       )}
@@ -482,7 +487,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
           destructive
           onConfirm={() => {
             setDialog(null);
-            reactWithDefault(message).catch(warn("リアクションの取り消しに失敗"));
+            reactWithDefault(message).catch(warn(t("web_log_chat_unreact_failed")));
           }}
           onDismiss={() => setDialog(null)}
         />
@@ -504,7 +509,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
         <ReportDialog
           onPick={(type) => {
             setDialog(null);
-            reportNote(message, type).catch(warn("通報に失敗"));
+            reportNote(message, type).catch(warn(t("web_log_chat_report_failed")));
           }}
           onDismiss={() => setDialog(null)}
         />
@@ -519,6 +524,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
  * 背景・Esc / 戻る・✕ で閉じる。
  */
 function ComposeModal({ title, onClose, children }: { title: string; onClose(): void; children: ReactNode }) {
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   const latestOnClose = useRef(onClose);
   useLayoutEffect(() => {
@@ -558,7 +564,12 @@ function ComposeModal({ title, onClose, children }: { title: string; onClose(): 
       <div className={styles.modalCard}>
         <div className={styles.modalHead}>
           <span className={styles.modalTitle}>{title}</span>
-          <button type="button" className={styles.modalClose} aria-label="閉じる" onClick={onClose}>
+          <button
+            type="button"
+            className={styles.modalClose}
+            aria-label={t("common_close")}
+            onClick={onClose}
+          >
             <CloseIcon className={styles.modalCloseIcon} />
           </button>
         </div>

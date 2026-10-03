@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { t } from "../../i18n";
+import { useT } from "../../i18n";
 import type { MediaItem } from "../../lib/media";
 import {
   ChevronLeftIcon,
@@ -63,6 +63,7 @@ function filenameOf(url: string): string {
  * 2 本指のピンチで 1〜5 倍、ダブルクリック / ダブルタップで 2.5 倍。拡大中は 1 本指のスクロールでパンする。
  */
 export function Lightbox({ items, index: initialIndex, onClose }: Props) {
+  const t = useT();
   const last = items.length - 1;
   const [index, setIndex] = useState(() => Math.min(Math.max(initialIndex, 0), last));
   const [scale, setScale] = useState(1);
@@ -276,7 +277,7 @@ export function Lightbox({ items, index: initialIndex, onClose }: Props) {
     <dialog
       ref={dialogRef}
       className={styles.lightbox}
-      aria-label="画像"
+      aria-label={t("web_lightbox_label")}
       onCancel={onCancel}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
@@ -291,7 +292,7 @@ export function Lightbox({ items, index: initialIndex, onClose }: Props) {
         onPointerCancel={onPointerCancel}
       >
         {failed ? (
-          <p className={styles.error}>画像を読み込めませんでした</p>
+          <p className={styles.error}>{t("img_load_failed")}</p>
         ) : (
           <img
             // 画像を切り替えたら前の画像を残さず作り直す
@@ -315,7 +316,7 @@ export function Lightbox({ items, index: initialIndex, onClose }: Props) {
           <button
             type="button"
             className={`${styles.control} ${styles.nav} ${styles.prev}`}
-            aria-label="前の画像"
+            aria-label={t("web_lightbox_prev")}
             aria-disabled={index === 0 || undefined}
             onClick={() => go(index - 1)}
           >
@@ -324,7 +325,7 @@ export function Lightbox({ items, index: initialIndex, onClose }: Props) {
           <button
             type="button"
             className={`${styles.control} ${styles.nav} ${styles.next}`}
-            aria-label="次の画像"
+            aria-label={t("web_lightbox_next")}
             aria-disabled={index === last || undefined}
             onClick={() => go(index + 1)}
           >
@@ -337,13 +338,13 @@ export function Lightbox({ items, index: initialIndex, onClose }: Props) {
         <button
           type="button"
           className={copied ? `${styles.control} ${styles.labeled}` : styles.control}
-          aria-label={copied ? "コピーしました" : "URL をコピー"}
+          aria-label={copied ? t("copied") : t("web_lightbox_copy_url")}
           onClick={copyUrl}
         >
-          {copied ? "コピーしました" : <ContentCopyIcon className={styles.icon} />}
+          {copied ? t("copied") : <ContentCopyIcon className={styles.icon} />}
         </button>
         {/* ネイティブの「画像を保存」（img_save）。読めなければ失敗のトーストを出し、下の「新しいタブで開く」を使ってもらう */}
-        <button type="button" className={styles.control} aria-label="画像を保存" onClick={saveImage}>
+        <button type="button" className={styles.control} aria-label={t("img_save")} onClick={saveImage}>
           <DownloadIcon className={styles.icon} />
         </button>
         <a
@@ -351,11 +352,17 @@ export function Lightbox({ items, index: initialIndex, onClose }: Props) {
           href={url}
           target="_blank"
           rel="noopener noreferrer nofollow ugc"
-          aria-label="新しいタブで開く"
+          aria-label={t("web_lightbox_open_new_tab")}
         >
           <OpenInNewIcon className={styles.icon} />
         </a>
-        <button ref={closeRef} type="button" className={styles.control} aria-label="閉じる" onClick={onClose}>
+        <button
+          ref={closeRef}
+          type="button"
+          className={styles.control}
+          aria-label={t("common_close")}
+          onClick={onClose}
+        >
           <CloseIcon className={styles.icon} />
         </button>
       </div>

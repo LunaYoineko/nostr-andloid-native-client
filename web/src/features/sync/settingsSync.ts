@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import type { AuthPolicy } from "../../nostr/relayAuth";
 import { setAuthPolicy, useAuthPolicy } from "../../nostr/relayAuth";
 import { setDefaultReaction, useDefaultReaction } from "../actions/reactionPrefs";
@@ -60,27 +61,33 @@ function isNoteAccentStyle(v: string): v is NoteAccentStyle {
 export const SETTINGS_SYNC_WHITELIST: readonly SyncSettingSpec[] = [
   {
     key: "nip42_auth_policy",
-    label: "AUTH（NIP-42）への応答",
+    get label() {
+      return t("auth_title");
+    },
     isValid: isAuthPolicy,
     read: () => useAuthPolicy.getState().policy,
     apply: (v) => {
       if (isAuthPolicy(v)) setAuthPolicy(v);
     },
-    display: (v) => (v === "off" ? "無効" : v === "always" ? "常に応答" : "DM/自分のリレーのみ"),
+    display: (v) => (v === "off" ? t("auth_off") : v === "always" ? t("auth_always") : t("auth_dm_mine")),
   },
   {
     key: "appearance_bold_text",
-    label: "文字を太くする",
+    get label() {
+      return t("bold_text_title");
+    },
     isValid: isOnOff,
     read: () => (useThemePrefs.getState().bold ? "1" : "0"),
     apply: (v) => {
       if (isOnOff(v)) setBoldText(v === "1");
     },
-    display: (v) => (v === "1" ? "オン" : "オフ"),
+    display: (v) => (v === "1" ? t("sync_value_on") : t("sync_value_off")),
   },
   {
     key: "default_reaction:content",
-    label: "デフォルトのリアクション",
+    get label() {
+      return t("reaction_default_title");
+    },
     // 自由入力（Unicode 絵文字 or :code:）。形の制約は無い
     isValid: () => true,
     read: () => useDefaultReaction.getState().content,
@@ -90,22 +97,27 @@ export const SETTINGS_SYNC_WHITELIST: readonly SyncSettingSpec[] = [
   },
   {
     key: "default_reaction:image",
-    label: "デフォルトリアクションの画像",
+    get label() {
+      return t("sync_name_reaction_image");
+    },
     // URL か空文字（画像なし）。形の制約は無い
     isValid: () => true,
     read: () => useDefaultReaction.getState().image ?? "",
     apply: (v) => setDefaultReaction(useDefaultReaction.getState().content, v === "" ? null : v),
-    display: (v) => (v.trim() === "" ? "なし" : v),
+    display: (v) => (v.trim() === "" ? t("sync_value_none") : v),
   },
   {
     key: "ui:note_accent",
-    label: "種別の視覚表示",
+    get label() {
+      return t("note_accent_title");
+    },
     isValid: isNoteAccentStyle,
     read: () => useThemePrefs.getState().noteAccent,
     apply: (v) => {
       if (isNoteAccentStyle(v)) setNoteAccent(v);
     },
-    display: (v) => (v === "line" ? "縦ライン" : v === "bg" ? "背景色" : "なし"),
+    display: (v) =>
+      v === "line" ? t("note_accent_line") : v === "bg" ? t("note_accent_bg") : t("note_accent_none"),
   },
 ];
 

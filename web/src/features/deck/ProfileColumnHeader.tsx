@@ -1,5 +1,6 @@
 import { npubEncode } from "nostr-tools/nip19";
 import { useMemo, useState } from "react";
+import { useT } from "../../i18n";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { useSession } from "../../signer/session";
 import { showToast } from "../../ui/toast";
@@ -22,6 +23,7 @@ const COPIED_MS = 1_500;
  * 一緒にスクロールする。ネイティブの LazyColumn の先頭項目と同じ）。
  */
 export function ProfileColumnHeader({ pubkey }: { pubkey: string }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const myFollows = useFollows(me);
   const following = myFollows?.includes(pubkey) ?? false;
@@ -52,7 +54,7 @@ export function ProfileColumnHeader({ pubkey }: { pubkey: string }) {
           <button
             type="button"
             className={styles.avatarButton}
-            aria-label="画像を表示"
+            aria-label={t("img_view")}
             onClick={() => setZoom(true)}
           >
             <Avatar key={picture} url={picture} size="xl" seed={name} pubkey={pubkey} />
@@ -67,12 +69,12 @@ export function ProfileColumnHeader({ pubkey }: { pubkey: string }) {
         {me && <FollowButton me={me} target={pubkey} following={following} onError={showToast} />}
       </div>
       <button type="button" className={styles.npub} onClick={copyNpub}>
-        {copied ? "コピーしました" : `${npub.slice(0, 20)}…${npub.slice(-6)}`}
+        {copied ? t("copied") : `${npub.slice(0, 20)}…${npub.slice(-6)}`}
       </button>
       {pinnedPosts.length > 0 && (
         <div className={styles.pinned}>
           <p className={styles.pinnedLabel}>
-            <span aria-hidden="true">📌</span> 固定された投稿
+            <span aria-hidden="true">📌</span> {t("pinned_post")}
           </p>
           {pinnedPosts.map((event) => (
             <NoteItem key={event.id} event={event} />

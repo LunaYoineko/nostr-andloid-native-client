@@ -1,7 +1,7 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { useState } from "react";
 import { map } from "rxjs";
-import { t } from "../../i18n";
+import { useT } from "../../i18n";
 import { displayRelayUrl, relayPrefsFromEvent } from "../../nostr/outbox";
 import { addRelay, useRelayRows } from "../../nostr/pool";
 import { eventStore } from "../../nostr/store";
@@ -14,6 +14,7 @@ import styles from "./ProfileRelays.module.css";
  * （read/write = true）、トーストを出す（遷移しない。#585）。既にあれば「追加済み」。
  */
 export function ProfileRelays({ pubkey }: { pubkey: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const mine = new Set(useRelayRows().map((r) => r.url));
   const prefs =
@@ -25,7 +26,7 @@ export function ProfileRelays({ pubkey }: { pubkey: string }) {
   return (
     <div className={styles.wrap}>
       <button type="button" className={styles.toggle} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        使用リレー ({prefs.length}) <span aria-hidden="true">{open ? "▾" : "▸"}</span>
+        {t("profile_relays_fmt", prefs.length)} <span aria-hidden="true">{open ? "▾" : "▸"}</span>
       </button>
       {open && (
         <ul className={styles.list}>
@@ -38,18 +39,18 @@ export function ProfileRelays({ pubkey }: { pubkey: string }) {
                 </span>
               </span>
               {mine.has(p.url) ? (
-                <span className={styles.added}>追加済み</span>
+                <span className={styles.added}>{t("relay_already_added")}</span>
               ) : (
                 <button
                   type="button"
                   className={styles.add}
-                  aria-label={`${displayRelayUrl(p.url)} を自分のリレーに追加`}
+                  aria-label={t("web_profile_relay_add_label", displayRelayUrl(p.url))}
                   onClick={() => {
                     addRelay(p.url);
                     showToast(t("relay_added"));
                   }}
                 >
-                  追加
+                  {t("relay_add_to_mine")}
                 </button>
               )}
             </li>

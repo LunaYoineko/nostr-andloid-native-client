@@ -1,6 +1,7 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { useState } from "react";
 import { Link } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForEvent, oneLine } from "../../lib/content/labels";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
@@ -22,6 +23,7 @@ export function MyReactionRow({ reaction }: { reaction: NostrEvent }) {
 }
 
 function ResolvedRow({ reaction, target }: { reaction: NostrEvent; target: NostrEvent }) {
+  const t = useT();
   const profile = useProfile(target.pubkey);
   const picture = pictureOf(profile);
   const { text, imageUrl } = reactionDisplay(reaction);
@@ -34,7 +36,7 @@ function ResolvedRow({ reaction, target }: { reaction: NostrEvent; target: Nostr
         {imageUrl ? <MarkImage key={imageUrl} url={imageUrl} text={text} /> : text}
       </span>
       <span className={styles.body}>
-        <span className={styles.label}>あなたがリアクション</span>
+        <span className={styles.label}>{t("feed_you_reacted")}</span>
         <span className={styles.line}>
           <Avatar key={picture} url={picture} size="sm" seed={target.pubkey} pubkey={target.pubkey} />
           <span className={styles.summary}>

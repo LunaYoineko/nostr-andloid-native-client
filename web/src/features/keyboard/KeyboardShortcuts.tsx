@@ -1,6 +1,7 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { useEffect } from "react";
 import { type NavigateFunction, useNavigate } from "react-router";
+import { t } from "../../i18n";
 import { repostedEventNow } from "../../nostr/loaders";
 import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
@@ -64,12 +65,12 @@ function focusSearchInput(frames = FOCUS_SEARCH_FRAMES): void {
 
 /** 発行の失敗は画面に出さない（ネイティブと同じ） */
 function warn(e: unknown) {
-  console.warn("[keyboard] リアクションに失敗", e);
+  console.warn(`[keyboard] ${t("web_log_react_failed")}`, e);
 }
 
 /** 発行の失敗は画面に出さない（ネイティブ KbAction.BOOKMARK と同じ。トーストも出さない） */
 function warnBookmark(e: unknown) {
-  console.warn("[keyboard] ブックマークに失敗", e);
+  console.warn(`[keyboard] ${t("web_log_bookmark_failed")}`, e);
 }
 
 function run(action: KeyAction, navigate: NavigateFunction): void {

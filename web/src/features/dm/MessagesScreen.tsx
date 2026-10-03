@@ -43,6 +43,7 @@ export function MessagesScreen({ segment = "dm" }: { segment?: MessagesSegment }
 }
 
 function DmPanes({ mode }: { mode: LayoutMode }) {
+  const t = useT();
   const { peer: param } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -88,7 +89,7 @@ function DmPanes({ mode }: { mode: LayoutMode }) {
       </div>
       <div className={styles.detailPane}>
         {peer === undefined ? (
-          <p className={styles.placeholder}>会話を選択</p>
+          <p className={styles.placeholder}>{t("dm_select_conversation")}</p>
         ) : (
           <ConversationPane peer={peer} onClose={close} />
         )}
@@ -98,9 +99,10 @@ function DmPanes({ mode }: { mode: LayoutMode }) {
 }
 
 function ListPane({ selectedPeer, onSelect }: { selectedPeer: string | null; onSelect(peer: string): void }) {
+  const t = useT();
   return (
     <div className={styles.list}>
-      <ScreenHeader title="メッセージ" />
+      <ScreenHeader title={t("nav_messages")} />
       <SegmentBar current="dm" />
       <div className={styles.listBody}>
         <ConversationList selectedPeer={selectedPeer} onSelect={onSelect} showBanners showNewRow />
@@ -119,11 +121,12 @@ function ConversationPane({
   onBack?: () => void;
   onClose?: () => void;
 }) {
+  const t = useT();
   if (peer === null) {
     return (
       <div className={styles.invalid}>
-        {onBack && <ScreenHeader title="メッセージ" onBack={onBack} />}
-        <p className={styles.placeholder}>相手を読み取れません</p>
+        {onBack && <ScreenHeader title={t("nav_messages")} onBack={onBack} />}
+        <p className={styles.placeholder}>{t("web_dm_peer_unreadable")}</p>
       </div>
     );
   }
@@ -136,6 +139,7 @@ function ConversationPane({
  * 押すと最後に使った側として覚え、その側の一覧へ置き換える（宛先の切替は戻る対象にしない）。
  */
 function SegmentBar({ current }: { current: MessagesSegment }) {
+  const t = useT();
   const navigate = useNavigate();
   const unread = useDmUnreadTotal();
 
@@ -146,13 +150,13 @@ function SegmentBar({ current }: { current: MessagesSegment }) {
 
   return (
     <div className={styles.segmentBar}>
-      <div className={styles.segments} role="tablist" aria-label="メッセージの種類">
+      <div className={styles.segments} role="tablist" aria-label={t("web_dm_segment_label")}>
         <button
           type="button"
           role="tab"
           className={styles.segment}
           aria-selected={current === "dm"}
-          aria-label={unread > 0 ? `DM（未読 ${unread} 件）` : undefined}
+          aria-label={unread > 0 ? t("web_nav_unread_label", "DM", unread) : undefined}
           onClick={() => select("dm")}
         >
           DM
@@ -169,7 +173,7 @@ function SegmentBar({ current }: { current: MessagesSegment }) {
           aria-selected={current === "chat"}
           onClick={() => select("chat")}
         >
-          チャット
+          {t("seg_chat")}
         </button>
       </div>
     </div>
@@ -185,6 +189,7 @@ function parseChannelId(param: string): string | null {
 
 /** パブリックチャット（ネイティブ PublicChatScreen）。一覧 → ルーム。「ピン留め」でデッキの固定カラムへ */
 function ChannelsPanes({ mode }: { mode: LayoutMode }) {
+  const t = useT();
   const { id: param } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -211,7 +216,7 @@ function ChannelsPanes({ mode }: { mode: LayoutMode }) {
 
   const list = (
     <div className={styles.list}>
-      <ScreenHeader title="メッセージ" />
+      <ScreenHeader title={t("nav_messages")} />
       <SegmentBar current="chat" />
       <div className={styles.listBody}>
         <ChannelList selectedId={channelId ?? null} pinnedIds={pinnedIds} onSelect={select} onPin={pinRoom} />
@@ -231,7 +236,7 @@ function ChannelsPanes({ mode }: { mode: LayoutMode }) {
       <div className={styles.listPane}>{list}</div>
       <div className={styles.detailPane}>
         {channelId === undefined ? (
-          <p className={styles.placeholder}>チャンネルを選択</p>
+          <p className={styles.placeholder}>{t("chat_select_channel")}</p>
         ) : (
           <RoomPane channelId={channelId} onClose={close} />
         )}
@@ -263,14 +268,14 @@ function RoomPane({
   if (channelId === null || (!channel && listLoading)) {
     return (
       <div className={styles.invalid}>
-        {onBack && <ScreenHeader title="メッセージ" onBack={onBack} />}
+        {onBack && <ScreenHeader title={t("nav_messages")} onBack={onBack} />}
         <p className={styles.placeholder}>
           {channelId === null ? t("web_chat_channel_unreadable") : t("chat_loading_channel")}
         </p>
       </div>
     );
   }
-  const title = channel?.name || "パブリックチャット";
+  const title = channel?.name || t("nav_public_chat");
   const about = channel?.about ?? "";
   return (
     <ChannelRoom

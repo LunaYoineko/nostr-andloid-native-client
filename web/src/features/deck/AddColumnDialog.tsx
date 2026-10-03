@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { buildColumn, type ColumnSpec, type ColumnTemplate, TEMPLATES } from "../../lib/columns";
+import { useT } from "../../i18n";
+import {
+  buildColumn,
+  type ColumnSpec,
+  type ColumnTemplate,
+  TEMPLATES,
+  templateHint,
+  templateLabel,
+} from "../../lib/columns";
 import { unixNow } from "../../lib/time";
 import { useDeck } from "../../store/deck";
 import { columnIcon, Icon } from "../../ui/icons";
@@ -13,6 +21,7 @@ import styles from "./ColumnDialog.module.css";
  * フィルター編集（EditColumnDialog）は今まで通り中央ダイアログのまま。
  */
 export function AddColumnDialog() {
+  const t = useT();
   const [selected, setSelected] = useState<ColumnTemplate | null>(null);
 
   const dismiss = () => useDeck.getState().setShowAddColumn(false);
@@ -22,39 +31,41 @@ export function AddColumnDialog() {
     dismiss();
   };
 
-  const pick = (t: ColumnTemplate) => {
-    if (t.config !== "NONE") {
-      setSelected(t);
+  const pick = (tpl: ColumnTemplate) => {
+    if (tpl.config !== "NONE") {
+      setSelected(tpl);
       return;
     }
     const existing = new Set(useDeck.getState().columns.map((c) => c.id));
-    const spec = buildColumn(t.template, {}, existing, unixNow());
+    const spec = buildColumn(tpl.template, {}, existing, unixNow());
     if (spec) add(spec);
   };
 
   return (
-    <ModalSheet title={selected?.label ?? "カラムを追加"} onDismiss={dismiss}>
+    <ModalSheet title={selected ? templateLabel(selected.template) : t("add_column")} onDismiss={dismiss}>
       <div className={styles.body}>
         {selected ? (
           <ColumnConfigForm
             key={selected.template}
             template={selected}
-            submitLabel="追加"
-            cancelLabel="戻る"
+            submitLabel={t("common_add")}
+            cancelLabel={t("common_back")}
             onCancel={() => setSelected(null)}
             onSubmit={add}
           />
         ) : (
           <ul className={styles.templates}>
-            {TEMPLATES.map((t) => (
-              <li key={t.template}>
-                <button type="button" className={styles.template} onClick={() => pick(t)}>
-                  <Icon name={columnIcon(t.iconKind)} size="lg" className={styles.templateIcon} />
+            {TEMPLATES.map((tpl) => (
+              <li key={tpl.template}>
+                <button type="button" className={styles.template} onClick={() => pick(tpl)}>
+                  <Icon name={columnIcon(tpl.iconKind)} size="lg" className={styles.templateIcon} />
                   <span className={styles.templateText}>
-                    <span className={styles.templateLabel}>{t.label}</span>
-                    {t.hint && <span className={styles.templateHint}>{t.hint}</span>}
+                    <span className={styles.templateLabel}>{templateLabel(tpl.template)}</span>
+                    {templateHint(tpl.template) && (
+                      <span className={styles.templateHint}>{templateHint(tpl.template)}</span>
+                    )}
                   </span>
-                  {t.config !== "NONE" && (
+                  {tpl.config !== "NONE" && (
                     <span className={styles.more} aria-hidden="true">
                       ›
                     </span>

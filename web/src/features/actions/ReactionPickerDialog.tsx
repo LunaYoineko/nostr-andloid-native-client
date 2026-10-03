@@ -64,13 +64,13 @@ export function ReactionPickerDialog({
   const activeCategory = categories[activeTab] ?? categories[0];
 
   return (
-    <ModalSheet title="リアクション" onDismiss={onClose}>
+    <ModalSheet title={t("picker_title")} onDismiss={onClose}>
       {target && <TargetHeader target={target} />}
       <input
         type="search"
         className={styles.search}
-        aria-label="絵文字を検索"
-        placeholder="絵文字を検索（例: わらい / fire / 🔥）"
+        aria-label={t("web_picker_search_label")}
+        placeholder={t("picker_search_placeholder")}
         enterKeyHint="search"
         value={query}
         onChange={(e) => setQuery(e.currentTarget.value)}
@@ -79,7 +79,7 @@ export function ReactionPickerDialog({
         {q === "" ? (
           <>
             {recent.length > 0 && (
-              <Section title="最近">
+              <Section title={t("picker_recent")}>
                 {recent.map((r) =>
                   r.imageUrl ? (
                     <ImageCell
@@ -95,7 +95,7 @@ export function ReactionPickerDialog({
               </Section>
             )}
             {customs.length > 0 && (
-              <Section title="カスタム絵文字">
+              <Section title={t("picker_custom_emoji")}>
                 {customs.map((c) => (
                   <ImageCell
                     key={c.shortcode}
@@ -108,7 +108,7 @@ export function ReactionPickerDialog({
             )}
             {activeCategory && (
               <>
-                <div role="tablist" aria-label="絵文字のカテゴリ" className={styles.tabs}>
+                <div role="tablist" aria-label={t("web_picker_categories")} className={styles.tabs}>
                   {categories.map((category, i) => (
                     <button
                       key={category.title}
@@ -135,7 +135,7 @@ export function ReactionPickerDialog({
         ) : (
           <>
             {matchedCustom.length > 0 && (
-              <Section title="カスタム">
+              <Section title={t("picker_custom")}>
                 {matchedCustom.map((c) => (
                   <ImageCell
                     key={c.shortcode}
@@ -147,7 +147,7 @@ export function ReactionPickerDialog({
               </Section>
             )}
             {matchedUnicode.length > 0 && (
-              <Section title="絵文字">
+              <Section title={t("picker_emoji")}>
                 {matchedUnicode.map((e) => (
                   <TextCell key={e.char} char={e.char} onClick={() => pick(e.char, null)} />
                 ))}

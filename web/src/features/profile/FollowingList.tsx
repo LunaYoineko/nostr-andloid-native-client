@@ -15,7 +15,7 @@ export function FollowingList({ pubkeys, onBack }: { pubkeys: readonly string[];
   const t = useT();
   return (
     <div className={styles.screen}>
-      <ScreenHeader title="フォロー中" onBack={onBack} />
+      <ScreenHeader title={t("tpl_following")} onBack={onBack} />
       <hr className={styles.divider} />
       {pubkeys.length === 0 ? (
         <p className={styles.empty}>{t("not_found")}</p>

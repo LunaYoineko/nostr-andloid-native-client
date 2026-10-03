@@ -32,13 +32,14 @@ export function QuoteCard({
   const quoted = useEventByPointer(pointer);
   if (!quoted) return <p className={`${styles.quote} ${styles.loading}`}>{t("web_quote_loading")}</p>;
   return (
-    <Link className={styles.quote} to={hrefForEvent(encoded ?? pointer)} aria-label="引用元の投稿を開く">
+    <Link className={styles.quote} to={hrefForEvent(encoded ?? pointer)} aria-label={t("web_quote_open")}>
       <QuotedNote quoted={quoted} compact={compact} />
     </Link>
   );
 }
 
 function QuotedNote({ quoted, compact }: { quoted: NostrEvent; compact: boolean }) {
+  const t = useT();
   const profile = useProfile(quoted.pubkey);
   const picture = pictureOf(profile);
   return (
@@ -49,7 +50,7 @@ function QuotedNote({ quoted, compact }: { quoted: NostrEvent; compact: boolean 
       </span>
       {contentWarningOf(quoted) !== null ? (
         // ネイティブは CW を無視するが、Web はカードでは隠す（開いて読む）
-        <span className={styles.warning}>センシティブな内容</span>
+        <span className={styles.warning}>{t("cw_sensitive")}</span>
       ) : (
         <>
           {!isBlankContent(parseNoteContent(quoted)) && (
@@ -66,6 +67,7 @@ function QuotedNote({ quoted, compact }: { quoted: NostrEvent; compact: boolean 
 
 /** 画像 → 動画の順に横スクロールで並べる（カード内では再生・拡大しない。YouTube は出さない） */
 function QuoteMedia({ event }: { event: NostrEvent }) {
+  const t = useT();
   const { images, videos } = extractMedia(event);
   const count = images.length + videos.length;
   if (count === 0) return null;
@@ -78,7 +80,7 @@ function QuoteMedia({ event }: { event: NostrEvent }) {
       {videos.map((video) => (
         <span key={video.url} className={`${itemClass} ${styles.video}`}>
           <PlayCircleIcon className={styles.play} />
-          <span className={styles.videoLabel}>動画</span>
+          <span className={styles.videoLabel}>{t("media_video_badge")}</span>
         </span>
       ))}
     </span>

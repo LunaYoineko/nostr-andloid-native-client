@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { t } from "../../i18n";
+import { useT } from "../../i18n";
 import { setPublishAccount, unconfirmed$ } from "../../nostr/publish";
 import { useSession } from "../../signer/session";
 import { EditIcon } from "../../ui/icons";
@@ -14,6 +14,7 @@ import { openCompose, useCompose } from "./composeStore";
  * ログイン中のアカウントを送信キューへ伝え、受理を確認できなかったらトーストを出す。
  */
 export function ComposeHost({ showFab }: { showFab: boolean }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const request = useCompose((s) => s.request);
 
@@ -24,7 +25,7 @@ export function ComposeHost({ showFab }: { showFab: boolean }) {
   useEffect(() => {
     const subscription = unconfirmed$.subscribe(() => showToast(t("publish_unconfirmed")));
     return () => subscription.unsubscribe();
-  }, []);
+  }, [t]);
 
   return (
     <>
@@ -32,7 +33,7 @@ export function ComposeHost({ showFab }: { showFab: boolean }) {
         <button
           type="button"
           className={styles.fab}
-          aria-label="投稿"
+          aria-label={t("fab_post")}
           onClick={() => openCompose({ mode: "new" })}
         >
           <EditIcon className={styles.fabIcon} />

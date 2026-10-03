@@ -1,7 +1,7 @@
 import { npubEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { type MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { t } from "../../i18n";
+import { useT } from "../../i18n";
 import { oneLine } from "../../lib/content/labels";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { currentSigner, useSession } from "../../signer/session";
@@ -27,7 +27,7 @@ import { useCustomEmojis } from "../compose/customEmojis";
 import {
   type ImageResolution,
   maxDimFor,
-  RESOLUTIONS,
+  resolutions,
   useImageCompression,
 } from "../compose/imageCompression";
 import { uploadServers, useMediaServer } from "../compose/mediaServer";
@@ -71,6 +71,7 @@ export function ChatComposer({
   onSent?: () => void;
   autoFocus?: boolean;
 }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const emojis = useCustomEmojis(me);
   const mediaServer = useMediaServer((s) => s.server);
@@ -187,7 +188,7 @@ export function ChatComposer({
           const media = await uploadAttachments(list, { servers: uploadServers(mediaServer), signer });
           urls = media.map((m) => m.url);
         } catch (e) {
-          console.warn("[chat] 添付のアップロードに失敗", e);
+          console.warn(`[chat] ${t("web_log_chat_upload_failed")}`, e);
           showToast(t("chat_upload_failed"));
           return;
         }
@@ -207,7 +208,7 @@ export function ChatComposer({
       setAttachments([]);
       onSent?.();
     } catch (e) {
-      console.warn("[chat] 送信に失敗", e);
+      console.warn(`[chat] ${t("web_log_chat_send_failed")}`, e);
       showToast(t("dm_send_failed"));
     } finally {
       setSending(false);
@@ -250,17 +251,22 @@ export function ChatComposer({
         )
       )}
       {attachments.length > 0 && (
-        <ul className={styles.attachments} aria-label="添付">
+        <ul className={styles.attachments} aria-label={t("web_chat_attachments")}>
           {attachments.map((a) => (
             <li key={a.id} className={styles.thumb}>
               {a.kind === "image" ? (
-                <img className={styles.thumbMedia} src={a.preview} alt="添付画像" decoding="async" />
+                <img
+                  className={styles.thumbMedia}
+                  src={a.preview}
+                  alt={t("compose_attachment")}
+                  decoding="async"
+                />
               ) : (
                 <>
                   <video
                     className={styles.thumbMedia}
                     src={a.preview}
-                    aria-label="添付動画"
+                    aria-label={t("web_chat_attachment_video")}
                     muted
                     playsInline
                     preload="metadata"
@@ -272,7 +278,7 @@ export function ChatComposer({
                 <button
                   type="button"
                   className={styles.remove}
-                  aria-label="添付を外す"
+                  aria-label={t("chat_attach_remove")}
                   onClick={() => removeAttachment(a)}
                 >
                   <CloseIcon className={styles.removeIcon} />
@@ -284,9 +290,9 @@ export function ChatComposer({
       )}
       {attachments.some((a) => a.kind === "image") && (
         <fieldset className={styles.resolutionRow}>
-          <legend className={styles.resolutionLegend}>解像度</legend>
+          <legend className={styles.resolutionLegend}>{t("compose_resolution")}</legend>
           <div className={styles.resolutionGroup}>
-            {RESOLUTIONS.map(([value, label]) => (
+            {resolutions().map(([value, label]) => (
               <button
                 key={value}
                 type="button"
@@ -305,8 +311,8 @@ export function ChatComposer({
         <textarea
           ref={textarea}
           className={styles.input}
-          aria-label="メッセージ"
-          placeholder="メッセージを入力…"
+          aria-label={t("nav_messages")}
+          placeholder={t("chat_input_placeholder")}
           rows={1}
           value={value.text}
           disabled={sending}
@@ -331,7 +337,7 @@ export function ChatComposer({
         <button
           type="button"
           className={styles.tool}
-          aria-label="画像・動画を添付"
+          aria-label={t("web_chat_attach_media")}
           disabled={sending}
           onClick={() => fileInput.current?.click()}
         >
@@ -352,7 +358,7 @@ export function ChatComposer({
         <button
           type="button"
           className={styles.send}
-          aria-label="送信"
+          aria-label={t("send")}
           aria-busy={sending || undefined}
           disabled={!canSend}
           onClick={() => void send()}
@@ -373,14 +379,20 @@ export function ChatComposer({
  * DM（features/dm/ConversationView）とも共有する部品（#589）。
  */
 export function ReplyingTo({ target, onCancel }: { target: NostrEvent; onCancel(): void }) {
+  const t = useT();
   const profile = useProfile(target.pubkey);
   return (
     <div className={styles.replying}>
       <ReplyIcon className={styles.replyingIcon} />
       <span className={styles.replyingText}>
-        {`${displayName(profile, target.pubkey)} に返信: ${oneLine(plainTextOf(target))}`}
+        {t("chat_reply_to_fmt", displayName(profile, target.pubkey), oneLine(plainTextOf(target)))}
       </span>
-      <button type="button" className={styles.cancelReply} aria-label="返信をやめる" onClick={onCancel}>
+      <button
+        type="button"
+        className={styles.cancelReply}
+        aria-label={t("chat_cancel_reply")}
+        onClick={onCancel}
+      >
         <CloseIcon className={styles.cancelIcon} />
       </button>
     </div>

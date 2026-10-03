@@ -255,13 +255,14 @@ function NoteBody({
  * 隠している間（visible: false）は取得済みでも何も描かない。
  */
 function TranslationBlock({ eventId }: { eventId: string }) {
+  const t = useT();
   const entry = useTranslation(eventId);
   const pending = useTranslationPending(eventId);
   if (!pending && !entry?.visible) return null;
   return (
     <div className={styles.translation}>
       <p className={styles.translationCaption}>
-        翻訳
+        {t("note_translation_caption")}
         {pending && <span className={styles.translationSpinner} aria-hidden="true" />}
       </p>
       {entry?.visible && <p className={styles.translationText}>{entry.text}</p>}
@@ -274,11 +275,14 @@ function TranslationBlock({ eventId }: { eventId: string }) {
  * （行には出さない = ネイティブと同じ）。
  */
 function RelativeTime({ createdAt, client }: { createdAt: number; client: string | null }) {
+  const t = useT();
   const now = useNow();
   const date = new Date(createdAt * 1000);
   // created_at は任意の数値なので、Date の範囲外なら属性を付けない（toISOString が例外を投げる）
   const valid = Number.isFinite(date.getTime());
-  const title = valid ? `${date.toLocaleString()}${client ? ` · ${client} から投稿` : ""}` : undefined;
+  const title = valid
+    ? `${date.toLocaleString()}${client ? ` · ${t("note_posted_via_fmt", client)}` : ""}`
+    : undefined;
   return (
     <time className={styles.time} dateTime={valid ? date.toISOString() : undefined} title={title}>
       {relativeTime(createdAt, now)}

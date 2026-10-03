@@ -131,7 +131,7 @@ export type MdInline =
   | { type: "link"; label: string; href: string };
 
 const INLINE_TOKEN =
-  /\[([^\]]+)]\(([^)\s]+)[^)]*\)|\*\*([^*]+)\*\*|\*([^*\s][^*]*)\*|`([^`]+)`|(https?:\/\/[^\s)\]}>,、。」]+)/g;
+  /\[([^\]]+)]\(([^)\s]+)[^)]*\)|\*\*([^*]+)\*\*|\*([^*\s][^*]*)\*|`([^`]+)`|(https?:\/\/[^\s)\]}>,\u3001\u3002\u300D]+)/g;
 
 /** リンク先が http(s) か nostr 参照（npub/nprofile/note/nevent/naddr。nostr: は任意）だけを許す */
 function isSafeHref(href: string): boolean {

@@ -1,13 +1,22 @@
+import { useT } from "../../i18n";
 import styles from "./ProfileTabs.module.css";
 
 export type ProfileTab = "posts" | "media" | "articles" | "lists";
 
-const TABS: readonly { key: ProfileTab; label: string }[] = [
-  { key: "posts", label: "投稿" },
-  { key: "media", label: "メディア" },
-  { key: "articles", label: "記事" },
-  { key: "lists", label: "リスト" },
-];
+const TABS: readonly ProfileTab[] = ["posts", "media", "articles", "lists"];
+
+function tabLabel(t: ReturnType<typeof useT>, key: ProfileTab): string {
+  switch (key) {
+    case "posts":
+      return t("tab_posts");
+    case "media":
+      return t("tab_media");
+    case "articles":
+      return t("tab_articles");
+    case "lists":
+      return t("tab_lists");
+  }
+}
 
 /**
  * プロフィールのタブ（ネイティブ ProfileTabs）。投稿（返信込み）/ メディア / 記事（#534。kind:30023。0 件でも出す）/
@@ -22,20 +31,21 @@ export function ProfileTabs({
   onChange: (tab: ProfileTab) => void;
   sticky?: boolean;
 }) {
+  const t = useT();
   return (
-    <div role="tablist" aria-label="プロフィールのタブ" className={styles.tabs} data-sticky={sticky}>
-      {TABS.map((t) => (
+    <div role="tablist" aria-label={t("web_profile_tabs_label")} className={styles.tabs} data-sticky={sticky}>
+      {TABS.map((key) => (
         <button
-          key={t.key}
+          key={key}
           type="button"
           role="tab"
-          id={`profile-tab-${t.key}`}
-          aria-selected={tab === t.key}
+          id={`profile-tab-${key}`}
+          aria-selected={tab === key}
           aria-controls="profile-tabpanel"
           className={styles.tab}
-          onClick={() => onChange(t.key)}
+          onClick={() => onChange(key)}
         >
-          <span className={styles.label}>{t.label}</span>
+          <span className={styles.label}>{tabLabel(t, key)}</span>
           <span className={styles.bar} aria-hidden="true" />
         </button>
       ))}
