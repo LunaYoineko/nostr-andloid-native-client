@@ -1,7 +1,7 @@
 import type { ChangeEvent } from "react";
 import { useId, useState } from "react";
 import { useT } from "../../i18n";
-import { type LocaleSetting, setLocaleSetting, useLocale } from "../../i18n/locale";
+import { type LocaleSetting, setKansaiMode, setLocaleSetting, useLocale } from "../../i18n/locale";
 import { isDataSaver, setDataSaver } from "../../lib/imageProxy";
 import { type NyanMode, setNyanMode, useNyanMode } from "../../ui/nyan";
 import { type EmbedPrefs, setEmbedPref, useEmbedPrefs } from "../linkcard/embedPrefs";
@@ -11,7 +11,7 @@ import styles from "./SettingsSections.module.css";
 
 /**
  * 表示（先頭に言語（#542, Web 追加）。以降はネイティブ設定 > 表示と同じ順: テーマ・種別の視覚表示・表示サイズ・文字サイズ・太字（#464。
- * ここまでは ThemeSettings）→ にゃんモード → 廃人モード（#674, Web 追加）→ 埋め込み表示 →
+ * ここまでは ThemeSettings）→ にゃんモード → うにゅうと握手（関西弁、Web 追加）→ 廃人モード（#674, Web 追加）→ 埋め込み表示 →
  * データセーバー（Web 追加、末尾のまま #587）。
  * 「デフォルトのリアクション」はネイティブと同じく独立セクション（ReactionSection）に戻した。
  */
@@ -23,6 +23,7 @@ export function DisplaySection() {
         <ThemeSettings />
       </div>
       <NyanModeBlock />
+      <KansaiBlock />
       <DensityBlock />
       <EmbedPrefsBlock />
       <DataSaverBlock />
@@ -85,6 +86,34 @@ function NyanModeBlock() {
         {choice("self", t("nyan_mode_self"))}
         {choice("all", t("nyan_mode_all"))}
       </div>
+    </div>
+  );
+}
+
+/**
+ * 「うにゅうと握手」（関西弁 UI。#710）。UI の文言だけを関西弁にする演出で、localStorage のみ（NIP-78 の同期には入れない）。
+ * 解決後の言語が en のときは効かないので無効にする（見出し・チェックボックスは ja と ja-kansai で同一の文字列）。
+ */
+function KansaiBlock() {
+  const t = useT();
+  const id = useId();
+  const kansai = useLocale((s) => s.kansai);
+  const english = useLocale((s) => s.resolved === "en");
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>{t("web_kansai_title")}</h3>
+      <p className={styles.desc}>{t("web_kansai_desc")}</p>
+      <label className={styles.check} htmlFor={id}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={kansai}
+          disabled={english}
+          onChange={(e) => setKansaiMode(e.target.checked)}
+        />
+        {t("web_kansai_toggle")}
+      </label>
+      {english && <p className={styles.desc}>{t("web_kansai_ja_only")}</p>}
     </div>
   );
 }
