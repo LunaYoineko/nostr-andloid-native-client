@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../../i18n";
 import { proxied } from "../../lib/imageProxy";
 import { FavoriteIcon, MoodIcon, StarIcon } from "../../ui/icons";
 import { ReactionPickerDialog } from "../actions/ReactionPickerDialog";
@@ -10,6 +11,7 @@ import styles from "./SettingsSections.module.css";
  * ハート / スター / その他の絵文字（ピッカーで選ぶ）。♡ ボタンが送る内容と形が変わる（#459 の reactionPrefs）。
  */
 export function ReactionSection() {
+  const t = useT();
   const content = useDefaultReaction((s) => s.content);
   const image = useDefaultReaction((s) => s.image);
   const [picking, setPicking] = useState(false);
@@ -19,10 +21,8 @@ export function ReactionSection() {
 
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>デフォルトのリアクション</h3>
-      <p className={styles.desc}>
-        各投稿のリアクションボタンの形を選べます。押すとこの内容で送信されます（絵文字ピッカーからは別の絵文字も付けられます）。
-      </p>
+      <h3 className={styles.caption}>{t("reaction_default_title")}</h3>
+      <p className={styles.desc}>{t("web_settings_reaction_desc")}</p>
       <div className={styles.choices}>
         <button
           type="button"
@@ -31,7 +31,7 @@ export function ReactionSection() {
           onClick={() => setDefaultReaction("+", null)}
         >
           <FavoriteIcon className={styles.choiceIcon} />
-          ハート
+          {t("reaction_heart")}
         </button>
         <button
           type="button"
@@ -40,7 +40,7 @@ export function ReactionSection() {
           onClick={() => setDefaultReaction("⭐", null)}
         >
           <StarIcon className={styles.choiceIcon} />
-          スター
+          {t("reaction_star")}
         </button>
         <button
           type="button"
@@ -61,7 +61,7 @@ export function ReactionSection() {
           ) : (
             <MoodIcon className={styles.choiceIcon} />
           )}
-          その他の絵文字
+          {t("reaction_other")}
         </button>
       </div>
       {picking && (

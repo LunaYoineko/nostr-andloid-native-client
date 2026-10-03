@@ -1,7 +1,9 @@
-/** 設定の 1 項目。ready = 中身があるもの（プロフィール・DM・ふぁぼ・ミュート・アカウント・リレー・メディアサーバー・ウォレット・表示・データ・キャッシュ。他は準備中） */
-export type SettingsSection = { id: string; label: string; ready: boolean };
+import { t } from "../../i18n";
 
-export type SettingsGroup = { title: string; sections: readonly SettingsSection[] };
+/** 設定の 1 項目。ready = 中身があるもの（プロフィール・DM・ふぁぼ・ミュート・アカウント・リレー・メディアサーバー・ウォレット・表示・データ・キャッシュ。他は準備中） */
+export type SettingsSection = { id: string; label: () => string; ready: boolean };
+
+export type SettingsGroup = { title: () => string; sections: readonly SettingsSection[] };
 
 /**
  * 一覧の並び（ネイティブ SettingsScreen の paletteFav / paletteGroups と同じ順）。
@@ -9,40 +11,40 @@ export type SettingsGroup = { title: string; sections: readonly SettingsSection[
  */
 export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
   {
-    title: "よく使う",
+    title: () => t("group_quick_access"),
     sections: [
-      { id: "profile", label: "プロフィール", ready: true },
-      { id: "dm", label: "DM", ready: true },
-      { id: "favs", label: "ふぁぼ", ready: true },
-      { id: "bookmarks", label: "ブックマーク", ready: true },
-      { id: "mute", label: "ミュート", ready: true },
+      { id: "profile", label: () => t("tile_profile"), ready: true },
+      { id: "dm", label: () => "DM", ready: true },
+      { id: "favs", label: () => t("section_favs"), ready: true },
+      { id: "bookmarks", label: () => t("section_bookmarks"), ready: true },
+      { id: "mute", label: () => t("section_mute"), ready: true },
     ],
   },
   {
-    title: "カスタマイズ",
+    title: () => t("group_customize"),
     sections: [
-      { id: "reaction", label: "リアクション", ready: true },
-      { id: "emoji", label: "カスタム絵文字", ready: true },
-      { id: "hashtags", label: "ハッシュタグ", ready: true },
-      { id: "display", label: "表示", ready: true },
+      { id: "reaction", label: () => t("section_reaction"), ready: true },
+      { id: "emoji", label: () => t("section_emoji"), ready: true },
+      { id: "hashtags", label: () => t("section_hashtags"), ready: true },
+      { id: "display", label: () => t("section_appearance"), ready: true },
     ],
   },
   {
-    title: "接続・アカウント",
+    title: () => t("group_connection"),
     sections: [
-      { id: "profile-edit", label: "プロフィール編集", ready: true },
-      { id: "account", label: "アカウント", ready: true },
-      { id: "relays", label: "リレー", ready: true },
-      { id: "dm-relays", label: "DMリレー", ready: true },
-      { id: "media", label: "メディアサーバー", ready: true },
-      { id: "wallet", label: "ウォレット", ready: true },
+      { id: "profile-edit", label: () => t("section_account"), ready: true },
+      { id: "account", label: () => t("section_signer"), ready: true },
+      { id: "relays", label: () => t("section_relays"), ready: true },
+      { id: "dm-relays", label: () => t("section_dm_relays"), ready: true },
+      { id: "media", label: () => t("section_media"), ready: true },
+      { id: "wallet", label: () => t("section_wallet"), ready: true },
     ],
   },
   {
-    title: "システム",
+    title: () => t("group_system"),
     sections: [
-      { id: "data", label: "データ・キャッシュ", ready: true },
-      { id: "about", label: "このアプリについて", ready: true },
+      { id: "data", label: () => t("section_data"), ready: true },
+      { id: "about", label: () => t("section_about"), ready: true },
     ],
   },
 ];

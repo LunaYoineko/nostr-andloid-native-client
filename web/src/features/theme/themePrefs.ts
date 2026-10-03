@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { t } from "../../i18n";
 import {
   type CustomColors,
   customPaletteVars,
@@ -144,12 +145,18 @@ export type ThemeUndo = { label: string; prevMode: ThemeMode; prevCustom: Custom
 export const useThemeUndo = create<ThemeUndo>()(() => null);
 
 /** テーマの表示名（取り消しバーの「「%s」を適用しました」に使う） */
-export const THEME_MODE_LABELS: Record<ThemeMode, string> = {
-  system: "OSに合わせる",
-  light: "ライト",
-  dark: "ダーク",
-  custom: "カスタム",
-};
+export function themeModeLabel(mode: ThemeMode): string {
+  switch (mode) {
+    case "system":
+      return t("theme_system");
+    case "light":
+      return t("theme_light");
+    case "dark":
+      return t("theme_dark");
+    case "custom":
+      return t("theme_custom");
+  }
+}
 
 function update(patch: Partial<ThemePrefs>): void {
   useThemePrefs.setState(patch);
@@ -181,7 +188,7 @@ function commitTheme(patch: Pick<Partial<ThemePrefs>, "mode" | "custom">, label:
 }
 
 export function setThemeMode(mode: ThemeMode): void {
-  commitTheme({ mode }, THEME_MODE_LABELS[mode]);
+  commitTheme({ mode }, themeModeLabel(mode));
 }
 
 /** プリセット・カスタムテーマストア（#539）から配色を選ぶ。mode も custom へ切り替える */
@@ -194,12 +201,12 @@ export function setCustomColor(key: keyof CustomColors, hex: string): void {
   const normalized = normalizeHex(hex);
   if (!normalized) return;
   const current = useThemePrefs.getState().custom;
-  commitTheme({ custom: { ...current, [key]: normalized } }, THEME_MODE_LABELS.custom);
+  commitTheme({ custom: { ...current, [key]: normalized } }, themeModeLabel("custom"));
 }
 
 /** カスタム配色を既定（Midnight）へ戻す */
 export function resetCustomColors(): void {
-  commitTheme({ custom: DEFAULT_CUSTOM_COLORS }, THEME_MODE_LABELS.custom);
+  commitTheme({ custom: DEFAULT_CUSTOM_COLORS }, themeModeLabel("custom"));
 }
 
 /** 取り消しバーの「元に戻す」。適用前のモード・カスタム配色へ戻す */

@@ -11,16 +11,26 @@ import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { showToast } from "../../ui/toast";
 import { parseRelayInput, publishRelayList, RelayListError } from "./relayList";
 import {
-  RELAY_PRESET_CATEGORY_LABEL,
   RELAY_PRESETS,
   type RelayPresetCategory,
   type RelayRec,
+  relayPresetCategoryLabel,
+  relayPresetNoteLabel,
   relayRecs$,
 } from "./relayRecs";
 import styles from "./SettingsSections.module.css";
 
 /** 各行の source のヒント文言（ネイティブ RelaySettings の HintText と同じ意味。#585） */
-const SOURCE_LABEL: Record<RelayRow["source"], string> = { nip65: "NIP-65", manual: "手動", default: "既定" };
+function sourceLabel(source: RelayRow["source"]): string {
+  switch (source) {
+    case "nip65":
+      return "NIP-65";
+    case "manual":
+      return t("web_settings_relay_source_manual");
+    case "default":
+      return t("web_settings_relay_source_default");
+  }
+}
 
 /** 保存の失敗の文言 */
 function failureMessage(e: unknown): string {
@@ -76,11 +86,8 @@ export function RelaySection() {
   return (
     <>
       <div className={styles.block}>
-        <h3 className={styles.caption}>取得・配信に使うリレー（NIP-65 Inbox/Outbox）</h3>
-        <p className={styles.desc}>
-          Read = Inbox（購読・取得に使う）/ Write = Outbox（投稿を送る）。追加・削除・切替はすぐに接続先へ
-          反映します。「保存」で今の内容を kind:10002 として公開します。
-        </p>
+        <h3 className={styles.caption}>{t("relays_title")}</h3>
+        <p className={styles.desc}>{t("web_settings_relays_desc")}</p>
         <AddRelayForm list={rows} onAdd={(url) => addRelay(url)} />
         <button
           type="button"
@@ -88,12 +95,12 @@ export function RelaySection() {
           disabled={!canSave}
           onClick={() => setConfirming(true)}
         >
-          {saving ? "保存中…" : "保存"}
+          {saving ? t("common_saving") : t("common_save")}
         </button>
       </div>
       <AuthPolicyBlock />
       <div className={styles.block}>
-        <ul className={styles.relays} aria-label="リレーの一覧">
+        <ul className={styles.relays} aria-label={t("web_settings_relays_list_label")}>
           {sortedRows.map((row) => (
             <RelayRowItem
               key={row.url}
@@ -103,7 +110,7 @@ export function RelaySection() {
             />
           ))}
         </ul>
-        {rows.length === 0 && <p className={styles.desc}>リレーがありません</p>}
+        {rows.length === 0 && <p className={styles.desc}>{t("web_settings_relays_empty")}</p>}
         <RelayRecsBlock me={me} list={rows} onAdd={(url) => addRelay(url)} />
       </div>
       {confirming && (
@@ -119,23 +126,22 @@ export function RelaySection() {
   );
 }
 
-const AUTH_CHOICES: readonly { policy: AuthPolicy; label: string }[] = [
-  { policy: "dm", label: "DM/自分のリレーのみ" },
-  { policy: "always", label: "常に応答" },
-  { policy: "off", label: "無効" },
+const authChoices = (): readonly { policy: AuthPolicy; label: string }[] => [
+  { policy: "dm", label: t("auth_dm_mine") },
+  { policy: "always", label: t("auth_always") },
+  { policy: "off", label: t("auth_off") },
 ];
 
 /** AUTH（NIP-42）の応答ポリシー（ネイティブ RelaySettings の末尾と同じ 3 択） */
 function AuthPolicyBlock() {
+  const t = useT();
   const policy = useAuthPolicy((s) => s.policy);
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>AUTH（NIP-42）への応答</h3>
-      <p className={styles.desc}>
-        AUTH必須リレーからのDM等を受け取るための認証です。応答すると自分の公開鍵をそのリレーに証明します。
-      </p>
+      <h3 className={styles.caption}>{t("auth_title")}</h3>
+      <p className={styles.desc}>{t("auth_desc")}</p>
       <div className={styles.choices}>
-        {AUTH_CHOICES.map((choice) => (
+        {authChoices().map((choice) => (
           <button
             key={choice.policy}
             type="button"
@@ -193,19 +199,19 @@ function RelayRecsBlock({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        {open ? "▲ 候補を閉じる" : "▼ 候補から追加（おすすめ）"}
+        {open ? t("recs_close") : t("recs_open")}
       </button>
       {open &&
         (recs === null ? (
-          <p className={styles.desc}>フォロー中のリレーリスト(NIP-65)を集計中…</p>
+          <p className={styles.desc}>{t("relays_recs_loading")}</p>
         ) : recs.length > 0 ? (
           remaining.length > 0 && (
             <>
-              <p className={styles.desc}>フォロー中でよく使われているリレー</p>
-              <ul className={styles.chips} aria-label="おすすめのリレー">
+              <p className={styles.desc}>{t("presets_popular_follows")}</p>
+              <ul className={styles.chips} aria-label={t("web_settings_relays_recs_label")}>
                 {remaining.map((r) => (
                   <li key={r.url}>
-                    <RelayChip url={r.url} note={`${r.count}人`} onAdd={onAdd} />
+                    <RelayChip url={r.url} note={t("presets_users_fmt", r.count)} onAdd={onAdd} />
                   </li>
                 ))}
               </ul>
@@ -213,7 +219,7 @@ function RelayRecsBlock({
           )
         ) : (
           <>
-            <p className={styles.desc}>集計できませんでした（フォローが無い等）。定番の候補:</p>
+            <p className={styles.desc}>{t("relays_recs_empty")}</p>
             <PresetChips registered={registered} onAdd={onAdd} />
           </>
         ))}
@@ -225,6 +231,7 @@ const PRESET_CATEGORIES: readonly RelayPresetCategory[] = ["general", "japan", "
 
 /** 定番の候補（カテゴリ順に見出し付き。登録済みは出さない） */
 function PresetChips({ registered, onAdd }: { registered: ReadonlySet<string>; onAdd(url: string): void }) {
+  const t = useT();
   const presets = RELAY_PRESETS.flatMap((p) => {
     const url = parseRelayInput(p.url);
     return url && !registered.has(url) ? [{ ...p, url }] : [];
@@ -232,14 +239,14 @@ function PresetChips({ registered, onAdd }: { registered: ReadonlySet<string>; o
   return PRESET_CATEGORIES.map((category) => {
     const items = presets.filter((p) => p.category === category);
     if (items.length === 0) return null;
-    const label = RELAY_PRESET_CATEGORY_LABEL[category];
+    const label = relayPresetCategoryLabel(category);
     return (
       <div key={category} className={styles.presetGroup}>
         <p className={styles.presetCategory}>{label}</p>
-        <ul className={styles.chips} aria-label={`定番の候補（${label}）`}>
+        <ul className={styles.chips} aria-label={t("web_settings_relays_presets_label", label)}>
           {items.map((p) => (
             <li key={p.url}>
-              <RelayChip url={p.url} note={p.note} onAdd={onAdd} />
+              <RelayChip url={p.url} note={p.note ? relayPresetNoteLabel(p.note) : undefined} onAdd={onAdd} />
             </li>
           ))}
         </ul>
@@ -250,12 +257,15 @@ function PresetChips({ registered, onAdd }: { registered: ReadonlySet<string>; o
 
 /** 候補のチップ（ネイティブ PresetChip。「＋」+ ホスト名 + 補足）。押すと即座に足す */
 function RelayChip({ url, note, onAdd }: { url: string; note?: string; onAdd(url: string): void }) {
+  const t = useT();
   const label = displayRelayUrl(url);
   return (
     <button
       type="button"
       className={styles.chip}
-      aria-label={note ? `${label} を追加（${note}）` : `${label} を追加`}
+      aria-label={
+        note ? t("web_settings_relay_add_label_note", label, note) : t("web_settings_relay_add_label", label)
+      }
       onClick={() => onAdd(url)}
     >
       <span className={styles.chipPlus} aria-hidden="true">
@@ -268,6 +278,7 @@ function RelayChip({ url, note, onAdd }: { url: string; note?: string; onAdd(url
 }
 
 function AddRelayForm({ list, onAdd }: { list: readonly RelayRow[]; onAdd(url: string): void }) {
+  const t = useT();
   const inputId = useId();
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -276,11 +287,11 @@ function AddRelayForm({ list, onAdd }: { list: readonly RelayRow[]; onAdd(url: s
     e.preventDefault();
     const url = parseRelayInput(value);
     if (!url) {
-      setError("wss:// で始まるリレーの URL を入力してください");
+      setError(t("web_settings_relay_url_invalid"));
       return;
     }
     if (list.some((p) => p.url === url)) {
-      setError("このリレーは追加済みです");
+      setError(t("web_settings_relay_already_added"));
       return;
     }
     onAdd(url);
@@ -291,7 +302,7 @@ function AddRelayForm({ list, onAdd }: { list: readonly RelayRow[]; onAdd(url: s
   return (
     <form className={styles.row} onSubmit={submit}>
       <label htmlFor={inputId} className="srOnly">
-        追加するリレーの URL
+        {t("web_settings_relays_url_label")}
       </label>
       <input
         id={inputId}
@@ -310,7 +321,7 @@ function AddRelayForm({ list, onAdd }: { list: readonly RelayRow[]; onAdd(url: s
         }}
       />
       <button type="submit" className={styles.ghost} disabled={value.trim() === ""}>
-        追加
+        {t("common_add")}
       </button>
       {error && (
         <p className={styles.error} role="alert">
@@ -336,12 +347,12 @@ function RelayRowItem({
       <span className={styles.relayUrl} title={row.url}>
         {label}
       </span>
-      <span className={styles.relayMeta}>{SOURCE_LABEL[row.source]}</span>
+      <span className={styles.relayMeta}>{sourceLabel(row.source)}</span>
       <label className={styles.check}>
         <input
           type="checkbox"
           checked={row.read}
-          aria-label={`${label} の Read`}
+          aria-label={t("web_settings_relay_read_label", label)}
           onChange={(e) => onChange(e.target.checked, row.write)}
         />
         Read
@@ -350,13 +361,18 @@ function RelayRowItem({
         <input
           type="checkbox"
           checked={row.write}
-          aria-label={`${label} の Write`}
+          aria-label={t("web_settings_relay_write_label", label)}
           onChange={(e) => onChange(row.read, e.target.checked)}
         />
         Write
       </label>
-      <button type="button" className={styles.textButton} aria-label={`${label} を削除`} onClick={onRemove}>
-        削除
+      <button
+        type="button"
+        className={styles.textButton}
+        aria-label={t("web_settings_relay_remove_label", label)}
+        onClick={onRemove}
+      >
+        {t("common_delete")}
       </button>
     </li>
   );

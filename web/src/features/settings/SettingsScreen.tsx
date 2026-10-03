@@ -1,5 +1,6 @@
 import { type ReactNode, useId } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForProfile } from "../../lib/content/labels";
 import { useSession } from "../../signer/session";
 import { ScreenHeader } from "../../ui/ScreenHeader";
@@ -98,13 +99,14 @@ export function SettingsScreen() {
 
 /** 項目の一覧（ネイティブ SettingsMenu。グループ見出し + 行） */
 function SectionList({ selectedId, onSelect }: { selectedId: string | null; onSelect(id: string): void }) {
+  const t = useT();
   return (
     <div className={styles.list}>
-      <ScreenHeader title="設定" />
+      <ScreenHeader title={t("settings_title")} />
       <AccountSummary onOpen={() => onSelect("account")} />
-      <nav className={styles.groups} aria-label="設定の項目">
+      <nav className={styles.groups} aria-label={t("web_settings_nav_label")}>
         {SETTINGS_GROUPS.map((group) => (
-          <SectionGroup key={group.title} title={group.title}>
+          <SectionGroup key={group.title()} title={group.title()}>
             {group.sections.map((section) => (
               <li key={section.id}>
                 <button
@@ -113,8 +115,10 @@ function SectionList({ selectedId, onSelect }: { selectedId: string | null; onSe
                   aria-current={section.id === selectedId ? "page" : undefined}
                   onClick={() => onSelect(section.id)}
                 >
-                  <span className={styles.rowLabel}>{section.label}</span>
-                  {!section.ready && <span className={styles.badge}>準備中</span>}
+                  <span className={styles.rowLabel}>{section.label()}</span>
+                  {!section.ready && (
+                    <span className={styles.badge}>{t("web_settings_coming_soon_badge")}</span>
+                  )}
                 </button>
               </li>
             ))}
@@ -140,11 +144,11 @@ function SectionGroup({ title, children }: { title: string; children: ReactNode 
 /** 項目の内容。Compact は「←」つきのヘッダ、Expanded は見出しだけ */
 function SectionPane({ section, onBack }: { section: SettingsSection; onBack?: () => void }) {
   return (
-    <section className={styles.pane} aria-label={section.label}>
+    <section className={styles.pane} aria-label={section.label()}>
       {onBack ? (
-        <ScreenHeader title={section.label} onBack={onBack} />
+        <ScreenHeader title={section.label()} onBack={onBack} />
       ) : (
-        <h2 className={styles.paneTitle}>{section.label}</h2>
+        <h2 className={styles.paneTitle}>{section.label()}</h2>
       )}
       <div className={styles.body}>
         <SectionBody id={section.id} />
@@ -154,6 +158,7 @@ function SectionPane({ section, onBack }: { section: SettingsSection; onBack?: (
 }
 
 function SectionBody({ id }: { id: string }) {
+  const t = useT();
   switch (id) {
     case "reaction":
       return <ReactionSection />;
@@ -186,6 +191,6 @@ function SectionBody({ id }: { id: string }) {
     case "about":
       return <AboutSection />;
     default:
-      return <p className={styles.comingSoon}>この項目は準備中です</p>;
+      return <p className={styles.comingSoon}>{t("web_settings_coming_soon")}</p>;
   }
 }

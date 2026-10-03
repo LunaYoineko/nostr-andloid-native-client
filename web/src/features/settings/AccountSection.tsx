@@ -1,7 +1,7 @@
 import { npubEncode } from "nostr-tools/nip19";
 import { useEffect, useMemo, useState } from "react";
 import { LogoutButton } from "../../app/LogoutButton";
-import { useT } from "../../i18n";
+import { t, useT } from "../../i18n";
 import { shortNpub } from "../../lib/npub";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { getPasskeyVault, isPasskeySupported } from "../../signer/passkeyVault";
@@ -10,15 +10,10 @@ import { AccountAvatar } from "../../ui/AccountAvatar";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import styles from "./SettingsSections.module.css";
 
-// [#588] composeApp/src/commonMain/composeResources/values-ja/strings.xml の account_* / relogin_* と同じ文言
-const ACCOUNT_LOGIN_METHOD_LABEL = "ログイン方法: ";
-const ACCOUNT_ACTIVE = "● 有効";
-const ACCOUNT_SWITCH_SECTION = "別のアカウントを使う";
-
-const METHOD_LABEL: Record<SessionMethod, string> = {
-  nip07: "拡張機能（NIP-07）",
-  local: "このブラウザに保管した秘密鍵（nsec）",
-  nip46: "リモート署名（NIP-46）",
+const METHOD_LABEL: Record<SessionMethod, () => string> = {
+  nip07: () => t("web_settings_account_method_nip07"),
+  local: () => t("web_settings_account_method_local"),
+  nip46: () => t("signer_nip46"),
 };
 
 /**
@@ -47,6 +42,7 @@ export function AccountSection() {
  * アバター・名前・npub（先頭16 + … + 末尾6）・ログイン方法・有効バッジを 1 枚のカードにまとめる。
  */
 function AccountCard({ me, method }: { me: string; method: SessionMethod | null }) {
+  const t = useT();
   const profile = useProfile(me);
   const npub = useMemo(() => npubEncode(me), [me]);
   return (
@@ -62,9 +58,9 @@ function AccountCard({ me, method }: { me: string; method: SessionMethod | null 
       </div>
       <div className={styles.cardDivider} />
       <div className={styles.cardMethod}>
-        <span className={styles.cardMethodLabel}>{ACCOUNT_LOGIN_METHOD_LABEL}</span>
-        <span className={styles.cardMethodValue}>{method ? METHOD_LABEL[method] : "未ログイン"}</span>
-        <span className={styles.active}>{ACCOUNT_ACTIVE}</span>
+        <span className={styles.cardMethodLabel}>{t("account_login_method_label")}</span>
+        <span className={styles.cardMethodValue}>{method ? METHOD_LABEL[method]() : t("signer_none")}</span>
+        <span className={styles.active}>{t("account_active")}</span>
       </div>
     </div>
   );
@@ -81,7 +77,7 @@ function ReloginBlock() {
   const [confirming, setConfirming] = useState(false);
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>{ACCOUNT_SWITCH_SECTION}</h3>
+      <h3 className={styles.caption}>{t("account_switch_section")}</h3>
       <button
         type="button"
         className={`${styles.ghost} ${styles.alignStart}`}

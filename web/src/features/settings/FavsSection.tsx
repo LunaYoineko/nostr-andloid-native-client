@@ -1,4 +1,5 @@
 import type { NostrEvent } from "nostr-tools/pure";
+import { useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { useT } from "../../i18n";
 import { type ColumnSpec, defaultFilter } from "../../lib/columns";
@@ -7,10 +8,8 @@ import { useColumnFeed } from "../deck/useColumnFeed";
 import styles from "./FavsSection.module.css";
 
 /** ふぁぼ欄カラムと同じ購読（自分の kind:7）。デッキには入れない */
-const FAVS_SPEC: ColumnSpec = {
+const FAVS_SPEC: Omit<ColumnSpec, "title" | "subtitle"> = {
   id: "settings_favs",
-  title: "ふぁぼ",
-  subtitle: "自分のリアクション",
   kind: "FAVS",
   renderer: "FEED",
   filter: { ...defaultFilter(), kinds: [7] },
@@ -33,20 +32,24 @@ const COMPONENTS = { Footer };
  */
 export function FavsSection() {
   const t = useT();
-  const { loading, events, loadingOlder, loadOlder } = useColumnFeed(FAVS_SPEC);
+  const spec = useMemo(
+    () => ({ ...FAVS_SPEC, title: t("section_favs"), subtitle: t("sub_my_reactions") }),
+    [t],
+  );
+  const { loading, events, loadingOlder, loadOlder } = useColumnFeed(spec);
   if (events.length === 0) {
     if (loading) return <p className={styles.empty}>{t("loading")}</p>;
     return (
       <>
         <p className={styles.empty}>{t("favs_empty")}</p>
-        <p className={styles.hint}>各投稿の ♡ でふぁぼできます。</p>
+        <p className={styles.hint}>{t("favs_hint")}</p>
       </>
     );
   }
   return (
     <Virtuoso
       className={styles.list}
-      aria-label="ふぁぼ"
+      aria-label={t("section_favs")}
       data={events}
       computeItemKey={(_, reaction) => reaction.id}
       endReached={loadOlder}
