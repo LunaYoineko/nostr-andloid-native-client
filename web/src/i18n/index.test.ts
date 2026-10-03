@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from "vitest";
 import { formatArgs, t } from "./index";
-import { setLocaleSetting } from "./locale";
+import { setLocaleSetting, useLocale } from "./locale";
 
 afterEach(() => setLocaleSetting("ja"));
 
@@ -9,7 +9,8 @@ it("ja の辞書の値を返す（テストは ja 固定）", () => {
 });
 
 it("en に切り替えると en の値、en に無いキーは ja にフォールバックする", () => {
-  setLocaleSetting("en");
+  // 英語辞書が揃うまでは setLocaleSetting("en") も ja に落ちる（ENGLISH_AVAILABLE）ので、解決済みの値を直接置く
+  useLocale.setState({ setting: "en", resolved: "en" });
   expect(t("nyan_mode_title")).toBe("Nyan-nyan-nya virus");
   expect(t("web_display_datasaver_title")).toBe("データセーバー");
 });
