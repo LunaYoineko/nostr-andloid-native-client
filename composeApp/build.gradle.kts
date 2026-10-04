@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import java.awt.Image
+import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -185,10 +186,10 @@ fun intToBytes(value: Int): ByteArray = byteArrayOf(
 
 fun resizePng(inputPath: String, width: Int, height: Int): ByteArray {
     val img = ImageIO.read(File(inputPath))
-    val resized = img.getScaledInstance(width, height, Image.SCALE_SMOOTH)
     val buffered = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
-    val g = buffered.graphics
-    g.drawImage(resized, 0, 0, null)
+    val g = buffered.createGraphics()
+    g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+    g.drawImage(img, 0, 0, width, height, null)
     g.dispose()
     val baos = ByteArrayOutputStream()
     ImageIO.write(buffered, "PNG", baos)
@@ -224,7 +225,7 @@ compose.desktop {
             }
             windows {
                 menuGroup = "Nostrism"
-                upgradeUuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                upgradeUuid = "e8f5b9c2-3d4a-4f7e-8b1c-2d5e6f7a8b9c"
                 iconFile.set(rootProject.file("docs/store/icon.ico"))
             }
         }

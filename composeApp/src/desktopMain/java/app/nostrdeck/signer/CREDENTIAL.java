@@ -1,6 +1,7 @@
 package app.nostrdeck.signer;
 
 import com.sun.jna.*;
+import com.sun.jna.platform.win32.WinNT.FILETIME;
 import java.util.Arrays;
 import java.util.List;
 
@@ -11,16 +12,16 @@ import java.util.List;
 public class CREDENTIAL extends Structure {
     public int Flags;
     public int Type;
-    public Pointer TargetName; // LPWSTR
-    public Pointer Comment; // LPWSTR
+    public WString TargetName; // LPWSTR
+    public WString Comment; // LPWSTR
     public FILETIME LastWritten;
-    public long CredentialBlobSize;
+    public int CredentialBlobSize;
     public Pointer CredentialBlob; // PBYTE
     public int Persist;
     public int AttributeCount;
     public Pointer Attributes; // PCREDENTIAL_ATTRIBUTE
-    public Pointer TargetAlias; // LPWSTR
-    public Pointer UserName; // LPWSTR
+    public WString TargetAlias; // LPWSTR
+    public WString UserName; // LPWSTR
 
     @Override
     protected List<String> getFieldOrder() {
