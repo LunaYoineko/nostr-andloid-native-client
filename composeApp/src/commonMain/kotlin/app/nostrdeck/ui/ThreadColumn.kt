@@ -47,7 +47,7 @@ import app.nostrdeck.theme.DeckColors
 import app.nostrdeck.theme.DeckDensity
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckRadius
 import app.nostrdeck.theme.DeckType

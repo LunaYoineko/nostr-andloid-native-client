@@ -47,7 +47,7 @@ import nostr_deck_client.composeapp.generated.resources.channel_edit_submit
 import nostr_deck_client.composeapp.generated.resources.channel_field_about
 import nostr_deck_client.composeapp.generated.resources.channel_field_name
 import nostr_deck_client.composeapp.generated.resources.channel_field_picture
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * [#291] NIP-28 チャンネルの作成（kind:40）/ 編集（kind:41）モーダル。

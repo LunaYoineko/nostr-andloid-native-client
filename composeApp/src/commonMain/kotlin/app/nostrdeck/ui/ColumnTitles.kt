@@ -5,7 +5,7 @@ import app.nostrdeck.model.ColumnKind
 import app.nostrdeck.model.ColumnSpec
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * [#160] カラムのタイトル/サブタイトルは DB に永続化されるため、保存済みの日本語を

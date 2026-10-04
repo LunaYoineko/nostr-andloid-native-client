@@ -154,8 +154,8 @@ import nostr_deck_client.composeapp.generated.resources.ui_scale_small
 import nostr_deck_client.composeapp.generated.resources.ui_scale_title
 import nostr_deck_client.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.StringResource
-import org.jetbrains.compose.resources.getString
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.getString
+import app.nostrdeck.i18n.stringResource
 import app.nostrdeck.state.NavDest
 import app.nostrdeck.model.NoteAccentStyle
 import app.nostrdeck.model.NoteAccentKind
@@ -1407,6 +1407,24 @@ private fun AppearanceSettings() {
         }
     }
     Spacer(Modifier.size(DeckSpace.Xl))
+
+    // [#710] うにゅうと握手（関西弁 UI。Web と同じ並び・文言）。日本語表示のときだけ効くので、それ以外は押せなくする。
+    SectionCaption(stringResource(Res.string.kansai_title))
+    Spacer(Modifier.height(DeckSpace.Xs))
+    Text(
+        stringResource(Res.string.kansai_desc),
+        color = DeckColors.Text3, fontSize = DeckType.Label,
+    )
+    Spacer(Modifier.height(DeckSpace.Xs))
+    run {
+        val kansai by repo.kansaiModeFlow().collectAsState()
+        val japanese = androidx.compose.ui.text.intl.Locale.current.language == "ja"
+        SettingToggle(stringResource(Res.string.kansai_toggle), kansai, enabled = japanese) { repo.setKansaiMode(it) }
+        if (!japanese) {
+            Text(stringResource(Res.string.kansai_ja_only), color = DeckColors.Text3, fontSize = DeckType.Label)
+        }
+    }
+    Spacer(Modifier.height(DeckSpace.Lg))
 
     // [#675] 廃人モード（Web #674 と同じ並び・文言）。カラムの間隔・余白・行の高さを詰める。端末ローカル。
     SectionCaption(stringResource(Res.string.dense_mode_title))

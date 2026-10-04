@@ -12,7 +12,7 @@ import app.nostrdeck.model.ColumnKind
 import app.nostrdeck.state.DeckState
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * Public Chat（NIP-28）の独立画面。list-detail 2ペイン。

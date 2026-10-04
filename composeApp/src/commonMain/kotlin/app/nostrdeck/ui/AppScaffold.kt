@@ -58,7 +58,7 @@ import nostr_deck_client.composeapp.generated.resources.nav_home
 import nostr_deck_client.composeapp.generated.resources.nav_notifications
 import nostr_deck_client.composeapp.generated.resources.nav_public_chat
 import nostr_deck_client.composeapp.generated.resources.nav_search
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 import app.nostrdeck.theme.DeckColors
 import app.nostrdeck.theme.DeckSpace
 

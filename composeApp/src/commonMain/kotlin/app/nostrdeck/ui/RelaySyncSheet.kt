@@ -67,7 +67,7 @@ import nostr_deck_client.composeapp.generated.resources.sync_save_done
 import nostr_deck_client.composeapp.generated.resources.sync_save_failed
 import nostr_deck_client.composeapp.generated.resources.sync_title
 import org.jetbrains.compose.resources.StringResource
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * [#374] リレー同期（NIP-78 kind:30078）の設定セクションと差分確認ダイアログ。
