@@ -70,6 +70,23 @@ class XPostTest {
     }
 
     @Test
+    fun date_is_read_from_oembed_html_in_both_languages() {
+        val ja = "<blockquote class=\"twitter-tweet\"><p lang=\"ja\" dir=\"ltr\">新発売 <a href=\"https://t.co/x\">pic.twitter.com/x</a></p>&mdash; 極上のスイーツ (@sweetroad5) <a href=\"https://twitter.com/sweetroad5/status/2106722627310284812?ref_src=twsrc%5Etfw\">2026年10月4日</a></blockquote>\n"
+        assertEquals("2026年10月4日", XPosts.dateFromOembedHtml(ja))
+        val en = "<blockquote class=\"twitter-tweet\"><p>just setting up my twttr</p>&mdash; jack (@jack) <a href=\"https://twitter.com/jack/status/20?ref_src=twsrc%5Etfw\">March 21, 2006</a></blockquote>"
+        assertEquals("March 21, 2006", XPosts.dateFromOembedHtml(en))
+        assertNull(XPosts.dateFromOembedHtml("<p>no blockquote</p>"))
+    }
+
+    @Test
+    fun profile_image_detection_and_profile_url() {
+        assertTrue(XPosts.isProfileImage("https://pbs.twimg.com/profile_images/1/a_200x200.jpg"))
+        assertFalse(XPosts.isProfileImage("https://pbs.twimg.com/media/HTy.jpg"))
+        assertFalse(XPosts.isProfileImage(null))
+        assertEquals("https://x.com/jack", XPosts.profileUrl("jack"))
+    }
+
+    @Test
     fun deleted_or_missing_posts_fall_back_to_the_plain_link_card() {
         assertNull(XPosts.from(url, OgpData(url, title = "X", description = "The post you're looking for could not be found or may have been deleted.")))
         assertNull(XPosts.from(url, OgpData(url, title = "jack (@jack) on X", description = "")))

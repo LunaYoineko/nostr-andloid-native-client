@@ -36,6 +36,21 @@ object XPosts {
         "could not be found", "may have been deleted", "doesn't exist", "見つかりません", "削除された", "存在しません",
     )
 
+    /**
+     * [#733] 公式 oEmbed（publish.x.com）の html から投稿日時の文字列を取る。blockquote の末尾のリンク
+     * （`… <a href="https://x.com/u/status/1?ref_src=…">2026年10月4日</a></blockquote>`）の中身で、
+     * 言語は oEmbed の lang に従う（ja なら「2026年10月4日」、en なら「October 4, 2026」）。無ければ null。
+     */
+    fun dateFromOembedHtml(html: String): String? =
+        Regex(""">([^<>]+)</a>\s*</blockquote>""").find(html)?.groupValues?.get(1)?.trim()
+            ?.replace("&amp;", "&")?.replace("&nbsp;", " ")?.ifEmpty { null }
+
+    /** [#733] 投稿者のプロフィールページの URL（アイコンをプロフィールの OGP から取るため）。 */
+    fun profileUrl(handle: String): String = "https://x.com/$handle"
+
+    /** OGP の画像がプロフィール画像（`/profile_images/`）か。 */
+    fun isProfileImage(url: String?): Boolean = url != null && url.contains("/profile_images/")
+
     /** X / Twitter の投稿（status）URL か。プロフィールやホーム等は対象外。 */
     fun isPostUrl(url: String): Boolean = POST_URL.containsMatchIn(url.trim())
 
@@ -60,7 +75,7 @@ object XPosts {
         val parsed = ogp.title?.let { parseTitle(it) }
         val handle = parsed?.second ?: handleFromUrl(url) ?: return null
         val img = ogp.image?.takeIf { it.isNotBlank() }
-        val isAvatar = img != null && img.contains("/profile_images/")
+        val isAvatar = isProfileImage(img)
         return XPost(
             url = url,
             name = parsed?.first?.takeIf { it.isNotEmpty() },
