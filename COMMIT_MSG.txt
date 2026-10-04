@@ -1,0 +1,24 @@
+fix: JNA Structure に @JvmField を付与し、secret-tool の実行と判定を修正
+
+## 1. [重大] Kotlin の Structure は @JvmField が必須だった
+
+Kotlin の `var` は JVM では private getter/setter 経由の private フィールドになるため、
+JNA の Structure がフィールドを 1 つも認識できず、`WinFileTime()` / `CREDENTIAL()` の
+生成時点で java.lang.Error になっていた。
+
+WinFileTime / CREDENTIAL の全フィールドに @JvmField を付与。
+構造体サイズが WinFileTime=8バイト、CREDENTIAL=80バイト（x64 の CREDENTIALW と同じ）に
+なることを確認済み。
+
+## 2. secret-tool のタイムアウトが効かなかった
+
+stdout を先に readText() してから waitFor(timeout) していたため、キーリングのロック解除
+プロンプトで待つプロセスにブロックしたまま waitFor に到達せず、無期限に止まっていた。
+
+stdout / stderr を別スレッドで読み、waitFor(timeout) を先に発行する形に変更。
+タイムアウト時は destroyForcibly で確実に終了する。
+
+## 3. lookup の判定順序
+
+stderr に警告（"[...] ignoring:..." 等）が出ただけで「鍵あり」が Unavailable になっていた。
+成功（exit 0 かつ 64 桁）を先に判定し、その後に stderr / タイムアウトを見る順番に修正。

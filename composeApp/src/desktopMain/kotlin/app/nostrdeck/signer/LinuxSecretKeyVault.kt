@@ -16,7 +16,7 @@ sealed interface SecretToolLookup {
     /** 64桁 hex の鍵を取得できた。 */
     data class Found(val hex: String) : SecretToolLookup
 
-    /** Secret Service に到達したが、指定属性的な項目は無い。 */
+    /** Secret Service に到達したが、指定属性の項目は無い。 */
     data object NotFound : SecretToolLookup
 
     /** Secret Service に到達できなかった（ロック中・D-Bus 不通・CLI 不在など）。 */
@@ -38,32 +38,58 @@ class LinuxSecretKeyVault(
 
     private val attrArgs: List<String> = attributes.flatMap { (k, v) -> listOf(k, v) }
 
-    /** 標準出力と stderr を分けて取る（区別のために必須）。 */
-    private fun run(timeoutSeconds: Long = 5, vararg args: String): Triple<Int, String, String> {
+    private data class Result(val exit: Int, val stdout: String, val stderr: String, val timedOut: Boolean)
+
+    /**
+     * secret-tool を実行する。stdout / stderr は別スレッドで読み、タイムアウトを効かせる。
+     *
+     * 先に stdout を読むと、キーリングのロック解除プロンプトで待っているプロセスに
+     * ブロックしたまま `waitFor` に到達できず、タイムアウトが機能しない。
+     * 逆に出力を溜め込むとパイプが詰まるので、読み込みは両方とも別スレッドで行う。
+     */
+    private fun run(stdin: ByteArray? = null, timeoutSeconds: Long = 5, vararg args: String): Result {
         val p = ProcessBuilder(*args).start()
-        val stderr = StringBuilder()
-        val errThread = Thread { p.errorStream.bufferedReader().forEachLine { stderr.appendLine(it) } }
-        errThread.isDaemon = true
-        errThread.start()
-        val out = p.inputStream.bufferedReader().readText()
-        if (!p.waitFor(timeoutSeconds, TimeUnit.SECONDS)) {
-            p.destroyForcibly()
-            return Triple(-1, out, "timeout")
+        if (stdin != null) {
+            p.outputStream.use { it.write(stdin) }
+        } else {
+            p.outputStream.close()
         }
-        errThread.join(500)
-        return Triple(p.exitValue(), out.trim(), stderr.toString().trim())
+
+        val out = StringBuilder()
+        val err = StringBuilder()
+        fun spawn(reader: java.io.InputStream, sink: StringBuilder) = Thread {
+            reader.bufferedReader().forEachLine { sink.appendLine(it) }
+        }.apply { isDaemon = true; start() }
+        val threads = listOf(spawn(p.inputStream, out), spawn(p.errorStream, err))
+
+        val finished = p.waitFor(timeoutSeconds, TimeUnit.SECONDS)
+        if (!finished) {
+            p.destroyForcibly()
+            threads.forEach { it.join(500) }
+            return Result(-1, out.toString().trim(), err.toString().trim(), timedOut = true)
+        }
+        threads.forEach { it.join(1000) }
+        return Result(p.exitValue(), out.toString().trim(), err.toString().trim(), timedOut = false)
     }
 
     private fun lookup(): SecretToolLookup {
-        val (code, out, err) = run(args = arrayOf("secret-tool", "lookup", *attrArgs.toTypedArray()))
-        return when {
-            // stderr に何か出ている = Secret Service に到達できていない
-            err.isNotEmpty() -> SecretToolLookup.Unavailable(err)
-            // 出力つきで exit 0 = 見つかった
-            code == 0 && out.length == 64 -> SecretToolLookup.Found(out)
-            // stderr 空・exit 0 以外 = 項目が無い
-            else -> SecretToolLookup.NotFound
+        val r = run(args = arrayOf("secret-tool", "lookup", *attrArgs.toTypedArray()))
+
+        // 成功を先に判定する。stderr に警告（"[…] ignoring:…" 等）が出ても、
+        // 鍵が読めたなら Found なので Unavailable に落とさない。
+        if (!r.timedOut && r.exit == 0 && r.stdout.length == 64) {
+            return SecretToolLookup.Found(r.stdout)
         }
+        // タイムアウトは「読めなかった」= Unavailable（既存の鍵を上書きさせない）
+        if (r.timedOut) {
+            return SecretToolLookup.Unavailable("timeout")
+        }
+        // stderr にエラーが出ていれば到達できていない
+        if (r.stderr.isNotEmpty()) {
+            return SecretToolLookup.Unavailable(r.stderr)
+        }
+        // stderr 空・exit 0 以外 = 項目が無い
+        return SecretToolLookup.NotFound
     }
 
     /**
@@ -88,15 +114,12 @@ class LinuxSecretKeyVault(
         require(privateKey.size == 32) { "private key must be 32 bytes" }
         val hex = privateKey.toHex()
         // secret-tool store は stdin から秘密を読み取る（プロセス一覧に露出しない）
-        val p = ProcessBuilder("secret-tool", "store", "--label=Nostrism nsec", *attrArgs.toTypedArray())
-            .redirectErrorStream(true).start()
-        p.outputStream.use { it.write(hex.encodeToByteArray()) }
-        val out = p.inputStream.readBytes().decodeToString().trim()
-        if (!p.waitFor(5, TimeUnit.SECONDS)) {
-            p.destroyForcibly()
-            throw IllegalStateException("secret-tool store timeout")
+        val r = run(stdin = hex.encodeToByteArray(), args = arrayOf(
+            "secret-tool", "store", "--label=Nostrism nsec", *attrArgs.toTypedArray(),
+        ))
+        require(!r.timedOut && r.exit == 0) {
+            "secret-tool store failed (exit=${r.exit}): ${r.stderr.ifEmpty { r.stdout }}"
         }
-        require(p.exitValue() == 0) { "secret-tool store failed: $out" }
     }
 
     override fun generate(): ByteArray {

@@ -41,9 +41,16 @@ internal interface Advapi32 : StdCallLibrary {
  *
  * `com.sun.jna.platform.win32.WinNT.FILETIME` と同じレイアウトだが、ここでは自前に持つ。
  * jna-platform 側の同名型と混在するのを避けるため、使う場面（構造体フィールド）も限定している。
+ *
+ * 全フィールドに `@JvmField` が必須。Kotlin の `var` は JVM では private getter/setter 経由の
+ * private フィールドになるため、JNA の Structure がフィールドを 1 つも認識できず、
+ * 構造体が確保された瞬間に `java.lang.Error` になる。
  */
 internal class WinFileTime : Structure {
+    @JvmField
     var dwLowDateTime: Int = 0
+
+    @JvmField
     var dwHighDateTime: Int = 0
 
     override fun getFieldOrder(): List<String> = FIELD_ORDER
@@ -68,19 +75,45 @@ internal class WinFileTime : Structure {
  *
  * 文字列フィールドは `WString` にしてある。JNA が NUL 終端・UTF-16・生存期間を面倒を見るので、
  * 自前で `Memory` を触るより安全かつ短く書ける。`null` はそのまま NULL ポインタになる。
+ *
+ * ここにも全フィールドの `@JvmField` が必要（[WinFileTime] のコメントを参照）。
+ * 付けないと x64 の CREDENTIALW 本来の大きさ（80 バイト）にならない。
  */
 internal class CREDENTIAL : Structure {
+    @JvmField
     var Flags: Int = 0
+
+    @JvmField
     var Type: Int = 0
+
+    @JvmField
     var TargetName: WString? = null
+
+    @JvmField
     var Comment: WString? = null
+
+    @JvmField
     var LastWritten: WinFileTime = WinFileTime()
+
+    @JvmField
     var CredentialBlobSize: Int = 0
+
+    @JvmField
     var CredentialBlob: Pointer? = null
+
+    @JvmField
     var Persist: Int = 0
+
+    @JvmField
     var AttributeCount: Int = 0
+
+    @JvmField
     var Attributes: Pointer? = null
+
+    @JvmField
     var TargetAlias: WString? = null
+
+    @JvmField
     var UserName: WString? = null
 
     override fun getFieldOrder(): List<String> = FIELD_ORDER
