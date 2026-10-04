@@ -1,3 +1,4 @@
+import { useT } from "../../i18n";
 import { ErrorOutlineIcon, VerifiedIcon } from "../../ui/icons";
 import styles from "./Nip05Handle.module.css";
 import { useNip05Status } from "./nip05";
@@ -15,12 +16,13 @@ export function Nip05Handle({
   nip05: string;
   size: "sub" | "caption";
 }) {
+  const t = useT();
   const status = useNip05Status(pubkey, nip05);
   return (
     <span className={styles.handle} data-size={size}>
       <span className={styles.text}>{nip05}</span>
-      {status === "verified" && <VerifiedIcon className={styles.ok} title="NIP-05 検証OK" />}
-      {status === "invalid" && <ErrorOutlineIcon className={styles.bad} title="NIP-05 検証エラー" />}
+      {status === "verified" && <VerifiedIcon className={styles.ok} title={t("nip05_ok")} />}
+      {status === "invalid" && <ErrorOutlineIcon className={styles.bad} title={t("nip05_bad")} />}
     </span>
   );
 }

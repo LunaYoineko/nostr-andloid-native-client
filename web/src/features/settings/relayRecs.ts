@@ -1,5 +1,6 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { catchError, concat, defer, EMPTY, ignoreElements, type Observable, of } from "rxjs";
+import { t } from "../../i18n";
 import { INDEXER_RELAYS } from "../../lib/columnRequest";
 import { relayPrefsFromEvent } from "../../nostr/outbox";
 import { readRelays, requestOnce } from "../../nostr/pool";
@@ -80,14 +81,28 @@ export function relayRecs$(me: string, exclude: ReadonlySet<string>): Observable
 
 export type RelayPresetCategory = "general" | "japan" | "paid";
 
-/** 定番の候補 1 件（note = 「有料」などの補足） */
-export type RelayPreset = { url: string; category: RelayPresetCategory; note?: "有料" | "検索対応" };
+/** 補足の種類（表示は relayPresetNoteLabel。paid = 有料、search = 検索対応） */
+export type RelayPresetNote = "paid" | "search";
 
-export const RELAY_PRESET_CATEGORY_LABEL: Record<RelayPresetCategory, string> = {
-  general: "汎用",
-  japan: "日本",
-  paid: "ペイド",
-};
+/** 定番の候補 1 件（note = 「有料」などの補足） */
+export type RelayPreset = { url: string; category: RelayPresetCategory; note?: RelayPresetNote };
+
+/** カテゴリの表示名（言語切替に追従するよう、表示のたびに引く） */
+export function relayPresetCategoryLabel(category: RelayPresetCategory): string {
+  switch (category) {
+    case "general":
+      return t("preset_general");
+    case "japan":
+      return t("preset_japan");
+    case "paid":
+      return t("preset_paid");
+  }
+}
+
+/** 補足の表示名 */
+export function relayPresetNoteLabel(note: RelayPresetNote): string {
+  return note === "paid" ? t("preset_note_paid") : t("preset_note_search");
+}
 
 /** 集計できないとき（フォローが無い等）の定番の候補（ネイティブ Presets.kt の RELAY_PRESETS と同じ順） */
 export const RELAY_PRESETS: readonly RelayPreset[] = [
@@ -95,7 +110,7 @@ export const RELAY_PRESETS: readonly RelayPreset[] = [
   { url: "wss://relay.damus.io", category: "general" },
   { url: "wss://nos.lol", category: "general" },
   { url: "wss://relay.primal.net", category: "general" },
-  { url: "wss://relay.nostr.band", category: "general", note: "検索対応" },
+  { url: "wss://relay.nostr.band", category: "general", note: "search" },
   { url: "wss://relay.snort.social", category: "general" },
   { url: "wss://nostr.mom", category: "general" },
   { url: "wss://offchain.pub", category: "general" },
@@ -105,7 +120,7 @@ export const RELAY_PRESETS: readonly RelayPreset[] = [
   { url: "wss://yabu.me", category: "japan" },
   { url: "wss://r.kojira.io", category: "japan" },
   // ペイド（有料・認証必須のことが多い）
-  { url: "wss://nostr.wine", category: "paid", note: "有料" },
-  { url: "wss://eden.nostr.land", category: "paid", note: "有料" },
-  { url: "wss://nostrelites.org", category: "paid", note: "有料" },
+  { url: "wss://nostr.wine", category: "paid", note: "paid" },
+  { url: "wss://eden.nostr.land", category: "paid", note: "paid" },
+  { url: "wss://nostrelites.org", category: "paid", note: "paid" },
 ];

@@ -7,6 +7,7 @@ import { generateSecretKey, type NostrEvent } from "nostr-tools/pure";
 import { bytesToHex } from "nostr-tools/utils";
 import type { Observable } from "rxjs";
 import { create } from "zustand";
+import { t } from "../i18n";
 import type { Signer, SignerCap } from "../nostr/signer";
 import { showToast } from "../ui/toast";
 import { getNip46Store } from "./nip46Store";
@@ -19,7 +20,6 @@ export const NIP46_CONNECT_TIMEOUT_MS = 180_000;
 export const NIP46_LOGOUT_TIMEOUT_MS = 3_000;
 /** 無応答のトーストを出す間隔の下限 */
 const TIMEOUT_TOAST_INTERVAL_MS = 30_000;
-const TIMEOUT_TOAST = "署名アプリから応答がありません。アプリを開いてからもう一度お試しください";
 
 /** 接続で求める権限（Web が署名する種類 + DM と #468 の同期の分 + リレーの AUTH（kind:22242）） */
 export const NIP46_PERMISSIONS = [
@@ -178,7 +178,7 @@ function toastOnTimeout(error: unknown): never {
     const now = Date.now();
     if (now - lastTimeoutToast >= TIMEOUT_TOAST_INTERVAL_MS) {
       lastTimeoutToast = now;
-      showToast(TIMEOUT_TOAST);
+      showToast(t("web_nip46_timeout"));
     }
   }
   throw error;
@@ -318,7 +318,7 @@ export function startNostrConnect(): { uri: string; done: Promise<{ pubkey: stri
   const stopAuth = watchAuth(relays, clientSigner);
   const uri = inner.getNostrConnectURI({
     name: "Nostrism",
-    url: `${location.origin}/app/`,
+    url: `${location.origin}/`,
     permissions: NIP46_PERMISSIONS,
   });
   const abort = new AbortController();

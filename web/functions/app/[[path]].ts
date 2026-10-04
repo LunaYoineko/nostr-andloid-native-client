@@ -1,22 +1,34 @@
 /**
- * /app/ 配下の SPA フォールバック。_redirects の rewrite は実在ファイルより先に適用され、
- * JS/CSS まで index.html になるため Functions で行う。
- * 静的ファイル（/app/assets/* 等）は static/_routes.json で除外しているので、ここには来ない。
- * - 静的アセットにあればその応答をそのまま返す（404 以外はすべて素通し）
- * - 404 で、GET/HEAD のページ遷移（Accept に text/html、または Sec-Fetch-Dest: document）なら /app/ の index.html を返す
- * - それ以外は 404 をそのまま返す
+ * 旧 /app 配下（#647 で廃止）。
+ * - /app/sw.js: インストール済み PWA に残る旧 Service Worker（scope /app/）の更新先。301 にすると更新に失敗して
+ *   旧 SW がキャッシュした古いアプリを出し続けるため、ここでは「キャッシュを消し、自分を解除し、開いている
+ *   ウィンドウを / へ移す」だけの SW を 200 で返す（no-cache。Service Worker のスクリプトはリダイレクトを追わない）。
+ * - それ以外: /app/foo?x → /foo?x へ 301（インストール済み PWA の start_url と外部の古いリンク向け）。
+ * _redirects ではなくここで行う（_redirects と Functions の評価順に依存せず、/app/sw.js の例外を確実にするため）。
  */
 import type { Env } from "../../server/env";
 
-export const onRequest: PagesFunction<Env> = async (ctx) => {
-  const response = await ctx.env.ASSETS.fetch(ctx.request);
-  if (response.status !== 404 || !isPageNavigation(ctx.request)) return response;
-  await response.body?.cancel();
-  return ctx.env.ASSETS.fetch(new Request(new URL("/app/", ctx.request.url), ctx.request));
-};
+export const LEGACY_SW_SCRIPT = `self.addEventListener("install",()=>self.skipWaiting());
+self.addEventListener("activate",(event)=>{event.waitUntil((async()=>{
+try{const keys=await caches.keys();await Promise.all(keys.map((k)=>caches.delete(k)));}catch{}
+try{await self.registration.unregister();}catch{}
+try{const clients=await self.clients.matchAll({type:"window",includeUncontrolled:true});
+for(const c of clients){try{const u=new URL(c.url);if(u.pathname.startsWith("/app")){u.pathname=u.pathname.replace(/^/app/?/,"/");await c.navigate(u.href);}}catch{}}}catch{}
+})());});
+`;
 
-function isPageNavigation(request: Request): boolean {
-  if (request.method !== "GET" && request.method !== "HEAD") return false;
-  if (request.headers.get("Sec-Fetch-Dest") === "document") return true;
-  return (request.headers.get("Accept") ?? "").includes("text/html");
-}
+export const onRequest: PagesFunction<Env> = async (ctx) => {
+  const url = new URL(ctx.request.url);
+  if (url.pathname === "/app/sw.js") {
+    return new Response(LEGACY_SW_SCRIPT, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/javascript; charset=utf-8",
+        "Cache-Control": "no-cache",
+        "X-Robots-Tag": "noindex",
+      },
+    });
+  }
+  const target = new URL(url.pathname.replace(/^\/app\/?/, "/") + url.search, url.origin);
+  return Response.redirect(target.toString(), 301);
+};

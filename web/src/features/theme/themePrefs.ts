@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { t } from "../../i18n";
 import {
   type CustomColors,
   customPaletteVars,
@@ -8,8 +9,14 @@ import {
 } from "./customPalette";
 import type { NoteAccentStyle } from "./noteAccent";
 
-/** 値は {mode, textScale, bold, custom: {bg,text,accent}, noteAccent, uiScale} */
+/** 値は {mode, textScale, bold, custom: {bg,text,accent}, noteAccent, uiScale, density, version} */
 export const THEME_KEY = "nostrism.theme";
+
+/**
+ * [#660] 保存値のバージョン。既定を変えたときにここで移行する（readThemePrefs 参照）。
+ * v1: version フィールド無し。v2: --web-base 導入に伴い uiScale "m" を "s" へ移行済み。
+ */
+export const CURRENT_THEME_VERSION = 2;
 
 /** テーマ（ネイティブ ThemeMode の id）。custom は #464 の残り（3色から導出） */
 export type ThemeMode = "system" | "light" | "dark" | "custom";
@@ -17,6 +24,8 @@ export type ThemeMode = "system" | "light" | "dark" | "custom";
 export type TextScale = "s" | "m" | "l";
 /** 表示サイズ（ネイティブ UiScale の id。標準 / 大きめ / 最大）。文字だけの TextScale とは独立 */
 export type UiScale = "s" | "m" | "l";
+/** [#674] 密度（廃人モード）。カラム間隔・余白・行の高さを詰めて情報量を増やす。Web のみ、NIP-78 同期はしない */
+export type Density = "normal" | "dense";
 /** 実際に当てるテーマ（custom も背景の輝度でどちらかの土台へ丸める） */
 export type ResolvedTheme = "light" | "dark";
 
@@ -29,9 +38,10 @@ export type ThemePrefs = {
   custom: CustomColors;
   noteAccent: NoteAccentStyle;
   uiScale: UiScale;
+  density: Density;
 };
 
-/** ダーク・小・太字オフ・カスタム既定色・種別表示なし・表示サイズ標準（ネイティブの既定と同じ） */
+/** ダーク・小・太字オフ・カスタム既定色・種別表示なし・表示サイズ標準・密度標準（ネイティブの既定と同じ） */
 export const DEFAULT_THEME_PREFS: ThemePrefs = {
   mode: "dark",
   textScale: "s",
@@ -39,6 +49,7 @@ export const DEFAULT_THEME_PREFS: ThemePrefs = {
   custom: DEFAULT_CUSTOM_COLORS,
   noteAccent: "none",
   uiScale: "s",
+  density: "normal",
 };
 
 /** 文字サイズの倍率（ネイティブ TextScale.factor と 1 対 1）。tokens.css の --text-scale に入れる */
@@ -72,6 +83,19 @@ function isNoteAccentStyle(v: unknown): v is NoteAccentStyle {
   return v === "none" || v === "line" || v === "bg";
 }
 
+function isDensity(v: unknown): v is Density {
+  return v === "normal" || v === "dense";
+}
+
+/**
+ * [#660] 保存値に uiScale が無いときの既定。常に "s"（標準）。
+ * [#649] でホバーできる端末（PC）だけ "m" にしていたが、標準の本文サイズ自体を --web-base で
+ * 16px 相当に上げたため撤回した。
+ */
+export function defaultUiScale(): UiScale {
+  return "s";
+}
+
 /** custom は3項目それぞれ個別に既定へ（1色だけ壊れていても他の2色は活かす） */
 function readCustomColors(value: unknown): CustomColors {
   const obj: Record<string, unknown> =
@@ -83,25 +107,34 @@ function readCustomColors(value: unknown): CustomColors {
   };
 }
 
-/** 無い・壊れている項目は既定へ（項目ごと） */
+/**
+ * 無い・壊れている項目は既定へ（項目ごと）。uiScale だけは、保存値に無いとき [defaultUiScale] を当てる
+ * （保存値が丸ごと無い場合も含む）。
+ * [#660] バージョン移行: 保存値の version が 2 未満（無しを含む）で uiScale が "m" なら "s" へ戻す
+ * （[#649] の PC 既定でそうなっていただけの可能性が高いため）。"l" はそのまま、version 2 以降は触らない。
+ */
 function readThemePrefs(): ThemePrefs {
+  let value: unknown = null;
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(THEME_KEY) ?? "null");
-    if (typeof value === "object" && value !== null) {
-      const { mode, textScale, bold, custom, noteAccent, uiScale } = value as Record<string, unknown>;
-      return {
-        mode: isThemeMode(mode) ? mode : DEFAULT_THEME_PREFS.mode,
-        textScale: isTextScale(textScale) ? textScale : DEFAULT_THEME_PREFS.textScale,
-        bold: typeof bold === "boolean" ? bold : DEFAULT_THEME_PREFS.bold,
-        custom: readCustomColors(custom),
-        noteAccent: isNoteAccentStyle(noteAccent) ? noteAccent : DEFAULT_THEME_PREFS.noteAccent,
-        uiScale: isUiScale(uiScale) ? uiScale : DEFAULT_THEME_PREFS.uiScale,
-      };
-    }
+    value = JSON.parse(localStorage.getItem(THEME_KEY) ?? "null");
   } catch {
     // 壊れた保存値は既定へ
   }
-  return DEFAULT_THEME_PREFS;
+  const obj: Record<string, unknown> =
+    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  const { mode, textScale, bold, custom, noteAccent, uiScale, density, version } = obj;
+  const storedVersion = typeof version === "number" ? version : 1;
+  let resolvedUiScale = isUiScale(uiScale) ? uiScale : defaultUiScale();
+  if (storedVersion < 2 && resolvedUiScale === "m") resolvedUiScale = "s";
+  return {
+    mode: isThemeMode(mode) ? mode : DEFAULT_THEME_PREFS.mode,
+    textScale: isTextScale(textScale) ? textScale : DEFAULT_THEME_PREFS.textScale,
+    bold: typeof bold === "boolean" ? bold : DEFAULT_THEME_PREFS.bold,
+    custom: readCustomColors(custom),
+    noteAccent: isNoteAccentStyle(noteAccent) ? noteAccent : DEFAULT_THEME_PREFS.noteAccent,
+    uiScale: resolvedUiScale,
+    density: isDensity(density) ? density : DEFAULT_THEME_PREFS.density,
+  };
 }
 
 /** テーマ・文字サイズ・太字・カスタム配色・種別表示・表示サイズ（設定 > 表示） */
@@ -112,18 +145,36 @@ export type ThemeUndo = { label: string; prevMode: ThemeMode; prevCustom: Custom
 export const useThemeUndo = create<ThemeUndo>()(() => null);
 
 /** テーマの表示名（取り消しバーの「「%s」を適用しました」に使う） */
-export const THEME_MODE_LABELS: Record<ThemeMode, string> = {
-  system: "OSに合わせる",
-  light: "ライト",
-  dark: "ダーク",
-  custom: "カスタム",
-};
+export function themeModeLabel(mode: ThemeMode): string {
+  switch (mode) {
+    case "system":
+      return t("theme_system");
+    case "light":
+      return t("theme_light");
+    case "dark":
+      return t("theme_dark");
+    case "custom":
+      return t("theme_custom");
+  }
+}
 
 function update(patch: Partial<ThemePrefs>): void {
   useThemePrefs.setState(patch);
-  const { mode, textScale, bold, custom, noteAccent, uiScale } = useThemePrefs.getState();
+  const { mode, textScale, bold, custom, noteAccent, uiScale, density } = useThemePrefs.getState();
   try {
-    localStorage.setItem(THEME_KEY, JSON.stringify({ mode, textScale, bold, custom, noteAccent, uiScale }));
+    localStorage.setItem(
+      THEME_KEY,
+      JSON.stringify({
+        mode,
+        textScale,
+        bold,
+        custom,
+        noteAccent,
+        uiScale,
+        density,
+        version: CURRENT_THEME_VERSION,
+      }),
+    );
   } catch {
     // 保存できなくてもこのセッションでは効く
   }
@@ -137,7 +188,7 @@ function commitTheme(patch: Pick<Partial<ThemePrefs>, "mode" | "custom">, label:
 }
 
 export function setThemeMode(mode: ThemeMode): void {
-  commitTheme({ mode }, THEME_MODE_LABELS[mode]);
+  commitTheme({ mode }, themeModeLabel(mode));
 }
 
 /** プリセット・カスタムテーマストア（#539）から配色を選ぶ。mode も custom へ切り替える */
@@ -150,12 +201,12 @@ export function setCustomColor(key: keyof CustomColors, hex: string): void {
   const normalized = normalizeHex(hex);
   if (!normalized) return;
   const current = useThemePrefs.getState().custom;
-  commitTheme({ custom: { ...current, [key]: normalized } }, THEME_MODE_LABELS.custom);
+  commitTheme({ custom: { ...current, [key]: normalized } }, themeModeLabel("custom"));
 }
 
 /** カスタム配色を既定（Midnight）へ戻す */
 export function resetCustomColors(): void {
-  commitTheme({ custom: DEFAULT_CUSTOM_COLORS }, THEME_MODE_LABELS.custom);
+  commitTheme({ custom: DEFAULT_CUSTOM_COLORS }, themeModeLabel("custom"));
 }
 
 /** 取り消しバーの「元に戻す」。適用前のモード・カスタム配色へ戻す */
@@ -180,6 +231,11 @@ export function setBoldText(bold: boolean): void {
 
 export function setNoteAccent(noteAccent: NoteAccentStyle): void {
   update({ noteAccent });
+}
+
+/** [#674] 廃人モード（密度）の切り替え。NIP-78 同期には入れない */
+export function setDensity(density: Density): void {
+  update({ density });
 }
 
 function hasMatchMedia(): boolean {
@@ -222,6 +278,12 @@ export function applyThemePrefs(prefs: ThemePrefs): void {
   root.style.setProperty("--text-scale", String(TEXT_SCALE_FACTOR[prefs.textScale]));
   root.style.setProperty("--ui-scale", String(UI_SCALE_FACTOR[prefs.uiScale]));
   root.toggleAttribute("data-bold", prefs.bold);
+  // [#674] 廃人モード。data-theme と同じ仕組みで、標準（normal）のときは属性を外す
+  if (prefs.density === "dense") {
+    root.dataset.density = "dense";
+  } else {
+    delete root.dataset.density;
+  }
   if (prefs.mode === "custom") {
     for (const [name, value] of Object.entries(customPaletteVars(prefs.custom))) {
       root.style.setProperty(name, value);

@@ -2,6 +2,7 @@ import { naddrEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { Link } from "react-router";
 import { Virtuoso } from "react-virtuoso";
+import { useT } from "../../i18n";
 import { hrefForEvent } from "../../lib/content/labels";
 import { ArticleCardBody } from "../article/ArticleCard";
 import cardStyles from "../article/ArticleCard.module.css";
@@ -25,10 +26,11 @@ export function ProfileArticleList({
   loading: boolean;
   scrollParent?: HTMLElement;
 }) {
+  const t = useT();
   return (
     <div role="tabpanel" id="profile-tabpanel" className={scrollParent ? undefined : styles.own}>
       {events.length === 0 ? (
-        <p className={styles.empty}>{loading ? "読み込み中…" : "まだ記事がありません"}</p>
+        <p className={styles.empty}>{loading ? t("loading") : t("profile_no_articles")}</p>
       ) : (
         <Virtuoso
           data={events}

@@ -2,6 +2,7 @@ import { normalizeURL } from "applesauce-core/helpers/url";
 import type { Relay } from "applesauce-relay/relay";
 import { useEffect, useState } from "react";
 import { Subscription } from "rxjs";
+import { t } from "../i18n";
 import { pool, readRelays, writeRelays } from "./pool";
 
 /**
@@ -12,10 +13,17 @@ import { pool, readRelays, writeRelays } from "./pool";
 /** 接続 = WebSocket が開いている / 接続中 = 開いていないが購読（REQ）を持っている（再接続待ち） / 切断 = それ以外 */
 export type RelayConnState = "connected" | "connecting" | "disconnected";
 
+// 参照するたびに辞書を引く（言語の変更が次の描画で効く）
 export const RELAY_STATE_LABEL: Record<RelayConnState, string> = {
-  connected: "接続",
-  connecting: "接続中",
-  disconnected: "切断",
+  get connected() {
+    return t("relay_state_connected");
+  },
+  get connecting() {
+    return t("relay_state_connecting");
+  },
+  get disconnected() {
+    return t("relay_state_disconnected");
+  },
 };
 
 type Traffic = { events: number; chars: number };
@@ -135,11 +143,20 @@ export function formatChars(n: number): string {
 /** 回線の区分（ネイティブ NetworkTier） */
 export type NetworkTier = "unmetered" | "metered" | "constrained" | "offline";
 
+// 参照するたびに辞書を引く（言語の変更が次の描画で効く）
 export const NETWORK_TIER_LABEL: Record<NetworkTier, string> = {
-  unmetered: "Wi-Fi（非従量）",
-  metered: "モバイル（従量）",
-  constrained: "データセーバー",
-  offline: "オフライン",
+  get unmetered() {
+    return t("conn_tier_unmetered");
+  },
+  get metered() {
+    return t("conn_tier_metered");
+  },
+  get constrained() {
+    return t("conn_tier_constrained");
+  },
+  get offline() {
+    return t("conn_tier_offline");
+  },
 };
 
 type NetworkInformationLike = { type?: string; saveData?: boolean };

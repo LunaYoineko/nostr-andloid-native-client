@@ -1,12 +1,15 @@
 import { getSeenRelays } from "applesauce-core/helpers/relays";
+import { normalizeURL } from "applesauce-core/helpers/url";
 import { use$ } from "applesauce-react/hooks/use-$";
 import { type EventTemplate, type NostrEvent, verifyEvent } from "nostr-tools/pure";
 import { BehaviorSubject, merge, type Observable, Subject, type Subscription } from "rxjs";
 import { db } from "../db";
 import type { NostrismDb, PublishQueueRow } from "../db/schema";
+import { t } from "../i18n";
+import { SEARCH_RELAYS } from "../lib/columnRequest";
 import { unixNow } from "../lib/time";
 import { currentSigner, useSession } from "../signer/session";
-import { connections$, pool, writeRelays } from "./pool";
+import { connectedRelayUrls, connections$, needsAuthForPublish, pool, writeRelays } from "./pool";
 import type { Signer } from "./signer";
 import { addVerified, eventStore } from "./store";
 
@@ -20,14 +23,12 @@ export const ACK_TIMEOUT_MS = 10_000;
 export const MAX_AUTO_RETRY = 5;
 /** 自動再送・未送信トーストの最短間隔（ネイティブ PublishAck.RETRY_MIN_INTERVAL_SEC） */
 export const RETRY_MIN_INTERVAL_MS = 30_000;
-/** 受理を確認できなかったときのトースト（ネイティブ ja リソースと同じ文言） */
-export const UNCONFIRMED_MESSAGE = "送信を確認できませんでした。接続が戻ったら自動で再送します";
 
 /** 発行する中身（署名前）。created_at を省けば発行時刻 */
 export type EventDraft = { kind: number; content: string; tags: string[][]; created_at?: number };
 
 export type PublishOptions = {
-  /** 送り先（省けば write リレー） */
+  /** 送り先（省けば write リレー ∪ 接続中のリレー。#582） */
   relays?: readonly string[];
   /** 署名を待っている間に中止する（署名後に中止されていれば積まずに PublishError("aborted")） */
   signal?: AbortSignal;
@@ -100,6 +101,23 @@ function warn(message: string, e: unknown): void {
 }
 
 /**
+ * 既定の発行先: write リレー ∪ 接続中の全リレー（ネイティブ EventRepository.publishTo と同じ規則、#582）。
+ * 検索専用リレーと、AUTH を要求していてまだ認証できていないリレーは除く。重複は除く。
+ */
+function defaultPublishTargets(): string[] {
+  const excluded = new Set(SEARCH_RELAYS.map(normalizeURL));
+  const seen = new Set<string>();
+  const targets: string[] = [];
+  for (const url of [...writeRelays(), ...connectedRelayUrls()]) {
+    const key = normalizeURL(url);
+    if (excluded.has(key) || seen.has(key) || needsAuthForPublish(url)) continue;
+    seen.add(key);
+    targets.push(url);
+  }
+  return targets;
+}
+
+/**
  * すべての発行の入口: 署名 → client タグ → ストアへ楽観追加 → 送信キュー → 送信。受理は待たない
  * （10 秒以内に受理が無ければ未送信として残し、再送の対象にする）。
  */
@@ -137,7 +155,7 @@ export async function publishEvent(draft: EventDraft, opts?: PublishOptions): Pr
   try {
     await queueDb?.publishQueue.put(row);
   } catch (e) {
-    warn("未送信の保存に失敗", e);
+    warn(t("web_log_publish_save_failed"), e);
   }
   send(row, true);
   return signed;
@@ -177,7 +195,7 @@ export async function enqueueSigned(
   try {
     await queueDb?.publishQueue.put(row);
   } catch (e) {
-    warn("未送信の保存に失敗", e);
+    warn(t("web_log_publish_save_failed"), e);
   }
   send(row, opts.notify);
 }
@@ -213,7 +231,7 @@ function send(row: PublishQueueRow, notify: boolean): void {
   cancels.add(cancel);
   waiters.set(id, onAccepted);
 
-  subscription = pool.event(row.relays ?? [...writeRelays()], row.payload).subscribe({
+  subscription = pool.event(row.relays ?? defaultPublishTargets(), row.payload).subscribe({
     next: (response) => {
       if (isAccepted(response.ok, response.message)) accept(id);
     },
@@ -238,14 +256,14 @@ function unconfirmed(id: string, notify: boolean): void {
   const attempts = row.attempts + 1;
   rows.set(id, { ...row, attempts });
   refreshUnsent();
-  queueDb?.publishQueue.update(id, { attempts }).catch((e) => warn("試行回数の保存に失敗", e));
+  queueDb?.publishQueue.update(id, { attempts }).catch((e) => warn(t("web_log_publish_attempts_failed"), e));
   if (notify) notifyUnconfirmed();
 }
 
 function dequeue(id: string): void {
   if (!rows.delete(id)) return;
   refreshUnsent();
-  queueDb?.publishQueue.delete(id).catch((e) => warn("未送信の削除に失敗", e));
+  queueDb?.publishQueue.delete(id).catch((e) => warn(t("web_log_publish_delete_failed"), e));
 }
 
 function notifyUnconfirmed(): void {
@@ -301,7 +319,7 @@ export async function startPublishQueue(opts?: { database?: NostrismDb | null })
     try {
       stored = await target.publishQueue.toArray();
     } catch (e) {
-      warn("未送信の読み込みに失敗", e);
+      warn(t("web_log_publish_load_failed"), e);
     }
     for (const row of stored) {
       try {
@@ -320,7 +338,7 @@ export async function startPublishQueue(opts?: { database?: NostrismDb | null })
           if (row.owner === undefined || row.owner === row.payload.pubkey) addVerified(current.payload);
         }
       } catch (e) {
-        warn("未送信の復元に失敗", e);
+        warn(t("web_log_publish_restore_failed"), e);
       }
     }
     const storedIds = new Set(stored.map((row) => row.eventId));
@@ -329,7 +347,7 @@ export async function startPublishQueue(opts?: { database?: NostrismDb | null })
       try {
         await target.publishQueue.put(row);
       } catch (e) {
-        warn("未送信の保存に失敗", e);
+        warn(t("web_log_publish_save_failed"), e);
       }
     }
   }

@@ -1,0 +1,319 @@
+/* [#587] タブ（カスタマイズ / ストア）。見た目は ThemeSettings.module.css の .chip と同じ */
+.tabs {
+  flex: none;
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0 0;
+}
+
+.tab {
+  min-height: var(--touch-xs);
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font: inherit;
+  font-size: var(--type-label);
+  cursor: pointer;
+}
+
+.tab[aria-pressed="true"] {
+  background: var(--accent-weak);
+  color: var(--text);
+}
+
+/* ---- プレビュー（常に見える位置に固定。「適用」を押すまで反映されないことを明示） ---- */
+
+.previewLabel {
+  flex: none;
+  margin: var(--sp-3) 0 var(--sp-1);
+  color: var(--text-3);
+  font-size: var(--type-caption);
+}
+
+.previewCard {
+  flex: none;
+  box-sizing: border-box;
+  padding: var(--sp-2);
+  border: 1px solid;
+  border-radius: var(--r-md);
+}
+
+.previewRow {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+}
+
+.previewAvatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.previewBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.previewHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  font-size: var(--type-sub);
+  font-weight: var(--w-name);
+}
+
+.previewText {
+  margin: var(--sp-1) 0 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  font-size: var(--type-label);
+}
+
+.previewFoot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+.previewAction {
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-full);
+  font-size: var(--type-label);
+}
+
+.previewBar {
+  width: 40px;
+  height: 6px;
+  border-radius: var(--r-full);
+}
+
+/* ---- ページ（カスタマイズ / ストアのタブ内容。ここだけスクロールする） ---- */
+
+.page {
+  flex: 1;
+  min-height: 0;
+  margin-top: var(--sp-3);
+  overflow-y: auto;
+}
+
+/* ---- 適用ボタン（固定フッター。#464 の applyCustomColors を呼ぶ） ---- */
+
+.apply {
+  flex: none;
+  width: 100%;
+  min-height: var(--touch-sm);
+  margin: var(--sp-2) 0 var(--sp-3);
+  border: none;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  /* [#673] アクセント地の上の文字色（ダークではほぼ白地に固定 #fff が乗り不可視だった） */
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: var(--w-strong);
+  cursor: pointer;
+}
+
+.apply:disabled {
+  background: var(--surface-3);
+  color: var(--text-3);
+  cursor: default;
+}
+
+/* ---- カスタマイズタブ（プリセット + 3色 + 警告 + 既定に戻す + 公開） ---- */
+
+.caption {
+  margin: 0 0 var(--sp-1);
+  color: var(--text-2);
+  font-size: var(--type-caption);
+}
+
+.desc {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.customize {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.preset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-2);
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-micro);
+  cursor: pointer;
+}
+
+.preset[aria-pressed="true"] {
+  background: var(--accent-weak);
+  color: var(--text);
+}
+
+.colorField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.colorRow input[type="color"] {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: none;
+  cursor: pointer;
+}
+
+.hexInput {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--touch-sm);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px; /* 16px 未満だと iOS Safari がフォーカス時に拡大する */
+}
+
+.warn {
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--type-label);
+}
+
+.reset {
+  align-self: flex-start;
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
+
+/* [#539] テーマストアへの公開の導線をカスタム配色の編集から区切る */
+.divider {
+  align-self: stretch;
+  margin: var(--sp-2) 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+/* [#539] 公開ダイアログ（枠は ConfirmDialog / NewConversationDialog と同じ） */
+.dialog {
+  box-sizing: border-box;
+  width: min(560px, calc(100% - var(--sp-5) * 2));
+  padding: var(--sp-5);
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.dialogTitle {
+  margin: 0;
+  font-size: var(--type-title);
+  font-weight: var(--w-strong);
+}
+
+.dialogInput {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--touch-sm);
+  margin-top: var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  /* 16px 未満だと iOS Safari がフォーカス時に拡大する */
+  font-size: 16px;
+}
+
+.dialogInput:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.dialogButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-5);
+}
+
+.dialogButton {
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  font: inherit;
+  font-size: var(--type-body);
+  font-weight: var(--w-link);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .dialogButton:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
+}
+
+.dialogButton:disabled {
+  color: var(--text-3);
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dialogDismiss {
+  color: var(--text-3);
+}
+
+.dialogConfirm {
+  color: var(--text);
+}

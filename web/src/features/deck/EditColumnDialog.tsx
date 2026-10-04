@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from "react";
+import { useT } from "../../i18n";
 import {
   type ColumnSpec,
   type ColumnTemplate,
@@ -6,6 +7,7 @@ import {
   editTemplate,
   editText,
   TEMPLATES,
+  templateLabel,
 } from "../../lib/columns";
 import { useDeck } from "../../store/deck";
 import { ColumnConfigForm } from "./ColumnConfigForm";
@@ -19,7 +21,7 @@ export function EditColumnDialog() {
   const id = useDeck((s) => s.editingColumnId);
   const spec = useDeck((s) => s.columns.find((c) => c.id === id));
   const templateId = spec ? editTemplate(spec) : null;
-  const template = TEMPLATES.find((t) => t.template === templateId);
+  const template = TEMPLATES.find((tpl) => tpl.template === templateId);
 
   // 対象が消えた・設定を持たないカラムなら閉じる
   useEffect(() => {
@@ -31,6 +33,7 @@ export function EditColumnDialog() {
 }
 
 function EditDialog({ spec, template }: { spec: ColumnSpec; template: ColumnTemplate }) {
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -48,7 +51,7 @@ function EditDialog({ spec, template }: { spec: ColumnSpec; template: ColumnTemp
     >
       <div className={styles.head}>
         <h2 id={titleId} className={styles.title}>
-          フィルターを編集 — {template.label}
+          {t("web_deck_edit_filter_title", templateLabel(template.template))}
         </h2>
       </div>
       <ColumnConfigForm
@@ -56,8 +59,8 @@ function EditDialog({ spec, template }: { spec: ColumnSpec; template: ColumnTemp
         initialText={editText(spec)}
         initialRelays={editRelays(spec)}
         initialKinds={spec.filter.kinds}
-        submitLabel="保存"
-        cancelLabel="キャンセル"
+        submitLabel={t("common_save")}
+        cancelLabel={t("common_cancel")}
         onCancel={() => dialog.current?.close()}
         onSubmit={(newSpec) => {
           useDeck.getState().updateColumn(spec.id, newSpec);

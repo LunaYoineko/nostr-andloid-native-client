@@ -122,6 +122,16 @@ describe("判定（MuteMatcher）", () => {
     expect(isNoteMuted(m, note({ content: "hello" }), me)).toBe(false);
   });
 
+  it("ワードは表示用の本文（画像・動画・YouTube の URL を除いたもの）で判定する。メディアのみで空になるときは生 content にフォールバックする（挙動3.2）", () => {
+    const m = matcherOf(entry("word", "spam"));
+    // 語が画像 URL の中にしかない・他に本文があるなら、URL を除いた表示用の本文では一致しない
+    expect(isNoteMuted(m, note({ content: "buy this https://x.co/spam.jpg now" }), me)).toBe(false);
+    // メディアだけの投稿（除くと空になる）は content そのままで判定する（ネイティブ #326 と同じ）
+    expect(isNoteMuted(m, note({ content: "https://x.co/spam.jpg" }), me)).toBe(true);
+    // 通常の本文はそのまま一致する
+    expect(isNoteMuted(m, note({ content: "this is spam" }), me)).toBe(true);
+  });
+
   it("ハッシュタグ（小文字で比べる）とスレッド（e タグ・自身の id）", () => {
     const root = note({ content: "root" });
     const m = matcherOf(entry("t", "NSFW"), entry("e", root.id));

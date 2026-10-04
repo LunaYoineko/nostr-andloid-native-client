@@ -1,30 +1,59 @@
-/* .main の gap（8px）と合わせて本文 ↔ アクション行が 12px（ネイティブ DeckSpace.Md） */
+/* .main の gap（8px）と合わせて本文 ↔ アクション行が 12px（ネイティブ DeckSpace.Md）。
+   [#674] margin-top は --action-row-my（廃人モードで sp-1 → 0）。 */
 .footer {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--sp-2);
-  margin-top: var(--sp-1);
+  margin-top: var(--action-row-my);
 }
 
-/* タッチ箱の内側余白ぶん左右へ出す（ネイティブの offset(-iconInset)）。fieldset の既定の枠・余白は消す */
+/* タッチ箱の内側余白ぶん左右へ出す（ネイティブの offset(-iconInset)）。fieldset の既定の枠・余白は消す。
+   [#683] 直下の子は primaryActions（返信〜Zap）と more（⋯）の2つ。space-between で ⋯ を常に行の右端へ */
 .actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--sp-1);
   align-self: stretch;
   min-width: 0;
-  margin: 0 calc((var(--icon-md) - var(--touch-sm)) / 2);
+  margin: 0 calc((var(--icon-md) - var(--action-size)) / 2);
   padding: 0;
   border: 0;
+}
+
+/* [#683] 返信〜Zap を行の幅いっぱいに均等配置する（justify-content: space-between 相当）。
+   --action-row-max を超える幅では伸びを止め、左寄せのまま内側の間隔だけ均等にする（間延び防止）。 */
+.primaryActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1);
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: var(--action-row-max);
+}
+
+/* [#695] 廃人モードだけ、返信〜Zap を右寄せにして左に隙間を作る（右手の親指で届くように）。
+   ボタン間の中心間隔は通常モード（--touch-sm + --sp-1）と同じにして詰めすぎない。
+   通常モードは #683 の均等配置のまま。タップ領域 --action-size は変えない */
+:root[data-density="dense"] .actions {
+  justify-content: flex-end;
+}
+
+:root[data-density="dense"] .primaryActions {
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  max-width: 100%;
+  gap: calc(var(--touch-sm) - var(--action-size) + var(--sp-1));
 }
 
 .action {
   display: grid;
   place-items: center;
   flex: none;
-  width: var(--touch-sm);
-  height: var(--touch-sm);
+  width: var(--action-size);
+  height: var(--action-size);
   padding: 0;
   border: 0;
   border-radius: var(--r-full);
@@ -33,8 +62,10 @@
   cursor: pointer;
 }
 
-.action:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .action:hover {
+    background: var(--surface-2);
+  }
 }
 
 .action:focus-visible {
@@ -42,9 +73,10 @@
   outline-offset: -2px;
 }
 
+/* [#596] グリフだけ文字サイズにも追従（ネイティブ NoteItem.kt の ActionButton = IconMd.scaledByText()。最大1.3倍） */
 .action svg {
-  width: var(--icon-md);
-  height: var(--icon-md);
+  width: calc(var(--icon-md) * clamp(1, var(--text-scale), 1.3));
+  height: calc(var(--icon-md) * clamp(1, var(--text-scale), 1.3));
 }
 
 .unsent {

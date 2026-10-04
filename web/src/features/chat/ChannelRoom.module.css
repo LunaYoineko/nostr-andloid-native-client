@@ -204,8 +204,10 @@
   cursor: pointer;
 }
 
-.action:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .action:hover {
+    background: var(--surface-2);
+  }
 }
 
 .action[aria-pressed="true"][data-shape="heart"] {
@@ -290,8 +292,10 @@
   cursor: pointer;
 }
 
-.write:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .write:hover {
+    background: var(--surface-2);
+  }
 }
 
 /* 投稿モーダル（ComposeDialog と同じく画面上端寄せのカード） */
@@ -304,7 +308,8 @@
   max-width: none;
   max-height: none;
   margin: 0;
-  padding: calc(env(safe-area-inset-top, 0px) + var(--sp-3)) var(--sp-4) var(--sp-3);
+  padding: calc(env(safe-area-inset-top, 0px) + var(--sp-3)) var(--sp-4)
+    calc(env(safe-area-inset-bottom, 0px) + var(--sp-3));
   border: 0;
   background: transparent;
   color: var(--text);
@@ -316,12 +321,14 @@
   background: rgba(0, 0, 0, 0.55);
 }
 
+/* 高さはソフトキーボードを除いた見えている高さ（--compose-vvh）に収める。ComposeDialog の .card と同じ（#594） */
 .modalCard {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 460px;
+  max-height: calc(var(--compose-vvh, 100dvh) - env(safe-area-inset-top, 0px) - var(--sp-3) * 2);
   margin: 0 auto;
   border-radius: var(--r-lg);
   background: var(--surface);

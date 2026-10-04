@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Navigate, useSearchParams } from "react-router";
+import { t, useT } from "../i18n";
 import { waitForNostr } from "../signer/nip07";
 import { nsecHead } from "../signer/nsec";
 import { LoginError, type NewKey, type NostrConnectLogin, useSession } from "../signer/session";
@@ -7,6 +8,7 @@ import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { QrCode } from "../ui/QrCode";
 import { Loading } from "./Loading";
 import styles from "./LoginGate.module.css";
+import { UpdateToast } from "./UpdateToast";
 
 type ExtensionState = "checking" | "found" | "missing";
 /** 処理中のログイン方法（どれかの処理中は他も押せない） */
@@ -14,15 +16,13 @@ type Busy = "nip07" | "nip46" | "nsec" | "new" | null;
 
 const EXTERNAL_LINK = { target: "_blank", rel: "noopener noreferrer" } as const;
 
-const UNAVAILABLE_MESSAGE =
-  "このブラウザでは秘密鍵を安全に保存できません。拡張機能（NIP-07）でログインしてください。";
-
 /**
  * 未ログイン時のゲート（ネイティブの LoginGate に対応）。鍵は勝手に生成せず、ログイン方法を選ばせる。
  * 並びは NIP-07 → リモート署名（NIP-46、折りたたみ）→ 秘密鍵（nsec、折りたたみ）→ 新規生成。
  * ログイン済みなら ?next=（無ければ /）へ戻す。
  */
 export function LoginGate() {
+  const t = useT();
   const status = useSession((s) => s.status);
   const login = useSession((s) => s.login);
   const generateNewKey = useSession((s) => s.generateNewKey);
@@ -68,7 +68,7 @@ export function LoginGate() {
     try {
       setNewKey(await generateNewKey());
     } catch {
-      setNewKeyError(UNAVAILABLE_MESSAGE);
+      setNewKeyError(t("web_login_unavailable"));
     } finally {
       setBusy(null);
     }
@@ -76,13 +76,15 @@ export function LoginGate() {
 
   return (
     <main className={styles.gate}>
-      <h1 className={styles.title}>Nostrism へようこそ</h1>
-      <p className={styles.lead}>
-        ログイン方法を選んでください。秘密鍵を勝手に生成することはありません。アカウントをお持ちでない場合は、下の「新規生成」から新しい鍵を作れます。
-      </p>
+      {/* AppShell を通らないので、SW の更新通知はここでも出す（#595） */}
+      <UpdateToast />
+      {/* ネイティブ AppMark 56dp と同じ置き場所（L5） */}
+      <img className={styles.logo} src="/icons/icon-192.png" alt="" width={56} height={56} />
+      <h1 className={styles.title}>{t("login_welcome")}</h1>
+      <p className={styles.lead}>{t("web_login_lead")}</p>
 
       <button type="button" className={styles.primary} onClick={onLogin} disabled={busy !== null}>
-        {busy === "nip07" ? "拡張機能の応答を待っています…" : "拡張機能でログイン（NIP-07）"}
+        {busy === "nip07" ? t("web_login_nip07_waiting") : t("web_login_nip07")}
       </button>
       {error && (
         <p role="alert" className={styles.error}>
@@ -91,12 +93,12 @@ export function LoginGate() {
       )}
 
       {extension === "missing" && (
-        <section className={styles.help} aria-label="拡張機能の案内">
-          <p className={styles.helpTitle}>NIP-07 に対応した拡張機能が見つかりません</p>
-          <p>次のいずれかを入れてから、このページを再読み込みしてください。</p>
+        <section className={styles.help} aria-label={t("web_login_help_label")}>
+          <p className={styles.helpTitle}>{t("web_login_help_title")}</p>
+          <p>{t("web_login_help_install")}</p>
           <ul className={styles.helpList}>
             <li>
-              PC（Chrome など）:{" "}
+              {t("web_login_help_pc")}{" "}
               <a
                 href="https://chromewebstore.google.com/detail/nos2x/kpgefcfmnafjgpblomihpgmejjdanjjp"
                 {...EXTERNAL_LINK}
@@ -109,7 +111,7 @@ export function LoginGate() {
               </a>
             </li>
             <li>
-              iPhone / iPad（Safari）:{" "}
+              {t("web_login_help_ios")}{" "}
               <a href="https://apps.apple.com/app/nostash/id6744309333" {...EXTERNAL_LINK}>
                 Nostash
               </a>
@@ -119,14 +121,14 @@ export function LoginGate() {
       )}
 
       <details className={styles.more}>
-        <summary>リモート署名でログイン（NIP-46）</summary>
+        <summary>{t("nip46_title")}</summary>
         <div className={styles.moreBody}>
           <Nip46LoginForm busy={busy !== null} onBusy={(b) => setBusy(b ? "nip46" : null)} />
         </div>
       </details>
 
       <details className={styles.more}>
-        <summary>秘密鍵（nsec）でログイン</summary>
+        <summary>{t("nsec_login_title")}</summary>
         <div className={styles.moreBody}>
           <NsecLoginForm busy={busy !== null} onBusy={(b) => setBusy(b ? "nsec" : null)} />
         </div>
@@ -134,7 +136,7 @@ export function LoginGate() {
 
       <section className={styles.newKey} aria-labelledby="newkey-title">
         <p id="newkey-title" className={styles.newKeyTitle}>
-          アカウントをお持ちでない場合
+          {t("web_login_no_account")}
         </p>
         <button
           type="button"
@@ -142,7 +144,7 @@ export function LoginGate() {
           disabled={busy !== null}
           onClick={() => setConfirmNewKey(true)}
         >
-          新規生成
+          {t("nsec_generate")}
         </button>
         {newKeyError && (
           <p role="alert" className={styles.error}>
@@ -153,9 +155,9 @@ export function LoginGate() {
 
       {confirmNewKey && (
         <ConfirmDialog
-          title="新しい鍵を生成しますか？"
-          text="新しい秘密鍵をこのブラウザで作り、暗号化して保存します。秘密鍵（nsec）は生成の直後に 1 回だけ表示します。Web 版では後から表示・書き出しできないため、控えておかないと、ブラウザのデータを消したり、長く使わずに消えたりしたとき、このアカウントには二度とログインできません。長く使うアカウントには、拡張機能（NIP-07）の利用をおすすめします。"
-          confirmLabel="生成する"
+          title={t("keyswitch_generate_title")}
+          text={t("web_login_new_key_confirm_text")}
+          confirmLabel={t("web_login_new_key_confirm_label")}
           destructive
           onConfirm={() => {
             setConfirmNewKey(false);
@@ -174,6 +176,7 @@ export function LoginGate() {
  * nostrconnect:// の URI も secret を含むので、文字列は画面に出さない（QR・リンク・コピーだけ）。
  */
 function Nip46LoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean): void }) {
+  const t = useT();
   const loginWithBunker = useSession((s) => s.loginWithBunker);
   const startNostrConnectLogin = useSession((s) => s.startNostrConnectLogin);
   const input = useRef<HTMLInputElement>(null);
@@ -272,42 +275,36 @@ function Nip46LoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean)
 
   return (
     <>
-      <p>
-        署名アプリ（Amber など）や nsec.app
-        と接続します。秘密鍵は署名アプリ側に残り、このブラウザには置きません。
-      </p>
+      <p>{t("web_login_nip46_desc")}</p>
       {connectUri ? (
         <div className={styles.connect}>
-          <QrCode value={connectUri} label="署名アプリで読み取る接続用の QR コード" />
-          <p>
-            署名アプリ（Amber など）で QR
-            を読み取るか、この端末に署名アプリがあれば下のリンクを開いて、接続を承認してください。
-          </p>
+          <QrCode value={connectUri} label={t("web_login_nip46_qr_label")} />
+          <p>{t("web_login_nip46_qr_hint")}</p>
           <div className={styles.actions}>
             <a href={connectUri} className={styles.openLink}>
-              署名アプリで開く
+              {t("web_login_nip46_open")}
             </a>
             <button type="button" className={styles.ghost} onClick={onCopy}>
-              コピー
+              {t("common_copy")}
             </button>
           </div>
           {copied && (
             <p role="status" className={styles.note}>
-              {copied === "ok" ? "コピーしました" : "コピーできませんでした"}
+              {copied === "ok" ? t("copied") : t("web_copy_failed")}
             </p>
           )}
           <div className={styles.actions}>
             <p role="status" className={styles.note}>
-              承認待ち…
+              {t("nip46_waiting")}
             </p>
             <button type="button" className={styles.ghost} onClick={() => pending.current?.cancel()}>
-              やめる
+              {t("web_login_cancel")}
             </button>
           </div>
         </div>
       ) : (
         <button type="button" className={styles.submit} onClick={onShowQr} disabled={busy}>
-          接続用の QR を表示（Amber など）
+          {t("web_login_nip46_show_qr")}
         </button>
       )}
       {connectError && (
@@ -316,7 +313,7 @@ function Nip46LoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean)
         </p>
       )}
       <form className={styles.moreBody} onSubmit={onSubmit}>
-        <label htmlFor="bunker-input">または bunker:// を貼り付け</label>
+        <label htmlFor="bunker-input">{t("web_login_nip46_bunker")}</label>
         <div className={styles.field}>
           <input
             ref={input}
@@ -333,7 +330,7 @@ function Nip46LoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean)
           />
           {canPaste && (
             <button type="button" className={styles.fieldAction} onClick={onPaste} disabled={busy}>
-              貼り付け
+              {t("theme_code_paste")}
             </button>
           )}
         </div>
@@ -344,11 +341,11 @@ function Nip46LoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean)
         )}
         <div className={styles.actions}>
           <button type="submit" className={styles.submit} disabled={busy || !ready} aria-busy={connecting}>
-            {connecting ? "接続中…（署名アプリで承認してください）" : "接続"}
+            {connecting ? t("web_login_nip46_connecting") : t("nwc_connect")}
           </button>
           {connecting && (
             <button type="button" className={styles.ghost} onClick={() => controller.current?.abort()}>
-              やめる
+              {t("web_login_cancel")}
             </button>
           )}
         </div>
@@ -362,6 +359,7 @@ function Nip46LoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean)
  * 入力値を DOM 属性に出さないよう value は React で持たない（制御すると value 属性に同期されるため）。
  */
 function NsecLoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean): void }) {
+  const t = useT();
   const loginWithNsec = useSession((s) => s.loginWithNsec);
   const input = useRef<HTMLInputElement>(null);
   const [filled, setFilled] = useState(false);
@@ -407,16 +405,12 @@ function NsecLoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean):
   return (
     <>
       <div className={styles.warn}>
-        <p>
-          秘密鍵（nsec）を知っている人は、あなたのアカウントを完全に操作できます。できるだけ拡張機能（NIP-07）でログインしてください。
-        </p>
-        <p>
-          取り込んだ秘密鍵は暗号化してこのブラウザにだけ保存します。Web 版では表示・書き出しはできません。
-        </p>
+        <p>{t("web_login_nsec_warn1")}</p>
+        <p>{t("web_login_nsec_warn2")}</p>
       </div>
       <form className={styles.moreBody} onSubmit={onSubmit}>
         <label htmlFor="nsec-input" className="srOnly">
-          秘密鍵（nsec）
+          {t("web_login_nsec_label")}
         </label>
         <div className={styles.field}>
           <input
@@ -428,13 +422,13 @@ function NsecLoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean):
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
-            placeholder="nsec を貼り付けて取り込み"
+            placeholder={t("nsec_placeholder")}
             onChange={(e) => onInput(e.target.value)}
             disabled={busy}
           />
           {canPaste && (
             <button type="button" className={styles.fieldAction} onClick={onPaste} disabled={busy}>
-              貼り付け
+              {t("theme_code_paste")}
             </button>
           )}
           <button
@@ -443,7 +437,7 @@ function NsecLoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean):
             aria-pressed={reveal}
             onClick={() => setReveal((r) => !r)}
           >
-            {reveal ? "隠す" : "表示"}
+            {reveal ? t("common_hide") : t("web_login_nsec_show")}
           </button>
         </div>
         {error && (
@@ -452,7 +446,7 @@ function NsecLoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean):
           </p>
         )}
         <button type="submit" className={styles.submit} disabled={busy || !filled} aria-busy={busy}>
-          取り込み
+          {t("nsec_import")}
         </button>
       </form>
     </>
@@ -464,6 +458,7 @@ function NsecLoginForm({ busy, onBusy }: { busy: boolean; onBusy(busy: boolean):
  * 閉じる・再読み込みすると二度と表示しない（保管した鍵の表示・書き出しは作らない）。
  */
 function NewKeyBackup({ newKey, onDone }: { newKey: NewKey; onDone(): void }) {
+  const t = useT();
   const loginWithNewKey = useSession((s) => s.loginWithNewKey);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState<"ok" | "failed" | null>(null);
@@ -487,7 +482,7 @@ function NewKeyBackup({ newKey, onDone }: { newKey: NewKey; onDone(): void }) {
       await loginWithNewKey(newKey.pubkey);
       onDone();
     } catch {
-      setError(UNAVAILABLE_MESSAGE);
+      setError(t("web_login_unavailable"));
     } finally {
       setBusy(false);
     }
@@ -495,29 +490,25 @@ function NewKeyBackup({ newKey, onDone }: { newKey: NewKey; onDone(): void }) {
 
   return (
     <main className={styles.gate}>
-      <h1 className={styles.title}>秘密鍵を控えてください</h1>
+      <h1 className={styles.title}>{t("web_login_backup_title")}</h1>
       <div className={styles.warn}>
-        <p>控えてください。この画面を閉じると二度と表示されません。</p>
-        <p>
-          秘密鍵（nsec）は、このアカウントに再びログインするための唯一の手段です。知っている人はアカウントを完全に操作できるので、人に見せたり送ったりしないでください。
-        </p>
+        <p>{t("web_login_backup_warn1")}</p>
+        <p>{t("web_login_backup_warn2")}</p>
       </div>
       <p className={styles.secret}>{newKey.nsec}</p>
       {canCopy && (
         <button type="button" className={styles.ghost} onClick={onCopy}>
-          コピー
+          {t("common_copy")}
         </button>
       )}
       {copied && (
         <p role="status" className={styles.note}>
-          {copied === "ok"
-            ? "コピーしました。安全な場所に保存してください。"
-            : "コピーできませんでした。表示された秘密鍵を選択して控えてください。"}
+          {copied === "ok" ? t("web_login_backup_copied") : t("web_login_backup_copy_failed")}
         </p>
       )}
       <label className={styles.check}>
         <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
-        秘密鍵（nsec）を控えた
+        {t("web_login_backup_saved")}
       </label>
       {error && (
         <p role="alert" className={styles.error}>
@@ -531,7 +522,7 @@ function NewKeyBackup({ newKey, onDone }: { newKey: NewKey; onDone(): void }) {
         aria-busy={busy}
         onClick={onContinue}
       >
-        次へ
+        {t("web_login_backup_next")}
       </button>
     </main>
   );
@@ -544,52 +535,52 @@ function safeNext(next: string | null): string {
 
 function errorMessage(e: unknown): string {
   if (e instanceof LoginError && e.reason === "missing") {
-    return "拡張機能が見つかりませんでした（タイムアウト）。拡張機能を有効にしてから再読み込みしてください。";
+    return t("web_login_err_missing");
   }
   if (e instanceof LoginError) {
-    return "ログインできませんでした。拡張機能で許可されなかった可能性があります。";
+    return t("web_login_err_denied");
   }
-  return "ログインできませんでした。";
+  return t("web_login_err_failed");
 }
 
 // 例外のメッセージは出さない（署名アプリの応答や bunker:// の secret を含むことがある）
 function nip46ErrorMessage(e: unknown): string | null {
-  if (!(e instanceof LoginError)) return "ログインできませんでした。";
+  if (!(e instanceof LoginError)) return t("web_login_err_failed");
   switch (e.reason) {
     case "invalid-uri":
-      return "bunker://… の形式で、wss:// のリレーを含む接続先を貼り付けてください";
+      return t("web_login_err_bunker_uri");
     case "timeout":
-      return "署名アプリから応答がありませんでした。アプリで承認してから、もう一度お試しください";
+      return t("web_login_err_nip46_timeout");
     case "rejected":
-      return "署名アプリに拒否されました";
+      return t("web_login_err_rejected");
     case "unavailable":
-      return "このブラウザでは接続情報を保存できません。拡張機能（NIP-07）でログインしてください。";
+      return t("web_login_err_unavailable");
     case "cancelled":
       return null;
     default:
-      return "ログインできませんでした。";
+      return t("web_login_err_failed");
   }
 }
 
 // nostrconnect:// の失敗。承認されないまま時間切れのときだけ文言が bunker:// と違う
 function nostrConnectErrorMessage(e: unknown): string | null {
   if (e instanceof LoginError && e.reason === "timeout") {
-    return "3 分以内に承認されませんでした。もう一度 QR を表示してください";
+    return t("web_login_err_connect_timeout");
   }
   return nip46ErrorMessage(e);
 }
 
 // 例外のメッセージは出さない（bech32 のエラーは入力を丸ごと含むことがある）
 function nsecErrorMessage(e: unknown, value: string): string {
-  if (!(e instanceof LoginError)) return "ログインできませんでした。";
+  if (!(e instanceof LoginError)) return t("web_login_err_failed");
   switch (e.reason) {
     case "invalid-format":
-      return `nsec1… で始まる秘密鍵を入力してください（入力の先頭: ${nsecHead(value)}）。自動入力で別の値が入っていないか「表示」で確認してください。`;
+      return t("nsec_invalid_fmt", nsecHead(value));
     case "invalid-key":
-      return "nsec の取り込みに失敗: 秘密鍵として読み取れませんでした";
+      return t("web_login_err_invalid_key");
     case "unavailable":
-      return UNAVAILABLE_MESSAGE;
+      return t("web_login_unavailable");
     default:
-      return "ログインできませんでした。";
+      return t("web_login_err_failed");
   }
 }

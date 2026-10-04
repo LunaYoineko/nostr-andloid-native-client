@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForProfile } from "../../lib/content/labels";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { badgeText } from "../../ui/badge";
-import { EditIcon } from "../../ui/icons";
+import { AddIcon } from "../../ui/icons";
 import { Avatar } from "../timeline/NoteItem";
 import styles from "./ConversationList.module.css";
 import { resumeDecrypting } from "./dmService";
@@ -27,6 +28,7 @@ export function ConversationList({
   showBanners: boolean;
   showNewRow: boolean;
 }) {
+  const t = useT();
   const conversations = useConversations();
   const loaded = useDm((s) => s.loaded);
   const [composing, setComposing] = useState(false);
@@ -35,8 +37,8 @@ export function ConversationList({
       {showBanners && <Banners />}
       {showNewRow && (
         <button type="button" className={styles.newRow} onClick={() => setComposing(true)}>
-          <EditIcon className={styles.newIcon} />
-          新しいメッセージを送る
+          <AddIcon className={styles.newIcon} />
+          {t("dm_new_row")}
         </button>
       )}
       {composing && (
@@ -49,7 +51,7 @@ export function ConversationList({
         />
       )}
       {conversations.length === 0 ? (
-        <p className={styles.empty}>{loaded ? "まだ会話がありません" : "読み込み中…"}</p>
+        <p className={styles.empty}>{loaded ? t("dm_empty") : t("loading")}</p>
       ) : (
         <ul className={styles.rows}>
           {conversations.map((conversation) => (
@@ -66,10 +68,8 @@ export function ConversationList({
   );
 }
 
-const NO_NIP44 =
-  "この拡張機能は NIP-44 に対応していないため、NIP-17 の DM を読めません（NIP-04 の DM だけ表示しています）";
-
 function Banners() {
+  const t = useT();
   const nip17 = useDm((s) => s.nip17);
   const paused = useDm((s) => s.paused);
   const pending = useDm((s) => s.pending);
@@ -77,22 +77,20 @@ function Banners() {
     <>
       {nip17 === "no-nip44" && (
         <div role="status" className={styles.banner}>
-          {NO_NIP44}
+          {t("web_dm_banner_no_nip44")}
         </div>
       )}
       {paused ? (
         <div role="status" className={styles.banner}>
-          <span className={styles.bannerText}>
-            復号を一時停止しました（署名の要求が拒否されたか、応答がありません）
-          </span>
+          <span className={styles.bannerText}>{t("web_dm_banner_paused")}</span>
           <button type="button" className={styles.bannerButton} onClick={resumeDecrypting}>
-            再開
+            {t("web_dm_banner_resume")}
           </button>
         </div>
       ) : (
         pending > 0 && (
           <div role="status" className={styles.banner}>
-            復号中（残り {pending} 件）
+            {t("web_dm_banner_decrypting", pending)}
           </div>
         )
       )}
@@ -109,20 +107,25 @@ function ConversationRow({
   selected: boolean;
   onSelect(peer: string): void;
 }) {
+  const t = useT();
   const { peer, last, unread } = conversation;
   const profile = useProfile(peer);
   const picture = pictureOf(profile);
   const name = displayName(profile, peer);
   return (
     <li className={styles.item}>
-      <Link className={styles.avatarLink} to={hrefForProfile(peer)} aria-label={`${name} のプロフィール`}>
+      <Link
+        className={styles.avatarLink}
+        to={hrefForProfile(peer)}
+        aria-label={t("web_dm_profile_label", name)}
+      >
         <Avatar key={picture} url={picture} size="lg" seed={name} pubkey={peer} />
       </Link>
       <button
         type="button"
         className={styles.row}
         aria-current={selected ? "true" : undefined}
-        aria-label={unread > 0 ? `${name}（未読 ${unread} 件） ${last.content}` : undefined}
+        aria-label={unread > 0 ? t("web_dm_row_unread_label", name, unread, last.content) : undefined}
         onClick={() => onSelect(peer)}
       >
         <span className={styles.texts}>

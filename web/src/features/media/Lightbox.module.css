@@ -57,13 +57,14 @@
   font-size: var(--type-body);
 }
 
+/* viewport-fit=cover + standalone でノッチの下に重ならないよう safe-area 分を上乗せする（#595） */
 .counter {
   position: absolute;
   top: 0;
   right: 0;
   left: 0;
   margin: 0;
-  padding-top: var(--sp-4);
+  padding-top: calc(var(--sp-4) + env(safe-area-inset-top, 0px));
   color: #fff;
   font-size: var(--type-sub);
   text-align: center;
@@ -76,7 +77,8 @@
   right: 0;
   display: flex;
   gap: var(--sp-2);
-  padding: var(--sp-3);
+  padding: calc(var(--sp-3) + env(safe-area-inset-top, 0px))
+    calc(var(--sp-3) + env(safe-area-inset-right, 0px)) var(--sp-3) var(--sp-3);
 }
 
 /* OverlayIconButton（黒 40% の丸・白アイコン） */
@@ -107,11 +109,11 @@
   height: var(--icon-lg);
 }
 
-/* 左右端の中央 */
+/* 左右端の中央。left / right は横向きでノッチが左右に来ても重ならないよう safe-area 分を上乗せする（#595） */
 .nav {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: env(safe-area-inset-top, 0px);
+  bottom: env(safe-area-inset-bottom, 0px);
   margin: auto 0;
 }
 
@@ -122,9 +124,9 @@
 }
 
 .prev {
-  left: var(--sp-3);
+  left: calc(var(--sp-3) + env(safe-area-inset-left, 0px));
 }
 
 .next {
-  right: var(--sp-3);
+  right: calc(var(--sp-3) + env(safe-area-inset-right, 0px));
 }

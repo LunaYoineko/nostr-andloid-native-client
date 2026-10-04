@@ -1,6 +1,7 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import type { NostrEvent } from "nostr-tools/pure";
 import { distinctUntilChanged, map, type Observable, type Subscription, shareReplay } from "rxjs";
+import { t } from "../../i18n";
 import { subscribe } from "../../nostr/pool";
 import { publishEvent } from "../../nostr/publish";
 import { eventStore } from "../../nostr/store";
@@ -115,7 +116,7 @@ export async function requestDelete(event: NostrEvent, reason = ""): Promise<boo
     await publishEvent({ kind: 5, content: reason, tags });
     return true;
   } catch (e) {
-    console.warn("[actions] 削除リクエストに失敗", e);
+    console.warn(`[actions] ${t("web_log_delete_request_failed")}`, e);
     return false;
   }
 }

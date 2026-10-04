@@ -23,6 +23,8 @@ export type CustomPalette = {
   accent: string;
   accent2: string;
   accentWeak: string;
+  /** [#673] アクセント地の上に置く文字/アイコン色（ネイティブ DeckColors.Bg と1対1。常に bg と同じ） */
+  onAccent: string;
   zap: string;
   repost: string;
   like: string;
@@ -141,6 +143,7 @@ export function customPalette(colors: CustomColors): CustomPalette {
     accent,
     accent2: lerpHex(accent, bg, 0.25),
     accentWeak: withAlpha(accent, 0.14),
+    onAccent: bg,
     zap: textStep(0.05),
     repost: textStep(0.18),
     like: textStep(0.38),
@@ -169,6 +172,7 @@ export function customPaletteVars(colors: CustomColors): Record<string, string> 
     "--accent": p.accent,
     "--accent-2": p.accent2,
     "--accent-weak": p.accentWeak,
+    "--on-accent": p.onAccent,
     "--zap": p.zap,
     "--repost": p.repost,
     "--like": p.like,

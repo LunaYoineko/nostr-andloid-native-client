@@ -1,7 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { mockViewport } from "../../test/viewport";
 import { DEFAULT_CUSTOM_COLORS } from "./customPalette";
 import {
   applyCustomColors,
+  CURRENT_THEME_VERSION,
   DARK_SCHEME_QUERY,
   DEFAULT_THEME_PREFS,
   initTheme,
@@ -9,6 +11,7 @@ import {
   resolveTheme,
   setBoldText,
   setCustomColor,
+  setDensity,
   setNoteAccent,
   setTextScale,
   setThemeMode,
@@ -18,6 +21,9 @@ import {
   useThemePrefs,
   useThemeUndo,
 } from "./themePrefs";
+
+/** update() が保存する値には常にこの version が付く（[#660]） */
+const SAVED_DEFAULTS = { ...DEFAULT_THEME_PREFS, version: CURRENT_THEME_VERSION };
 
 let dispose: (() => void) | null = null;
 
@@ -30,6 +36,7 @@ afterEach(() => {
   const root = document.documentElement;
   root.removeAttribute("data-theme");
   root.removeAttribute("data-bold");
+  root.removeAttribute("data-density");
   // 個々の --text-scale / --ui-scale / カスタムパレット変数をまとめて外す
   root.removeAttribute("style");
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) meta.remove();
@@ -86,6 +93,41 @@ it("初期値はダーク・小・太字オフ・カスタムはMidnight・種�
   expect(await initialWith(null)).toEqual(DEFAULT_THEME_PREFS);
 });
 
+it("[#660] matchMedia が無ければ表示サイズの既定は標準（s）", async () => {
+  expect((await initialWith(null)).uiScale).toBe("s");
+});
+
+it("[#660] ホバーできる端末（PC）でも、保存値が無いとき表示サイズの既定は標準（s）のまま（#649 は撤回）", async () => {
+  mockViewport(1024, { hover: true });
+  expect((await initialWith(null)).uiScale).toBe("s");
+});
+
+it("[#660] ホバーできない端末（スマホ・タブレット）でも、表示サイズの既定は標準（s）のまま", async () => {
+  mockViewport(1024, { hover: false });
+  expect((await initialWith(null)).uiScale).toBe("s");
+});
+
+it("uiScale の保存値（バージョン2）があれば、ホバーできる端末でもその値をそのまま使う", async () => {
+  mockViewport(1024, { hover: true });
+  expect((await initialWith(JSON.stringify({ uiScale: "l", version: CURRENT_THEME_VERSION }))).uiScale).toBe(
+    "l",
+  );
+});
+
+it("[#660] バージョン無し（v1）+ uiScale が m の保存値は s へ移行する（#649 の PC 既定だった可能性が高いため）", async () => {
+  expect((await initialWith(JSON.stringify({ uiScale: "m" }))).uiScale).toBe("s");
+});
+
+it("[#660] バージョン1 + uiScale が l の保存値はそのまま", async () => {
+  expect((await initialWith(JSON.stringify({ uiScale: "l", version: 1 }))).uiScale).toBe("l");
+});
+
+it("[#660] バージョン2の保存値は uiScale が m でも移行しない", async () => {
+  expect((await initialWith(JSON.stringify({ uiScale: "m", version: CURRENT_THEME_VERSION }))).uiScale).toBe(
+    "m",
+  );
+});
+
 it("保存値を初期値にする。壊れた JSON は既定、不正な項目はその項目だけ既定へ", async () => {
   expect(
     await initialWith(
@@ -96,6 +138,7 @@ it("保存値を初期値にする。壊れた JSON は既定、不正な項目�
         custom: { bg: "#111111", text: "#eeeeee", accent: "#ff0000" },
         noteAccent: "line",
         uiScale: "m",
+        version: CURRENT_THEME_VERSION,
       }),
     ),
   ).toEqual({
@@ -105,6 +148,7 @@ it("保存値を初期値にする。壊れた JSON は既定、不正な項目�
     custom: { bg: "#111111", text: "#EEEEEE", accent: "#FF0000" },
     noteAccent: "line",
     uiScale: "m",
+    density: "normal",
   });
   localStorage.clear();
   expect(await initialWith("{broken")).toEqual(DEFAULT_THEME_PREFS);
@@ -128,6 +172,7 @@ it("保存値を初期値にする。壊れた JSON は既定、不正な項目�
     custom: { bg: DEFAULT_CUSTOM_COLORS.bg, text: "#123456", accent: "#654321" },
     noteAccent: "none",
     uiScale: "s",
+    density: "normal",
   });
 });
 
@@ -156,12 +201,12 @@ it("setThemeMode で保存し、data-theme と theme-color が変わる", () => 
   dispose = initTheme();
 
   setThemeMode("light");
-  expect(saved()).toEqual({ ...DEFAULT_THEME_PREFS, mode: "light" });
+  expect(saved()).toEqual({ ...SAVED_DEFAULTS, mode: "light" });
   expect(html().dataset.theme).toBe("light");
   expect(themeColor()).toBe("#F2F2F5");
 
   setThemeMode("dark");
-  expect(saved()).toEqual(DEFAULT_THEME_PREFS);
+  expect(saved()).toEqual(SAVED_DEFAULTS);
   expect(html().dataset.theme).toBe("dark");
   expect(themeColor()).toBe("#0C0C10");
 });
@@ -224,7 +269,7 @@ it("文字サイズは --text-scale に TextScale.factor（1 / 1.15 / 1.35）を
 
   setTextScale("m");
   expect(html().style.getPropertyValue("--text-scale")).toBe("1.15");
-  expect(saved()).toEqual({ ...DEFAULT_THEME_PREFS, textScale: "m" });
+  expect(saved()).toEqual({ ...SAVED_DEFAULTS, textScale: "m" });
 
   setTextScale("l");
   expect(html().style.getPropertyValue("--text-scale")).toBe("1.35");
@@ -238,7 +283,7 @@ it("太字は data-bold を付け外しして保存する", () => {
 
   setBoldText(true);
   expect(html().hasAttribute("data-bold")).toBe(true);
-  expect(saved()).toEqual({ ...DEFAULT_THEME_PREFS, bold: true });
+  expect(saved()).toEqual({ ...SAVED_DEFAULTS, bold: true });
 
   setBoldText(false);
   expect(html().hasAttribute("data-bold")).toBe(false);
@@ -250,7 +295,7 @@ it("表示サイズは --ui-scale に UiScale.factor（1 / 1.15 / 1.30）を入�
 
   setUiScale("m");
   expect(html().style.getPropertyValue("--ui-scale")).toBe("1.15");
-  expect(saved()).toEqual({ ...DEFAULT_THEME_PREFS, uiScale: "m" });
+  expect(saved()).toEqual({ ...SAVED_DEFAULTS, uiScale: "m" });
 
   setUiScale("l");
   expect(html().style.getPropertyValue("--ui-scale")).toBe("1.3");
@@ -260,10 +305,40 @@ it("種別の視覚表示（none/line/bg）を保存する", () => {
   dispose = initTheme();
 
   setNoteAccent("line");
-  expect(saved()).toEqual({ ...DEFAULT_THEME_PREFS, noteAccent: "line" });
+  expect(saved()).toEqual({ ...SAVED_DEFAULTS, noteAccent: "line" });
 
   setNoteAccent("bg");
-  expect(saved()).toEqual({ ...DEFAULT_THEME_PREFS, noteAccent: "bg" });
+  expect(saved()).toEqual({ ...SAVED_DEFAULTS, noteAccent: "bg" });
+});
+
+it("[#674] 廃人モード（density）の既定は normal。保存値に無くても normal のまま（旧バージョンの保存値でも壊れない）", async () => {
+  expect((await initialWith(null)).density).toBe("normal");
+  expect((await initialWith(JSON.stringify({ mode: "light", version: CURRENT_THEME_VERSION }))).density).toBe(
+    "normal",
+  );
+});
+
+it("[#674] setDensity は data-density を付け外しして保存する（normal のときは属性を外す）", () => {
+  dispose = initTheme();
+  expect(html().hasAttribute("data-density")).toBe(false);
+
+  setDensity("dense");
+  expect(html().dataset.density).toBe("dense");
+  expect(saved()).toEqual({ ...SAVED_DEFAULTS, density: "dense" });
+
+  setDensity("normal");
+  expect(html().hasAttribute("data-density")).toBe(false);
+  expect(saved()).toEqual(SAVED_DEFAULTS);
+});
+
+it("[#674] initTheme は保存済みの density を同期的に <html> へ当てる", async () => {
+  localStorage.setItem(THEME_KEY, JSON.stringify({ density: "dense", version: CURRENT_THEME_VERSION }));
+  vi.resetModules();
+  const fresh = await import("./themePrefs");
+
+  dispose = fresh.initTheme();
+
+  expect(html().dataset.density).toBe("dense");
 });
 
 it("カスタムテーマ: 背景の輝度でdata-themeを決め、導出したCSS変数と背景色のtheme-colorを当てる", () => {
@@ -277,7 +352,7 @@ it("カスタムテーマ: 背景の輝度でdata-themeを決め、導出したC
   expect(html().style.getPropertyValue("--kind-repost")).toBe("#1F6B44"); // ライト土台のまま
   expect(themeColor()).toBe("#F7F6F2");
   expect(saved()).toEqual({
-    ...DEFAULT_THEME_PREFS,
+    ...SAVED_DEFAULTS,
     mode: "custom",
     custom: { bg: "#F7F6F2", text: "#1A1A1E", accent: "#1A1A1E" },
   });

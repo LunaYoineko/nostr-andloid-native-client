@@ -38,6 +38,7 @@ function renderAt(path: string, width: number) {
       { path: "/settings/:section?", element: <SettingsScreen /> },
       { path: "/p/:ref", element: <p>プロフィール画面</p> },
       { path: "/messages", element: <p>メッセージ画面</p> },
+      { path: "/about", element: <p>LP</p> },
     ],
     { initialEntries: [path] },
   );
@@ -50,10 +51,10 @@ function items() {
 }
 
 describe("Compact", () => {
-  it("一覧 → 項目 →「←」で一覧へ戻る。M1 に無い項目は準備中", async () => {
+  it("一覧 → 項目 →「←」で一覧へ戻る。「このアプリについて」は LP（/about）へ", async () => {
     const router = renderAt("/settings", 400);
     expect(screen.getByRole("heading", { level: 1, name: "設定" })).toBeInTheDocument();
-    expect(within(items()).getByRole("button", { name: "このアプリについて準備中" })).toBeInTheDocument();
+    expect(within(items()).getByRole("button", { name: "このアプリについて" })).toBeInTheDocument();
     expect(within(items()).getByRole("button", { name: "ミュート" })).toBeInTheDocument();
     expect(within(items()).getByRole("button", { name: "リレー" })).toBeInTheDocument();
 
@@ -66,8 +67,8 @@ describe("Compact", () => {
     expect(router.state.location.pathname).toBe("/settings");
     expect(items()).toBeInTheDocument();
 
-    await userEvent.click(within(items()).getByRole("button", { name: "このアプリについて準備中" }));
-    expect(screen.getByText("この項目は準備中です")).toBeInTheDocument();
+    await userEvent.click(within(items()).getByRole("button", { name: "このアプリについて" }));
+    expect(router.state.location.pathname).toBe("/about");
   });
 
   it("よく使うの「プロフィール」は自分のプロフィールを開き、「DM」はメッセージ画面へ切り替える", async () => {
@@ -104,25 +105,23 @@ describe("Compact", () => {
 });
 
 describe("Expanded", () => {
-  it("左に一覧・右に内容。未選択ならアカウント、選ぶと右が替わる（履歴は置き換え）", async () => {
-    const router = renderAt("/settings", 1000);
-    expect(within(items()).getByRole("button", { name: "アカウント" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("region", { name: "アカウント" })).toBeInTheDocument();
+  it("左に一覧・右に内容。未選択ならタイル（プロフィール・DM）以外の先頭のふぁぼ（#643）、選ぶと右が替わる（履歴は置き換え）", async () => {
+    const router = renderAt("/settings", 1400);
+    expect(within(items()).getByRole("button", { name: "ふぁぼ" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("region", { name: "ふぁぼ" })).toBeInTheDocument();
 
     await userEvent.click(within(items()).getByRole("button", { name: "表示" }));
     expect(router.state.location.pathname).toBe("/settings/display");
     expect(router.state.historyAction).toBe("REPLACE");
     expect(within(items()).getByRole("button", { name: "表示" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("region", { name: "表示" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "アカウント" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "ふぁぼ" })).not.toBeInTheDocument();
   });
 
-  it("表示: 既定リアクションをスターにする", async () => {
+  it("リアクション: 既定リアクションをスターにする（#587 で独立セクションに戻した）", async () => {
     setDefaultReaction("+", null);
-    renderAt("/settings/display", 1000);
+    renderAt("/settings/reaction", 1400);
+    expect(screen.getByRole("region", { name: "リアクション" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "ハート" })).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(screen.getByRole("button", { name: "スター" }));
     expect(useDefaultReaction.getState()).toEqual({ content: "⭐", image: null });
@@ -130,8 +129,28 @@ describe("Expanded", () => {
     setDefaultReaction("+", null);
   });
 
+  it("カスタマイズの並びはネイティブと同じ: リアクション → カスタム絵文字 → ハッシュタグ → 表示。テーマストアは独立セクションではない（#587）", () => {
+    renderAt("/settings", 1400);
+    const heading = screen.getByRole("heading", { level: 2, name: "カスタマイズ" });
+    const section = heading.closest("section");
+    if (!section) throw new Error("section not found");
+    expect(
+      within(section)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["リアクション", "カスタム絵文字", "ハッシュタグ", "表示"]);
+    expect(screen.queryByRole("button", { name: "テーマストア" })).toBeNull();
+  });
+
+  it("/settings/theme-store は /settings/display（表示。テーマストアから取得の導線行）に置き換える", async () => {
+    const router = renderAt("/settings/theme-store", 1400);
+    expect(router.state.location.pathname).toBe("/settings/display");
+    expect(router.state.historyAction).toBe("REPLACE");
+    expect(screen.getByRole("region", { name: "表示" })).toBeInTheDocument();
+  });
+
   it("/settings/developer は /settings/data（データ・キャッシュ）に置き換える", async () => {
-    const router = renderAt("/settings/developer", 1000);
+    const router = renderAt("/settings/developer", 1400);
     expect(router.state.location.pathname).toBe("/settings/data");
     expect(router.state.historyAction).toBe("REPLACE");
     expect(screen.getByRole("region", { name: "データ・キャッシュ" })).toBeInTheDocument();
@@ -142,20 +161,24 @@ describe("Expanded", () => {
     expect(within(items()).queryByRole("button", { name: "開発者" })).toBeNull();
   });
 
-  it("データ・キャッシュ: 開発者モードの切り替えを保存する", async () => {
-    renderAt("/settings/data", 1000);
+  it("データ・キャッシュ: 開発者モードの切り替えを保存する。「接続と通信量」は ON のときだけ出す（S13）", async () => {
+    renderAt("/settings/data", 1400);
+    expect(screen.queryByRole("button", { name: "接続と通信量を表示" })).toBeNull();
     const toggle = screen.getByRole("checkbox", { name: "開発者モードを有効にする" });
     expect(toggle).not.toBeChecked();
     await userEvent.click(toggle);
     expect(toggle).toBeChecked();
     expect(useDeveloperMode.getState().enabled).toBe(true);
     expect(localStorage.getItem(DEVELOPER_MODE_KEY)).toBe("true");
+    expect(screen.getByRole("button", { name: "接続と通信量を表示" })).toBeInTheDocument();
     await userEvent.click(toggle);
     expect(localStorage.getItem(DEVELOPER_MODE_KEY)).toBe("false");
+    expect(screen.queryByRole("button", { name: "接続と通信量を表示" })).toBeNull();
   });
 
-  it("データ・キャッシュ: 「接続と通信量を表示」で read / write リレーの状態・受信量・購読中の REQ 数", async () => {
-    renderAt("/settings/data", 1000);
+  it("データ・キャッシュ: 「接続と通信量を表示」で read / write リレーの状態・受信量・購読中の REQ 数（開発者モード時のみ。S13）", async () => {
+    setDeveloperMode(true);
+    renderAt("/settings/data", 1400);
     await userEvent.click(screen.getByRole("button", { name: "接続と通信量を表示" }));
     const dialog = screen.getByRole("dialog", { name: "接続と通信量" });
     expect(within(dialog).getByText("購読中のREQ")).toBeInTheDocument();
@@ -179,19 +202,19 @@ describe("Expanded", () => {
       configurable: true,
       value: registerProtocolHandler,
     });
-    renderAt("/settings/data", 1000);
+    renderAt("/settings/data", 1400);
     await userEvent.click(screen.getByRole("button", { name: "nostr: リンクをこのアプリで開く" }));
-    expect(registerProtocolHandler).toHaveBeenCalledWith("web+nostr", "/app/open?uri=%s");
+    expect(registerProtocolHandler).toHaveBeenCalledWith("web+nostr", "/open?uri=%s");
     Reflect.deleteProperty(navigator, "registerProtocolHandler");
   });
 
   it("データ・キャッシュ: registerProtocolHandler が無いブラウザでは出さない（#541）", () => {
-    renderAt("/settings/data", 1000);
+    renderAt("/settings/data", 1400);
     expect(screen.queryByRole("button", { name: "nostr: リンクをこのアプリで開く" })).toBeNull();
   });
 
   it("データ・キャッシュ: キャッシュの強制消去は確認してから", async () => {
-    renderAt("/settings/data", 1000);
+    renderAt("/settings/data", 1400);
     await userEvent.click(screen.getByRole("button", { name: "キャッシュを強制消去" }));
     const dialog = screen.getByRole("dialog", { name: "キャッシュを消去しますか？" });
     expect(dialog).toHaveTextContent("DM の復号済みメッセージも消えます");

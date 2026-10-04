@@ -258,14 +258,33 @@ it("NIP-22 コメントのルート（E）が未取得なら K タグから「ki
   expect(wrap).toHaveTextContent("kind 30023 へのコメント");
 });
 
-it("NIP-22 コメントのルート（A）が記事（kind:30023）なら押すと記事へ（#534）", () => {
-  const author = getPublicKey(generateSecretKey());
+it("NIP-22 コメントのルート（A）が記事（kind:30023）なら記事カードでタイトルを出す（#591。押すと記事へ）", () => {
+  const authorKey = generateSecretKey();
+  const author = getPublicKey(authorKey);
   const comment = stored(1111, [["A", `30023:${author}:x`]]);
+  const article = signed(30023, [["title", "根の記事"]], { key: authorKey, content: "本文" });
+  vi.mocked(useEventByAddress).mockReturnValue({ event: article, failed: false });
 
   render(<ThreadScreen onBack={() => {}} pointer={{ id: comment.id }} />);
 
-  const card = screen.getByRole("link", { name: /kind 30023 へのコメント/ });
+  const card = screen.getByRole("link", { name: /根の記事/ });
   expect(card.getAttribute("href")).toMatch(/^\/e\/naddr1/);
+});
+
+it("NIP-22 コメントのルート（E）が記事（kind:30023）なら記事カードでタイトルを出す（#591）", () => {
+  const article = stored(30023, [
+    ["d", "z"],
+    ["title", "取得済みの記事"],
+  ]);
+  const comment = stored(1111, [["E", article.id]]);
+
+  // ルート記事本体がツリーの行としても取得できるため、タイトルの一致はリードカード（cardStyles.wrap）に絞る
+  const { container } = render(<ThreadScreen onBack={() => {}} pointer={{ id: comment.id }} />);
+
+  const [wrap] = container.getElementsByClassName(cardStyles.wrap);
+  expect(wrap).toHaveTextContent("取得済みの記事");
+  const card = within(wrap as HTMLElement).getByRole("link");
+  expect(card.getAttribute("href")).toMatch(/^\/e\/nevent1/);
 });
 
 it("kind:1 / 1111 / 30023 以外の起点は「Web 版ではまだ表示できません」", () => {

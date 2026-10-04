@@ -1,4 +1,5 @@
 import { type FormEvent, useId, useState } from "react";
+import { t, useT } from "../../i18n";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import styles from "../settings/SettingsSections.module.css";
 import { NwcError } from "./nwc";
@@ -9,17 +10,17 @@ function connectFailureMessage(e: unknown): string {
   if (e instanceof NwcError) {
     switch (e.reason) {
       case "invalid-uri":
-        return "接続文字列を読み取れませんでした。nostr+walletconnect:// で始まる文字列を確認してください。";
+        return t("web_wallet_err_invalid_uri");
       case "no-info":
-        return "ウォレットから応答がありませんでした。リレー・接続文字列を確認してください。";
+        return t("web_wallet_err_no_info");
       case "unsupported":
-        return "このウォレットは pay_invoice（送金）に対応していません。";
+        return t("web_wallet_err_unsupported");
       case "timeout":
-        return "ウォレットの応答がタイムアウトしました。";
+        return t("web_wallet_err_timeout");
       case "wallet-error":
-        return `ウォレットがエラーを返しました: ${e.message}`;
+        return t("web_wallet_err_wallet", e.message);
       case "unavailable":
-        return "この端末に接続情報を保存できませんでした。";
+        return t("web_wallet_err_unavailable");
     }
   }
   return e instanceof Error ? e.message : String(e);
@@ -32,6 +33,7 @@ function connectFailureMessage(e: unknown): string {
  * （ネイティブは「接続を解除」でだけ消す）。
  */
 export function WalletSection() {
+  const t = useT();
   const connection = useNwc((s) => s.connection);
   const inputId = useId();
   const [value, setValue] = useState("");
@@ -67,32 +69,29 @@ export function WalletSection() {
 
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>ウォレット接続（NWC）</h3>
-      <p className={styles.desc}>
-        Nostr Wallet Connect（NIP-47）で Lightning ウォレットを接続すると、Zap
-        をアプリ内で完結できます。送金は毎回確認します。
-      </p>
+      <h3 className={styles.caption}>{t("nwc_title")}</h3>
+      <p className={styles.desc}>{t("web_wallet_desc")}</p>
       {connection ? (
         <>
           <div className={styles.note}>
-            <p className={styles.value}>ウォレット接続済み</p>
+            <p className={styles.value}>{t("nwc_connected")}</p>
             <p className={styles.mono}>{`relay: ${connection.relayUrl}`}</p>
             <p className={styles.mono}>{`wallet: ${connection.walletPubkey.slice(0, 12)}…`}</p>
             {connection.lud16 && <p className={styles.mono}>{`lud16: ${connection.lud16}`}</p>}
-            {connection.methods && <p className={styles.mono}>{`対応メソッド: ${connection.methods}`}</p>}
+            {connection.methods && <p className={styles.mono}>{t("nwc_methods_fmt", connection.methods)}</p>}
           </div>
           <button
             type="button"
             className={`${styles.danger} ${styles.alignStart}`}
             onClick={() => setConfirmDisconnect(true)}
           >
-            接続を解除
+            {t("nwc_disconnect")}
           </button>
         </>
       ) : (
         <form className={styles.row} onSubmit={submit}>
           <label htmlFor={inputId} className="srOnly">
-            NWC の接続文字列
+            {t("web_wallet_uri_label")}
           </label>
           <input
             id={inputId}
@@ -113,11 +112,11 @@ export function WalletSection() {
           />
           {canPaste && (
             <button type="button" className={styles.ghost} disabled={busy} onClick={() => void paste()}>
-              貼り付け
+              {t("theme_code_paste")}
             </button>
           )}
           <button type="submit" className={styles.primary} disabled={busy || value.trim() === ""}>
-            {busy ? "接続中…" : "接続"}
+            {busy ? t("connecting") : t("nwc_connect")}
           </button>
           {error && (
             <p className={styles.error} role="alert">
@@ -126,15 +125,12 @@ export function WalletSection() {
           )}
         </form>
       )}
-      <p className={styles.desc}>
-        接続文字列はウォレット側（Alby Hub、Coinos など）で発行できます。secret
-        はこのブラウザ内に暗号化して保存されます。ログアウトすると消えます。
-      </p>
+      <p className={styles.desc}>{t("web_wallet_hint")}</p>
       {confirmDisconnect && (
         <ConfirmDialog
-          title="ウォレット接続を解除しますか？"
-          text="保存済みの接続情報（secret を含む）をこのブラウザから削除します。"
-          confirmLabel="接続を解除"
+          title={t("nwc_disconnect_confirm_title")}
+          text={t("web_wallet_disconnect_text")}
+          confirmLabel={t("nwc_disconnect")}
           destructive
           onConfirm={() => {
             disconnectNwc();

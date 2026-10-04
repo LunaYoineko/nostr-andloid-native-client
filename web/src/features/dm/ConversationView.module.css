@@ -148,12 +148,46 @@
   line-height: var(--line-desc);
 }
 
+/* 吹き出し + 返信ボタン（ネイティブ MessageActions。#589） */
+.bubbleRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  max-width: 100%;
+}
+
 .bubble {
   min-width: 0;
   max-width: 100%;
   padding: var(--sp-2) var(--sp-3);
   border-radius: var(--r-lg);
   overflow-wrap: anywhere;
+}
+
+/* 吹き出し横のリプライボタン（ChannelRoom の .action / .actionIcon と同じ体裁） */
+.action {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .action:hover {
+    background: var(--surface-2);
+  }
+}
+
+.actionIcon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
 }
 
 .theirs .bubble {
@@ -202,6 +236,11 @@
   padding: var(--sp-2) var(--sp-3);
 }
 
+/* 返信中（features/chat の ReplyingTo を共有。ここでは DM の余白に合わせて包むだけ。#589） */
+.replying {
+  padding: var(--sp-2) var(--sp-3) 0;
+}
+
 /* ---- 添付・絵文字ボタン（ComposeDialog の .tool と同じ） ---- */
 
 .attachButton {
@@ -246,8 +285,10 @@
   cursor: pointer;
 }
 
-.chip:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .chip:hover {
+    background: var(--surface-3);
+  }
 }
 
 .chipEmoji {
@@ -277,8 +318,10 @@
   cursor: pointer;
 }
 
-.mention:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .mention:hover {
+    background: var(--surface-2);
+  }
 }
 
 .mentionText {
@@ -405,18 +448,18 @@
   color: var(--text-3);
 }
 
-/* ComposeDialog の「投稿」と同じ */
+/* 丸い送信ボタン（ChatComposer の .send と同じ。DM4） */
 .send {
   flex: none;
-  min-height: var(--touch-sm);
-  padding: 0 var(--sp-4);
+  display: grid;
+  place-items: center;
+  width: var(--touch-sm);
+  height: var(--touch-sm);
+  padding: 0;
   border: 0;
   border-radius: var(--r-full);
-  background: var(--text);
-  color: var(--bg);
-  font: inherit;
-  font-size: var(--type-body);
-  font-weight: var(--w-strong);
+  background: var(--accent);
+  color: var(--on-accent);
   cursor: pointer;
 }
 
@@ -424,6 +467,66 @@
   background: var(--surface-3);
   color: var(--text-3);
   cursor: default;
+}
+
+.sendIcon {
+  width: 18px;
+  height: 18px;
+}
+
+.spinner {
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--text-3);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: sendSpin 1s linear infinite;
+}
+
+@keyframes sendSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 画像添付があるときだけの解像度チップ（ComposeDialog / ChatComposer と同じ。DM4 / 挙動4.4） */
+.resolutionRow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0 var(--sp-3);
+  border: 0;
+}
+
+.resolutionLegend {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.resolutionGroup {
+  display: flex;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+
+.resolutionButton {
+  padding: var(--sp-1) var(--sp-3);
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--type-caption);
+  cursor: pointer;
+}
+
+.resolutionButton[aria-pressed="true"] {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: var(--w-strong);
 }
 
 .cannotSend {

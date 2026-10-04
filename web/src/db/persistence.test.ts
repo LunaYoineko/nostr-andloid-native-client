@@ -3,8 +3,9 @@ import Dexie from "dexie";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import { finalizeEvent, generateSecretKey, getPublicKey, verifyEvent } from "nostr-tools/pure";
 import { afterEach, expect, it, vi } from "vitest";
+import { addVerifiedTo, resetDeletionMemoryForTest } from "../nostr/store";
 import { toRow } from "./events";
-import { attachPersistence, hydrate } from "./persistence";
+import { attachDeletionPersistence, attachPersistence, hydrate, hydrateDeletionMemory } from "./persistence";
 import { createDatabase, type NostrismDb } from "./schema";
 
 const NOW = 1_800_000_000;
@@ -13,6 +14,7 @@ const cleanups: (() => void)[] = [];
 afterEach(() => {
   vi.useRealTimers();
   for (const cleanup of cleanups.splice(0)) cleanup();
+  resetDeletionMemoryForTest();
 });
 
 async function setup(me: string | null = null) {
@@ -155,4 +157,94 @@ it("DB の行は検証済みとして扱い、署名が壊れていても hydrat
 
   expect(await hydrate(store, db)).toBe(1);
   expect(store.getEvent(event.id)).toBeDefined();
+});
+
+// ---- #579: 削除の記憶（deletedEvents / deletedAddrs） ----
+
+async function deletionDb() {
+  const db = createDatabase({
+    name: `persist-${crypto.randomUUID()}`,
+    indexedDB: new IDBFactory(),
+    IDBKeyRange,
+  });
+  await db.open();
+  const detach = attachDeletionPersistence(db);
+  cleanups.push(() => {
+    detach();
+    db.close();
+  });
+  return db;
+}
+
+it("kind:5 で消した id は deletedEvents に残り、再読み込み相当（メモリを空にして読み直す）でも入らない", async () => {
+  const db = await deletionDb();
+  const key = generateSecretKey();
+  const store = new EventStore({ verifyEvent });
+  const note = finalizeEvent({ kind: 1, created_at: NOW, tags: [], content: "x" }, key);
+  addVerifiedTo(store, note);
+  const deletion = finalizeEvent(
+    {
+      kind: 5,
+      created_at: NOW + 1,
+      tags: [
+        ["e", note.id],
+        ["k", "1"],
+      ],
+      content: "",
+    },
+    key,
+  );
+  addVerifiedTo(store, deletion);
+
+  await vi.waitFor(async () => {
+    expect(await db.deletedEvents.get(note.id)).toBeDefined();
+  });
+
+  // 再読み込み相当: メモリを空にしてから DB の削除記録を読み直す
+  resetDeletionMemoryForTest();
+  await hydrateDeletionMemory(db);
+
+  const store2 = new EventStore({ verifyEvent });
+  expect(addVerifiedTo(store2, note)).toBeNull();
+  expect(store2.getEvent(note.id)).toBeUndefined();
+});
+
+it("座標（addressable。kind:30023）の削除は deletedAddrs に残り、再読み込み相当でも古い版は入らず新しい版は入る", async () => {
+  const db = await deletionDb();
+  const key = generateSecretKey();
+  const me = getPublicKey(key);
+  const store = new EventStore({ verifyEvent });
+  const deletion = finalizeEvent(
+    { kind: 5, created_at: NOW + 1, tags: [["a", `30023:${me}:x`]], content: "" },
+    key,
+  );
+  addVerifiedTo(store, deletion);
+
+  await vi.waitFor(async () => {
+    expect(await db.deletedAddrs.get(`30023:${me}:x`)).toBeDefined();
+  });
+
+  resetDeletionMemoryForTest();
+  await hydrateDeletionMemory(db);
+
+  const store2 = new EventStore({ verifyEvent });
+  const old = finalizeEvent({ kind: 30023, created_at: NOW, tags: [["d", "x"]], content: "旧" }, key);
+  expect(addVerifiedTo(store2, old)).toBeNull();
+
+  const fresh = finalizeEvent({ kind: 30023, created_at: NOW + 2, tags: [["d", "x"]], content: "新" }, key);
+  expect(addVerifiedTo(store2, fresh)).not.toBeNull();
+  expect(store2.getEvent(fresh.id)).toBeDefined();
+});
+
+it("hydrate で読み込む行が deletedEvents に記録済みなら、起動時の復元でストアへ戻さない", async () => {
+  const db = await deletionDb();
+  const key = generateSecretKey();
+  const profile = finalizeEvent({ kind: 0, created_at: NOW, tags: [], content: "{}" }, key);
+  await db.events.put(toRow(profile));
+  await db.deletedEvents.put({ id: profile.id, deletedAt: NOW + 1 });
+  await hydrateDeletionMemory(db);
+
+  const store = new EventStore({ verifyEvent });
+  await hydrate(store, db);
+  expect(store.getEvent(profile.id)).toBeUndefined();
 });

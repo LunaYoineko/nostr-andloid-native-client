@@ -72,7 +72,24 @@ function scrollTo(el: HTMLElement, left: number) {
 
 describe("compact", () => {
   beforeEach(() => {
-    mockViewport(400);
+    mockViewport(400, { hover: false });
+  });
+
+  it("[#597][#661] 599px まではタブ列に接続表示がある。600px 以降は左レール表示なのでタブ列側は出さない", () => {
+    mockViewport(599, { hover: false });
+    const first = render(<DeckScreen />);
+    expect(screen.getByRole("button", { name: /^リレー接続/ })).toBeInTheDocument();
+    first.unmount();
+
+    mockViewport(600, { hover: false });
+    render(<DeckScreen />);
+    expect(screen.queryByRole("button", { name: /^リレー接続/ })).not.toBeInTheDocument();
+  });
+
+  it("[#661] ホバーできる端末は幅を問わず左レール扱い（440 の下限は廃止。タブ列に接続表示は出ない）", () => {
+    mockViewport(300, { hover: true });
+    render(<DeckScreen />);
+    expect(screen.queryByRole("button", { name: /^リレー接続/ })).not.toBeInTheDocument();
   });
 
   it("カラムヘッダ無しで 3 カラム、タブ列と選択カラムの ⋯、カラム追加はタブ列の ＋ だけ", () => {
@@ -131,7 +148,7 @@ describe("compact", () => {
 
 describe("expanded", () => {
   beforeEach(() => {
-    mockViewport(1200);
+    mockViewport(1400);
   });
 
   it("カラムヘッダ付きで並べ、タブ列は無く、末尾のカラム追加でダイアログを開く。幅は widths どおり", () => {
@@ -197,12 +214,12 @@ describe("expanded", () => {
   });
 });
 
-it("幅が 600px をまたいで変わってもカラムを作り直さない", () => {
-  mockViewport(1200);
+it("[#661] 幅が変わって expanded ⇔ それ以外になってもカラムを作り直さない", () => {
+  mockViewport(1400);
   render(<DeckScreen />);
   setViewportWidth(400);
   expect(screen.getByRole("navigation", { name: "カラム" })).toBeInTheDocument();
-  setViewportWidth(1200);
+  setViewportWidth(1400);
   expect(screen.queryByRole("navigation", { name: "カラム" })).not.toBeInTheDocument();
 
   expect(Object.fromEntries(mounts)).toEqual({ c_following: 1, c_hashtag: 1, c_notif: 1 });
@@ -210,7 +227,7 @@ it("幅が 600px をまたいで変わってもカラムを作り直さない", 
 });
 
 it("カラムが 0 件なら案内を出す", () => {
-  mockViewport(400);
+  mockViewport(400, { hover: false });
   useDeck.setState({ columns: [] });
   render(<DeckScreen />);
   expect(screen.getByText(/カラムがありません/)).toBeInTheDocument();

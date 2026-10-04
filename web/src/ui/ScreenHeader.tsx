@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useT } from "../i18n";
 import { ArrowBackIcon } from "./icons";
 import styles from "./ScreenHeader.module.css";
 
@@ -17,10 +18,11 @@ export function ScreenHeader({
   onBack?: () => void;
   icon?: ReactNode;
 }) {
+  const t = useT();
   return (
     <header className={styles.header}>
       {onBack ? (
-        <button type="button" className={styles.lead} aria-label="戻る" onClick={onBack}>
+        <button type="button" className={styles.lead} aria-label={t("common_back")} onClick={onBack}>
           <ArrowBackIcon className={styles.leadIcon} />
         </button>
       ) : (

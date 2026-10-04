@@ -1,6 +1,9 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { type ReactNode, useCallback, useRef, useState } from "react";
 import { type ListRange, Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { t, useT } from "../../i18n";
+import { PullToRefreshIndicator } from "../../ui/PullToRefreshIndicator";
+import { usePullToRefresh } from "../../ui/usePullToRefresh";
 import { KbRow, useKbList } from "../keyboard/KbList";
 import { NoteItem } from "./NoteItem";
 import styles from "./Timeline.module.css";
@@ -30,7 +33,8 @@ type ListContext = { loadingOlder: boolean; header?: ReactNode };
 
 /** 末尾の「過去を読み込み中…」 */
 function OlderFooter({ context }: { context?: ListContext }) {
-  return context?.loadingOlder ? <p className={styles.empty}>過去を読み込み中…</p> : null;
+  const t = useT();
+  return context?.loadingOlder ? <p className={styles.empty}>{t("feed_loading_older")}</p> : null;
 }
 
 /**
@@ -54,16 +58,18 @@ const renderNote = (event: NostrEvent) => <NoteItem event={event} />;
  * デッキのカラムでは postOf が投稿を返す行だけをキー操作（j / k）で選べる（r / t / f の対象）。
  * postOf の既定は、renderItem が無ければ行そのもの（すべて投稿）、あれば無し（どの行も選べて、どれも投稿ではない）。
  * header を渡すと一覧の先頭（スクロール領域の中）に出す（PROFILE カラムの上部カードなど。渡さなければ何も変わらない）。
+ * onRefresh を渡すと、タッチで上端から引っ張って離すと呼ぶ（#601 引っ張って更新。渡さなければ無効）。
  */
 export function Timeline<T extends { id: string } = NostrEvent>({
   events,
   loading,
   onEndReached,
   loadingOlder = false,
-  emptyText = "まだ投稿がありません",
+  emptyText = t("feed_empty"),
   renderItem,
   postOf,
   header,
+  onRefresh,
 }: {
   events: T[];
   loading: boolean;
@@ -76,7 +82,10 @@ export function Timeline<T extends { id: string } = NostrEvent>({
   postOf?: (item: T) => NostrEvent | null;
   /** 一覧の先頭（item の index には含まれず、キー操作・新着ピルの番号はずれない） */
   header?: ReactNode;
+  /** 引っ張って更新（#601） */
+  onRefresh?: () => void;
 }) {
+  const t = useT();
   // renderItem を省くのは投稿の一覧だけ（T = NostrEvent）
   const render = renderItem ?? (renderNote as unknown as (item: T) => ReactNode);
   const toPost = postOf ?? (renderItem ? undefined : (item: T) => item as unknown as NostrEvent);
@@ -121,20 +130,24 @@ export function Timeline<T extends { id: string } = NostrEvent>({
   );
 
   const newCount = atTop ? 0 : positionOf(events, anchor.seenTopId);
-  const pill = newCount > 0 ? `${newCount} 件の新着` : scrolledAway ? "最新へ戻る" : null;
+  const pill = newCount > 0 ? t("pill_new_fmt", newCount) : scrolledAway ? t("pill_back_latest") : null;
+
+  const { ref: scrollerRef, progress, refreshing } = usePullToRefresh(onRefresh);
 
   if (events.length === 0) {
     // header（PROFILE カラムの上部カードなど）は投稿が無くても出す（ネイティブの LazyColumn と同じ）
     return (
-      <div className={styles.timeline}>
+      <div className={styles.timeline} ref={scrollerRef}>
+        <PullToRefreshIndicator progress={progress} refreshing={refreshing} />
         {header}
-        <p className={styles.empty}>{loading ? "読み込み中…" : emptyText}</p>
+        <p className={styles.empty}>{loading ? t("loading") : emptyText}</p>
       </div>
     );
   }
 
   return (
     <div className={styles.timeline}>
+      <PullToRefreshIndicator progress={progress} refreshing={refreshing} />
       {pill !== null && (
         <button
           type="button"
@@ -147,6 +160,7 @@ export function Timeline<T extends { id: string } = NostrEvent>({
       <Virtuoso
         ref={list}
         className={styles.list}
+        scrollerRef={scrollerRef}
         data={events}
         firstItemIndex={anchor.firstItemIndex}
         computeItemKey={(_, item) => item.id}

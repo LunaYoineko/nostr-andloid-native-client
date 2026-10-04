@@ -3,6 +3,7 @@ import { isAddressPointer } from "applesauce-core/helpers/pointers";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
+import { useT } from "../../i18n";
 import { useEventByAddress } from "../../nostr/loaders";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { ArticleReader } from "../article/ArticleReader";
@@ -27,10 +28,10 @@ type ListContext = { focus: NostrEvent | undefined; zaps: readonly CommentedZap[
  * kind:30023（記事）は ThreadScreen 側で ArticleReader に切り替わるので、ここには来ない（#534）。
  */
 function LeadCard({ focus }: { focus: NostrEvent | undefined }) {
+  const t = useT();
   if (!focus) return null;
   if (focus.kind === 1111) return <CommentRootCard focus={focus} />;
-  if (focus.kind !== 1)
-    return <GenericRootCard label={`kind ${focus.kind} の投稿は Web 版ではまだ表示できません`} />;
+  if (focus.kind !== 1) return <GenericRootCard label={t("web_thread_unsupported_kind", focus.kind)} />;
   return null;
 }
 
@@ -50,6 +51,7 @@ const COMPONENTS = { Header: ListHeader, Footer: ListFooter };
  * root から深さ優先で並べ、起点の下に日時と反応を出す。返信の後にコメント付き Zap を返信風に並べる。
  * 起点へは自動スクロールしない（ネイティブと同じ）。
  * onReply があれば下端に返信ボックスを出す（起点、無ければ先頭の行への返信）。
+ * 返信先が無くても無効状態で常に出す（ネイティブ ThreadColumn.kt と同じ。T3）。
  * pointer が naddr（AddressPointer。#534）なら addressLoader で解決してから開く（6 秒で失敗表示）。
  * 起点（解決後含む）が kind:30023 なら、このスレッド表示の代わりに記事リーダー（ArticleReader）を描く
  * （ネイティブ ProfileScreen.kt のスレッド→記事リーダーの切り替えと同じ）。ヘッダはここが持つ
@@ -64,6 +66,7 @@ export function ThreadScreen({
   onBack: () => void;
   onReply?: (target: NostrEvent) => void;
 }) {
+  const t = useT();
   const isAddress = isAddressPointer(pointer);
   const { event: addrEvent, failed: addrFailed } = useEventByAddress(isAddress ? pointer : null);
   const effectivePointer: EventPointer | null = isAddress
@@ -86,8 +89,8 @@ export function ThreadScreen({
   if (!effectivePointer) {
     return (
       <>
-        <ScreenHeader title="記事" subtitle="NIP-23 · kind:30023" onBack={onBack} />
-        <p className={styles.empty}>{addrFailed ? "記事を取得できませんでした" : "読み込み中…"}</p>
+        <ScreenHeader title={t("article_title")} subtitle="NIP-23 · kind:30023" onBack={onBack} />
+        <p className={styles.empty}>{addrFailed ? t("web_article_failed") : t("loading")}</p>
       </>
     );
   }
@@ -98,13 +101,13 @@ export function ThreadScreen({
 
   return (
     <>
-      <ScreenHeader title="スレッド" subtitle="NIP-10" onBack={onBack} />
+      <ScreenHeader title={t("thread_title")} subtitle="NIP-10" onBack={onBack} />
       <div className={styles.screen}>
         <div className={styles.list}>
           {entries.length === 0 ? (
             <>
               <LeadCard focus={focus} />
-              <p className={styles.empty}>{loading ? "読み込み中…" : "見つかりませんでした"}</p>
+              <p className={styles.empty}>{loading ? t("loading") : t("not_found")}</p>
             </>
           ) : (
             <Virtuoso
@@ -126,7 +129,7 @@ export function ThreadScreen({
             />
           )}
         </div>
-        {onReply && replyTarget && <ReplyBox onClick={() => onReply(replyTarget)} />}
+        {onReply && <ReplyBox onClick={replyTarget ? () => onReply(replyTarget) : undefined} />}
       </div>
     </>
   );

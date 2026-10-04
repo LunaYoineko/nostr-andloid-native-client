@@ -1,6 +1,7 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useEffect, useMemo, useState } from "react";
+import { t, useT } from "../../i18n";
 import { clientNameOf } from "../../lib/content/tags";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
@@ -60,7 +61,9 @@ function warn(message: string) {
 
 /**
  * 投稿のアクション行の「返信」の後ろ（NoteItem から NoteFooter の children として呼ぶ唯一の入口）:
- * リポスト → 既定リアクション（♡ / ☆）→ 絵文字 → ⚡ → 余白 → ⋯。数は Zap の合計だけ出す（他は押下状態だけ）。
+ * リポスト → 既定リアクション（♡ / ☆）→ 絵文字 → ⚡。数は Zap の合計だけ出す（他は押下状態だけ）。
+ * [#683] ⋯（NoteMoreMenu）はここには含めない。NoteFooter の primaryActions（返信〜Zap を行の幅に
+ * 均等配置する箱）の外に置き、行の右端に固定するため NoteFooter の more props へ別に渡す。
  */
 export function NoteActionButtons({ event }: { event: NostrEvent }) {
   const me = useSession((s) => s.pubkey);
@@ -73,28 +76,27 @@ export function NoteActionButtons({ event }: { event: NostrEvent }) {
       <DefaultReactionButton event={event} />
       <EmojiReactionButton event={event} />
       <ZapAction event={event} />
-      <span className={styles.spacer} aria-hidden="true" />
-      <MoreMenu event={event} />
     </>
   );
 }
 
 /** リポスト。押すと「リポスト」「引用リポスト」。自分がリポスト済みなら緑 */
 function RepostButton({ event }: { event: NostrEvent }) {
+  const t = useT();
   const reposted = useIsReposted(event.id);
   return (
     <MenuButton
-      label="リポスト"
+      label={t("note_repost")}
       triggerClassName={reposted ? `${ACTION_BUTTON_CLASS} ${styles.reposted}` : ACTION_BUTTON_CLASS}
       entries={[
         {
           type: "item",
-          label: "リポスト",
-          onSelect: () => void publishRepost(event).catch(warn("リポストに失敗")),
+          label: t("note_repost"),
+          onSelect: () => void publishRepost(event).catch(warn(t("web_log_repost_failed"))),
         },
         {
           type: "item",
-          label: "引用リポスト",
+          label: t("note_quote_repost"),
           onSelect: () => openCompose({ mode: "quote", target: event }),
         },
       ]}
@@ -110,6 +112,7 @@ function RepostButton({ event }: { event: NostrEvent }) {
  * 付与済みを押すと確認してから取り消す（kind:5）。
  */
 function DefaultReactionButton({ event }: { event: NostrEvent }) {
+  const t = useT();
   const content = useDefaultReaction((s) => s.content);
   const isStar = content === "⭐" || content === "★";
   const active = useIsReacted(event.id);
@@ -139,14 +142,14 @@ function DefaultReactionButton({ event }: { event: NostrEvent }) {
     if (pending) return;
     setPending(true);
     reactWithDefault(event).catch((e) => {
-      warn("リアクションに失敗")(e);
+      warn(t("web_log_react_failed"))(e);
       setPending(false);
     });
   }
 
   return (
     <>
-      <ActionButton label="リアクション" pressed={on} busy={busy} onClick={onClick}>
+      <ActionButton label={t("section_reaction")} pressed={on} busy={busy} onClick={onClick}>
         <span
           className={on ? `${styles.glyph} ${isStar ? styles.star : styles.heart}` : styles.glyph}
           data-shape={isStar ? "star" : "heart"}
@@ -156,13 +159,13 @@ function DefaultReactionButton({ event }: { event: NostrEvent }) {
       </ActionButton>
       {confirming && (
         <ConfirmDialog
-          title="リアクションを取り消しますか？"
-          text="削除イベント（kind:5）を発行してリアクションを取り消します。リレーによっては削除が反映されない場合があります。"
-          confirmLabel="取り消す"
+          title={t("unreact_title")}
+          text={t("unreact_text")}
+          confirmLabel={t("unreact_confirm")}
           destructive
           onConfirm={() => {
             setConfirming(false);
-            reactWithDefault(event).catch(warn("リアクションの取り消しに失敗"));
+            reactWithDefault(event).catch(warn(t("web_log_unreact_failed")));
           }}
           onDismiss={() => setConfirming(false)}
         />
@@ -173,16 +176,17 @@ function DefaultReactionButton({ event }: { event: NostrEvent }) {
 
 /** 絵文字でリアクション（ピッカーを開き、選んだものを送る） */
 function EmojiReactionButton({ event }: { event: NostrEvent }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <ActionButton label="絵文字でリアクション" onClick={() => setOpen(true)}>
+      <ActionButton label={t("web_note_emoji_reaction")} onClick={() => setOpen(true)}>
         <AddReactionIcon />
       </ActionButton>
       {open && (
         <ReactionPickerDialog
           target={event}
-          onPick={(c, url) => void publishReaction(event, c, url).catch(warn("リアクションに失敗"))}
+          onPick={(c, url) => void publishReaction(event, c, url).catch(warn(t("web_log_react_failed")))}
           onClose={() => setOpen(false)}
         />
       )}
@@ -249,25 +253,29 @@ function ZapAction({ event }: { event: NostrEvent }) {
 /** ミュート・解除の失敗の文言 */
 function muteFailureMessage(e: unknown): string {
   if (e instanceof MuteListError && e.reason === "no-mute-list") {
-    return "最新のミュートリストを取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
+    return t("web_mute_no_base");
   }
   if (e instanceof MuteListError && e.reason === "no-cipher") {
-    return "この署名方式は暗号化に対応していないため、非公開でミュートできません（公開では追加しません）";
+    return t("web_mute_no_cipher");
   }
   // ネイティブ note_mute_locked
-  return "ミュートリストが変更できません（ロック中の可能性）";
+  return t("note_mute_locked");
 }
 
 /** ブックマーク・固定の失敗の文言（#531。#478 と同じデータ保護の理由） */
 function ownListFailureMessage(e: unknown): string {
   if (e instanceof OwnListError && e.reason === "unreachable") {
-    return "最新の状態を取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
+    return t("web_own_list_no_base");
   }
-  return "変更できませんでした";
+  return t("mute_change_failed");
 }
 
-/** ⋯ メニュー（並びは moreMenuEntries）と、そこから開く確認・通報・イベント JSON のダイアログ */
-function MoreMenu({ event }: { event: NostrEvent }) {
+/**
+ * ⋯ メニュー（並びは moreMenuEntries）と、そこから開く確認・通報・イベント JSON のダイアログ。
+ * [#683] NoteFooter の more props へ渡す（行の右端に固定。primaryActions の均等配置には含めない）。
+ */
+export function NoteMoreMenu({ event }: { event: NostrEvent }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const author = useProfile(event.pubkey);
   const contacts = use$(() => (me ? eventStore.replaceable({ kind: 3, pubkey: me }) : undefined), [me]);
@@ -288,8 +296,8 @@ function MoreMenu({ event }: { event: NostrEvent }) {
     toggleFollow(me, event.pubkey, action).catch((e) => {
       showToast(
         e instanceof FollowError && e.reason === "no-contacts"
-          ? "フォローリストを取得できませんでした。通信状態を確認してもう一度お試しください"
-          : "フォローを更新できませんでした",
+          ? t("web_follow_no_list")
+          : t("web_follow_update_failed"),
       );
     });
   }
@@ -298,7 +306,7 @@ function MoreMenu({ event }: { event: NostrEvent }) {
     if (!me) return;
     const run = action === "mute" ? muteUser(me, event.pubkey) : unmuteUser(me, event.pubkey);
     run.then(
-      () => showToast(action === "mute" ? "ミュートしました" : "ミュートを解除しました"),
+      () => showToast(action === "mute" ? t("muted_toast") : t("note_unmuted_toast")),
       (e) => showToast(muteFailureMessage(e)),
     );
   }
@@ -306,7 +314,7 @@ function MoreMenu({ event }: { event: NostrEvent }) {
   function bookmark(action: "bookmark" | "unbookmark") {
     if (!me) return;
     toggleBookmark(me, event.id, action).then(
-      () => showToast(action === "bookmark" ? "ブックマークしました" : "ブックマークを解除しました"),
+      () => showToast(action === "bookmark" ? t("web_bookmark_added") : t("web_bookmark_removed")),
       (e) => showToast(ownListFailureMessage(e)),
     );
   }
@@ -314,7 +322,7 @@ function MoreMenu({ event }: { event: NostrEvent }) {
   function pin(action: "pin" | "unpin") {
     if (!me) return;
     togglePinned(me, event.id, action).then(
-      () => showToast(action === "pin" ? "プロフィールに固定しました" : "固定を解除しました"),
+      () => showToast(action === "pin" ? t("web_pin_added") : t("web_pin_removed")),
       (e) => showToast(ownListFailureMessage(e)),
     );
   }
@@ -349,7 +357,7 @@ function MoreMenu({ event }: { event: NostrEvent }) {
       viewJson: () => setDialog("json"),
       translate: () => {
         void requestTranslation(event.id, plainTextOf(event)).then((ok) => {
-          if (!ok) showToast("翻訳できませんでした");
+          if (!ok) showToast(t("note_translate_failed"));
         });
       },
       hideTranslation: () => hideTranslation(event.id),
@@ -358,14 +366,14 @@ function MoreMenu({ event }: { event: NostrEvent }) {
 
   return (
     <>
-      <MenuButton label="その他の操作" triggerClassName={ACTION_BUTTON_CLASS} entries={entries}>
+      <MenuButton label={t("web_note_more_actions")} triggerClassName={ACTION_BUTTON_CLASS} entries={entries}>
         <MoreHorizIcon />
       </MenuButton>
       {dialog === "unfollow" && (
         <ConfirmDialog
-          title="フォローを解除しますか？"
-          text={`${displayName(author, event.pubkey)} のフォローを解除します。`}
-          confirmLabel="解除する"
+          title={t("unfollow_title")}
+          text={t("web_note_unfollow_text", displayName(author, event.pubkey))}
+          confirmLabel={t("unfollow_confirm")}
           destructive
           onConfirm={() => {
             setDialog(null);
@@ -376,9 +384,9 @@ function MoreMenu({ event }: { event: NostrEvent }) {
       )}
       {dialog === "mute" && (
         <ConfirmDialog
-          title="このユーザーをミュートしますか？"
-          text="この人の投稿と通知を表示しなくなります。設定 → ミュート でいつでも解除できます。"
-          confirmLabel="ミュート"
+          title={t("mute_confirm_title")}
+          text={t("mute_confirm_text")}
+          confirmLabel={t("mute_confirm")}
           destructive
           onConfirm={() => {
             setDialog(null);
@@ -389,14 +397,14 @@ function MoreMenu({ event }: { event: NostrEvent }) {
       )}
       {dialog === "delete" && (
         <ConfirmDialog
-          title="この投稿の削除をリクエストしますか？"
-          text="削除イベント(kind:5)を発行します。リレーが応じるとは限らず、すでに取得済みのクライアントでは表示が残ることがあります。この端末からは消えます。"
-          confirmLabel="リクエストする"
+          title={t("note_delete_title")}
+          text={t("note_delete_text")}
+          confirmLabel={t("note_delete_confirm")}
           destructive
           onConfirm={() => {
             setDialog(null);
             void requestDelete(event).then((ok) =>
-              showToast(ok ? "削除をリクエストしました" : "削除をリクエストできませんでした"),
+              showToast(ok ? t("note_delete_sent") : t("note_delete_failed")),
             );
           }}
           onDismiss={() => setDialog(null)}
@@ -406,7 +414,7 @@ function MoreMenu({ event }: { event: NostrEvent }) {
         <ReportDialog
           onPick={(type) => {
             setDialog(null);
-            reportNote(event, type).catch(warn("通報に失敗"));
+            reportNote(event, type).catch(warn(t("web_log_report_failed")));
           }}
           onDismiss={() => setDialog(null)}
         />

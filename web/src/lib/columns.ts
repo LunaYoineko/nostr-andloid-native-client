@@ -1,4 +1,11 @@
 import { decode, npubEncode } from "nostr-tools/nip19";
+import { t } from "../i18n";
+import {
+  CANONICAL_SUBTITLE,
+  CANONICAL_TITLE,
+  columnDisplaySubtitle,
+  columnDisplayTitle,
+} from "../i18n/columnTitles";
 
 /**
  * デッキのカラム定義（ネイティブの Models.kt の ColumnSpec / ReqFilter と ColumnTemplate.kt の写し）。
@@ -237,62 +244,91 @@ export type ColumnConfig = "NONE" | "TEXT" | "NOTIF_FILTER" | "RELAY_SET";
 
 export type ColumnTemplate = {
   template: TemplateId;
-  label: string;
-  hint?: string;
   config: ColumnConfig;
   /** 一覧のアイコンに使う種別 */
   iconKind: ColumnKind;
 };
 
-/** カラム追加の一覧（ネイティブの ColumnTemplate.entries の順。文言は ja リソース） */
+/** カラム追加の一覧（ネイティブの ColumnTemplate.entries の順。表示名は templateLabel / templateHint） */
 export const TEMPLATES: readonly ColumnTemplate[] = [
-  { template: "FOLLOWING", label: "フォロー中", config: "NONE", iconKind: "FOLLOWING" },
-  {
-    template: "GLOBAL",
-    label: "グローバル",
-    hint: "配信先リレー（未選択＝全リレー）",
-    config: "RELAY_SET",
-    iconKind: "GLOBAL",
-  },
-  { template: "NOTIFICATIONS", label: "通知", config: "NOTIF_FILTER", iconKind: "NOTIFICATIONS" },
-  { template: "DM", label: "DM", config: "NONE", iconKind: "DM" },
-  {
-    template: "PROFILE",
-    label: "指定 npub の投稿",
-    hint: "npub または hex",
-    config: "TEXT",
-    iconKind: "PROFILE",
-  },
-  {
-    template: "SEARCH",
-    label: "キーワード・タグ",
-    hint: "スペース区切りで複数可（#〜=タグ）",
-    config: "TEXT",
-    iconKind: "GLOBAL",
-  },
-  {
-    template: "HASHTAG",
-    label: "ハッシュタグ",
-    hint: "タグ（# は不要）",
-    config: "TEXT",
-    iconKind: "HASHTAG",
-  },
-  {
-    template: "FAVS",
-    label: "ふぁぼ欄",
-    hint: "自分がリアクションした投稿",
-    config: "NONE",
-    iconKind: "FAVS",
-  },
+  { template: "FOLLOWING", config: "NONE", iconKind: "FOLLOWING" },
+  { template: "GLOBAL", config: "RELAY_SET", iconKind: "GLOBAL" },
+  { template: "NOTIFICATIONS", config: "NOTIF_FILTER", iconKind: "NOTIFICATIONS" },
+  { template: "DM", config: "NONE", iconKind: "DM" },
+  { template: "PROFILE", config: "TEXT", iconKind: "PROFILE" },
+  { template: "SEARCH", config: "TEXT", iconKind: "GLOBAL" },
+  { template: "HASHTAG", config: "TEXT", iconKind: "HASHTAG" },
+  { template: "FAVS", config: "NONE", iconKind: "FAVS" },
 ];
 
-/** 通知カラムで選べる種別（この順） */
-export const NOTIF_KINDS: readonly { kind: number; label: string }[] = [
-  { kind: 1, label: "メンション" },
-  { kind: 7, label: "リアクション" },
-  { kind: 9735, label: "Zap" },
-  { kind: 6, label: "リポスト" },
+/** テンプレの表示名（ネイティブの tpl_* / nav_dm） */
+export function templateLabel(template: TemplateId): string {
+  switch (template) {
+    case "FOLLOWING":
+      return t("tpl_following");
+    case "GLOBAL":
+      return t("tpl_global");
+    case "NOTIFICATIONS":
+      return t("tpl_notifications");
+    case "DM":
+      return t("nav_dm");
+    case "PROFILE":
+      return t("tpl_profile");
+    case "SEARCH":
+      return t("tpl_search");
+    case "HASHTAG":
+      return t("tpl_hashtag");
+    case "FAVS":
+      return t("tpl_favs");
+  }
+}
+
+/** テンプレの入力欄のヒント（無ければ undefined） */
+export function templateHint(template: TemplateId): string | undefined {
+  switch (template) {
+    case "GLOBAL":
+      return t("tpl_global_hint");
+    case "PROFILE":
+      return t("tpl_profile_hint");
+    case "SEARCH":
+      return t("tpl_search_hint");
+    case "HASHTAG":
+      return t("tpl_hashtag_hint");
+    case "FAVS":
+      return t("tpl_favs_hint");
+    default:
+      return undefined;
+  }
+}
+
+/** 通知カラムで選べる種別（この順）。表示名は notifKindLabel */
+export const NOTIF_KINDS: readonly { kind: number }[] = [
+  { kind: 1 },
+  { kind: 7 },
+  { kind: 9735 },
+  { kind: 6 },
 ];
+
+/** 通知種別の表示名 */
+export function notifKindLabel(kind: number): string {
+  switch (kind) {
+    case 1:
+      return t("notif_mention");
+    case 7:
+      return t("notif_reaction");
+    case 9735:
+      return t("notif_zap");
+    case 6:
+      return t("notif_repost");
+    default:
+      return String(kind);
+  }
+}
+
+/** カラムの表示名（保存したタイトルを言語に合わせて引く。ユーザー入力のタイトルはそのまま） */
+export function columnLabel(spec: Pick<ColumnSpec, "title">): string {
+  return columnDisplayTitle(spec.title);
+}
 
 /** 新しいカラムの id（col_<prefix>_<unix秒>）。同じ秒に作って衝突したら秒を進める */
 export function newColumnId(prefix: string, existing: ReadonlySet<string>, nowSec: number): string {
@@ -334,8 +370,8 @@ export function buildSearchColumn(
   const summary = [...words, ...hashtags.map((h) => `#${h.replace(/^#/, "")}`)].join(" ");
   return feedColumn(
     newColumnId("search", existing, nowSec),
-    summary.trim() === "" ? "キーワード・タグ" : summary,
-    "キーワード・タグ",
+    summary.trim() === "" ? CANONICAL_TITLE.search : summary,
+    CANONICAL_SUBTITLE.search,
     "GLOBAL",
     { words, hashtags: hashtags.map((h) => h.replace(/^#/, "").toLowerCase()) },
   );
@@ -374,15 +410,15 @@ export function buildColumn(
   const text = (input.text ?? "").trim();
   switch (template) {
     case "FOLLOWING":
-      return feedColumn(id, "フォロー中", "following", "FOLLOWING", {});
+      return feedColumn(id, CANONICAL_TITLE.following, "following", "FOLLOWING", {});
     case "GLOBAL": {
       const relays = input.relays ?? [];
       const subtitle = relays.length === 0 ? "all relays" : `${relays.length} relays`;
-      return feedColumn(id, "グローバル", subtitle, "GLOBAL", { relays });
+      return feedColumn(id, CANONICAL_TITLE.global, subtitle, "GLOBAL", { relays });
     }
     case "NOTIFICATIONS": {
       const kinds = input.notifKinds ?? [];
-      return feedColumn(id, "通知", "mentions/zaps…", "NOTIFICATIONS", {
+      return feedColumn(id, CANONICAL_TITLE.notifications, "mentions/zaps…", "NOTIFICATIONS", {
         kinds: kinds.length > 0 ? kinds : [1, 7, 9735, 6],
       });
     }
@@ -407,7 +443,7 @@ export function buildColumn(
       return feedColumn(id, `#${tag}`, "hashtag", "HASHTAG", { hashtags: [tag] });
     }
     case "FAVS":
-      return feedColumn(id, "ふぁぼ欄", "自分のリアクション", "FAVS", { kinds: [7] });
+      return feedColumn(id, CANONICAL_TITLE.favs, CANONICAL_SUBTITLE.myReactions, "FAVS", { kinds: [7] });
   }
 }
 
@@ -440,7 +476,7 @@ export const LIST_COLUMN_AUTHOR_CAP = 500;
 export function buildListColumn(title: string, members: readonly string[], nowSec: number): ColumnSpec {
   return {
     id: `col_list_${nowSec}`,
-    title: title.trim() === "" ? "リスト" : title,
+    title: title.trim() === "" ? CANONICAL_TITLE.list : title,
     subtitle: "list",
     kind: "LIST",
     renderer: "FEED",
@@ -497,33 +533,38 @@ export function editRelays(spec: ColumnSpec): string[] {
   return spec.kind === "GLOBAL" ? spec.filter.relays : [];
 }
 
-/** カラムヘッダのサブタイトル（ネイティブの columnSubtitleFor を ja で） */
+/** カラムヘッダのサブタイトル（ネイティブの columnSubtitleFor。種別から導出し、辞書を引く） */
 export function columnSubtitleFor(spec: ColumnSpec): string {
   switch (spec.kind) {
     case "FOLLOWING":
       return "following";
     case "GLOBAL":
-      return spec.filter.words.length > 0 || spec.filter.hashtags.length > 0 ? "キーワード・タグ" : "global";
+      return spec.filter.words.length > 0 || spec.filter.hashtags.length > 0 ? t("tpl_search") : "global";
     case "HASHTAG":
       return "hashtag";
     case "NOTIFICATIONS":
-      return "メンション・リアクション・リポスト";
+      return t("notif_subtitle");
     case "DM":
       return "NIP-17";
     case "PROFILE":
-      return "プロフィール";
+      return t("profile_section");
     case "FAVS":
-      return "自分のリアクション";
+      return t("sub_my_reactions");
     case "LIST":
-      return "リスト";
+      return t("tab_lists");
     default:
-      return spec.subtitle;
+      return columnDisplaySubtitle(spec.subtitle);
   }
 }
 
 /** 初回起動の既定カラム（ネイティブの SampleData.columns から NIP-28 を除いたもの。id も同じ） */
 export const DEFAULT_COLUMNS: readonly ColumnSpec[] = [
-  feedColumn("c_following", "フォロー中", "following", "FOLLOWING", {}),
+  feedColumn("c_following", CANONICAL_TITLE.following, "following", "FOLLOWING", {}),
   { ...feedColumn("c_hashtag", "#nostr", "hashtag", "HASHTAG", { hashtags: ["nostr"] }), order: 1 },
-  { ...feedColumn("c_notif", "通知", "mentions/zaps…", "NOTIFICATIONS", { kinds: [1, 7, 9735] }), order: 2 },
+  {
+    ...feedColumn("c_notif", CANONICAL_TITLE.notifications, "mentions/zaps…", "NOTIFICATIONS", {
+      kinds: [1, 7, 9735],
+    }),
+    order: 2,
+  },
 ];

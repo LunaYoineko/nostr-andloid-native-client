@@ -75,7 +75,7 @@ it("ヘッダにタイトルとサブタイトルを出す", () => {
   renderWithRouter(<DeckColumn spec={hashtag} showHeader />);
   expect(screen.getByRole("heading", { name: "#nostr" })).toBeInTheDocument();
   expect(screen.getByText(columnSubtitleFor(hashtag))).toBeInTheDocument();
-  expect(screen.getByText("まだ投稿がありません")).toBeInTheDocument();
+  expect(screen.getByText("投稿がありません")).toBeInTheDocument();
 });
 
 it("左端のカラムのメニューでは「左へ移動」が押せない", async () => {
@@ -488,7 +488,8 @@ it("PROFILE カラムは上部にカード（アバター・名前・npub・フ�
         <DeckColumn spec={spec} showHeader />
       </VirtuosoMockContext.Provider>,
     );
-    expect(screen.getByText("Alice")).toBeInTheDocument();
+    // ヘッダタイトルとカードの名前、両方に「Alice」が出る（#590）
+    expect(screen.getAllByText("Alice").length).toBe(2);
     const npub = npubEncode(target);
     expect(screen.getByText(`${npub.slice(0, 20)}…${npub.slice(-6)}`)).toBeInTheDocument();
 
@@ -574,4 +575,37 @@ it("PROFILE カラムの上部カードは固定投稿（#531。その人の kin
   expect(screen.getByText("📌")).toBeInTheDocument();
   expect(screen.getByText("固定された投稿")).toBeInTheDocument();
   expect(screen.getByText("固定されたやつ")).toBeInTheDocument();
+});
+
+it("PROFILE カラムはプロフィール（kind:0）が入るとヘッダタイトルが名前になる（ネイティブ ProfileColumn.kt:66-71。#590）", () => {
+  const targetKey = generateSecretKey();
+  const target = getPublicKey(targetKey);
+  eventStore.add(
+    finalizeEvent(
+      { kind: 0, created_at: 1_000, tags: [], content: JSON.stringify({ name: "Alice" }) },
+      targetKey,
+    ),
+  );
+  const spec = buildColumn("PROFILE", { text: target }, new Set(), unixNow());
+  if (!spec) throw new Error("buildColumn returned null");
+  renderWithRouter(
+    <VirtuosoMockContext.Provider value={{ viewportHeight: 2000, itemHeight: 100 }}>
+      <DeckColumn spec={spec} showHeader />
+    </VirtuosoMockContext.Provider>,
+  );
+  expect(screen.getByRole("heading", { name: "Alice" })).toBeInTheDocument();
+  expect(screen.getByText("プロフィール")).toBeInTheDocument();
+});
+
+it("PROFILE カラムはプロフィールが未取得なら spec.title のままヘッダに出す（#590）", () => {
+  const targetKey = generateSecretKey();
+  const target = getPublicKey(targetKey);
+  const spec = buildColumn("PROFILE", { text: target }, new Set(), unixNow());
+  if (!spec) throw new Error("buildColumn returned null");
+  renderWithRouter(
+    <VirtuosoMockContext.Provider value={{ viewportHeight: 2000, itemHeight: 100 }}>
+      <DeckColumn spec={spec} showHeader />
+    </VirtuosoMockContext.Provider>,
+  );
+  expect(screen.getByRole("heading", { name: spec.title })).toBeInTheDocument();
 });

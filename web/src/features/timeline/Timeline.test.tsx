@@ -80,5 +80,5 @@ it("投稿が 0 件でも header は出す（ネイティブの LazyColumn と�
     </VirtuosoMockContext.Provider>,
   );
   expect(screen.getByText("プロフィールカード")).toBeInTheDocument();
-  expect(screen.getByText("まだ投稿がありません")).toBeInTheDocument();
+  expect(screen.getByText("投稿がありません")).toBeInTheDocument();
 });

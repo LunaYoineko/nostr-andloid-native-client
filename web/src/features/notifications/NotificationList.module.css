@@ -1,5 +1,16 @@
-.list {
+/* 引っ張って更新のインジケータ（#601）を絶対配置するための土台。
+   overflow-x・min-width は安全網（#645。行の中身が幅を超えても横スクロールさせない） */
+.root {
+  position: relative;
+  min-width: 0;
   height: 100%;
+  overflow-x: hidden;
+}
+
+.list {
+  min-width: 0;
+  height: 100%;
+  overflow-x: hidden;
 }
 
 /* Timeline.module.css の .empty と同じ */

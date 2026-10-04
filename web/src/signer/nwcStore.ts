@@ -1,4 +1,5 @@
 import type { VaultRow } from "../db/schema";
+import { t } from "../i18n";
 import { unixNow } from "../lib/time";
 import { type KeyVaultDb, openVaultDatabase, VaultError } from "./webKeyVault";
 
@@ -126,7 +127,7 @@ async function remove(db: KeyVaultDb): Promise<void> {
     await db.vault.delete(NWC_ROW_ID);
   } catch {
     // 行や鍵をログに出さない
-    console.warn("[vault] 削除に失敗");
+    console.warn(`[vault] ${t("web_log_vault_delete_failed")}`);
   }
 }
 

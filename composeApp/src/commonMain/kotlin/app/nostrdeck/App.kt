@@ -1,6 +1,8 @@
 package app.nostrdeck
 
 import nostr_deck_client.composeapp.generated.resources.publish_unconfirmed
+import nostr_deck_client.composeapp.generated.resources.own_list_stale
+import nostr_deck_client.composeapp.generated.resources.own_list_unreachable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +27,7 @@ import app.nostrdeck.model.TextScale
 import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
 import app.nostrdeck.theme.DeckWeight
+import app.nostrdeck.theme.DeckDensity
 import app.nostrdeck.data.SampleData
 import app.nostrdeck.signer.SignerProvider
 import app.nostrdeck.state.DeckState
@@ -108,6 +111,23 @@ fun App(
         LaunchedEffect(repository) {
             repository?.publishUnconfirmedFlow()?.collect { toast(unconfirmedMsg) }
         }
+        // [#478] 自分のリスト（フォロー・ミュート等）の編集を止めた理由。どの画面から操作しても同じ文言で知らせる。
+        val ownListUnreachableMsg = org.jetbrains.compose.resources.stringResource(
+            nostr_deck_client.composeapp.generated.resources.Res.string.own_list_unreachable,
+        )
+        val ownListStaleMsg = org.jetbrains.compose.resources.stringResource(
+            nostr_deck_client.composeapp.generated.resources.Res.string.own_list_stale,
+        )
+        LaunchedEffect(repository) {
+            repository?.ownListErrorFlow()?.collect { err ->
+                toast(
+                    when (err) {
+                        EventRepository.OwnListError.UNREACHABLE -> ownListUnreachableMsg
+                        EventRepository.OwnListError.STALE -> ownListStaleMsg
+                    },
+                )
+            }
+        }
         // [#100][#101] 外部 Intent（共有/ディープリンク）の消費。未ログイン中は値を保持したまま
         // 待ち、ログイン成立（session=true）で combine が再発火して処理される。
         LaunchedEffect(state, repository) {
@@ -160,6 +180,10 @@ fun App(
         val boldText by (repository?.boldTextFlow()?.collectAsState()
             ?: remember { mutableStateOf(false) })
         DeckWeight.apply(boldText)
+        // [#675] 廃人モード。DeckDensity も snapshot state なので apply するだけで全体に効く。
+        val denseMode by (repository?.denseModeFlow()?.collectAsState()
+            ?: remember { mutableStateOf(false) })
+        DeckDensity.apply(denseMode)
         // [#378] にゃにゃにゃウイルス。Nyan は snapshot state なので apply するだけで
         // 猫耳(Avatar)とにゃいず(noteAnnotated)の両方に効く。表示専用・発行には無関係。
         val nyanMode by (repository?.nyanModeFlow()?.collectAsState()

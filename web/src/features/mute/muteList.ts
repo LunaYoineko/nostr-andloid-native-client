@@ -4,6 +4,7 @@ import type { ColumnKind } from "../../lib/columns";
 import { quotePointerOf } from "../../lib/content/tags";
 import { zapSenderOf } from "../../lib/nip57";
 import type { Signer } from "../../nostr/signer";
+import { plainTextOf } from "../actions/noteLinks";
 
 /**
  * NIP-51 のミュートリスト（kind:10000）の解析・判定・再発行の中身（ネイティブの MuteList.kt / MuteMatcher.kt /
@@ -340,7 +341,8 @@ function isPostMuted(m: MuteMatcher, note: NostrEvent, resolve: ResolveEvent): b
       return true;
     }
   }
-  if (hasWords && matchesWord(m, note.content)) return true;
+  // ワードは表示用の本文（ネイティブ note.text ?: content。plainTextOf と同じ）で判定する（挙動3.2）
+  if (hasWords && matchesWord(m, plainTextOf(note))) return true;
   return m.threads.has(note.id);
 }
 

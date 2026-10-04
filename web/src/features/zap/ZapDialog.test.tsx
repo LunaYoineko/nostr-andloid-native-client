@@ -1,10 +1,11 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { t } from "../../i18n";
 import { requestZapInvoice } from "../../lib/lnurl";
 import { installDialogPolyfill } from "../../test/dialog";
 import { useToast } from "../../ui/toast";
-import { ZAP_INVOICE_FAILED, ZAP_PAID, ZapDialog } from "./ZapDialog";
+import { ZapDialog } from "./ZapDialog";
 
 // LNURL の取得・署名はしない（lnurl.test.ts で見る）。invoice の取得の呼ばれ方だけ見る
 vi.mock("../../lib/lnurl", async (importOriginal) => {
@@ -100,7 +101,7 @@ it("window.webln があれば enable → sendPayment(pr)、成功でトースト
   await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   expect(webln.enable).toHaveBeenCalledTimes(1);
   expect(webln.sendPayment).toHaveBeenCalledWith(PR);
-  expect(useToast.getState().queue).toEqual([ZAP_PAID]);
+  expect(useToast.getState().queue).toEqual([t("nwc_paid")]);
 });
 
 it("処理中はスピナーで、Esc でも閉じない", async () => {
@@ -160,7 +161,7 @@ describe("失敗", () => {
 
     await user.click(within(dialog).getByRole("button", { name: "⚡ 100" }));
 
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(ZAP_INVOICE_FAILED);
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(t("zap_invoice_failed"));
     expect(within(dialog).getByRole("button", { name: "⚡ 100" })).toBeEnabled();
     expect(within(dialog).queryByRole("img")).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
@@ -219,7 +220,7 @@ describe("payWithWallet（#537 の口）", () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(payWithWallet).toHaveBeenCalledWith(PR);
     expect(webln.sendPayment).not.toHaveBeenCalled();
-    expect(useToast.getState().queue).toEqual([ZAP_PAID]);
+    expect(useToast.getState().queue).toEqual([t("nwc_paid")]);
   });
 
   it("確認をキャンセルすれば払わない。もう一度送れる", async () => {

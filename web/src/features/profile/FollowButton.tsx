@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../../i18n";
 import { FollowError, toggleFollow } from "./follow";
 import styles from "./ProfileHeaderCard.module.css";
 
@@ -17,6 +18,7 @@ export function FollowButton({
   following: boolean;
   onError: (message: string) => void;
 }) {
+  const t = useT();
   const [pending, setPending] = useState(false);
 
   async function onClick() {
@@ -26,8 +28,8 @@ export function FollowButton({
     } catch (e) {
       onError(
         e instanceof FollowError && e.reason === "no-contacts"
-          ? "フォローリストを取得できませんでした。通信状態を確認してもう一度お試しください"
-          : "フォローを更新できませんでした",
+          ? t("web_follow_no_list")
+          : t("web_follow_update_failed"),
       );
     } finally {
       setPending(false);
@@ -43,7 +45,7 @@ export function FollowButton({
       disabled={pending}
       onClick={onClick}
     >
-      {following ? "フォロー中" : "フォロー"}
+      {following ? t("tpl_following") : t("note_follow")}
     </button>
   );
 }

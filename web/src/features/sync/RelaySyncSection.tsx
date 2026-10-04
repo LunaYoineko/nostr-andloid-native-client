@@ -1,4 +1,6 @@
 import { useId, useState } from "react";
+import { t, useT } from "../../i18n";
+import { columnLabel } from "../../lib/columns";
 import { useSession } from "../../signer/session";
 import { pinnedColumns, useDeck } from "../../store/deck";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
@@ -41,13 +43,13 @@ function columnDiffKey(diff: ColumnDiff): string {
 function columnDiffLabel(diff: ColumnDiff): string {
   switch (diff.type) {
     case "added":
-      return `追加: ${diff.spec.title}`;
+      return t("sync_col_added_fmt", columnLabel(diff.spec));
     case "removed":
-      return `削除: ${diff.spec.title}`;
+      return t("sync_col_removed_fmt", columnLabel(diff.spec));
     case "changed":
-      return `変更: ${diff.local.title}`;
+      return t("sync_col_changed_fmt", columnLabel(diff.local));
     case "reordered":
-      return "並び順の変更";
+      return t("sync_col_reordered");
   }
 }
 
@@ -56,17 +58,18 @@ function saveFailureMessage(e: unknown): string {
   if (e instanceof RelaySyncError) {
     switch (e.reason) {
       case "stale":
-        return "リレー上のデータが別の端末で更新されています。先に「リレーから読み込む」で差分を確認してください。";
+        return t("web_sync_stale");
       case "unreachable":
-        return "リレーから最新のデータを取得できなかったため、上書きを避けて保存しませんでした。";
+        return t("web_sync_unreachable");
       case "unknown-format":
-        return "リレー上のデータに、この Web 版が読めない形式が含まれているため、消さないように保存しませんでした。";
+        return t("web_sync_unknown_format");
     }
   }
-  return "リレーへの保存に失敗しました。";
+  return t("sync_save_failed");
 }
 
 export function RelaySyncSection() {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const [confirmSave, setConfirmSave] = useState(false);
   const [busySave, setBusySave] = useState(false);
@@ -85,7 +88,7 @@ export function RelaySyncSection() {
     try {
       const snapshot = await loadRelaySync(me);
       if (snapshot.settings === null && snapshot.columns === null) {
-        setMessage("リレーに保存データが見つかりません。");
+        setMessage(t("sync_no_data"));
         return;
       }
       const settingDiffs =
@@ -93,15 +96,15 @@ export function RelaySyncSection() {
       const columnDiffs =
         snapshot.columns !== null ? diffDeckColumns(pinnedColumns(useDeck.getState()), snapshot.columns) : [];
       if (settingDiffs.length === 0 && columnDiffs.length === 0) {
-        setMessage("差分はありません。");
+        setMessage(t("sync_no_diff"));
       } else {
         setDiffs({ settings: settingDiffs, columns: columnDiffs });
       }
     } catch (e) {
       setMessage(
         e instanceof RelaySyncError && e.reason === "unreachable"
-          ? "リレーから取得できませんでした。接続を確認して、もう一度お試しください。"
-          : "リレーからの読み込みに失敗しました。",
+          ? t("web_sync_load_unreachable")
+          : t("web_sync_load_failed"),
       );
     } finally {
       setBusyLoad(false);
@@ -114,7 +117,7 @@ export function RelaySyncSection() {
     setBusySave(true);
     try {
       await publishRelaySync(me);
-      setMessage("リレーへ保存しました。");
+      setMessage(t("sync_save_done"));
     } catch (e) {
       setMessage(saveFailureMessage(e));
     } finally {
@@ -124,11 +127,8 @@ export function RelaySyncSection() {
 
   return (
     <div className={sectionStyles.block}>
-      <h3 className={sectionStyles.caption}>リレー同期</h3>
-      <p className={sectionStyles.desc}>
-        各種設定とカラム構成を
-        kind:30078（NIP-78）としてリレーへ手動で保存します。読み込み時は最新のスナップショットを取得し、ローカルとの差分を確認して項目ごとに適用できます。自動では同期しません。
-      </p>
+      <h3 className={sectionStyles.caption}>{t("sync_title")}</h3>
+      <p className={sectionStyles.desc}>{t("sync_desc")}</p>
       <div className={sectionStyles.row}>
         <button
           type="button"
@@ -139,15 +139,15 @@ export function RelaySyncSection() {
             setConfirmSave(true);
           }}
         >
-          リレーへ保存
+          {t("sync_save")}
         </button>
         <button type="button" className={sectionStyles.ghost} disabled={busy} onClick={() => void load()}>
-          リレーから読み込む
+          {t("sync_load")}
         </button>
       </div>
       {busyLoad && (
         <p className={sectionStyles.desc} role="status">
-          リレーから読み込み中…
+          {t("sync_loading")}
         </p>
       )}
       {message && (
@@ -157,9 +157,9 @@ export function RelaySyncSection() {
       )}
       {confirmSave && (
         <ConfirmDialog
-          title="リレーへ保存しますか？"
-          text="設定とカラム構成の2イベント（kind:30078）を書き込みリレーへ発行し、以前のスナップショットを置き換えます。"
-          confirmLabel="保存"
+          title={t("sync_save_confirm_title")}
+          text={t("sync_save_confirm_text")}
+          confirmLabel={t("common_save")}
           onConfirm={() => void save()}
           onDismiss={() => setConfirmSave(false)}
         />
@@ -169,7 +169,7 @@ export function RelaySyncSection() {
           diffs={diffs}
           onApplied={() => {
             setDiffs(null);
-            setMessage("適用しました。");
+            setMessage(t("sync_applied"));
           }}
           onDismiss={() => setDiffs(null)}
         />
@@ -187,6 +187,7 @@ function RelaySyncDiffDialog({
   onApplied(): void;
   onDismiss(): void;
 }) {
+  const t = useT();
   const [checked, setChecked] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const d of diffs.settings) initial[d.key] = true;
@@ -205,11 +206,15 @@ function RelaySyncDiffDialog({
   }
 
   return (
-    <InfoDialog title="差分の確認" action={{ label: "適用", onClick: apply }} onDismiss={onDismiss}>
-      <p className={sectionStyles.desc}>チェックした項目だけを適用します。</p>
+    <InfoDialog
+      title={t("sync_diff_title")}
+      action={{ label: t("sync_apply"), onClick: apply }}
+      onDismiss={onDismiss}
+    >
+      <p className={sectionStyles.desc}>{t("sync_diff_desc")}</p>
       {diffs.settings.length > 0 && (
         <>
-          <h4 className={styles.group}>設定</h4>
+          <h4 className={styles.group}>{t("sync_group_settings")}</h4>
           {diffs.settings.map((diff) => {
             const spec = SETTINGS_SYNC_WHITELIST.find((s) => s.key === diff.key);
             return (
@@ -228,7 +233,7 @@ function RelaySyncDiffDialog({
       )}
       {diffs.columns.length > 0 && (
         <>
-          <h4 className={styles.group}>カラム構成</h4>
+          <h4 className={styles.group}>{t("sync_group_columns")}</h4>
           {diffs.columns.map((diff) => {
             const key = columnDiffKey(diff);
             return (

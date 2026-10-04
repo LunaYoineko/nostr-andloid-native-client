@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForProfile } from "../../lib/content/labels";
 import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { RepeatIcon } from "../../ui/icons";
@@ -10,6 +11,7 @@ import styles from "./RepostHeader.module.css";
  * 「がリポスト」はアイコンが意味を担うので見せず、読み上げ用にだけ残す。
  */
 export function RepostHeader({ reposter }: { reposter: string }) {
+  const t = useT();
   const profile = useProfile(reposter);
   const picture = pictureOf(profile);
   return (
@@ -19,7 +21,7 @@ export function RepostHeader({ reposter }: { reposter: string }) {
       <Link className={styles.repostName} to={hrefForProfile(reposter)}>
         {displayName(profile, reposter)}
       </Link>
-      <span className="srOnly">がリポスト</span>
+      <span className="srOnly">{t("web_repost_header_suffix")}</span>
     </p>
   );
 }

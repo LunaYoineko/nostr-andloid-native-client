@@ -7,6 +7,16 @@ body {
   overscroll-behavior: none;
 }
 
+/*
+ * [#644] スクロールバーをテーマに追従させる（継承するので各スクロール領域へ個別に当てる必要はない）。
+ * ネイティブにスクロールバーは無いので、目立たない細いもの・地のトラックは透明にする。
+ * Compact のデッキの横スクロール（app/deck/DeckScreen.module.css の .strip）だけは既存どおり非表示のまま。
+ */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
 body {
   /* ホームは画面の高さぴったりに組む（既定の 8px があると文書全体がスクロールする） */
   margin: 0;

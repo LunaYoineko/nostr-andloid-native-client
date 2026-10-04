@@ -1,15 +1,6 @@
 import { useEffect, useId, useRef } from "react";
+import { useT } from "../../i18n";
 import styles from "./ReportDialog.module.css";
-
-/** NIP-56 の理由（ネイティブ ReportDialog と同じ並び・文言） */
-const REASONS: readonly { type: string; label: string }[] = [
-  { type: "illegal", label: "違法・児童の安全に関わる" },
-  { type: "nudity", label: "性的・ヌード" },
-  { type: "spam", label: "スパム" },
-  { type: "impersonation", label: "なりすまし" },
-  { type: "profanity", label: "不適切な表現" },
-  { type: "other", label: "その他" },
-];
 
 /**
  * 通報の理由を選ぶダイアログ（ネイティブ NoteItem.kt / ProfileScreen.kt の ReportDialog）。
@@ -17,7 +8,7 @@ const REASONS: readonly { type: string; label: string }[] = [
  * title は投稿の通報（既定）とユーザーの通報（プロフィールの ⋯）で出し分ける。
  */
 export function ReportDialog({
-  title = "この投稿を通報",
+  title,
   onPick,
   onDismiss,
 }: {
@@ -25,6 +16,16 @@ export function ReportDialog({
   onPick(type: string): void;
   onDismiss(): void;
 }) {
+  const t = useT();
+  /** NIP-56 の理由（ネイティブ ReportDialog と同じ並び・文言） */
+  const reasons: readonly { type: string; label: string }[] = [
+    { type: "illegal", label: t("report_illegal") },
+    { type: "nudity", label: t("report_nudity") },
+    { type: "spam", label: t("report_spam") },
+    { type: "impersonation", label: t("report_impersonation") },
+    { type: "profanity", label: t("report_profanity") },
+    { type: "other", label: t("report_other") },
+  ];
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const textId = useId();
@@ -46,13 +47,13 @@ export function ReportDialog({
       }}
     >
       <h2 id={titleId} className={styles.title}>
-        {title}
+        {title ?? t("report_title")}
       </h2>
       <p id={textId} className={styles.text}>
-        理由を選んでください（NIP-56 で報告します）
+        {t("report_pick_reason")}
       </p>
       <div className={styles.reasons}>
-        {REASONS.map((r) => (
+        {reasons.map((r) => (
           <button key={r.type} type="button" className={styles.reason} onClick={() => onPick(r.type)}>
             {r.label}
           </button>
@@ -60,7 +61,7 @@ export function ReportDialog({
       </div>
       <div className={styles.buttons}>
         <button type="button" className={styles.dismiss} onClick={onDismiss}>
-          キャンセル
+          {t("common_cancel")}
         </button>
       </div>
     </dialog>

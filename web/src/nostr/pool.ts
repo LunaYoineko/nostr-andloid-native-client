@@ -92,39 +92,27 @@ export function defaultRelays(): string[] {
 
 // ---- リレー集合（read = 購読・取得、write = 発行の送り先） ----
 
-/** saved = nostrism.relays（最優先）、nip65 = 自分の kind:10002、default = 言語別の既定 */
-export type RelaySource = "saved" | "nip65" | "default";
+/** nip65 = 自分の kind:10002、manual = 手動追加（アカウントごと）、default = 言語別の既定。優先順位はこの順（#585） */
+export type RelaySource = "nip65" | "manual" | "default";
 
 export type RelaySet = { read: readonly string[]; write: readonly string[]; source: RelaySource };
 
 /** kind:10002 の r タグ 1 件ぶん（outbox.ts の RelayPref と同じ形） */
 type RelayPrefLike = { url: string; read: boolean; write: boolean };
 
-/** 起動時・ログアウト時のリレー集合。nostrism.relays があれば read / write の両方にそれを使い、無ければ既定 */
+/**
+ * 起動時・ログアウト時のリレー集合。nostrism.relays（旧版の全端末共通の保存値）があれば read / write の
+ * 両方にそれを使い（source: "manual"。ログイン後はアカウントごとの手動リレーへ 1 度だけ引き継ぐ。#585）、
+ * 無ければ言語別の既定。
+ */
 export function initialRelaySet(saved: string | null, language: string): RelaySet {
   const list = savedRelayList(saved);
-  if (list) return { read: list, write: list, source: "saved" };
+  if (list) return { read: list, write: list, source: "manual" };
   const defaults = defaultRelaysFor(language);
   return { read: defaults, write: defaults, source: "default" };
 }
 
-/**
- * kind:10002 の読み書きから決めるリレー集合。片側が空ならその側は既定（つながる先・送り先を失わない）。
- * 両側とも空なら null（既定のまま）。
- */
-export function relaySetFromPrefs(prefs: readonly RelayPrefLike[], language: string): RelaySet | null {
-  const read = prefs.filter((p) => p.read).map((p) => p.url);
-  const write = prefs.filter((p) => p.write).map((p) => p.url);
-  if (read.length === 0 && write.length === 0) return null;
-  const defaults = defaultRelaysFor(language);
-  return {
-    read: read.length > 0 ? read : defaults,
-    write: write.length > 0 ? write : defaults,
-    source: "nip65",
-  };
-}
-
-/** このセッションで使うリレー集合。ログイン後に自分の kind:10002 で置き換わる（outbox.ts の followOwnRelayList） */
+/** このセッションで使うリレー集合。ログイン後はリレー表（NIP-65 → 手動 → 既定。#585）で置き換わる */
 export const useRelays = create<RelaySet>()(() => initialRelaySet(readSavedRelays(), browserLanguage()));
 
 /** 購読・取得に使うリレー */
@@ -142,19 +130,183 @@ export function useReadRelays(): readonly string[] {
   return useRelays((s) => s.read);
 }
 
-/**
- * 自分の kind:10002 の読み書きをリレー集合にする。nostrism.relays があるときは使わない（保存値が優先）。
- * 読み書きが 1 つも無ければ何もしない（今のまま）。
- */
-export function applyRelayPrefs(prefs: readonly RelayPrefLike[]): void {
-  if (useRelays.getState().source === "saved") return;
-  const next = relaySetFromPrefs(prefs, browserLanguage());
-  if (next) useRelays.setState(next, true);
-}
-
 /** 起動時の集合（nostrism.relays か既定）へ戻す（ログアウト・アカウントの切り替え） */
 export function resetRelays(): void {
   useRelays.setState(initialRelaySet(readSavedRelays(), browserLanguage()), true);
+}
+
+// ---- 自分のリレー表（NIP-65 / 手動 / 既定）: Settings から編集する明示的な置き場（#585） ----
+// ネイティブ EventRepository の relay テーブルの写し。追加・削除・Read/Write の切替はここへ即反映し
+// （＝接続先が変わる）、「保存」（settings/relayList.ts の publishRelayList）は kind:10002 の公開だけ。
+
+export type RelayRow = RelayPrefLike & { source: RelaySource };
+
+const RELAY_TABLE_PREFIX = "nostrism.relays.table.";
+function relayTableKey(me: string): string {
+  return `${RELAY_TABLE_PREFIX}${me}`;
+}
+
+function isRelayRow(v: unknown): v is RelayRow {
+  if (typeof v !== "object" || v === null) return false;
+  const { url, read, write, source } = v as Record<string, unknown>;
+  return (
+    typeof url === "string" &&
+    isRelayUrl(url) &&
+    typeof read === "boolean" &&
+    typeof write === "boolean" &&
+    (source === "nip65" || source === "manual" || source === "default")
+  );
+}
+
+/** 保存値。無い（このアカウントでまだ作っていない）なら null。壊れた行・重複した url は捨てる */
+function readRelayTable(me: string): RelayRow[] | null {
+  try {
+    const raw = localStorage.getItem(relayTableKey(me));
+    if (raw === null) return null;
+    const value: unknown = JSON.parse(raw);
+    if (!Array.isArray(value)) return null;
+    const seen = new Set<string>();
+    const rows: RelayRow[] = [];
+    for (const v of value) {
+      if (!isRelayRow(v) || seen.has(v.url)) continue;
+      seen.add(v.url);
+      rows.push(v);
+    }
+    return rows;
+  } catch {
+    return null;
+  }
+}
+
+function writeRelayTable(me: string, rows: readonly RelayRow[]): void {
+  try {
+    localStorage.setItem(relayTableKey(me), JSON.stringify(rows));
+  } catch {
+    // 容量超過・プライベートモード等はメモリ上の状態だけで続ける
+  }
+}
+
+/**
+ * 初めてこのアカウントのリレー表を作るときの初期値。旧版の全端末共通の保存値（nostrism.relays）があれば
+ * アカウントの手動リレーへ 1 度だけ引き継ぎ（#585 挙動1.8。壊さず移行）、無ければ言語別の既定（source: "default"）。
+ */
+function seedRelayRows(): RelayRow[] {
+  // url は addRelay / applyOwnRelayList と同じ正規化（normalizeURL）に揃える。揃えないと同じリレーが
+  // 末尾の / の有無違いで二重登録される
+  const legacy = savedRelayList(readSavedRelays());
+  if (legacy) {
+    return legacy.map((url) => ({
+      url: normalizeURL(url),
+      read: true,
+      write: true,
+      source: "manual" as const,
+    }));
+  }
+  return defaultRelays().map((url) => ({
+    url: normalizeURL(url),
+    read: true,
+    write: true,
+    source: "default" as const,
+  }));
+}
+
+type RelayTableState = { me: string | null; rows: RelayRow[] };
+const useRelayTable = create<RelayTableState>()(() => ({ me: null, rows: [] }));
+
+function relaySetOfRows(rows: readonly RelayRow[]): RelaySet {
+  return {
+    read: rows.filter((r) => r.read).map((r) => r.url),
+    write: rows.filter((r) => r.write).map((r) => r.url),
+    source: rows.some((r) => r.source === "nip65")
+      ? "nip65"
+      : rows.some((r) => r.source === "manual")
+        ? "manual"
+        : "default",
+  };
+}
+
+// リレー表が変わるたびに接続先（useRelays）へ反映する。ログアウト（me: null）は unloadRelayTable が
+// resetRelays で直接戻すので、ここでは触らない
+useRelayTable.subscribe((state) => {
+  if (state.me !== null) useRelays.setState(relaySetOfRows(state.rows), true);
+});
+
+/** ログインしたアカウントのリレー表を読み込む（保存値が無ければ移行 or 既定で作る）。#585 */
+export function loadRelayTable(me: string): void {
+  const stored = readRelayTable(me);
+  const rows = stored ?? seedRelayRows();
+  if (stored === null) writeRelayTable(me, rows);
+  useRelayTable.setState({ me, rows });
+}
+
+/** ログアウト時。保存値は残す（次ログインでまた読み込む）。接続先は起動時の集合へ戻す */
+export function unloadRelayTable(): void {
+  useRelayTable.setState({ me: null, rows: [] });
+  resetRelays();
+}
+
+function ensureRelayTableFor(me: string): void {
+  if (useRelayTable.getState().me !== me) loadRelayTable(me);
+}
+
+function mutateRelayTable(fn: (rows: RelayRow[]) => RelayRow[]): void {
+  const { me, rows } = useRelayTable.getState();
+  if (me === null) return;
+  const next = fn(rows);
+  useRelayTable.setState({ rows: next });
+  writeRelayTable(me, next);
+}
+
+function upsertRow(rows: RelayRow[], row: RelayRow): RelayRow[] {
+  const idx = rows.findIndex((r) => r.url === row.url);
+  if (idx === -1) return [...rows, row];
+  const next = [...rows];
+  next[idx] = row;
+  return next;
+}
+
+/** Settings に出す一覧（ログインしたアカウントのリレー表。変わったら描き直す） */
+export function useRelayRows(): RelayRow[] {
+  return useRelayTable((s) => s.rows);
+}
+
+/** 今のリレー表（ログインしたアカウントのもの）。非 React（テスト等）から読む用 */
+export function relayRows(): RelayRow[] {
+  return useRelayTable.getState().rows;
+}
+
+/** リレーを手動で追加する（read/write 既定 true。ネイティブ addRelay）。接続先へ即反映する */
+export function addRelay(url: string): void {
+  if (!isRelayUrl(url)) return;
+  const u = normalizeURL(url);
+  mutateRelayTable((rows) => upsertRow(rows, { url: u, read: true, write: true, source: "manual" }));
+}
+
+/** 一覧から外す（ネイティブ removeRelay。接続先から即外れる） */
+export function removeRelay(url: string): void {
+  mutateRelayTable((rows) => rows.filter((r) => r.url !== url));
+}
+
+/** Read/Write の切替（ネイティブ setRelayReadWrite。source は維持する） */
+export function setRelayReadWrite(url: string, read: boolean, write: boolean): void {
+  mutateRelayTable((rows) => rows.map((r) => (r.url === url ? { ...r, read, write } : r)));
+}
+
+/**
+ * 自分の kind:10002 を受信・発行したときに反映する（ネイティブ applyRelayList）。同じ url は NIP-65 が勝つ。
+ * read できるリレーが 1 つでもあれば、既定(default)のうち今回の一覧に無いものを外す（手動追加は残す。#585）。
+ */
+export function applyOwnRelayList(me: string, prefs: readonly RelayPrefLike[]): void {
+  ensureRelayTableFor(me);
+  mutateRelayTable((rows) => {
+    let next = rows;
+    for (const p of prefs) next = upsertRow(next, { ...p, source: "nip65" });
+    if (prefs.some((p) => p.read)) {
+      const keep = new Set(prefs.map((p) => p.url));
+      next = next.filter((r) => r.source !== "default" || keep.has(r.url));
+    }
+    return next;
+  });
 }
 
 /** 購読・取得に使うリレーの変化（購読した時点の値から流す） */
@@ -168,6 +320,30 @@ export const readRelays$: Observable<string[]> = new Observable<readonly string[
 
 /** アプリで 1 つのリレープール。再接続のバックオフと再購読は applesauce に任せる */
 export const pool = new RelayPool();
+
+/**
+ * いま WebSocket が開いている全リレーの URL（read/write 問わず。検索リレーや一時接続も含む）。
+ * 発行先の既定（write ∪ 接続中、#582）に使う。
+ */
+export function connectedRelayUrls(): string[] {
+  return [...pool.relays.values()].filter((relay) => relay.connected).map((relay) => relay.url);
+}
+
+/**
+ * そのリレーが発行に AUTH を要求していて、まだ認証できていないか（方針で応答しなかった・失敗した）。
+ * 発行先の既定から除く判定に使う（#582。プールに無ければ false）。
+ */
+export function needsAuthForPublish(url: string): boolean {
+  const relay = pool.relays.get(normalizeURL(url));
+  if (!relay || relay.authenticated) return false;
+  let required = false;
+  relay.authRequiredForPublish$
+    .subscribe((value) => {
+      required = value;
+    })
+    .unsubscribe();
+  return required;
+}
 
 /**
  * 購読の再接続設定。applesauce の既定は 3 回で諦めるため、回線が戻るまで繰り返す

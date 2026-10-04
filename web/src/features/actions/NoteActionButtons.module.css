@@ -1,6 +1,6 @@
 /* 自分がリポスト済み（ネイティブの Boost 色） */
 .reposted {
-  color: var(--repost);
+  color: var(--boost);
 }
 
 /* ♡ / ☆ の包み。付与済み（押下中を含む）は鮮色、未付与はボタンの色（--text-3）のまま */
@@ -66,8 +66,10 @@
   cursor: pointer;
 }
 
-.zapButton:hover {
-  background: var(--surface-2);
+@media (hover: hover) {
+  .zapButton:hover {
+    background: var(--surface-2);
+  }
 }
 
 .zapButton:focus-visible {
@@ -75,17 +77,18 @@
   outline-offset: -2px;
 }
 
-/* アイコンの枠はアクションボタンのタッチ箱と同じ */
+/* アイコンの枠はアクションボタンのタッチ箱と同じ（[#674] --action-size。廃人モードで詰める） */
 .zapIcon {
   display: grid;
   place-items: center;
-  width: var(--touch-sm);
-  height: var(--touch-sm);
+  width: var(--action-size);
+  height: var(--action-size);
 }
 
+/* [#596] グリフだけ文字サイズにも追従（ネイティブ NoteItem.kt の IconMd.scaledByText()。最大1.3倍） */
 .zapIcon svg {
-  width: var(--icon-md);
-  height: var(--icon-md);
+  width: calc(var(--icon-md) * clamp(1, var(--text-scale), 1.3));
+  height: calc(var(--icon-md) * clamp(1, var(--text-scale), 1.3));
 }
 
 /* 金額はアイコン側へ 4px 寄せる（ネイティブ offset(x = -Xs)） */
@@ -93,9 +96,4 @@
   position: relative;
   left: calc(var(--sp-1) * -1);
   font-size: var(--type-label);
-}
-
-/* ⋯ を右端へ寄せる */
-.spacer {
-  flex: 1;
 }

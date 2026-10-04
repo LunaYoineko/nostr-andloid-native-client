@@ -439,7 +439,7 @@ describe("startNostrConnect", () => {
     expect([...new URLSearchParams(query)]).toEqual([
       ["secret", expect.stringMatching(/^[0-9a-f]{32}$/)],
       ["name", "Nostrism"],
-      ["url", `${location.origin}/app/`],
+      ["url", `${location.origin}/`],
       ["perms", NIP46_PERMISSIONS.join(",")],
       ["relay", "wss://nos.lol"],
     ]);

@@ -1,5 +1,7 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { t, useT } from "../../i18n";
+import { proxied } from "../../lib/imageProxy";
 import { refetchOwnReplaceable } from "../../nostr/ownReplaceable";
 import { eventStore } from "../../nostr/store";
 import { currentSigner, useSession } from "../../signer/session";
@@ -17,17 +19,15 @@ import {
 import styles from "./ProfileEditSection.module.css";
 import sectionStyles from "./SettingsSections.module.css";
 
-const UPLOAD_FAILED = "画像をアップロードできませんでした。設定 → メディアサーバーを確認してください。";
-
 /** 保存の失敗の文言 */
 function failureMessage(e: unknown): string {
   if (e instanceof ProfileEditError && e.reason === "unreachable") {
-    return "リレーから最新のプロフィールを取得できませんでした。接続を確認してください";
+    return t("web_profile_edit_no_base");
   }
   if (e instanceof ProfileEditError && e.reason === "stale") {
-    return "別の端末でプロフィールが更新されています。開き直してから編集してください";
+    return t("web_profile_edit_stale");
   }
-  return "プロフィールを保存できませんでした。ログイン/署名の状態を確認して、もう一度お試しください。";
+  return t("profile_save_failed");
 }
 
 type ImageField = "picture" | "banner";
@@ -48,6 +48,7 @@ export function ProfileEditSection() {
 }
 
 function ProfileEditForm({ me }: { me: string }) {
+  const t = useT();
   const latest = use$(() => eventStore.replaceable(0, me), [me]) ?? null;
   const current = useMemo(() => profileFieldsOf(latest), [latest]);
   // 開いた直後の取り直しが終わるまで（応答が無くても終われば編集できる。保存の直前にもう一度確かめる）
@@ -93,7 +94,7 @@ function ProfileEditForm({ me }: { me: string }) {
     const signal = controller.current?.signal;
     const signer = currentSigner();
     if (!signer || !file.type.startsWith("image/")) {
-      showToast(UPLOAD_FAILED);
+      showToast(t("channel_icon_upload_failed"));
       return;
     }
     // 選んだ時点の版で編集を始める（アップロード中に届いた版で上書きしない）
@@ -104,9 +105,9 @@ function ProfileEditForm({ me }: { me: string }) {
       const result = await uploadMedia(processed, uploadServers(mediaServer), signer, signal);
       if (signal?.aborted) return;
       if (result) edit({ [field]: result.url });
-      else showToast(UPLOAD_FAILED);
+      else showToast(t("channel_icon_upload_failed"));
     } catch {
-      if (!signal?.aborted) showToast(UPLOAD_FAILED);
+      if (!signal?.aborted) showToast(t("channel_icon_upload_failed"));
     } finally {
       if (!signal?.aborted) setUploading((u) => ({ ...u, [field]: false }));
     }
@@ -137,41 +138,46 @@ function ProfileEditForm({ me }: { me: string }) {
 
   return (
     <div className={sectionStyles.block}>
-      <h3 className={sectionStyles.caption}>プロフィール</h3>
-      <p className={sectionStyles.desc}>
-        変更を保存すると kind:0 を発行します。既存の独自項目は保持されます。
-      </p>
+      <h3 className={sectionStyles.caption}>{t("tile_profile")}</h3>
+      <p className={sectionStyles.desc}>{t("profile_publish_note")}</p>
       {!loaded && (
         <p className={sectionStyles.desc} role="status">
-          読み込み中…
+          {t("loading")}
         </p>
       )}
-      <TextField label="表示名" value={fields.name} disabled={disabled} onChange={(v) => edit({ name: v })} />
       <TextField
-        label="自己紹介"
+        label={t("field_display_name")}
+        value={fields.name}
+        disabled={disabled}
+        onChange={(v) => edit({ name: v })}
+      />
+      <TextField
+        label={t("field_about")}
         value={fields.about}
         disabled={disabled}
         multiline
         onChange={(v) => edit({ about: v })}
       />
       <ImageUrlField
-        label="アイコン画像"
+        label={t("field_icon")}
         value={fields.picture}
         disabled={disabled}
         uploading={uploading.picture}
+        banner={false}
         onChange={(v) => edit({ picture: v })}
         onPick={(file) => void upload("picture", file)}
       />
       <ImageUrlField
-        label="バナー画像"
+        label={t("field_banner")}
         value={fields.banner}
         disabled={disabled}
         uploading={uploading.banner}
+        banner
         onChange={(v) => edit({ banner: v })}
         onPick={(file) => void upload("banner", file)}
       />
       <TextField
-        label="Lightning アドレス (lud16)"
+        label={t("field_lud16")}
         value={fields.lud16}
         disabled={disabled}
         inputMode="email"
@@ -185,7 +191,7 @@ function ProfileEditForm({ me }: { me: string }) {
         onChange={(v) => edit({ nip05: v })}
       />
       <TextField
-        label="Web サイト"
+        label={t("field_website")}
         value={fields.website}
         disabled={disabled}
         inputMode="url"
@@ -197,7 +203,7 @@ function ProfileEditForm({ me }: { me: string }) {
         disabled={!canSave}
         onClick={() => void save()}
       >
-        {saving ? "保存中…" : saved ? "保存しました ✓" : "保存"}
+        {saving ? t("common_saving") : saved ? t("saved_check") : t("common_save")}
       </button>
     </div>
   );
@@ -251,12 +257,17 @@ function TextField({
   );
 }
 
-/** 画像の URL 欄 +「画像を選ぶ」（選んだ画像は投稿と同じ既定で圧縮して NIP-96 でアップロードし、URL を入れる） */
+/**
+ * 画像の URL 欄 +「画像を選ぶ」（選んだ画像は投稿と同じ既定で圧縮して NIP-96 でアップロードし、URL を入れる）。
+ * URL があれば下にプレビュー（読み込み中/失敗/成功。banner=true は横長、false は正方形。ネイティブ
+ * ProfileImageField と同じ。S16）。
+ */
 function ImageUrlField({
   label,
   value,
   disabled,
   uploading,
+  banner,
   onChange,
   onPick,
 }: {
@@ -264,6 +275,7 @@ function ImageUrlField({
   value: string;
   disabled: boolean;
   uploading: boolean;
+  banner: boolean;
   onChange(value: string): void;
   onPick(file: File): void;
 }) {
@@ -291,18 +303,18 @@ function ImageUrlField({
         <button
           type="button"
           className={sectionStyles.ghost}
-          aria-label={`${label}を選ぶ`}
+          aria-label={t("web_settings_profile_pick_label", label)}
           disabled={disabled || uploading}
           onClick={() => fileInput.current?.click()}
         >
-          {uploading ? "アップロード中…" : "画像を選ぶ"}
+          {uploading ? t("web_settings_profile_uploading") : t("web_settings_profile_pick_image")}
         </button>
         <input
           ref={fileInput}
           type="file"
           accept="image/*"
           hidden
-          aria-label={`${label}のファイル`}
+          aria-label={t("web_settings_profile_file_label", label)}
           onChange={(e) => {
             const input = e.currentTarget;
             const file = input.files?.[0];
@@ -312,6 +324,30 @@ function ImageUrlField({
           }}
         />
       </div>
+      {value.trim() !== "" && <ImagePreview key={value} url={value} banner={banner} label={label} />}
+    </div>
+  );
+}
+
+/** URL 欄のプレビュー（読み込み中/失敗/成功。S16）。呼び出し側で key={url} を付け、URL が変わったら作り直す */
+function ImagePreview({ url, banner, label }: { url: string; banner: boolean; label: string }) {
+  const t = useT();
+  const [state, setState] = useState<"loading" | "loaded" | "error">("loading");
+  const src = proxied(url, banner ? 800 : 256, 80);
+  return (
+    <div
+      className={`${styles.preview} ${banner ? styles.previewBanner : styles.previewSquare}`}
+      data-state={state}
+    >
+      <img
+        className={styles.previewImg}
+        src={src}
+        alt={label}
+        onLoad={() => setState("loaded")}
+        onError={() => setState("error")}
+      />
+      {state === "loading" && <span className={styles.previewHint}>{t("loading")}</span>}
+      {state === "error" && <span className={styles.previewError}>{t("image_load_failed")}</span>}
     </div>
   );
 }

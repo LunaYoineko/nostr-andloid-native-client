@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { useT } from "../../i18n";
 import { requestZapInvoice } from "../../lib/lnurl";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { QrCode } from "../../ui/QrCode";
@@ -20,17 +21,6 @@ declare global {
 /** 金額のプリセット（sats。ネイティブ ZAP_PRESETS） */
 export const ZAP_PRESETS: readonly number[] = [21, 100, 500, 1000, 5000, 10000];
 const DEFAULT_AMOUNT = 100;
-
-// ネイティブ zap_invoice_failed
-export const ZAP_INVOICE_FAILED = "invoice を取得できませんでした。lud16/リレー設定を確認してください。";
-// ネイティブ nwc_paid
-export const ZAP_PAID = "Zapを送金しました ⚡";
-// ネイティブ nwc_via（#537）
-const NWC_VIA = "接続済みウォレットからアプリ内で送金します（毎回確認）。";
-// ネイティブ nwc_pay_confirm_title
-const NWC_PAY_CONFIRM_TITLE = "ウォレットから送金";
-// ネイティブ nwc_pay_confirm
-const NWC_PAY_CONFIRM = "送金する";
 
 /** カスタム額（数字だけ）。1 以上の整数ならそれ、それ以外は null（プリセットを使う） */
 function customSats(value: string): number | null {
@@ -68,6 +58,7 @@ export function ZapDialog({
   payWithWallet?: (pr: string) => Promise<void>;
   onClose(): void;
 }) {
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const descId = useId();
@@ -104,7 +95,7 @@ export function ZapDialog({
     });
     if (pr === null) {
       setBusy(false);
-      setError(ZAP_INVOICE_FAILED);
+      setError(t("zap_invoice_failed"));
       return;
     }
     if (payWithWallet) {
@@ -125,11 +116,11 @@ export function ZapDialog({
     } catch (err) {
       // 拒否・失敗は外部ウォレットへ逃がす（ネイティブ nwc_pay_failed_fmt）
       setBusy(false);
-      setError(`送金に失敗しました: ${messageOf(err)}`);
+      setError(t("nwc_pay_failed_fmt", messageOf(err)));
       setInvoice(pr);
       return;
     }
-    showToast(ZAP_PAID);
+    showToast(t("nwc_paid"));
     onClose();
   }
 
@@ -142,21 +133,21 @@ export function ZapDialog({
       await payWithWallet?.(pr);
     } catch (err) {
       setBusy(false);
-      setError(`送金に失敗しました: ${messageOf(err)}`);
+      setError(t("nwc_pay_failed_fmt", messageOf(err)));
       setInvoice(pr);
       return;
     }
     setBusy(false);
-    showToast(ZAP_PAID);
+    showToast(t("nwc_paid"));
     onClose();
   }
 
   async function copyInvoice(pr: string) {
     try {
       await navigator.clipboard.writeText(pr);
-      setCopyStatus("コピーしました");
+      setCopyStatus(t("copied"));
     } catch {
-      setCopyStatus("コピーできませんでした");
+      setCopyStatus(t("web_copy_failed"));
     }
   }
 
@@ -179,11 +170,11 @@ export function ZapDialog({
           ⚡ Zap
         </h2>
         <p id={descId} className={styles.desc}>
-          {`${recipientName} へ投げ銭します。金額を選び、ウォレットで支払ってください。`}
+          {t("zap_desc_fmt", recipientName)}
         </p>
         {invoice === null ? (
           <form id={formId} className={styles.form} onSubmit={send}>
-            <fieldset className={styles.presets} aria-label="金額" disabled={busy}>
+            <fieldset className={styles.presets} aria-label={t("web_zap_amount")} disabled={busy}>
               {ZAP_PRESETS.map((sats) => {
                 const active = custom === "" && amount === sats;
                 return (
@@ -206,8 +197,8 @@ export function ZapDialog({
               className={styles.input}
               type="text"
               inputMode="numeric"
-              aria-label="カスタム額 (sats)"
-              placeholder="カスタム額 (sats)"
+              aria-label={t("zap_custom_amount")}
+              placeholder={t("zap_custom_amount")}
               value={custom}
               disabled={busy}
               onChange={(e) => setCustom(e.target.value.replace(/\D/g, ""))}
@@ -215,8 +206,8 @@ export function ZapDialog({
             <input
               className={styles.input}
               type="text"
-              aria-label="コメント（任意）"
-              placeholder="コメント（任意）"
+              aria-label={t("zap_comment")}
+              placeholder={t("zap_comment")}
               value={comment}
               disabled={busy}
               onChange={(e) => setComment(e.target.value)}
@@ -226,14 +217,14 @@ export function ZapDialog({
           <div className={styles.invoice}>
             <QrCode
               value={`lightning:${invoice}`.toUpperCase()}
-              label={`Zap の invoice（${effectiveAmount} sats）`}
+              label={t("web_zap_invoice_label", effectiveAmount)}
             />
             <div className={styles.invoiceActions}>
               <a className={styles.external} href={`lightning:${invoice}`}>
-                外部ウォレットで開く
+                {t("nwc_open_external")}
               </a>
               <button type="button" className={styles.textButton} onClick={() => void copyInvoice(invoice)}>
-                コピー
+                {t("common_copy")}
               </button>
             </div>
             {copyStatus && (
@@ -248,15 +239,15 @@ export function ZapDialog({
             {error}
           </p>
         )}
-        {payWithWallet && invoice === null && <p className={styles.desc}>{NWC_VIA}</p>}
+        {payWithWallet && invoice === null && <p className={styles.desc}>{t("nwc_via")}</p>}
         <div className={styles.footer}>
-          <span className={styles.to}>{`送信先: ${lud16}`}</span>
+          <span className={styles.to}>{t("zap_to_fmt", lud16)}</span>
           {busy ? (
             <span className={styles.spinner} aria-hidden="true" />
           ) : invoice === null ? (
             <>
               <button type="button" className={styles.textButton} onClick={onClose}>
-                キャンセル
+                {t("common_cancel")}
               </button>
               <button type="submit" form={formId} className={styles.primary}>
                 {`⚡ ${effectiveAmount}`}
@@ -264,16 +255,16 @@ export function ZapDialog({
             </>
           ) : (
             <button type="button" className={styles.textButton} onClick={onClose}>
-              閉じる
+              {t("common_close")}
             </button>
           )}
         </div>
       </dialog>
       {confirmInvoice !== null && (
         <ConfirmDialog
-          title={NWC_PAY_CONFIRM_TITLE}
-          text={`${recipientName} に ⚡ ${effectiveAmount} sats を送金します。よろしいですか？`}
-          confirmLabel={NWC_PAY_CONFIRM}
+          title={t("nwc_pay_confirm_title")}
+          text={t("web_zap_pay_confirm_text", recipientName, effectiveAmount)}
+          confirmLabel={t("nwc_pay_confirm")}
           onConfirm={() => void confirmPay(confirmInvoice)}
           onDismiss={() => setConfirmInvoice(null)}
         />

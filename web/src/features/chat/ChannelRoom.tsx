@@ -1,5 +1,14 @@
 import type { NostrEvent } from "nostr-tools/pure";
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  type FocusEvent,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { t, useT } from "../../i18n";
 import { oneLine } from "../../lib/content/labels";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { extractMedia } from "../../lib/media";
@@ -8,6 +17,7 @@ import { displayName, pictureOf, useProfile } from "../../nostr/loaders";
 import { retryUnsentNow, useIsUnsent } from "../../nostr/publish";
 import { useSession } from "../../signer/session";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
+import { EventJsonDialog } from "../../ui/EventJsonDialog";
 import {
   AddReactionIcon,
   ArrowBackIcon,
@@ -22,6 +32,7 @@ import {
 } from "../../ui/icons";
 import { MenuButton, type MenuEntry } from "../../ui/MenuButton";
 import { showToast } from "../../ui/toast";
+import { useVisualViewportHeight } from "../../ui/useVisualViewportHeight";
 import { copyText, plainTextOf } from "../actions/noteLinks";
 import { ReactionPickerDialog } from "../actions/ReactionPickerDialog";
 import { ReportDialog } from "../actions/ReportDialog";
@@ -36,6 +47,7 @@ import {
 import { NoteMedia } from "../media/NoteMedia";
 import { useMuteMatcher } from "../mute/muteList";
 import { MuteListError, muteUser, unmuteUser } from "../mute/muteSync";
+import { useDeveloperMode } from "../settings/devMode";
 import type { ReactionGroup } from "../thread/engagement";
 import { NoteContent } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
@@ -70,13 +82,21 @@ export function ChannelRoom({
   header: ReactNode;
   revealMuted?: boolean;
 }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const { loading, messages, reactions, channelRelays } = useChannelRoom(channelId, revealMuted);
   const [replyTo, setReplyTo] = useState<NostrEvent | null>(null);
   const [composing, setComposing] = useState(false);
+  const scroller = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (me) ensureMyReactionsSubscribed(me);
   }, [me]);
+
+  // [#594] 常設の入力欄（textarea）にフォーカスしたら最新のメッセージ（column-reverse の scrollTop 0）を見せる
+  function onComposerFocus(e: FocusEvent<HTMLElement>) {
+    if (mode !== "screen" || e.target.tagName !== "TEXTAREA" || !scroller.current) return;
+    scroller.current.scrollTop = 0;
+  }
 
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
 
@@ -107,11 +127,11 @@ export function ChannelRoom({
   });
 
   return (
-    <section className={styles.root} aria-label={title} aria-busy={loading}>
+    <section className={styles.root} aria-label={title} aria-busy={loading} onFocus={onComposerFocus}>
       {header}
-      <div className={mode === "screen" ? styles.chatScroller : styles.feedScroller}>
+      <div ref={scroller} className={mode === "screen" ? styles.chatScroller : styles.feedScroller}>
         {messages.length === 0 ? (
-          <p className={styles.empty}>{loading ? "読み込み中…" : "まだ発言がありません"}</p>
+          <p className={styles.empty}>{loading ? t("loading") : t("web_chat_empty")}</p>
         ) : (
           rows
         )}
@@ -134,7 +154,7 @@ export function ChannelRoom({
               setComposing(true);
             }}
           >
-            ✏️ メッセージを書く
+            {t("chat_write_message")}
           </button>
         </div>
       )}
@@ -163,22 +183,28 @@ export function ChannelRoom({
   );
 }
 
-/** メッセージ画面のルームのヘッダ（チャンネルの画像・名前・説明。Compact は「←」つき） */
+/**
+ * メッセージ画面のルームのヘッダ（チャンネルの画像・名前・説明）。onBack があれば（Compact）「←」、
+ * onClose があれば（Expanded）ヘッダ右端に「✕」を出す（ネイティブ ColumnChrome の onClose。#600）。
+ */
 export function RoomHeader({
   title,
   subtitle,
   picture,
   onBack,
+  onClose,
 }: {
   title: string;
   subtitle: string;
   picture: string | null;
   onBack?: () => void;
+  onClose?: () => void;
 }) {
+  const t = useT();
   return (
     <header className={styles.header}>
       {onBack && (
-        <button type="button" className={styles.back} aria-label="戻る" onClick={onBack}>
+        <button type="button" className={styles.back} aria-label={t("common_back")} onClick={onBack}>
           <ArrowBackIcon className={styles.backIcon} />
         </button>
       )}
@@ -187,6 +213,11 @@ export function RoomHeader({
         <h2 className={styles.headerTitle}>{title}</h2>
         {subtitle !== "" && <span className={styles.headerSubtitle}>{subtitle}</span>}
       </span>
+      {onClose && (
+        <button type="button" className={styles.back} aria-label={t("web_chat_deselect")} onClick={onClose}>
+          <CloseIcon className={styles.backIcon} />
+        </button>
+      )}
     </header>
   );
 }
@@ -206,6 +237,7 @@ function MessageRow({
   reactions: ReactionGroup[] | undefined;
   onReply(): void;
 }) {
+  const t = useT();
   const profile = useProfile(message.pubkey);
   const picture = pictureOf(profile);
   const name = displayName(profile, message.pubkey);
@@ -238,7 +270,7 @@ function MessageRow({
         {reactions && reactions.length > 0 && <ReactionChips groups={reactions} />}
         {mine && unsent && (
           <button type="button" className={styles.unsent} onClick={() => retryUnsentNow(message.id)}>
-            未送信・タップで再送
+            {t("unsent_tap_retry")}
           </button>
         )}
       </div>
@@ -246,8 +278,11 @@ function MessageRow({
   );
 }
 
-/** 返信元の 1 行「↩ (アバター) 名前: 本文」（ネイティブ ReplyQuote → ReplyContextLine） */
-function ReplyQuote({ parent }: { parent: NostrEvent }) {
+/**
+ * 返信元の 1 行「↩ (アバター) 名前: 本文」（ネイティブ ReplyQuote → ReplyContextLine）。
+ * DM（features/dm/ConversationView）とも共有する部品（#589）。
+ */
+export function ReplyQuote({ parent }: { parent: NostrEvent }) {
   const profile = useProfile(parent.pubkey);
   const picture = pictureOf(profile);
   return (
@@ -263,8 +298,9 @@ function ReplyQuote({ parent }: { parent: NostrEvent }) {
 
 /** 集約したリアクション（絵文字 + 件数。ネイティブ ReactionRow） */
 function ReactionChips({ groups }: { groups: readonly ReactionGroup[] }) {
+  const t = useT();
   return (
-    <ul className={styles.reactions} aria-label="リアクション">
+    <ul className={styles.reactions} aria-label={t("note_kind_reaction")}>
       {groups.map((g) => (
         <li
           key={`${g.display}\n${g.imageUrl ?? ""}`}
@@ -316,12 +352,12 @@ function ReactionImage({ url, text }: { url: string; text: string }) {
 /** ミュート・解除の失敗の文言（NoteActionButtons と同じ） */
 function muteFailureMessage(e: unknown): string {
   if (e instanceof MuteListError && e.reason === "no-mute-list") {
-    return "最新のミュートリストを取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
+    return t("web_mute_no_base");
   }
   if (e instanceof MuteListError && e.reason === "no-cipher") {
-    return "この署名方式は暗号化に対応していないため、非公開でミュートできません（公開では追加しません）";
+    return t("web_mute_no_cipher");
   }
-  return "ミュートリストが変更できません（ロック中の可能性）";
+  return t("note_mute_locked");
 }
 
 function warn(message: string) {
@@ -330,9 +366,11 @@ function warn(message: string) {
 
 /**
  * 吹き出しの横の常設アクション（ネイティブ MessageActions）: リプライ → 既定リアクション → 絵文字 → ⚡ → ⋯
- * （テキストをコピー・このユーザーをミュート・通報）。[#538] ⚡ は発言者の kind:0 に lud16 があるときだけ。
+ * （テキストをコピー・このユーザーをミュート・通報、開発者モード中は末尾に「イベントJSONを表示」。CH3）。
+ * [#538] ⚡ は発言者の kind:0 に lud16 があるときだけ。
  */
 function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine: boolean; onReply(): void }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const author = useProfile(message.pubkey);
   const lud16 = typeof author?.lud16 === "string" ? author.lud16.trim() : "";
@@ -340,7 +378,10 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
   const isStar = content === "⭐" || content === "★";
   const reacted = useIsReacted(message.id);
   const isMuted = useMuteMatcher().users.has(message.pubkey);
-  const [dialog, setDialog] = useState<"picker" | "unreact" | "mute" | "report" | "zap" | null>(null);
+  const developerMode = useDeveloperMode((s) => s.enabled);
+  const [dialog, setDialog] = useState<"picker" | "unreact" | "mute" | "report" | "zap" | "json" | null>(
+    null,
+  );
   // [#537] ウォレット接続（NWC）済みなら Zap ダイアログの受け口へアプリ内送金を渡す
   const walletConnected = useNwc((s) => s.connection !== null);
   const Glyph = isStar ? (reacted ? StarIcon : StarBorderIcon) : reacted ? FavoriteIcon : FavoriteBorderIcon;
@@ -349,20 +390,26 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
     if (!me) return;
     const run = action === "mute" ? muteUser(me, message.pubkey) : unmuteUser(me, message.pubkey);
     run.then(
-      () => showToast(action === "mute" ? "ミュートしました" : "ミュートを解除しました"),
+      () => showToast(action === "mute" ? t("muted_toast") : t("note_unmuted_toast")),
       (e) => showToast(muteFailureMessage(e)),
     );
   }
 
   const entries: MenuEntry[] = [
-    { type: "item", label: "テキストをコピー", onSelect: () => void copyText(plainTextOf(message)) },
+    { type: "item", label: t("note_copy_text"), onSelect: () => void copyText(plainTextOf(message)) },
   ];
   if (!mine) {
     entries.push(
       isMuted
-        ? { type: "item", label: "ミュートを解除", onSelect: () => mute("unmute") }
-        : { type: "item", label: "このユーザーをミュート", onSelect: () => setDialog("mute") },
-      { type: "item", label: "通報", onSelect: () => setDialog("report"), tone: "danger" },
+        ? { type: "item", label: t("note_unmute_user"), onSelect: () => mute("unmute") }
+        : { type: "item", label: t("note_mute_user"), onSelect: () => setDialog("mute") },
+      { type: "item", label: t("note_report"), onSelect: () => setDialog("report"), tone: "danger" },
+    );
+  }
+  if (developerMode) {
+    entries.push(
+      { type: "separator" },
+      { type: "item", label: t("note_view_json"), onSelect: () => setDialog("json") },
     );
   }
 
@@ -371,8 +418,8 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       <button
         type="button"
         className={styles.action}
-        aria-label="リプライ"
-        title="リプライ"
+        aria-label={t("chat_reply")}
+        title={t("chat_reply")}
         onClick={onReply}
       >
         <ReplyIcon className={styles.actionIcon} />
@@ -380,12 +427,12 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       <button
         type="button"
         className={styles.action}
-        aria-label="リアクション"
+        aria-label={t("note_kind_reaction")}
         aria-pressed={reacted}
         data-shape={isStar ? "star" : "heart"}
         onClick={() => {
           if (reacted) setDialog("unreact");
-          else reactWithDefault(message).catch(warn("リアクションに失敗"));
+          else reactWithDefault(message).catch(warn(t("web_log_chat_react_failed")));
         }}
       >
         <Glyph className={styles.actionIcon} />
@@ -393,7 +440,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       <button
         type="button"
         className={styles.action}
-        aria-label="絵文字でリアクション"
+        aria-label={t("web_chat_react_emoji")}
         onClick={() => setDialog("picker")}
       >
         <AddReactionIcon className={styles.actionIcon} />
@@ -409,7 +456,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
           <BoltIcon className={styles.actionIcon} />
         </button>
       )}
-      <MenuButton label="その他の操作" triggerClassName={styles.action} entries={entries}>
+      <MenuButton label={t("web_chat_more_actions")} triggerClassName={styles.action} entries={entries}>
         <MoreHorizIcon className={styles.actionIcon} />
       </MenuButton>
       {dialog === "zap" && (
@@ -426,28 +473,30 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       {dialog === "picker" && (
         <ReactionPickerDialog
           target={message}
-          onPick={(c, url) => void publishReaction(message, c, url).catch(warn("リアクションに失敗"))}
+          onPick={(c, url) =>
+            void publishReaction(message, c, url).catch(warn(t("web_log_chat_react_failed")))
+          }
           onClose={() => setDialog(null)}
         />
       )}
       {dialog === "unreact" && (
         <ConfirmDialog
-          title="リアクションを取り消しますか？"
-          text="削除イベント（kind:5）を発行してリアクションを取り消します。リレーによっては削除が反映されない場合があります。"
-          confirmLabel="取り消す"
+          title={t("unreact_title")}
+          text={t("unreact_text")}
+          confirmLabel={t("unreact_confirm")}
           destructive
           onConfirm={() => {
             setDialog(null);
-            reactWithDefault(message).catch(warn("リアクションの取り消しに失敗"));
+            reactWithDefault(message).catch(warn(t("web_log_chat_unreact_failed")));
           }}
           onDismiss={() => setDialog(null)}
         />
       )}
       {dialog === "mute" && (
         <ConfirmDialog
-          title="このユーザーをミュートしますか？"
-          text="この人の投稿と通知を表示しなくなります。設定 → ミュート でいつでも解除できます。"
-          confirmLabel="ミュート"
+          title={t("mute_confirm_title")}
+          text={t("mute_confirm_text")}
+          confirmLabel={t("mute_confirm")}
           destructive
           onConfirm={() => {
             setDialog(null);
@@ -460,11 +509,12 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
         <ReportDialog
           onPick={(type) => {
             setDialog(null);
-            reportNote(message, type).catch(warn("通報に失敗"));
+            reportNote(message, type).catch(warn(t("web_log_chat_report_failed")));
           }}
           onDismiss={() => setDialog(null)}
         />
       )}
+      {dialog === "json" && <EventJsonDialog event={message} onDismiss={() => setDialog(null)} />}
     </div>
   );
 }
@@ -474,6 +524,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
  * 背景・Esc / 戻る・✕ で閉じる。
  */
 function ComposeModal({ title, onClose, children }: { title: string; onClose(): void; children: ReactNode }) {
+  const t = useT();
   const dialog = useRef<HTMLDialogElement>(null);
   const latestOnClose = useRef(onClose);
   useLayoutEffect(() => {
@@ -484,6 +535,9 @@ function ComposeModal({ title, onClose, children }: { title: string; onClose(): 
     const d = dialog.current;
     if (d && !d.open) d.showModal();
   }, []);
+
+  // ソフトキーボードが出たら見えている高さにカードを収める（ComposeDialog と同じ --compose-vvh。#594）
+  useVisualViewportHeight(dialog, "--compose-vvh");
 
   // カードの外（dialog 自身 = 背景）の押下
   useEffect(() => {
@@ -510,7 +564,12 @@ function ComposeModal({ title, onClose, children }: { title: string; onClose(): 
       <div className={styles.modalCard}>
         <div className={styles.modalHead}>
           <span className={styles.modalTitle}>{title}</span>
-          <button type="button" className={styles.modalClose} aria-label="閉じる" onClick={onClose}>
+          <button
+            type="button"
+            className={styles.modalClose}
+            aria-label={t("common_close")}
+            onClick={onClose}
+          >
             <CloseIcon className={styles.modalCloseIcon} />
           </button>
         </div>

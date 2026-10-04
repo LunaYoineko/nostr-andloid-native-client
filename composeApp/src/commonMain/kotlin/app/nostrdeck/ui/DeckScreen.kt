@@ -72,6 +72,7 @@ import app.nostrdeck.model.NoteUi
 import app.nostrdeck.state.DeckState
 import app.nostrdeck.state.NavDest
 import app.nostrdeck.theme.DeckColors
+import app.nostrdeck.theme.DeckDensity
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckType
 import app.nostrdeck.theme.DeckWeight
@@ -161,11 +162,13 @@ private fun ExpandedDeck(state: DeckState) {
     val density = LocalDensity.current
     // [#336] index までの実オフセット（S/M/L 実幅＋ガター）。以前は M 固定幅で概算しており、
     // S/L が混ざるとジャンプ先がずれていた。
-    val gutterPx = with(density) { DeckSpace.Sm.toPx() }
+    // [#675] ガターは廃人モードで 8 → 2dp。下の LaunchedEffect 内からも呼ばれるので、値を固定せず
+    // 呼ぶたびに読む（snapshot state なので snapshotFlow 内で読めば切り替えにも追従する）。
+    fun gutterPx(): Float = with(density) { DeckDensity.ColumnGap.toPx() }
     fun offsetTo(idx: Int): Int {
         var px = 0f
         for (i in 0 until idx.coerceAtMost(state.columns.size)) {
-            px += with(density) { columnWidthDp(widths[state.columns[i].id]).toPx() } + gutterPx
+            px += with(density) { columnWidthDp(widths[state.columns[i].id]).toPx() } + gutterPx()
         }
         return px.toInt()
     }
@@ -184,7 +187,7 @@ private fun ExpandedDeck(state: DeckState) {
         snapshotFlow { Triple(scroll.value, scroll.maxValue, state.columns.toList()) }.collect { (value, max, cols) ->
             state.visibleColumnId = if (max == 0 || cols.isEmpty()) null else {
                 var idx = 0
-                for (i in cols.indices) if (offsetTo(i) <= value + gutterPx / 2) idx = i else break
+                for (i in cols.indices) if (offsetTo(i) <= value + gutterPx() / 2) idx = i else break
                 cols[idx].id
             }
         }
@@ -244,7 +247,7 @@ private fun ExpandedDeck(state: DeckState) {
                         .width(columnWidthDp(widths[spec.id])).fillMaxHeight(),
                 )
                 // カラム境界は「線」ではなく Bg の隙間(ガター)で。暗い背景で明るいカラムを分離。
-                Box(Modifier.fillMaxHeight().width(DeckSpace.Sm).background(DeckColors.Bg))
+                Box(Modifier.fillMaxHeight().width(DeckDensity.ColumnGap).background(DeckColors.Bg))
             }
         }
         // 末尾のカラム追加（テンプレシートを開く）

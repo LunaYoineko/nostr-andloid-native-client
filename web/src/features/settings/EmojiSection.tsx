@@ -1,6 +1,7 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import type { NostrEvent } from "nostr-tools/pure";
 import { type FormEvent, useId, useMemo, useState } from "react";
+import { t, useT } from "../../i18n";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
@@ -20,13 +21,13 @@ function failureMessage(e: unknown): string {
   if (e instanceof EmojiListError) {
     switch (e.reason) {
       case "no-emoji-list":
-        return "最新の絵文字リストを取得できなかったため、公開しませんでした。接続を確認してもう一度お試しください";
+        return t("web_emoji_no_base");
       case "stale":
-        return "絵文字リストが更新されていたため、公開しませんでした。最新の内容を表示したので、確認してもう一度編集してください";
+        return t("web_emoji_stale");
     }
   }
   // ネイティブ emoji_save_failed
-  return "絵文字リストを公開できませんでした。";
+  return t("emoji_save_failed");
 }
 
 /** 自分の kind:10030 直下の emoji タグ（30030 セット由来は含まない。ネイティブ myEmojiListFlow 相当） */
@@ -42,6 +43,7 @@ function useOwnEmojiList(me: string | null): { latest: NostrEvent | undefined; c
  * 30030 セット参照（a タグ）はそのまま維持し、ここには出さない。
  */
 export function EmojiSection() {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const { latest, current } = useOwnEmojiList(me);
   const [draft, setDraft] = useState<CustomEmoji[] | null>(null);
@@ -61,7 +63,7 @@ export function EmojiSection() {
     try {
       await publishEmojiList(me, list, draft === null ? (latest?.id ?? null) : basedOnId);
       setDraft(null);
-      showToast("絵文字リストを公開しました。");
+      showToast(t("emoji_saved"));
     } catch (e) {
       // 最新版と食い違っていたら下書きを捨てて最新の内容を出し直す
       if (e instanceof EmojiListError && e.reason === "stale") setDraft(null);
@@ -76,16 +78,13 @@ export function EmojiSection() {
   return (
     <>
       <div className={styles.block}>
-        <p className={styles.desc}>
-          自分のカスタム絵文字リスト（NIP-51）。リアクションピッカーに並び、本文でも :shortcode: で使えます。
-          購読中の絵文字セット由来のものは別管理のためここには出ません。
-        </p>
+        <p className={styles.desc}>{t("web_settings_emoji_desc")}</p>
       </div>
       <div className={styles.block}>
         {list.length === 0 ? (
-          <p className={styles.desc}>カスタム絵文字はまだありません。下から追加できます。</p>
+          <p className={styles.desc}>{t("emoji_empty")}</p>
         ) : (
-          <ul className={styles.relays} aria-label="カスタム絵文字の一覧">
+          <ul className={styles.relays} aria-label={t("web_settings_emoji_list_label")}>
             {list.map((emoji) => (
               <EmojiRow
                 key={emoji.shortcode}
@@ -102,7 +101,7 @@ export function EmojiSection() {
           disabled={saving || draft === null}
           onClick={() => void save()}
         >
-          {saving ? "公開中…" : "保存して公開"}
+          {saving ? t("web_settings_emoji_publishing") : t("emoji_save")}
         </button>
       </div>
     </>
@@ -110,6 +109,7 @@ export function EmojiSection() {
 }
 
 function EmojiRow({ emoji, onRemove }: { emoji: CustomEmoji; onRemove(): void }) {
+  const t = useT();
   const [src, setSrc] = useState<string | null>(() => proxied(emoji.url, 48, 80, true));
 
   function onError() {
@@ -139,16 +139,17 @@ function EmojiRow({ emoji, onRemove }: { emoji: CustomEmoji; onRemove(): void })
       <button
         type="button"
         className={styles.textButton}
-        aria-label={`:${emoji.shortcode}: を削除`}
+        aria-label={t("web_settings_relay_remove_label", `:${emoji.shortcode}:`)}
         onClick={onRemove}
       >
-        削除
+        {t("common_delete")}
       </button>
     </li>
   );
 }
 
 function AddEmojiForm({ list, onAdd }: { list: readonly CustomEmoji[]; onAdd(emoji: CustomEmoji): void }) {
+  const t = useT();
   const codeId = useId();
   const urlId = useId();
   const [code, setCode] = useState("");
@@ -160,11 +161,11 @@ function AddEmojiForm({ list, onAdd }: { list: readonly CustomEmoji[]; onAdd(emo
     const shortcode = parseEmojiShortcode(code);
     const imageUrl = parseEmojiUrl(url);
     if (!shortcode || !imageUrl) {
-      setError("ショートコードは英数字と _ - 、画像URLは https:// だけ使えます");
+      setError(t("web_settings_emoji_input_invalid"));
       return;
     }
     if (list.some((e) => e.shortcode === shortcode)) {
-      setError("そのショートコードは追加済みです");
+      setError(t("web_settings_emoji_already_added"));
       return;
     }
     onAdd({ shortcode, url: imageUrl });
@@ -176,7 +177,7 @@ function AddEmojiForm({ list, onAdd }: { list: readonly CustomEmoji[]; onAdd(emo
   return (
     <form className={styles.row} onSubmit={submit}>
       <label htmlFor={codeId} className="srOnly">
-        ショートコード
+        {t("web_settings_emoji_shortcode_label")}
       </label>
       <input
         id={codeId}
@@ -185,7 +186,7 @@ function AddEmojiForm({ list, onAdd }: { list: readonly CustomEmoji[]; onAdd(emo
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
-        placeholder="ショートコード（例: party_parrot）"
+        placeholder={t("emoji_shortcode_hint")}
         value={code}
         onChange={(e) => {
           setCode(e.target.value);
@@ -193,7 +194,7 @@ function AddEmojiForm({ list, onAdd }: { list: readonly CustomEmoji[]; onAdd(emo
         }}
       />
       <label htmlFor={urlId} className="srOnly">
-        画像URL
+        {t("web_settings_emoji_url_label")}
       </label>
       <input
         id={urlId}
@@ -203,7 +204,7 @@ function AddEmojiForm({ list, onAdd }: { list: readonly CustomEmoji[]; onAdd(emo
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
-        placeholder="画像URL（https://…）"
+        placeholder={t("emoji_url_hint")}
         value={url}
         onChange={(e) => {
           setUrl(e.target.value);
@@ -211,7 +212,7 @@ function AddEmojiForm({ list, onAdd }: { list: readonly CustomEmoji[]; onAdd(emo
         }}
       />
       <button type="submit" className={styles.ghost} disabled={code.trim() === "" || url.trim() === ""}>
-        追加
+        {t("common_add")}
       </button>
       {error && (
         <p className={styles.error} role="alert">

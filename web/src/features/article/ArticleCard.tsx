@@ -3,6 +3,7 @@ import { decode, naddrEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForEvent } from "../../lib/content/labels";
 import { tokenizeNostrContent } from "../../lib/content/tokenize";
 import { markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
@@ -19,14 +20,15 @@ function tagValue(event: NostrEvent, name: string): string | null {
  * タイトル 2 行・概要（summary タグ、無ければ本文の最初の空でない行）2 行。プロフィールの記事タブでも使う。
  */
 export function ArticleCardBody({ event }: { event: NostrEvent }) {
-  const title = tagValue(event, "title") ?? "無題の記事";
+  const t = useT();
+  const title = tagValue(event, "title") ?? t("article_untitled");
   const image = tagValue(event, "image");
   const excerpt = tagValue(event, "summary") ?? firstNonBlankLine(event.content);
   return (
     <div className={styles.body}>
       {image && <ArticleThumb url={image} />}
       <div className={styles.texts}>
-        <p className={styles.label}>記事</p>
+        <p className={styles.label}>{t("article_title")}</p>
         <p className={styles.title}>{title}</p>
         {excerpt && <p className={styles.excerpt}>{excerpt}</p>}
       </div>
@@ -74,6 +76,7 @@ function ArticleThumb({ url }: { url: string }) {
  * 解決中・解決できなければ淡色メッセージ（それでもカード自体は記事の URL へのリンク）。
  */
 export function ArticleCard({ addr }: { addr: AddressPointer }) {
+  const t = useT();
   const { event, failed } = useEventByAddress(addr);
   const href = useMemo(() => hrefForEvent(naddrEncode(addr)), [addr]);
   return (
@@ -81,7 +84,7 @@ export function ArticleCard({ addr }: { addr: AddressPointer }) {
       {event && event.kind === 30023 ? (
         <ArticleCardBody event={event} />
       ) : (
-        <p className={styles.pending}>{failed ? "記事を取得できませんでした" : "読み込み中…"}</p>
+        <p className={styles.pending}>{failed ? t("web_article_failed") : t("loading")}</p>
       )}
     </Link>
   );

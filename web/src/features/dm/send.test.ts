@@ -167,6 +167,23 @@ describe("NIP-17", () => {
     });
   });
 
+  it("[replyTo] があれば送る rumor に reply マーカー付き #e が付く（#589）", async () => {
+    publishDmRelays(peer.secretKey, ["wss://peer-dm.example"]);
+    const parent = { id: "2".repeat(64) } as NostrEvent;
+
+    expect(await sendDm(peer.pubkey, "返信です", parent)).toBe("sent");
+
+    const rumor = await unwrapGiftWrap(peer.signer, enqueued()[0].event, asExtension);
+    expect(rumor).toMatchObject({
+      content: "返信です",
+      tags: [
+        ["p", peer.pubkey],
+        ["e", parent.id, "", "reply"],
+      ],
+    });
+    expect(messages()).toMatchObject([{ content: "返信です", tags: rumor.tags }]);
+  });
+
   it("相手に kind:10050 も NIP-04 の履歴も無い → 自分の read + 相手の read へ送って sent-no-peer-relays", async () => {
     publishPeerRelayList();
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../../i18n";
 import { MoodIcon } from "../../ui/icons";
 import styles from "./EmojiInsertButton.module.css";
 import { ReactionPickerDialog } from "./ReactionPickerDialog";
@@ -9,10 +10,16 @@ import { ReactionPickerDialog } from "./ReactionPickerDialog";
  * 「最近」には記録しない（ネイティブと同じ）。
  */
 export function EmojiInsertButton({ onInsert }: { onInsert(text: string): void }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className={styles.tool} aria-label="絵文字を挿入" onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className={styles.tool}
+        aria-label={t("compose_insert_emoji")}
+        onClick={() => setOpen(true)}
+      >
         <MoodIcon className={styles.icon} />
       </button>
       {open && (

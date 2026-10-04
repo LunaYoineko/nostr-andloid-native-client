@@ -1,6 +1,6 @@
-/* インデントはネイティブ 18dp → --sp-4 にスナップ（上限なし） */
+/* インデントはネイティブ ThreadColumn.kt の depth × 18dp と同じ（T2） */
 .row {
-  padding-left: calc(var(--sp-4) * var(--depth, 0));
+  padding-left: calc(18px * var(--ui-scale) * var(--depth, 0));
   background: var(--surface);
 }
 
@@ -16,7 +16,7 @@
 
 .meta {
   margin: 0;
-  padding: 0 var(--sp-3) var(--sp-2);
+  padding: 0 var(--note-pad-x) var(--note-gap);
   color: var(--text-3);
   font-size: var(--type-label);
 }

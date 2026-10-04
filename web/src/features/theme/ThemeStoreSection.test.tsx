@@ -1,9 +1,11 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, beforeAll, expect, it, vi } from "vitest";
 import { useSession } from "../../signer/session";
 import { installDialogPolyfill } from "../../test/dialog";
 import { useToast } from "../../ui/toast";
+import { type CustomColors, DEFAULT_CUSTOM_COLORS } from "./customPalette";
 import { ThemeStoreSection } from "./ThemeStoreSection";
 import type { ThemeEntry } from "./themeEntry";
 import { DEFAULT_THEME_PREFS, useThemePrefs, useThemeUndo } from "./themePrefs";
@@ -36,22 +38,40 @@ afterEach(() => {
   useToast.setState({ queue: [] });
 });
 
-it("行を押すと適用し、取り消しバーが出る。「元に戻す」で前の配色へ戻る", async () => {
+/** 呼び出し元（ThemeEditModal）の下書き状態を模した小さなラッパー。onSelect は draft へ反映する */
+function Wrapper({ initialDraft = DEFAULT_CUSTOM_COLORS }: { initialDraft?: CustomColors }) {
+  const [draft, setDraft] = useState(initialDraft);
+  return <ThemeStoreSection draft={draft} onSelect={(colors) => setDraft(colors)} />;
+}
+
+it("行を押すと下書きへ反映するだけで、本体（useThemePrefs）は変えない", async () => {
+  const onSelect = vi.fn();
   const user = userEvent.setup();
-  render(<ThemeStoreSection />);
+  render(<ThemeStoreSection draft={DEFAULT_CUSTOM_COLORS} onSelect={onSelect} />);
 
   await user.click(screen.getByRole("button", { name: /Sakura/ }));
-  expect(useThemePrefs.getState().mode).toBe("custom");
-  expect(useThemePrefs.getState().custom).toEqual(sampleEntry.colors);
-  expect(screen.getByText("「Sakura」を適用しました")).toBeInTheDocument();
+  expect(onSelect).toHaveBeenCalledWith(sampleEntry.colors, "Sakura");
+  expect(useThemePrefs.getState().custom).toEqual(DEFAULT_CUSTOM_COLORS);
+  expect(useThemeUndo.getState()).toBeNull();
+});
 
-  await user.click(screen.getByRole("button", { name: "元に戻す" }));
-  expect(useThemePrefs.getState().custom).toEqual(DEFAULT_THEME_PREFS.custom);
+it("下書きに反映されると「プレビュー中」バッジが付く", async () => {
+  const user = userEvent.setup();
+  render(<Wrapper />);
+  await user.click(screen.getByRole("button", { name: /Sakura/ }));
+  expect(screen.getByText("プレビュー中")).toBeInTheDocument();
+});
+
+it("下書きと一致するが本体には未適用のテーマは「プレビュー中」（「適用中」ではない）", () => {
+  render(<Wrapper initialDraft={sampleEntry.colors} />);
+  // applied は現在の useThemePrefs.custom と比べる。下書きだけ一致しても「適用中」にはならない
+  expect(screen.queryByText("適用中")).toBeNull();
+  expect(screen.getByText("プレビュー中")).toBeInTheDocument();
 });
 
 it("検索に一致しなければ「条件に合うテーマがありません」", async () => {
   const user = userEvent.setup();
-  render(<ThemeStoreSection />);
+  render(<Wrapper />);
   await user.type(screen.getByPlaceholderText("テーマ名・作者名で検索"), "存在しない名前");
   expect(screen.getByText("条件に合うテーマがありません。")).toBeInTheDocument();
 });
@@ -59,7 +79,7 @@ it("検索に一致しなければ「条件に合うテーマがありません�
 it("自分のテーマの行だけ削除をリクエストできる（確認してから送信）", async () => {
   useSession.setState({ status: "in", method: "nip07", pubkey: sampleEntry.author });
   const user = userEvent.setup();
-  render(<ThemeStoreSection />);
+  render(<Wrapper />);
 
   await user.click(screen.getByRole("button", { name: "削除をリクエスト" }));
   const dialog = screen.getByRole("dialog", { name: "このテーマの削除をリクエストしますか？" });
@@ -72,21 +92,23 @@ it("自分のテーマの行だけ削除をリクエストできる（確認し�
 
 it("他人のテーマの行には削除をリクエストが出ない", () => {
   useSession.setState({ status: "in", method: "nip07", pubkey: "b".repeat(64) });
-  render(<ThemeStoreSection />);
+  render(<Wrapper />);
   expect(screen.queryByRole("button", { name: "削除をリクエスト" })).toBeNull();
 });
 
-it("この配色をコピーで共有コードをクリップボードへ書き込む", async () => {
+it("この配色をコピーは下書き（draft）を共有コードにして書き込む", async () => {
   const user = userEvent.setup();
-  render(<ThemeStoreSection />);
+  render(<ThemeStoreSection draft={sampleEntry.colors} onSelect={vi.fn()} />);
   await user.click(screen.getByRole("button", { name: "この配色をコピー" }));
   const code = await navigator.clipboard.readText();
   expect(code.startsWith("nostrism-theme:1:MyTheme:")).toBe(true);
+  expect(code).toContain("FDF3F5");
 });
 
-it("共有コードの取り込みは適用（取り消しバー付き）。不正な形式はトーストで知らせる", async () => {
+it("共有コードの取り込みは下書きへ反映するだけ（本体は変えない）。不正な形式はトーストで知らせる", async () => {
+  const onSelect = vi.fn();
   const user = userEvent.setup();
-  render(<ThemeStoreSection />);
+  render(<ThemeStoreSection draft={DEFAULT_CUSTOM_COLORS} onSelect={onSelect} />);
 
   const input = screen.getByPlaceholderText("共有コード");
   await user.type(input, "不正なコード");
@@ -96,6 +118,6 @@ it("共有コードの取り込みは適用（取り消しバー付き）。不�
   await user.clear(input);
   await user.type(input, "nostrism-theme:1:Mono:000000,FFFFFF,FF0000:0.3.0");
   await user.click(screen.getByRole("button", { name: "取り込む" }));
-  expect(useThemePrefs.getState().custom).toEqual({ bg: "#000000", text: "#FFFFFF", accent: "#FF0000" });
-  expect(screen.getByText("「Mono」を適用しました")).toBeInTheDocument();
+  expect(onSelect).toHaveBeenCalledWith({ bg: "#000000", text: "#FFFFFF", accent: "#FF0000" }, "Mono");
+  expect(useThemePrefs.getState().custom).toEqual(DEFAULT_CUSTOM_COLORS);
 });

@@ -37,6 +37,7 @@ it("customPalette(Midnight): ダーク土台からの導出値（固定ベクタ
     accent: "#FFFFFF",
     accent2: "#C2C2C3",
     accentWeak: "rgba(255, 255, 255, 0.14)",
+    onAccent: "#0C0C10",
     zap: "#E1E2E6",
     repost: "#C4C5C9",
     like: "#97989C",
@@ -63,6 +64,7 @@ it("customPalette(Paper): ライト土台からの導出値（固定ベクタ）
     accent: "#1A1A1E",
     accent2: "#515153",
     accentWeak: "rgba(26, 26, 30, 0.14)",
+    onAccent: "#F7F6F2",
     zap: "#252529",
     repost: "#424244",
     like: "#6E6E6F",
@@ -115,6 +117,7 @@ it("customPaletteVars: CSS変数名のマップにする（-bg は kind* の alp
   const p = customPalette(MIDNIGHT);
   expect(vars["--bg"]).toBe(p.bg);
   expect(vars["--accent-weak"]).toBe(p.accentWeak);
+  expect(vars["--on-accent"]).toBe(p.onAccent);
   expect(vars["--kind-repost"]).toBe(p.kindRepost);
   expect(vars["--kind-repost-bg"]).toBe(withAlpha(p.kindRepost, 0.14));
   expect(vars["--kind-quote-bg"]).toBe(withAlpha(p.kindQuote, 0.14));

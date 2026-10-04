@@ -4,15 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useCloseMenuOnBack } from "../../app/history";
+import { t, useT } from "../../i18n";
 import {
   type ColumnKind,
   type ColumnSpec,
   type ColumnWidth,
+  columnLabel,
   columnSubtitleFor,
   editTemplate,
   encodeReqFilter,
   roomColumnFor,
 } from "../../lib/columns";
+import { useProfile } from "../../nostr/loaders";
 import {
   FEED_CATEGORIES,
   type FeedCategory,
@@ -42,20 +45,34 @@ import { useColumnFeed } from "./useColumnFeed";
 /** Web 版でまだ描けない種別（REQ も張らない） */
 const UNSUPPORTED_KINDS: ReadonlySet<ColumnKind> = new Set(["THREAD"]);
 
-const WIDTHS: readonly { width: ColumnWidth; label: string }[] = [
-  { width: "S", label: "狭" },
-  { width: "M", label: "標準" },
-  { width: "L", label: "広" },
-];
+const WIDTHS: readonly ColumnWidth[] = ["S", "M", "L"];
+
+function widthLabel(width: ColumnWidth): string {
+  switch (width) {
+    case "S":
+      return t("width_narrow");
+    case "M":
+      return t("width_default");
+    case "L":
+      return t("width_wide");
+  }
+}
 
 /** ⋯ の「タイムラインに混ぜる表示」の項目名（ネイティブ cat_*） */
-const CATEGORY_LABEL: Record<FeedCategory, string> = {
-  REACTIONS: "自分へのリアクション",
-  REPLIES: "自分への返信・メンション",
-  REPOSTS: "自分へのリポスト",
-  MY_REACTIONS: "自分がしたリアクション",
-  DMS: "未読のメッセージ",
-};
+function categoryLabel(category: FeedCategory): string {
+  switch (category) {
+    case "REACTIONS":
+      return t("cat_reactions_to_me");
+    case "REPLIES":
+      return t("cat_replies_to_me");
+    case "REPOSTS":
+      return t("cat_reposts_of_me");
+    case "MY_REACTIONS":
+      return t("cat_my_reactions");
+    case "DMS":
+      return t("cat_dms");
+  }
+}
 
 /** デッキの 1 カラム。showHeader = カラムヘッダ（アイコン・タイトル・⋯）を出す */
 export function DeckColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
@@ -68,10 +85,11 @@ export function DeckColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader:
 
 /** 同期などで入ってきた未対応の種別。⋯ から削除だけできる */
 function UnsupportedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
+  const t = useT();
   return (
-    <section className={styles.column} aria-label={spec.title}>
+    <section className={styles.column} aria-label={columnLabel(spec)}>
       {showHeader && <ColumnHeader spec={spec} />}
-      <p className={styles.empty}>この種類のカラムは Web 版ではまだ使えません</p>
+      <p className={styles.empty}>{t("web_deck_unsupported_column")}</p>
     </section>
   );
 }
@@ -86,7 +104,7 @@ function DmColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean 
     startDecrypting();
   }, []);
   return (
-    <section className={styles.column} aria-label={spec.title}>
+    <section className={styles.column} aria-label={columnLabel(spec)}>
       {showHeader && <ColumnHeader spec={spec} />}
       <div className={`${styles.body} ${styles.scroll}`}>
         <ConversationList
@@ -108,7 +126,7 @@ function DmColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean 
 function ChannelListColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
   const pinnedIds = usePinnedRoomIds();
   return (
-    <section className={styles.column} aria-label={spec.title}>
+    <section className={styles.column} aria-label={columnLabel(spec)}>
       {showHeader && <ColumnHeader spec={spec} />}
       <div className={`${styles.body} ${styles.scroll}`}>
         <ChannelList
@@ -124,14 +142,15 @@ function ChannelListColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader:
 
 /** NIP-28 のルームカラム（ネイティブ LiveChannelRoom の deckMode）。⋯ の「ミュートを表示」が効く */
 function RoomColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
+  const t = useT();
   const revealed = useDeck((s) => isMutedRevealed(s, spec.id));
   const header = showHeader ? <ColumnHeader spec={spec} /> : null;
   const channelId = spec.filter.channelId;
   if (channelId === null) {
     return (
-      <section className={styles.column} aria-label={spec.title}>
+      <section className={styles.column} aria-label={columnLabel(spec)}>
         {header}
-        <p className={styles.empty}>チャンネルが指定されていません</p>
+        <p className={styles.empty}>{t("web_deck_channel_missing")}</p>
       </section>
     );
   }
@@ -139,7 +158,7 @@ function RoomColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
     <ChannelRoom
       key={channelId}
       channelId={channelId}
-      title={spec.title}
+      title={columnLabel(spec)}
       mode="column"
       header={header}
       revealMuted={revealed}
@@ -148,17 +167,20 @@ function RoomColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
 }
 
 function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolean }) {
-  const { loading, events, rows, loadingOlder, loadOlder, refresh } = useColumnFeed(spec);
+  const t = useT();
+  const { loading, events, rows, loadingOlder, loadOlder, refresh, emptyText } = useColumnFeed(spec);
   // 表示中の投稿への Zap 受領（アクション行の ⚡ の合計）
   useZapReceipts(zapTargetIds(events));
   // PROFILE カラムの上部カード（ネイティブ ProfileColumn と同じ。一覧の先頭に置き、スクロールに追従させる）
   const profilePubkey = spec.kind === "PROFILE" ? spec.filter.authors[0] : undefined;
   const profileHeader = profilePubkey ? <ProfileColumnHeader pubkey={profilePubkey} /> : undefined;
   return (
-    <section className={styles.column} aria-label={spec.title} aria-busy={loading}>
+    <section className={styles.column} aria-label={columnLabel(spec)} aria-busy={loading}>
       {showHeader && <ColumnHeader spec={spec} onRefresh={refresh} />}
       <div className={styles.body}>
-        {loading && <div className={styles.progress} role="progressbar" aria-label="読み込み中" />}
+        {loading && (
+          <div className={styles.progress} role="progressbar" aria-label={t("web_deck_loading_aria")} />
+        )}
         {spec.kind === "FAVS" ? (
           <FavsList
             reactions={events}
@@ -167,7 +189,7 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             loadingOlder={loadingOlder}
           />
         ) : spec.kind === "NOTIFICATIONS" ? (
-          <NotificationList events={events} loading={loading} columnId={spec.id} />
+          <NotificationList events={events} loading={loading} columnId={spec.id} onRefresh={refresh} />
         ) : rows ? (
           // フォロー中カラム: 投稿に自分への反応・自分のリアクション・未読 DM を混ぜた行
           <Timeline
@@ -178,6 +200,8 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             loadingOlder={loadingOlder}
             renderItem={renderFeedRow}
             postOf={feedRowPost}
+            emptyText={emptyText}
+            onRefresh={refresh}
           />
         ) : (
           <Timeline
@@ -187,7 +211,9 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
             loading={loading}
             onEndReached={loadOlder}
             loadingOlder={loadingOlder}
+            emptyText={emptyText}
             header={profileHeader}
+            onRefresh={refresh}
           />
         )}
       </div>
@@ -195,15 +221,25 @@ function FeedColumn({ spec, showHeader }: { spec: ColumnSpec; showHeader: boolea
   );
 }
 
-/** カラムヘッダ（ネイティブの ColumnHeader）。先頭 40px のアイコン、タイトル + 説明、末尾に ⋯ */
+/**
+ * カラムヘッダ（ネイティブの ColumnHeader）。先頭 40px のアイコン、タイトル + 説明、末尾に ⋯。
+ * PROFILE はプロフィール（kind:0）の名前をタイトルにする（ネイティブ ProfileColumn.kt:66-71。未取得なら spec.title）。
+ */
 function ColumnHeader({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: () => void }) {
+  useT();
+  const profilePubkey = spec.kind === "PROFILE" ? spec.filter.authors[0] : undefined;
+  const profile = useProfile(profilePubkey);
+  const title =
+    profilePubkey && typeof profile?.name === "string" && profile.name.trim() !== ""
+      ? profile.name
+      : columnLabel(spec);
   return (
     <header className={styles.header}>
       <span className={styles.icon}>
         <Icon name={columnIcon(spec.kind)} size="lg" />
       </span>
       <div className={styles.titles}>
-        <h2 className={styles.title}>{spec.title}</h2>
+        <h2 className={styles.title}>{title}</h2>
         <p className={styles.subtitle}>{columnSubtitleFor(spec)}</p>
       </div>
       <ColumnMenu spec={spec} onRefresh={onRefresh} />
@@ -231,7 +267,8 @@ function feedRowPost(row: FeedRow): NostrEvent | null {
 type FooterContext = { loadingOlder: boolean };
 
 function FavsFooter({ context }: { context?: FooterContext }) {
-  return context?.loadingOlder ? <p className={styles.empty}>過去を読み込み中…</p> : null;
+  const t = useT();
+  return context?.loadingOlder ? <p className={styles.empty}>{t("feed_loading_older")}</p> : null;
 }
 
 const FAVS_COMPONENTS = { Footer: FavsFooter };
@@ -248,11 +285,12 @@ function FavsList({
   onEndReached: () => void;
   loadingOlder: boolean;
 }) {
+  const t = useT();
   const list = useRef<VirtuosoHandle>(null);
   // キー操作の対象にする（ふぁぼの行は r / t / f の対象外）
   useKbList(list, reactions.length);
   if (reactions.length === 0) {
-    return <p className={styles.empty}>{loading ? "読み込み中…" : "ふぁぼした投稿はまだありません。"}</p>;
+    return <p className={styles.empty}>{loading ? t("loading") : t("feed_empty")}</p>;
   }
   return (
     <Virtuoso
@@ -279,10 +317,13 @@ function FavItem({ reaction }: { reaction: NostrEvent }) {
 /**
  * カラムの ⋯ メニュー（ネイティブの ColumnMenuButton）。移動 ◀ ▶ / フィルターを編集 / ミュートを表示・隠す /
  * 更新 / 固定する / タイムラインに混ぜる表示 / カラム幅 / カラムを削除。外側のクリック・Escape・戻る（#540）で閉じる。
- * onRefresh が無ければ「更新」を出さない。「ミュートを表示」は Web で描けるカラムだけ（描けない種別はミュートを当てていない）。
+ * onRefresh が無ければ「更新」を出さない。「ミュートを表示」は renderer が FEED / THREAD のときだけ
+ * （ネイティブ DeckScreen.kt と同じ。CHANNEL_LIST は対象外）。ROOM（パブリックチャット）は
+ * ネイティブには無い Web 独自の対象（発言のミュート表示切替は Web の既存機能なので残す。D3）。
  * 「タイムラインに混ぜる表示」はフォロー中カラムだけ。
  */
 export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: () => void }) {
+  useT();
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -328,21 +369,21 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
         className={styles.iconButton}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="カラムメニュー"
+        aria-label={t("col_menu")}
         onClick={() => setOpen((v) => !v)}
       >
         <Icon name="moreHoriz" size="md" />
       </button>
       {open && (
-        <div role="menu" aria-label="カラムメニュー" className={styles.menu}>
+        <div role="menu" aria-label={t("col_menu")} className={styles.menu}>
           {/* 移動と幅はメニューを閉じない（続けて押せるように。ネイティブと同じ） */}
-          <fieldset aria-label="移動" className={styles.menuRow}>
-            <span className={styles.menuLabel}>移動</span>
+          <fieldset aria-label={t("col_move")} className={styles.menuRow}>
+            <span className={styles.menuLabel}>{t("col_move")}</span>
             <button
               type="button"
               role="menuitem"
               className={styles.arrow}
-              aria-label="左へ移動"
+              aria-label={t("col_move_left")}
               disabled={index <= 0}
               onClick={() => deck().moveColumn(spec.id, -1)}
             >
@@ -352,7 +393,7 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
               type="button"
               role="menuitem"
               className={styles.arrow}
-              aria-label="右へ移動"
+              aria-label={t("col_move_right")}
               disabled={index < 0 || index >= count - 1}
               onClick={() => deck().moveColumn(spec.id, 1)}
             >
@@ -367,24 +408,25 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
               onClick={act(() => deck().setEditing(spec.id))}
             >
               <Icon name="tune" size="md" />
-              フィルターを編集
+              {t("col_edit_filter")}
             </button>
           )}
-          {!UNSUPPORTED_KINDS.has(spec.kind) && (
-            <button
-              type="button"
-              role="menuitem"
-              className={styles.menuItem}
-              onClick={act(() => deck().setRevealMuted(spec.id, !mutedRevealed))}
-            >
-              <Icon name={mutedRevealed ? "visibilityOff" : "visibility"} size="md" />
-              {mutedRevealed ? "ミュートを隠す" : "ミュートを表示"}
-            </button>
-          )}
+          {!UNSUPPORTED_KINDS.has(spec.kind) &&
+            (spec.renderer === "FEED" || spec.renderer === "THREAD" || spec.renderer === "ROOM") && (
+              <button
+                type="button"
+                role="menuitem"
+                className={styles.menuItem}
+                onClick={act(() => deck().setRevealMuted(spec.id, !mutedRevealed))}
+              >
+                <Icon name={mutedRevealed ? "visibilityOff" : "visibility"} size="md" />
+                {mutedRevealed ? t("col_hide_muted") : t("col_show_muted")}
+              </button>
+            )}
           {onRefresh && (
             <button type="button" role="menuitem" className={styles.menuItem} onClick={act(onRefresh)}>
               <Icon name="refresh" size="md" />
-              更新
+              {t("web_deck_refresh")}
             </button>
           )}
           {!spec.pinned && (
@@ -395,13 +437,13 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
               onClick={act(() => deck().pin(spec.id))}
             >
               <Icon name="pushPin" size="md" />
-              固定する
+              {t("web_deck_pin")}
             </button>
           )}
           {spec.kind === "FOLLOWING" && (
             // 種別のトグルはメニューを閉じない（続けて切り替えられるように。ネイティブと同じ）
-            <fieldset aria-label="タイムラインに混ぜる表示" className={styles.menuGroup}>
-              <span className={styles.menuHeading}>タイムラインに混ぜる表示</span>
+            <fieldset aria-label={t("col_mix_categories")} className={styles.menuGroup}>
+              <span className={styles.menuHeading}>{t("col_mix_categories")}</span>
               {FEED_CATEGORIES.map((category) => {
                 const shown = !hiddenCategories.includes(category);
                 return (
@@ -414,24 +456,24 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
                     onClick={() => deck().setFeedCatHidden(spec.id, category, shown)}
                   >
                     <Icon name={shown ? "checkBox" : "checkBoxOutlineBlank"} size="md" />
-                    {CATEGORY_LABEL[category]}
+                    {categoryLabel(category)}
                   </button>
                 );
               })}
             </fieldset>
           )}
-          <fieldset aria-label="カラム幅" className={styles.menuRow}>
-            <span className={styles.menuLabel}>カラム幅</span>
+          <fieldset aria-label={t("col_width")} className={styles.menuRow}>
+            <span className={styles.menuLabel}>{t("col_width")}</span>
             {WIDTHS.map((w) => (
               <button
-                key={w.width}
+                key={w}
                 type="button"
                 role="menuitemradio"
-                aria-checked={width === w.width}
+                aria-checked={width === w}
                 className={styles.chip}
-                onClick={() => deck().setWidth(spec.id, w.width)}
+                onClick={() => deck().setWidth(spec.id, w)}
               >
-                {w.label}
+                {widthLabel(w)}
               </button>
             ))}
           </fieldset>
@@ -442,7 +484,7 @@ export function ColumnMenu({ spec, onRefresh }: { spec: ColumnSpec; onRefresh?: 
             onClick={act(() => deck().removeColumn(spec.id))}
           >
             <Icon name="close" size="md" />
-            カラムを削除
+            {t("col_delete")}
           </button>
         </div>
       )}

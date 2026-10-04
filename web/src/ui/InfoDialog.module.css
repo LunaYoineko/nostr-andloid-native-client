@@ -1,8 +1,8 @@
-/* 枠は ConfirmDialog と同じ（560px はネイティブ AlertDialog の最大幅）。
+/* 枠は ConfirmDialog と同じ（560px はネイティブ AlertDialog の最大幅。--dialog-max-w で上書き可。L3）。
    投稿の中に置くこともあるので、投稿の cursor: pointer などを引き継がないよう戻す */
 .dialog {
   box-sizing: border-box;
-  width: min(560px, calc(100% - var(--sp-5) * 2));
+  width: min(var(--dialog-max-w, 560px), calc(100% - var(--sp-5) * 2));
   max-height: calc(100% - var(--sp-5) * 2);
   padding: var(--sp-5);
   border: 0;
@@ -54,8 +54,10 @@
   cursor: pointer;
 }
 
-.back:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .back:hover {
+    background: var(--surface-3);
+  }
 }
 
 .body {
@@ -86,8 +88,10 @@
   cursor: pointer;
 }
 
-.button:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .button:hover {
+    background: var(--surface-3);
+  }
 }
 
 .button:disabled {

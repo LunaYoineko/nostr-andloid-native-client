@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import type { OverlayKind } from "../app/navState";
+import { useT } from "../i18n";
 import styles from "./DetailOverlay.module.css";
 import { useLayoutMode } from "./useLayoutMode";
 
@@ -22,6 +23,7 @@ export function DetailOverlay({
   label: string;
   children: ReactNode;
 }) {
+  const t = useT();
   const mode = useLayoutMode();
   const section = useRef<HTMLElement>(null);
 
@@ -49,7 +51,13 @@ export function DetailOverlay({
     return (
       <div className={styles.centered}>
         {/* スクリムはパネルの兄弟（外側のクリックだけを拾う） */}
-        <button type="button" className={styles.scrim} aria-label="閉じる" tabIndex={-1} onClick={onClose} />
+        <button
+          type="button"
+          className={styles.scrim}
+          aria-label={t("common_close")}
+          tabIndex={-1}
+          onClick={onClose}
+        />
         <section ref={section} className={styles.panel} aria-label={label} tabIndex={-1}>
           {children}
         </section>

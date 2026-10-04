@@ -1,5 +1,6 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { Virtuoso } from "react-virtuoso";
+import { useT } from "../../i18n";
 import { NoteItem } from "../timeline/NoteItem";
 import styles from "./ProfilePostList.module.css";
 
@@ -39,11 +40,12 @@ export function ProfilePostList({
   pinned?: readonly NostrEvent[];
   scrollParent?: HTMLElement;
 }) {
+  const t = useT();
   const rows = rowsOf(pinned, events);
   return (
     <div role="tabpanel" id="profile-tabpanel" className={scrollParent ? undefined : styles.own}>
       {rows.length === 0 ? (
-        <p className={styles.empty}>{loading ? "読み込み中…" : "まだ投稿がありません"}</p>
+        <p className={styles.empty}>{loading ? t("loading") : t("profile_no_posts")}</p>
       ) : (
         <Virtuoso
           data={rows}
@@ -51,7 +53,7 @@ export function ProfilePostList({
           itemContent={(_, row) =>
             row.type === "pinnedLabel" ? (
               <p className={styles.pinnedLabel}>
-                <span aria-hidden="true">📌</span> 固定された投稿
+                <span aria-hidden="true">📌</span> {t("pinned_post")}
               </p>
             ) : (
               <NoteItem event={row.event} />

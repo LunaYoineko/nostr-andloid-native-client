@@ -1,0 +1,39 @@
+/* [#587] 器は共通の ModalSheet（旧: InfoDialog）。ここは body（スクロール）と footer（保存）だけ。
+   枠は旧 InfoDialog.module.css の .body / .buttons / .action と同じ */
+.body {
+  flex: 1;
+  min-height: 0;
+  margin-top: var(--sp-3);
+  overflow-y: auto;
+}
+
+.footer {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--sp-3) 0;
+}
+
+.save {
+  min-height: var(--touch-xs);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--type-body);
+  font-weight: var(--w-link);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .save:hover:not(:disabled) {
+    background: var(--surface-3);
+  }
+}
+
+.save:disabled {
+  color: var(--text-3);
+  cursor: default;
+}

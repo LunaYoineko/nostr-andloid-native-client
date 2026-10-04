@@ -1,89 +1,81 @@
-import { useEffect, useId, useRef, useState } from "react";
-import { buildColumn, type ColumnSpec, type ColumnTemplate, TEMPLATES } from "../../lib/columns";
+import { useState } from "react";
+import { useT } from "../../i18n";
+import {
+  buildColumn,
+  type ColumnSpec,
+  type ColumnTemplate,
+  TEMPLATES,
+  templateHint,
+  templateLabel,
+} from "../../lib/columns";
 import { unixNow } from "../../lib/time";
 import { useDeck } from "../../store/deck";
 import { columnIcon, Icon } from "../../ui/icons";
+import { ModalSheet } from "../../ui/ModalSheet";
 import { ColumnConfigForm } from "./ColumnConfigForm";
 import styles from "./ColumnDialog.module.css";
 
 /**
  * カラム追加（ネイティブの AddColumnSheet）。白紙のフィルタ組みではなくテンプレから選ぶ。
- * 設定が要るテンプレは選ぶと入力欄を出す。閉じたら（close イベント）store の showAddColumn を戻す。
+ * 設定が要るテンプレは選ぶと入力欄を出す。[#593] 器は上寄せの共通モーダル（ModalSheet）に統一。
+ * フィルター編集（EditColumnDialog）は今まで通り中央ダイアログのまま。
  */
 export function AddColumnDialog() {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const t = useT();
   const [selected, setSelected] = useState<ColumnTemplate | null>(null);
-  const titleId = useId();
 
-  useEffect(() => {
-    const d = dialog.current;
-    if (d && !d.open) d.showModal();
-  }, []);
+  const dismiss = () => useDeck.getState().setShowAddColumn(false);
 
   const add = (spec: ColumnSpec) => {
     useDeck.getState().addColumn(spec);
-    dialog.current?.close();
+    dismiss();
   };
 
-  const pick = (t: ColumnTemplate) => {
-    if (t.config !== "NONE") {
-      setSelected(t);
+  const pick = (tpl: ColumnTemplate) => {
+    if (tpl.config !== "NONE") {
+      setSelected(tpl);
       return;
     }
     const existing = new Set(useDeck.getState().columns.map((c) => c.id));
-    const spec = buildColumn(t.template, {}, existing, unixNow());
+    const spec = buildColumn(tpl.template, {}, existing, unixNow());
     if (spec) add(spec);
   };
 
   return (
-    <dialog
-      ref={dialog}
-      className={styles.dialog}
-      aria-labelledby={titleId}
-      onClose={() => useDeck.getState().setShowAddColumn(false)}
-    >
-      <div className={styles.head}>
-        <h2 id={titleId} className={styles.title}>
-          {selected?.label ?? "カラムを追加"}
-        </h2>
-        <button
-          type="button"
-          className={styles.close}
-          aria-label="閉じる"
-          onClick={() => dialog.current?.close()}
-        >
-          <Icon name="close" size="lg" />
-        </button>
-      </div>
-      {selected ? (
-        <ColumnConfigForm
-          key={selected.template}
-          template={selected}
-          submitLabel="追加"
-          cancelLabel="戻る"
-          onCancel={() => setSelected(null)}
-          onSubmit={add}
-        />
-      ) : (
-        <ul className={styles.templates}>
-          {TEMPLATES.map((t) => (
-            <li key={t.template}>
-              <button type="button" className={styles.template} onClick={() => pick(t)}>
-                <Icon name={columnIcon(t.iconKind)} size="lg" className={styles.templateIcon} />
-                <span className={styles.templateText}>
-                  <span className={styles.templateLabel}>{t.label}</span>
-                  {t.hint && <span className={styles.templateHint}>{t.hint}</span>}
-                </span>
-                {t.config !== "NONE" && (
-                  <span className={styles.more} aria-hidden="true">
-                    ›
+    <ModalSheet title={selected ? templateLabel(selected.template) : t("add_column")} onDismiss={dismiss}>
+      <div className={styles.body}>
+        {selected ? (
+          <ColumnConfigForm
+            key={selected.template}
+            template={selected}
+            submitLabel={t("common_add")}
+            cancelLabel={t("common_back")}
+            onCancel={() => setSelected(null)}
+            onSubmit={add}
+          />
+        ) : (
+          <ul className={styles.templates}>
+            {TEMPLATES.map((tpl) => (
+              <li key={tpl.template}>
+                <button type="button" className={styles.template} onClick={() => pick(tpl)}>
+                  <Icon name={columnIcon(tpl.iconKind)} size="lg" className={styles.templateIcon} />
+                  <span className={styles.templateText}>
+                    <span className={styles.templateLabel}>{templateLabel(tpl.template)}</span>
+                    {templateHint(tpl.template) && (
+                      <span className={styles.templateHint}>{templateHint(tpl.template)}</span>
+                    )}
                   </span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </dialog>
+                  {tpl.config !== "NONE" && (
+                    <span className={styles.more} aria-hidden="true">
+                      ›
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </ModalSheet>
   );
 }

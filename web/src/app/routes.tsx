@@ -1,4 +1,5 @@
 import type { RouteObject } from "react-router";
+import { AboutRoute } from "./AboutRoute";
 import { AppShell } from "./AppShell";
 import { HashtagRoute } from "./HashtagRoute";
 import { LoginGate } from "./LoginGate";
@@ -8,13 +9,15 @@ import { RequireSession } from "./RequireSession";
 import { ShareRoute } from "./ShareRoute";
 import { RouteError } from "./screens/RouteError";
 
-// basename は "/app"（パスはそれより下の部分）。
+// basename は "/"（#647。旧 /app は _redirects で / へ 301）。
 // 子ルートは element を持たず handle だけ（描画は AppShell が handle から決める）。/t/:tag だけは一時カラムを開く
 export const routes: RouteObject[] = [
   {
     errorElement: <RouteError />,
     children: [
       { path: "/login", element: <LoginGate /> },
+      // /about は常に LP（ログイン中でも）。RequireSession の下には置かず、静的な LP をそのまま見せる
+      { path: "/about", element: <AboutRoute /> },
       {
         path: "/",
         element: (

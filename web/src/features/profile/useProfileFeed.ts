@@ -1,6 +1,6 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import type { NostrEvent } from "nostr-tools/pure";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { map } from "rxjs";
 import { INDEXER_RELAYS, LOADING_TIMEOUT_MS } from "../../lib/columnRequest";
 import { extractMedia } from "../../lib/media";
@@ -40,14 +40,23 @@ export function hasProfileMedia(event: NostrEvent): boolean {
 export function useProfileFeed(
   pubkey: string,
   relayHints: readonly string[],
-): { loading: boolean; posts: NostrEvent[]; media: NostrEvent[]; articles: NostrEvent[] } {
+): {
+  loading: boolean;
+  posts: NostrEvent[];
+  media: NostrEvent[];
+  articles: NostrEvent[];
+  /** REQ を張り直す（#601 引っ張って更新） */
+  refresh(): void;
+} {
   const hintsKey = relayHints
     .filter((url) => url.startsWith("wss://"))
     .slice(0, 3)
     .join(",");
   const relays = useReadRelays();
 
+  const [epoch, setEpoch] = useState(0);
   const [loading, setLoading] = useState(true);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: epoch は refresh() で張り直すためのキー
   useEffect(() => {
     const main = [{ kinds: PROFILE_REQ_KINDS, authors: [pubkey], limit: PROFILE_REQ_LIMIT }];
     const hints = hintsKey === "" ? [] : hintsKey.split(",");
@@ -67,7 +76,9 @@ export function useProfileFeed(
       outbox.unsubscribe();
       reload.unsubscribe();
     };
-  }, [pubkey, hintsKey, relays]);
+  }, [pubkey, hintsKey, relays, epoch]);
+
+  const refresh = useCallback(() => setEpoch((e) => e + 1), []);
 
   const posts =
     use$(
@@ -81,5 +92,5 @@ export function useProfileFeed(
   // [#534] 本人の記事（kind:30023）。新しい順、同じ d タグは最新版だけ（eventStore.timeline の既定動作）
   const articles =
     use$(() => eventStore.timeline({ kinds: [30023], authors: [pubkey] }), [pubkey]) ?? NO_EVENTS;
-  return { loading, posts, media, articles };
+  return { loading, posts, media, articles, refresh };
 }

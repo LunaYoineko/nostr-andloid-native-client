@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useT } from "../../i18n";
 import { avatarInitial, avatarShade } from "../../lib/avatar";
 import { isDataSaver, markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import { useSession } from "../../signer/session";
@@ -26,6 +27,7 @@ export function ChannelList({
   onSelect(channel: Channel): void;
   onPin(channel: Channel): void;
 }) {
+  const t = useT();
   const channels = useChannels((s) => s.channels);
   const failed = useChannels((s) => s.failed);
   const me = useSession((s) => s.pubkey);
@@ -45,16 +47,16 @@ export function ChannelList({
       {me && (
         <button type="button" className={styles.createRow} onClick={() => setShowCreate(true)}>
           <Icon name="add" size="sm" className={styles.createIcon} />
-          新しいスレッドを作成
+          {t("channel_create_row")}
         </button>
       )}
       {channels === null || channels.length === 0 ? (
         <p className={styles.empty}>
           {channels === null && !failed
-            ? "読み込み中…"
+            ? t("loading")
             : channels === null
-              ? "チャンネルの一覧を取得できませんでした"
-              : "チャンネルがありません"}
+              ? t("web_chat_channels_failed")
+              : t("web_chat_channels_empty")}
         </p>
       ) : (
         <ul className={styles.rows}>
@@ -110,6 +112,7 @@ function ChannelRow({
   /** 自分が作成した kind:40 のときだけ渡る */
   onEdit?: () => void;
 }) {
+  const t = useT();
   return (
     <li className={styles.item}>
       <button
@@ -128,8 +131,8 @@ function ChannelRow({
         <button
           type="button"
           className={styles.edit}
-          aria-label="スレッドを編集"
-          title="スレッドを編集"
+          aria-label={t("channel_edit_title")}
+          title={t("channel_edit_title")}
           onClick={onEdit}
         >
           <EditIcon className={styles.editIcon} />
@@ -138,9 +141,9 @@ function ChannelRow({
       <button
         type="button"
         className={styles.pin}
-        aria-label="ピン留め"
+        aria-label={t("channel_pin")}
         aria-pressed={pinned}
-        title="ピン留め"
+        title={t("channel_pin")}
         onClick={() => onPin(channel)}
       >
         <Icon name="pushPin" size="sm" />

@@ -1,6 +1,7 @@
 import { getMediaAttachments } from "applesauce-common/helpers/file-metadata";
 import { Tokens } from "applesauce-core/helpers/regexp";
 import type { NostrEvent } from "nostr-tools/pure";
+import { URL_TAIL } from "./content/tokenize";
 
 /**
  * 本文中の URL を画像 / 動画 / YouTube に振り分ける（ネイティブの nostr-core Embed.kt と同じ判定）。
@@ -21,11 +22,13 @@ export function urlExtension(url: string): string {
 }
 
 /**
- * 末尾の ASCII の句読点（. , ! ? :）を落とす。
- * applesauce の Tokens.link が URL に取り込むのはこの 5 文字だけ（) ; 。、等は元から含まれない）。
+ * 末尾の句読点・閉じ括弧を落とす。tokenize.ts の URL_TAIL（ネイティブ urlEndOf 移植）と同じ文字集合を使い、
+ * 表示側のリンク判定と埋め込み・カード判定の境界を揃える（挙動2.3）。
  */
 export function trimUrlTail(url: string): string {
-  return url.replace(/[.,!?:]+$/, "");
+  let end = url.length;
+  while (end > 0 && URL_TAIL.includes(url[end - 1])) end--;
+  return url.slice(0, end);
 }
 
 function isWebUrl(url: string): boolean {

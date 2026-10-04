@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { t } from "../../i18n";
 
 // ---- 画像アップロードの圧縮設定（ネイティブ ImageCompressionPrefs。設定「画像アップロード先」の下） ----
 
@@ -90,6 +91,17 @@ export function resetImageCompression(): void {
   } catch {
     // 同上
   }
+}
+
+/**
+ * 解像度プリセットの表示順（ネイティブ ImageResolution.entries）。投稿シート・チャット入力欄で共有する（CH4 / 挙動4.4）。
+ */
+export function resolutions(): readonly [ImageResolution, string][] {
+  return [
+    ["low", t("quality_low")],
+    ["mid", t("quality_mid")],
+    ["high", t("quality_high")],
+  ];
 }
 
 /** プリセットに対応する長辺 px（ネイティブ maxDimFor）。高は null（縮小しない。ただし EXIF は消すため再エンコードはする） */

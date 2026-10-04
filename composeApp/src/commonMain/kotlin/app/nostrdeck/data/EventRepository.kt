@@ -83,6 +83,7 @@ import app.nostrdeck.model.ReactionUi
 import app.nostrdeck.model.RelayPref
 import app.nostrdeck.model.nip65PrefsFromTags
 import app.nostrdeck.model.ReqFilter
+import app.nostrdeck.model.withHexProfileAuthors
 import app.nostrdeck.model.ThreadEntry
 import app.nostrdeck.model.UnsignedEvent
 import app.nostrdeck.model.UsedEmoji
@@ -273,7 +274,9 @@ class EventRepository(
 
     /** 自分の kind:3 由来のフォロー集合（p タグ）。FOLLOWING カラムの authors。 */
     private val follows = MutableStateFlow<List<String>>(emptyList())
-    private var followsAt = 0L
+    @kotlin.concurrent.Volatile private var followsAt = 0L
+    /** [#475] 自分の最新の kind:3（再発行時に他クライアントのタグ・content を残すため丸ごと持つ）。 */
+    @kotlin.concurrent.Volatile private var ownContacts: NostrEvent? = null
 
     // ---- [#396] 自分の replaceable リスト（購読・受信ゲート・State+KV・リセットを OwnReplaceable に共通化）----
 
@@ -399,6 +402,7 @@ class EventRepository(
         // 表示サイズ（標準/大きめ/最大）を KV から復元。
         loadUiScale()
         loadBoldText()   // [#327]
+        loadDenseMode()  // [#675]
         loadNyanMode()   // [#378]
         loadDeveloperMode()   // [#351]
         loadNoteAccentStyle()
@@ -698,6 +702,11 @@ class EventRepository(
      * 返り値は配信できたか（署名鍵が無い等で失敗したら false）。
      */
     suspend fun publishRelayList(): Boolean {
+        // [#478] 設定のリレー表は受け取った 10002 で置き換わる。保存時点の版より新しい版がリレーにあれば発行しない
+        // （他の端末で変えたリレーリストを消さない。取り直した版は取り込み経路でリレー表に反映される）。
+        val basedOnAt = relayListRep.at
+        val r = refreshOwn(10002) { relayListRep.at } as? OwnRefetch.Result.Reached ?: return false
+        if (OwnRefetch.isStale(r.latest, basedOnAt)) { ownListErrors.tryEmit(OwnListError.STALE); return false }
         val rows = q.allRelays().executeAsList()
         val tags = rows.mapNotNull { r ->
             val read = r.read != 0L
@@ -729,7 +738,7 @@ class EventRepository(
             myPubkey = me; myPubkeyFlow.value = me
 
             // 旧アカウント依存の解決済み状態をリセット。
-            follows.value = emptyList(); followsAt = 0L
+            follows.value = emptyList(); followsAt = 0L; ownContacts = null; myProfileAt = 0L
             // [#396] 自分のリスト（10002/10030/30015）は State・at・KV ごと空に戻す（旧アカウントの版を見せない）。
             resetOwnLists()
             // [#374] 旧アカウントの 30078 スナップショットを新アカウントで見せないように。
@@ -812,7 +821,7 @@ class EventRepository(
                     renderer = ColumnRenderer.valueOf(row.renderer),
                     filter = json.decodeFromString(ReqFilter.serializer(), row.filter_json),
                     pinned = true, order = row.sort_order.toInt(),
-                )
+                ).withHexProfileAuthors()   // [#578] 旧版で npub のまま保存された PROFILE を直す
             }.getOrNull()
         }
 
@@ -953,7 +962,7 @@ class EventRepository(
                         id = d.id, title = d.title, subtitle = d.subtitle,
                         kind = ColumnKind.valueOf(d.kind), renderer = ColumnRenderer.valueOf(d.renderer),
                         filter = d.filter, pinned = true, order = d.order,
-                    )
+                    ).withHexProfileAuthors()   // [#578]
                 }.getOrNull()
             }
 
@@ -1969,25 +1978,35 @@ class EventRepository(
     /** [#264] フォロー中の pubkey 一覧（テーマストアの「フォロー中」絞り込み等）。 */
     fun followsFlow(): StateFlow<List<String>> = follows
 
-    /** フォロー追加（kind:3 を publish）。楽観的に follows へ反映。 */
-    suspend fun follow(pubkey: String) {
-        val cur = follows.value
-        if (pubkey in cur) return
-        publishContacts(cur + pubkey)
-    }
+    /** フォロー追加（kind:3 を発行）。戻り値=フォロー済みになったか（既にフォロー済みも true）。 */
+    suspend fun follow(pubkey: String): Boolean = editContacts { ContactListEdit.follow(it, pubkey) }
 
-    /** フォロー解除。 */
-    suspend fun unfollow(pubkey: String) {
-        val cur = follows.value
-        if (pubkey !in cur) return
-        publishContacts(cur - pubkey)
-    }
+    /** フォロー解除。戻り値=フォローしていない状態になったか（元からしていないも true）。 */
+    suspend fun unfollow(pubkey: String): Boolean = editContacts { ContactListEdit.unfollow(it, pubkey) }
 
-    /** 現在のフォロー集合を kind:3（p タグ）として publish し、楽観反映する。 */
-    private suspend fun publishContacts(list: List<String>) {
-        publishSigned(UnsignedEvent(kind = 3, content = "", tags = list.map { listOf("p", it) }))
-        followsAt = currentUnixTime()
-        follows.value = list
+    /**
+     * [#475] フォローリストを 1 件だけ変えて発行する。以前は手元の pubkey 集合から p タグだけで作り直していたため、
+     *  - 他クライアントのリレーヒント・ペットネーム（p タグの 3〜4 要素目）・t タグ・content が消えていた
+     *  - 自分の kind:3 をまだ受け取っていないと、1 人だけのリストでリレー上のリストを上書きしていた
+     * 直前に自分の kind:3 を取り直し（取れなければ発行しない）、その版のタグと content を残して p タグだけ足し引きする。
+     */
+    private suspend fun editContacts(edit: (List<List<String>>) -> List<List<String>>?): Boolean {
+        if (myPubkey == null) return false
+        if (refreshOwn(3) { followsAt } is OwnRefetch.Result.Unreachable) return false
+        val base = ownContacts
+        val next = edit(base?.tags ?: emptyList()) ?: return true   // 既に望む状態（他の端末で済んでいる等）
+        return try {
+            val signed = publishSigned(UnsignedEvent(kind = 3, content = base?.content ?: "", tags = next))
+            ownContacts = signed
+            followsAt = signed.createdAt
+            follows.value = ContactListEdit.follows(next)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            println("Nostrism editContacts failed: ${e.message}")
+            false
+        }
     }
 
     /**
@@ -2655,7 +2674,20 @@ class EventRepository(
         pinnedPublishJob?.cancel()
         pinnedPublishJob = scope.launch {
             delay(300)
-            val ok = publishPinnedHashtagsNow(norm)
+            // [#478] 発行前に取り直す。楽観更新の前の版（rollback）より新しい版がリレーにあれば、この編集は捨てて
+            // 最新版を採る（他の端末で変えたピン留めを消さない）。楽観更新中は受信を止めているので
+            // 手元への反映は待たず、取り直した版を直接使う。
+            val basedOnAt = pinnedRollback?.at ?: 0L
+            val r = refetchOwnReplaceable(PinnedHashtags.KIND, PinnedHashtags.D_TAG)
+            val latest = (r as? OwnRefetch.Result.Reached)?.latest
+            if (r is OwnRefetch.Result.Reached && latest != null && OwnRefetch.isStale(latest, basedOnAt)) {
+                pinnedRollback = null
+                pinnedRep.commit(latest.tags, latest.createdAt)
+                ownListErrors.tryEmit(OwnListError.STALE)
+                return@launch
+            }
+            if (r is OwnRefetch.Result.Unreachable) ownListErrors.tryEmit(OwnListError.UNREACHABLE)
+            val ok = r is OwnRefetch.Result.Reached && publishPinnedHashtagsNow(norm)
             if (ok) {
                 pinnedRollback = null
             } else {
@@ -2671,6 +2703,11 @@ class EventRepository(
         val norm = PinnedHashtags.normalizeList(tags)
         pinnedPublishJob?.cancel()
         pinnedRollback = null
+        // [#478] 整理画面の下書きも新しい版が届くと置き換わる。保存時点の手元の版より新しい版があれば止める。
+        val basedOnAt = pinnedRep.at
+        val r = refreshOwn(PinnedHashtags.KIND, PinnedHashtags.D_TAG) { pinnedRep.at } as? OwnRefetch.Result.Reached
+            ?: return false
+        if (OwnRefetch.isStale(r.latest, basedOnAt)) { ownListErrors.tryEmit(OwnListError.STALE); return false }
         return publishPinnedHashtagsNow(norm)
     }
 
@@ -3017,14 +3054,21 @@ class EventRepository(
 
     private fun onMessage(msg: RelayMessage, client: RelayClient) {
         when (msg) {
-            is RelayMessage.Event -> ingestChannel.trySend(msg.event to client.url)
+            is RelayMessage.Event -> {
+                ingestChannel.trySend(msg.event to client.url)
+                // [#478] 取り直しの一時 REQ は結果を直接集める（取り込み経路にも流すので手元の状態も追いつく）。
+                ownRefetches.value[msg.subscriptionId]?.events?.update { it + msg.event }
+            }
             // [NIP-42] AUTH 応答は relayDispatcher(直列)で処理し、チャレンジ重複応答を dedup する。
             is RelayMessage.Auth -> scope.launch(relayDispatcher) {
                 authRequestedRelays.add(normalizeRelayUrl(client.url))   // [#411] ヒントには出さない
                 handleAuthChallenge(client, msg.challenge)
             }
             // [#17] EOSE = 蓄積イベント送信完了。どこか1リレーから来たらそのカラムを「読込済み」に。
-            is RelayMessage.Eose -> columnLoadedState.value = columnLoadedState.value + msg.subscriptionId
+            is RelayMessage.Eose -> {
+                columnLoadedState.value = columnLoadedState.value + msg.subscriptionId
+                ownRefetches.value[msg.subscriptionId]?.eose?.update { it + client.url }   // [#478]
+            }
             // [#423] 送信の受理確認。待っている id だけ記録する。
             is RelayMessage.Ok -> if (PublishAck.isAccepted(msg.accepted, msg.message)) recordAck(msg.eventId, client.url)
             else -> {}
@@ -3034,6 +3078,74 @@ class EventRepository(
     // [#17] カラム(サブスク)別の「初期読込完了(EOSE受信済み)」集合。空表示とロード表示の判別に使う。
     private val columnLoadedState = MutableStateFlow<Set<String>>(emptySet())
     fun columnLoadedFlow(): StateFlow<Set<String>> = columnLoadedState
+
+    // ---- [#475][#478] 自分の置換可能イベントを書き換える直前の取り直し ----
+
+    /** 取り直し用の一時 REQ で届いたイベントと、EOSE を返したリレー（[onMessage] から積む）。 */
+    private class OwnRefetchCollector {
+        val events = MutableStateFlow<List<NostrEvent>>(emptyList())
+        val eose = MutableStateFlow<Set<String>>(emptySet())
+    }
+    private val ownRefetches = MutableStateFlow<Map<String, OwnRefetchCollector>>(emptyMap())
+
+    /** [#478] 自分のリストの編集を止めた理由。App がトーストで知らせる。 */
+    enum class OwnListError {
+        /** 最新版を取り直せなかった（どのリレーからも応答が無い）。手元の古い版で上書きしないよう止めた */
+        UNREACHABLE,
+        /** 編集を始めた後に、他の端末・クライアントで更新されていた。最新版を読み込んだので操作し直してもらう */
+        STALE,
+    }
+    private val ownListErrors = MutableSharedFlow<OwnListError>(extraBufferCapacity = 4)
+    fun ownListErrorFlow(): SharedFlow<OwnListError> = ownListErrors.asSharedFlow()
+
+    /**
+     * [#475][#478] 自分の置換可能イベントを read ∪ write ∪ インデクサから取り直す（規則は [OwnRefetch]）。
+     * 全リレーの EOSE が揃うか [OwnRefetch.TIMEOUT_MS] で打ち切る。届いた版は通常の取り込み経路にも流れる。
+     */
+    private suspend fun refetchOwnReplaceable(kind: Int, dTag: String? = null): OwnRefetch.Result {
+        val me = myPubkey ?: return OwnRefetch.Result.Unreachable
+        val subId = "ownref_${kind}_${Random.nextInt(1_000_000)}"
+        val collector = OwnRefetchCollector()
+        val targets = (q.allRelays().executeAsList().filter { it.read != 0L || it.write != 0L }.map { it.url } + INDEXER_RELAYS)
+            .map { normalizeRelayUrl(it) }.filter { it.isNotBlank() }.toSet()
+        ownRefetches.update { it + (subId to collector) }
+        try {
+            subscribeTargeted(
+                subId, targets,
+                Filter(kinds = listOf(kind), authors = listOf(me), dTags = dTag?.let { listOf(it) }, limit = 1),
+            )
+            withTimeoutOrNull(OwnRefetch.TIMEOUT_MS) { collector.eose.first { it.size >= targets.size } }
+        } finally {
+            ownRefetches.update { it - subId }
+            scheduleTransientCleanup(subId, delayMs = 3_000L)   // REQ と、インデクサへの一時接続を閉じる
+        }
+        val latest = withContext(Dispatchers.Default) {
+            OwnRefetch.latest(collector.events.value, me, kind, dTag) { EventCrypto.verify(it) }
+        }
+        return OwnRefetch.outcome(collector.eose.value.size, latest)
+    }
+
+    /**
+     * [#475][#478] 取り直し、取り直した版が手元の状態（[localAt] = 手元の版の created_at）に反映されるまで待つ。
+     * 発行してよいときだけ [OwnRefetch.Result.Reached] を返す。応答が無い・反映されないときは
+     * [OwnRefetch.Result.Unreachable]（[notify] なら理由をトーストで知らせる）。
+     */
+    private suspend fun refreshOwn(
+        kind: Int,
+        dTag: String? = null,
+        notify: Boolean = true,
+        localAt: () -> Long,
+    ): OwnRefetch.Result {
+        val r = refetchOwnReplaceable(kind, dTag)
+        val latest = (r as? OwnRefetch.Result.Reached)?.latest
+        val caughtUp = latest == null || localAt() >= latest.createdAt ||
+            withTimeoutOrNull(OwnRefetch.CATCH_UP_MS) { while (localAt() < latest.createdAt) delay(50); true } == true
+        if (r is OwnRefetch.Result.Unreachable || !caughtUp) {
+            if (notify) ownListErrors.tryEmit(OwnListError.UNREACHABLE)
+            return OwnRefetch.Result.Unreachable
+        }
+        return r
+    }
 
     /**
      * 取り込みループ。短時間到着分をまとめて（最大 [INGEST_BATCH]）、
@@ -3328,7 +3440,19 @@ class EventRepository(
      * 未知タグ（[muteOtherPublic]/[muteOtherPrivate]）は失わないよう引き継ぐ。
      * replaceable なので最新の created_at で上書きされる。
      */
-    suspend fun publishMuteList(entries: List<MuteEntry>): Boolean = runCatching {
+    suspend fun publishMuteList(entries: List<MuteEntry>): Boolean {
+        // [#478] 設定 > ミュートの編集（丸ごと置き換え）。編集の土台にした版より新しい版がリレーにあれば止める。
+        val basedOnAt = muteFlow.value?.updatedAt ?: 0L
+        val r = refreshMute() ?: return false
+        if (OwnRefetch.isStale(r.latest, basedOnAt)) { ownListErrors.tryEmit(OwnListError.STALE); return false }
+        return publishMuteListNow(entries)
+    }
+
+    /** [#478] ミュートリストを取り直し、手元（[muteFlow]）に反映されるまで待つ。発行してはいけなければ null。 */
+    private suspend fun refreshMute(): OwnRefetch.Result.Reached? =
+        refreshOwn(10000) { muteFlow.value?.updatedAt ?: 0L } as? OwnRefetch.Result.Reached
+
+    private suspend fun publishMuteListNow(entries: List<MuteEntry>): Boolean = runCatching {
         val me = myPubkey ?: SignerProvider.current().publicKeyHex().also { myPubkey = it; myPubkeyFlow.value = it }
         val publicTags = entries.filter { it.isPublic }.map { listOf(it.category.tag, it.value) } + muteOtherPublic
         val privateTags = entries.filter { it.isPrivate }.map { listOf(it.category.tag, it.value) } + muteOtherPrivate
@@ -3349,6 +3473,7 @@ class EventRepository(
      * 戻り値: 発行できたか（既にミュート済み/ロック中/失敗は false）。
      */
     suspend fun muteUserPrivate(pubkey: String): Boolean {
+        refreshMute() ?: return false   // [#478] 受信前の空のリストで上書きしない
         val current = muteFlow.value
         if (current?.nip44Locked == true) return false          // 編集不可（NIP-44 ロック中）
         val entries = current?.entries ?: emptyList()
@@ -3359,7 +3484,7 @@ class EventRepository(
         } else {
             entries + MuteEntry(MuteCategory.USER, pubkey, isPublic = false, isPrivate = true)
         }
-        return publishMuteList(merged)
+        return publishMuteListNow(merged)
     }
 
     /** [#94/#95] 自分がミュート中のユーザー pubkey 集合（公開/非公開の別を問わない）。 */
@@ -3371,11 +3496,12 @@ class EventRepository(
      * 戻り値: 発行できたか（未ミュート/NIP-44 ロック中/失敗は false）。
      */
     suspend fun unmuteUser(pubkey: String): Boolean {
+        refreshMute() ?: return false   // [#478]
         val current = muteFlow.value ?: return false
         if (current.nip44Locked) return false                    // 編集不可（NIP-44 ロック中）
         val filtered = current.entries.filterNot { it.category == MuteCategory.USER && it.value == pubkey }
         if (filtered.size == current.entries.size) return false  // ミュートしていない
-        return publishMuteList(filtered)
+        return publishMuteListNow(filtered)
     }
 
     /** [#4] 自分のミュートワード一覧（NIP-51 kind:10000 の private "word"）。 */
@@ -3386,18 +3512,20 @@ class EventRepository(
     suspend fun addMuteWord(word: String): Boolean {
         val w = word.trim()
         if (w.isEmpty()) return false
+        refreshMute() ?: return false   // [#478]
         val current = muteFlow.value
         if (current?.nip44Locked == true) return false
         val entries = current?.entries ?: emptyList()
         if (entries.any { it.category == MuteCategory.WORD && it.value.equals(w, ignoreCase = true) }) return false
-        return publishMuteList(entries + MuteEntry(MuteCategory.WORD, w, isPublic = false, isPrivate = true))
+        return publishMuteListNow(entries + MuteEntry(MuteCategory.WORD, w, isPublic = false, isPrivate = true))
     }
 
     /** ミュートワードを削除。 */
     suspend fun removeMuteWord(word: String): Boolean {
+        refreshMute() ?: return false   // [#478]
         val current = muteFlow.value ?: return false
         if (current.nip44Locked) return false
-        return publishMuteList(current.entries.filterNot { it.category == MuteCategory.WORD && it.value == word })
+        return publishMuteListNow(current.entries.filterNot { it.category == MuteCategory.WORD && it.value == word })
     }
 
     // ---- NIP-51 固定投稿(kind:10001) / ブックマーク(kind:10003) ----
@@ -3455,21 +3583,30 @@ class EventRepository(
     }.getOrElse { false }
 
     /** ブックマークをトグル（NIP-51 kind:10003 の公開 e タグ）。戻り値=操作後にブックマーク済みか。 */
-    suspend fun toggleBookmark(eventId: String): Boolean {
-        val cur = bookmarkList.ids.value
-        val was = eventId in cur
-        publishEIdList(bookmarkList, 10003, if (was) cur - eventId else cur + eventId)
-        return !was
-    }
+    suspend fun toggleBookmark(eventId: String): Boolean = toggleEId(bookmarkList, 10003, eventId)
 
     /** 固定投稿をトグル（NIP-51 kind:10001、自分のノートのみ）。戻り値=操作後に固定済みか。 */
     suspend fun togglePinned(eventId: String): Boolean {
-        val cur = pinnedList.ids.value
-        val was = eventId in cur
-        publishEIdList(pinnedList, 10001, if (was) cur - eventId else cur + eventId)
-        // pinsByAuthor（自分の分）も即時反映。
-        myPubkey?.let { pinsByAuthor.value = pinsByAuthor.value + (it to (if (was) cur - eventId else cur + eventId)) }
-        return !was
+        val now = toggleEId(pinnedList, 10001, eventId)
+        // pinsByAuthor（自分の分）も即時反映。受信の判定時刻も進め、発行前の古い版が後から届いても戻さない。
+        myPubkey?.let {
+            pinsAtByAuthor[it] = maxOf(pinsAtByAuthor[it] ?: 0L, pinnedList.at)
+            pinsByAuthor.value = pinsByAuthor.value + (it to pinnedList.ids.value)
+        }
+        return now
+    }
+
+    /**
+     * [#478] e-id リストの 1 件をトグルする。直前に自分の最新版を取り直し（取れなければ発行しない）、その版に当てる。
+     * 押した時点の状態と取り直した版での状態が違えば、既に同じ操作が（他の端末で）済んでいるので発行しない（Web と同じ）。
+     */
+    private suspend fun toggleEId(target: EIdList, kind: Int, eventId: String): Boolean {
+        val was = eventId in target.ids.value
+        if (refreshOwn(kind) { target.at } is OwnRefetch.Result.Unreachable) return was
+        val cur = target.ids.value
+        if ((eventId in cur) != was) return eventId in cur
+        val ok = publishEIdList(target, kind, if (was) cur - eventId else cur + eventId)
+        return if (ok) !was else was
     }
 
     /** id リスト順に DB から NoteUi を解決する（未取得 id はスキップ）。ブックマーク/固定表示用。 */
@@ -3513,7 +3650,16 @@ class EventRepository(
      * [#287] 絵文字エディタからの再発行。emoji タグを [emojis] で置き換え、
      * それ以外のタグ（30030 参照の a タグ等）はそのまま維持する。
      */
-    suspend fun publishEmojiList(emojis: List<CustomEmoji>): Boolean = runCatching {
+    suspend fun publishEmojiList(emojis: List<CustomEmoji>): Boolean {
+        // [#478] エディタの下書きはリレーから新しい版が届くと置き換わるので、保存時点の手元の版が編集の土台。
+        // 取り直してそれより新しい版があれば発行しない（他の端末で編集した絵文字を消さない）。
+        val basedOnAt = emojiListRep.at
+        val r = refreshOwn(10030) { emojiListRep.at } as? OwnRefetch.Result.Reached ?: return false
+        if (OwnRefetch.isStale(r.latest, basedOnAt)) { ownListErrors.tryEmit(OwnListError.STALE); return false }
+        return publishEmojiListNow(emojis)
+    }
+
+    private suspend fun publishEmojiListNow(emojis: List<CustomEmoji>): Boolean = runCatching {
         val keep = emojiListRep.tags.filter { !(it.size >= 3 && it[0] == "emoji") }
         val tags = keep + emojis.map { listOf("emoji", it.shortcode, it.url) }
         val removed = emojiListRep.state.value.map { it.shortcode }.toSet() - emojis.map { it.shortcode }.toSet()
@@ -3552,6 +3698,7 @@ class EventRepository(
     private fun updateFollows(e: NostrEvent) {
         if (e.pubkey != myPubkey) return
         if (e.createdAt < followsAt) return
+        ownContacts = e   // [#475] 再発行でタグ・content を失わないよう版ごと持つ
         followsAt = e.createdAt
         follows.value = e.tags.filter { it.size >= 2 && it[0] == "p" }.map { it[1] }
     }
@@ -3850,6 +3997,9 @@ class EventRepository(
     suspend fun publishProfile(fields: Map<String, String>): Boolean {
         return try {
             val pk = myPubkey ?: SignerProvider.current().publicKeyHex().also { myPubkey = it; myPubkeyFlow.value = it }
+            // [#478] 受け取っていない・古い kind:0 を土台にすると、他の端末で変えた項目や未知フィールドを消す。
+            // 取り直して手元（KV）に反映させてから、変えた項目（[fields]）だけ差し替える。取れなければ発行しない。
+            if (refreshOwn(0) { myProfileAt } is OwnRefetch.Result.Unreachable) return false
             // KV優先(purge耐性)で生JSONを読む。イベント表は起動時purgeで消えるため直読みは不可。
             val base = myProfileContent()
                 ?.let { runCatching { json.parseToJsonElement(it).jsonObject }.getOrNull() }
@@ -3875,6 +4025,9 @@ class EventRepository(
         }
     }
 
+    /** [#478] 手元（[MY_PROFILE_JSON]）にある自分の kind:0 の created_at（このプロセスで受け取った・発行した最新）。 */
+    @kotlin.concurrent.Volatile private var myProfileAt = 0L
+
     private fun upsertProfile(e: NostrEvent) {
         // NIP-01 kind:0 の content は JSON 文字列（user metadata）。標準フィールドを整理して取り込む。
         val o = runCatching { json.parseToJsonElement(e.content).jsonObject }.getOrNull()
@@ -3891,7 +4044,11 @@ class EventRepository(
         q.insertProfileIfAbsent(e.pubkey, name, nip05, picture, e.createdAt, about, website, lud16, banner)
         q.updateProfileIfNewer(name, nip05, picture, e.createdAt, about, website, lud16, banner, e.pubkey, e.createdAt)
         // 自分の kind:0 は生JSONを KV に退避（編集時の未知フィールド温存。purge で消えないように）。
-        if (e.pubkey == myPubkey) q.putSetting(MY_PROFILE_JSON, e.content)
+        // [#478] 後から届いた古い版で退避を戻さない（編集の土台が古くなる）。
+        if (e.pubkey == myPubkey && e.createdAt >= myProfileAt) {
+            myProfileAt = e.createdAt
+            q.putSetting(MY_PROFILE_JSON, e.content)
+        }
     }
 
     private fun toNoteUi(row: Event, prof: app.nostrdeck.db.Profile?): NoteUi {
@@ -4465,6 +4622,19 @@ class EventRepository(
         boldTextState.value = q.getSetting(BOLD_TEXT_KEY).executeAsOneOrNull() == "1"
     }
 
+    // ---- [#675] 廃人モード（密度。既定OFF）----
+    // カラムの間隔・余白・行の高さを詰めて情報量を増やす。Web（#674）の density と同じく
+    // 端末ローカル設定で、#374 の SettingsSync ホワイトリストには入れない。値も Web と同じ normal/dense。
+    private val denseModeState = MutableStateFlow(false)
+    fun denseModeFlow(): StateFlow<Boolean> = denseModeState
+    fun setDenseMode(enabled: Boolean) {
+        denseModeState.value = enabled
+        putSettingAsync(DENSITY_KEY, if (enabled) "dense" else "normal")
+    }
+    private fun loadDenseMode() {
+        denseModeState.value = q.getSetting(DENSITY_KEY).executeAsOneOrNull() == "dense"
+    }
+
     // ---- [#378] にゃにゃにゃウイルス（オフ/自分のみ/全員。既定オフ）----
     // お遊びの猫化モード。**この端末の表示だけ**の演出で、発行イベントには一切影響しない。
     // 端末ローカル設定（#374 の SettingsSync ホワイトリストには入れない）。
@@ -4856,7 +5026,7 @@ class EventRepository(
             requestProfile(rumor.sender); rumor.recipient?.let { requestProfile(it) }
             // DM相手のアイコン/名前は接続中リレーに無いことが多いのでインデクサからも確実に取る。
             requestProfileFromIndexers(listOfNotNull(rumor.sender, rumor.recipient))
-            storeDm(rumor.id, rumor.sender, rumor.recipient, rumor.content, rumor.createdAt)
+            storeDm(rumor.id, rumor.sender, rumor.recipient, rumor.content, rumor.createdAt, rumor.replyTo)
         }
     }
 
@@ -4881,8 +5051,11 @@ class EventRepository(
         }
     }
 
-    private fun storeDm(id: String, sender: String, recipient: String?, content: String, createdAt: Long) {
-        val tags = recipient?.let { listOf(listOf("p", it)) } ?: emptyList()
+    private fun storeDm(
+        id: String, sender: String, recipient: String?, content: String, createdAt: Long, replyTo: String? = null,
+    ) {
+        // [#612] 返信元の #e も残す（以前は p だけで、返信の引用がどちらの向きでも出なかった）。
+        val tags = Nip17.rumorTags(recipient, replyTo)
         q.insertEvent(id, sender, 14, createdAt, content, tagsToJson(tags), "")
         indexTags(NostrEvent(id, sender, 14, createdAt, content, tags, ""))
     }
@@ -4914,11 +5087,13 @@ class EventRepository(
      * 送信本体はアプリのスコープで走らせる。画面のスコープで走らせると、相手の DM リレーを
      * 引いている最中（最大 2.5 秒）に画面を離れただけで送信が中断され、楽観挿入したバブルだけが
      * 残っていた。呼び出し元が先にいなくなっても送信は最後まで進む（結果の通知だけが届かない）。
+     *
+     * [#612] [replyTo] があれば rumor に reply マーカー付き #e を付ける（以前は返信元を捨てていた）。
      */
-    suspend fun sendDm(peerPubkey: String, text: String): DmSendResult =
-        scope.async { sendDmNow(peerPubkey, text) }.await()
+    suspend fun sendDm(peerPubkey: String, text: String, replyTo: NostrEvent? = null): DmSendResult =
+        scope.async { sendDmNow(peerPubkey, text, replyTo) }.await()
 
-    private suspend fun sendDmNow(peerPubkey: String, text: String): DmSendResult {
+    private suspend fun sendDmNow(peerPubkey: String, text: String, replyTo: NostrEvent?): DmSendResult {
         if (text.isBlank()) return DmSendResult.FAILED
         // 楽観挿入した行。送れなかったときに戻す（送れていないのに履歴に残り続けないように）。
         var storedId: String? = null
@@ -4926,7 +5101,7 @@ class EventRepository(
             val me = myPubkey ?: SignerProvider.current().publicKeyHex().also { myPubkey = it; myPubkeyFlow.value = it }
             val signer = SignerProvider.current()
             val now = currentUnixTime()
-            val rumorTags = listOf(listOf("p", peerPubkey))
+            val rumorTags = Nip17.rumorTags(peerPubkey, replyTo?.id)
             val rumorId = Nip01.eventId(me, now, 14, rumorTags, text)
             val rumorJson = buildJsonObject {
                 put("id", rumorId); put("pubkey", me); put("created_at", now); put("kind", 14)
@@ -4937,7 +5112,7 @@ class EventRepository(
             fun rnd() = now - Random.nextLong(0, 2 * 24 * 3600)
             val toPeer = Nip17.wrap(signer, rumorJson, peerPubkey, rnd(), rnd())
             val toSelf = Nip17.wrap(signer, rumorJson, me, rnd(), rnd())
-            storeDm(rumorId, me, peerPubkey, text, now)   // 楽観反映
+            storeDm(rumorId, me, peerPubkey, text, now, replyTo?.id)   // 楽観反映（[#612] 返信の引用も出す）
             storedId = rumorId
             processedWraps.add(toPeer.id); processedWraps.add(toSelf.id)
             // 配信先を DM リレーへ限定（NIP-17）。無ければ接続 read リレーへ。
@@ -5023,8 +5198,12 @@ class EventRepository(
     private suspend fun myDmRelaysOrSeed(): List<String> {
         val me = myPubkey ?: return emptyList()
         dmRelaysByAuthor.value[me]?.let { if (it.isNotEmpty()) return it }
+        // [#478] 自分の 10050 をまだ受け取っていないだけかもしれない。取り直してから決める（シードで上書きしない）。
+        // DM の送信中なので、取れなくてもトーストは出さず、シードもしない（送信先は read リレーで代用）。
+        val r = refreshOwn(10050, notify = false) { dmRelaysAtByAuthor[me] ?: 0L }
+        dmRelaysByAuthor.value[me]?.let { if (it.isNotEmpty()) return it }
         val reads = connectedReadRelays().take(4)
-        if (reads.isNotEmpty()) publishDmRelays(reads)   // 初回のみ自動シード
+        if (r is OwnRefetch.Result.Reached && reads.isNotEmpty()) runCatching { publishDmRelaysNow(reads) }   // 初回のみ自動シード
         return reads
     }
 
@@ -5034,8 +5213,19 @@ class EventRepository(
         if (me == null) flowOf(emptyList()) else dmRelaysByAuthor.map { it[me].orEmpty() }
     }.distinctUntilChanged()
 
-    /** DM リレー(kind:10050)を発行して自分の一覧を更新する。 */
-    suspend fun publishDmRelays(urls: List<String>) {
+    /**
+     * DM リレー(kind:10050)を発行して自分の一覧を更新する（設定画面。丸ごと置き換え）。
+     * [#478] 直前に取り直し、取れない・操作した時点の版より新しい版があるときは発行しない。戻り値=発行できたか。
+     */
+    suspend fun publishDmRelays(urls: List<String>): Boolean {
+        val me = myPubkey ?: return false
+        val basedOnAt = dmRelaysAtByAuthor[me] ?: 0L
+        val r = refreshOwn(10050) { dmRelaysAtByAuthor[me] ?: 0L } as? OwnRefetch.Result.Reached ?: return false
+        if (OwnRefetch.isStale(r.latest, basedOnAt)) { ownListErrors.tryEmit(OwnListError.STALE); return false }
+        return runCatching { publishDmRelaysNow(urls); true }.getOrElse { if (it is CancellationException) throw it; false }
+    }
+
+    private suspend fun publishDmRelaysNow(urls: List<String>) {
         val clean = urls.map { normalizeRelayUrl(it) }.filter { it.startsWith("wss://") || it.startsWith("ws://") }.distinct()
         val tags = clean.map { listOf("relay", it) }
         val signed = publishSigned(UnsignedEvent(kind = 10050, content = "", tags = tags))
@@ -5125,11 +5315,18 @@ class EventRepository(
     /**
      * [M11] 画像をアップロードして表示用 URL を返す。
      * 有効なメディアサーバ(NIP-96)を順に試し、最初に成功した URL を返す。全滅なら null。
+     * [#685] noTransform = true は NIP-96 の no_transform を送り、サーバ側の再変換を断る
+     * （端末でトランスコード済みの動画用。nostrcheck.me は再変換で動画を 640x480 に潰していた）。
      */
-    suspend fun uploadImage(bytes: ByteArray, mime: String, filename: String = "image"): String? =
+    suspend fun uploadImage(
+        bytes: ByteArray,
+        mime: String,
+        filename: String = "image",
+        noTransform: Boolean = false,
+    ): String? =
         withContext(Dispatchers.Default) {
             for (s in q.enabledMediaServers().executeAsList()) {
-                val url = runCatching { uploadToServer(s.url, bytes, mime, filename) }.getOrNull()
+                val url = runCatching { uploadToServer(s.url, bytes, mime, filename, noTransform) }.getOrNull()
                 if (!url.isNullOrBlank()) return@withContext url
             }
             null
@@ -5141,10 +5338,17 @@ class EventRepository(
      *  2. api_url へ multipart/form-data（part 名 `file`）を POST。Authorization は NIP-98。
      *  3. レスポンス JSON から URL を抽出（nip94_event.tags の "url" / トップレベル "url"）。
      */
-    private suspend fun uploadToServer(server: String, bytes: ByteArray, mime: String, filename: String): String? {
+    private suspend fun uploadToServer(
+        server: String,
+        bytes: ByteArray,
+        mime: String,
+        filename: String,
+        noTransform: Boolean,
+    ): String? {
         val base = server.trim().trimEnd('/')
         val apiUrl = discoverApiUrl(base) ?: "$base/api/v1/media"
         val parts = formData {
+            if (noTransform) append("no_transform", "true")
             append(
                 "file", bytes,
                 Headers.build {
@@ -5316,6 +5520,7 @@ class EventRepository(
         const val BOLD_TEXT_KEY = "appearance_bold_text"   // [#327]       // [#appearance] 表示サイズ（s/m/l）
         const val DEVELOPER_MODE_KEY = "developer_mode"   // [#351]
         const val NYAN_MODE_KEY = "ui:nyan_mode"   // [#378] にゃにゃにゃウイルス（off/self/all）
+        const val DENSITY_KEY = "ui:density"       // [#675] 廃人モード（normal/dense）
         const val NOTE_ACCENT_STYLE_KEY = "ui:note_accent"  // [#256][#257] 種別の視覚表示（none/line/bg）
         const val THEME_CUSTOM_BG = "ui:theme_custom_bg"         // [#258] カスタムテーマ 背景色
         const val THEME_CUSTOM_TEXT = "ui:theme_custom_text"     // [#258] カスタムテーマ 文字色

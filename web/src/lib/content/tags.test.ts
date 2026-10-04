@@ -1,6 +1,7 @@
 import { neventEncode, npubEncode } from "nostr-tools/nip19";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import { describe, expect, it } from "vitest";
+import { addVerified } from "../../nostr/store";
 import {
   articleTitleOf,
   clientNameOf,
@@ -108,6 +109,32 @@ describe("replyParentPointerOf", () => {
 
   it("kind:6 は null", () => {
     expect(replyParentPointerOf(event(6, [["e", ID_A]]))).toBeNull();
+  });
+
+  it("kind:1111 は e が無ければ a（解決できたときだけ）、E が無ければ A（挙動2.1）", () => {
+    const article = event(30023, [["d", "post"]], "本文");
+    addVerified(article);
+    const coord = `30023:${article.pubkey}:post`;
+
+    // e/E が無く a だけ → 解決して親にする
+    expect(replyParentPointerOf(event(1111, [["a", coord]]))).toEqual({
+      id: article.id,
+      author: article.pubkey,
+    });
+
+    // e が無く a と A の両方があれば a（親）を優先
+    const rootCoord = `30023:${article.pubkey}:other`;
+    expect(
+      replyParentPointerOf(
+        event(1111, [
+          ["A", rootCoord],
+          ["a", coord],
+        ]),
+      )?.id,
+    ).toBe(article.id);
+
+    // 手元に無いアドレスは解決できないので null
+    expect(replyParentPointerOf(event(1111, [["a", `30023:${AUTHOR}:missing`]]))).toBeNull();
   });
 });
 

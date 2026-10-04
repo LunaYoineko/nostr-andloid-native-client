@@ -23,6 +23,8 @@
   text-decoration: none;
 }
 
-.repostName:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .repostName:hover {
+    text-decoration: underline;
+  }
 }

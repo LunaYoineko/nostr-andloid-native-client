@@ -47,6 +47,8 @@
   cursor: pointer;
 }
 
-.ref:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .ref:hover {
+    text-decoration: underline;
+  }
 }

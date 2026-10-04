@@ -7,6 +7,7 @@ import {
   verifyEvent,
 } from "nostr-tools/pure";
 import type { DmMessageRow } from "../../db/schema";
+import { t } from "../../i18n";
 import { unixNow } from "../../lib/time";
 import type { Signer } from "../../nostr/signer";
 import { VaultError } from "../../signer/webKeyVault";
@@ -158,9 +159,21 @@ export function dmFromRumor(rumor: Rumor, me: string): Omit<DmMessageRow, "owner
   };
 }
 
-/** 送る rumor（kind:14、宛先 p は相手 1 人。署名は無く id は計算する） */
-export function buildRumor(me: string, peer: string, text: string, now: number): Rumor {
-  const rumor = { pubkey: me, created_at: now, kind: 14, tags: [["p", peer]], content: text };
+/**
+ * 送る rumor（kind:14、宛先 p は相手 1 人）。[replyTo] があれば NIP-10 の reply マーカー付き #e を添える
+ * （ネイティブ EventRepository.publishChannelMessage と同じ形。DM は 1:1 なので相手への #p は増やさない）。
+ * 署名は無く id は計算する
+ */
+export function buildRumor(
+  me: string,
+  peer: string,
+  text: string,
+  now: number,
+  replyTo?: NostrEvent | null,
+): Rumor {
+  const tags: string[][] = [["p", peer]];
+  if (replyTo) tags.push(["e", replyTo.id, "", "reply"]);
+  const rumor = { pubkey: me, created_at: now, kind: 14, tags, content: text };
   return { id: getEventHash(rumor), ...rumor };
 }
 
@@ -176,7 +189,7 @@ export async function wrapGiftWrap(
   opts: { now?: number; random?: () => number } = {},
 ): Promise<NostrEvent> {
   const cipher = signer.nip44;
-  if (!cipher) throw new Error("署名者が NIP-44 に対応していない");
+  if (!cipher) throw new Error(t("web_dm_err_no_nip44"));
   const now = opts.now ?? unixNow();
   const random = opts.random ?? Math.random;
   const past = () => now - Math.floor(random() * WRAP_TIME_SPREAD_SEC);
@@ -187,7 +200,7 @@ export async function wrapGiftWrap(
     JSON.stringify({ id, pubkey, created_at, kind, tags, content }),
   );
   const seal = await signer.signEvent({ kind: 13, content: sealContent, tags: [], created_at: past() });
-  if (seal.pubkey !== rumor.pubkey || !verifyEvent(seal)) throw new Error("seal の署名が不正");
+  if (seal.pubkey !== rumor.pubkey || !verifyEvent(seal)) throw new Error(t("web_dm_err_bad_seal"));
 
   const sk = generateSecretKey();
   let ck: Uint8Array | null = null;

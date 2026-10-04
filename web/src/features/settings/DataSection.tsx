@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useT } from "../../i18n";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { showToast } from "../../ui/toast";
 import { RelaySyncSection } from "../sync/RelaySyncSection";
@@ -25,27 +26,24 @@ export function DataSection() {
 
 /** キャッシュの強制消去（ネイティブ purgeCache）。確認のうえ消して再読み込みする */
 function PurgeCacheBlock() {
+  const t = useT();
   const [confirming, setConfirming] = useState(false);
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>キャッシュ</h3>
-      <p className={styles.desc}>
-        端末内に保存しているキャッシュ（タイムライン履歴・プロフィール・送信待ち・リンクカード）をすべて消去し、再読み込みしてリレーから取り直します。DM
-        の復号済みメッセージも消えます。NIP-07 / NIP-46
-        では次に開いたとき再び承認を求められます。鍵・リレー・カラムの設定は保持されます。
-      </p>
+      <h3 className={styles.caption}>{t("web_settings_cache_title")}</h3>
+      <p className={styles.desc}>{t("web_settings_cache_desc")}</p>
       <button
         type="button"
         className={`${styles.danger} ${styles.alignStart}`}
         onClick={() => setConfirming(true)}
       >
-        キャッシュを強制消去
+        {t("data_purge_button")}
       </button>
       {confirming && (
         <ConfirmDialog
-          title="キャッシュを消去しますか？"
-          text="保存済みのイベント・プロフィール・送信待ち・リンクカードをすべて削除し、再読み込みしてリレーから取り直します。DM の復号済みメッセージも消えます。NIP-07 / NIP-46 では次に開いたとき再び承認を求められます。鍵・リレー・カラムの設定は消えません。この操作は元に戻せません。"
-          confirmLabel="消去する"
+          title={t("data_purge_title")}
+          text={t("web_data_purge_text")}
+          confirmLabel={t("data_purge_confirm")}
           destructive
           onConfirm={() => {
             setConfirming(false);
@@ -60,14 +58,13 @@ function PurgeCacheBlock() {
 
 /** 開発者モード（ネイティブ #351）。ON で投稿の ⋯ に「イベントJSONを表示」 */
 function DeveloperModeBlock() {
+  const t = useT();
   const enabled = useDeveloperMode((s) => s.enabled);
   const id = useId();
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>開発者モード</h3>
-      <p className={styles.desc}>
-        投稿やチャットの「⋯」メニューに「イベントJSONを表示」が追加され、タイムラインに流れてくるイベントの生データを確認できます。
-      </p>
+      <h3 className={styles.caption}>{t("dev_mode_title")}</h3>
+      <p className={styles.desc}>{t("dev_mode_desc")}</p>
       <label className={styles.check} htmlFor={id}>
         <input
           id={id}
@@ -75,7 +72,7 @@ function DeveloperModeBlock() {
           checked={enabled}
           onChange={(e) => setDeveloperMode(e.target.checked)}
         />
-        開発者モードを有効にする
+        {t("dev_mode_toggle")}
       </label>
     </div>
   );
@@ -86,27 +83,25 @@ function DeveloperModeBlock() {
  * registerProtocolHandler が無いブラウザでは出さない。
  */
 function ProtocolHandlerBlock() {
+  const t = useT();
   if (!("registerProtocolHandler" in navigator)) return null;
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>nostr: リンク</h3>
-      <p className={styles.desc}>
-        他のサイトの nostr: リンク（npub / nprofile / note / nevent /
-        naddr）をこのアプリで開けるようにします。
-      </p>
+      <h3 className={styles.caption}>{t("web_settings_nostr_link_title")}</h3>
+      <p className={styles.desc}>{t("web_settings_nostr_link_desc")}</p>
       <button
         type="button"
         className={`${styles.ghost} ${styles.alignStart}`}
         onClick={() => {
           try {
-            navigator.registerProtocolHandler("web+nostr", "/app/open?uri=%s");
-            showToast("登録しました");
+            navigator.registerProtocolHandler("web+nostr", "/open?uri=%s");
+            showToast(t("web_data_handler_registered"));
           } catch {
-            showToast("登録できませんでした");
+            showToast(t("web_data_handler_failed"));
           }
         }}
       >
-        nostr: リンクをこのアプリで開く
+        {t("web_settings_nostr_link_toggle")}
       </button>
     </div>
   );
@@ -114,11 +109,15 @@ function ProtocolHandlerBlock() {
 
 /** 接続と通信量（ネイティブ ConnectionMonitorDialog #364）への入口 */
 function ConnectionMonitorBlock() {
+  const t = useT();
   const [open, setOpen] = useState(false);
+  const developerMode = useDeveloperMode((s) => s.enabled);
+  // [#364] 開発者モード ON のときだけ導線を出す（ネイティブと同じ。S13）
+  if (!developerMode) return null;
   return (
     <div className={styles.block}>
       <button type="button" className={`${styles.ghost} ${styles.alignStart}`} onClick={() => setOpen(true)}>
-        接続と通信量を表示
+        {t("conn_monitor_open")}
       </button>
       {open && <ConnectionMonitorDialog onDismiss={() => setOpen(false)} />}
     </div>

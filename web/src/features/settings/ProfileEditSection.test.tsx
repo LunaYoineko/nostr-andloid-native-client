@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { finalizeEvent, generateSecretKey, getPublicKey, type NostrEvent } from "nostr-tools/pure";
 import { EMPTY, Observable, Subject } from "rxjs";
@@ -148,6 +148,27 @@ it("画像のアップロード中は保存できない。終わると URL が�
     picture: UPLOADED_URL,
   });
   expect(await screen.findByRole("button", { name: "保存しました ✓" })).toBeInTheDocument();
+});
+
+it("画像 URL があれば下にプレビューを出す。読み込み中→失敗/成功（S16）", async () => {
+  const user = userEvent.setup();
+  vi.mocked(requestOnce).mockReturnValue(EMPTY);
+  addVerified(profile({ name: "alice", picture: "https://cdn.example/a.png" }, 1_000));
+  render(<ProfileEditSection />);
+  await waitFor(() => expect(textbox("自己紹介")).toBeEnabled());
+
+  const preview = screen.getByAltText("アイコン画像");
+  expect(screen.getByText("読み込み中…")).toBeInTheDocument();
+  fireEvent.error(preview);
+  expect(screen.getByText("画像を読み込めません")).toBeInTheDocument();
+
+  await user.clear(textbox("アイコン画像"));
+  expect(screen.queryByAltText("アイコン画像")).not.toBeInTheDocument();
+
+  await user.type(textbox("バナー画像"), "https://cdn.example/b.png");
+  fireEvent.load(screen.getByAltText("バナー画像"));
+  expect(screen.queryByText("読み込み中…")).not.toBeInTheDocument();
+  expect(screen.queryByText("画像を読み込めません")).not.toBeInTheDocument();
 });
 
 it("編集中に別の端末で更新されていたら発行せず、案内を出す（入力は残す）", async () => {

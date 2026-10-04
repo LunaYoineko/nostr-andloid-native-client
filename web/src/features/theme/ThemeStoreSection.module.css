@@ -38,8 +38,10 @@
   cursor: pointer;
 }
 
-.rowButton:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .rowButton:hover {
+    background: var(--surface-3);
+  }
 }
 
 .info {

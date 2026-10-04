@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useT } from "../../i18n";
 import { proxied } from "../../lib/imageProxy";
 import type { MediaItem } from "../../lib/media";
 import { PlayArrowIcon } from "../../ui/icons";
@@ -19,6 +20,7 @@ const HTTPS = /^https:\/\//i;
  * 同じ位置の一時停止状態から見せる（自動では再生しない。playback.ts の URL → 位置のメモリ）。
  */
 export function VideoPlayer({ item }: { item: MediaItem }) {
+  const t = useT();
   const [active, setActive] = useState(() => wasActivated(item.url));
   // 初回の活性化（＝ポスターを押した）だけ自動再生する。復帰時は最初の描画で決まる
   const [autoPlay] = useState(() => !wasActivated(item.url));
@@ -39,7 +41,7 @@ export function VideoPlayer({ item }: { item: MediaItem }) {
     <button
       type="button"
       className={styles.poster}
-      aria-label="動画を再生"
+      aria-label={t("web_video_play")}
       onClick={() => {
         if (!playable) return;
         savePosition(item.url, savedPositionOf(item.url)); // 「一度でも再生した」を記録する
@@ -51,7 +53,7 @@ export function VideoPlayer({ item }: { item: MediaItem }) {
       <span className={styles.play}>
         <PlayArrowIcon className={styles.playIcon} />
       </span>
-      <span className={styles.badge}>動画</span>
+      <span className={styles.badge}>{t("media_video_badge")}</span>
     </button>
   );
 }

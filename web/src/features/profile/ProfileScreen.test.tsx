@@ -10,6 +10,7 @@ import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
 import { clearViewport, mockViewport } from "../../test/viewport";
+import { useToast } from "../../ui/toast";
 import { reportUser } from "../actions/reactions";
 import { EMPTY_MUTE_MATCHER, useMute } from "../mute/muteList";
 import { muteUser, unmuteUser } from "../mute/muteSync";
@@ -33,7 +34,7 @@ vi.mock("../../nostr/pool", async (importOriginal) => {
 });
 
 vi.mock("./useProfileFeed", () => ({
-  useProfileFeed: vi.fn(() => ({ loading: false, posts: [], media: [], articles: [] })),
+  useProfileFeed: vi.fn(() => ({ loading: false, posts: [], media: [], articles: [], refresh: vi.fn() })),
 }));
 
 vi.mock("./useContactsOf", () => ({ useContactsOf: vi.fn(() => null) }));
@@ -101,7 +102,13 @@ beforeEach(() => {
   vi.mocked(toggleFollow).mockReset();
   vi.mocked(toggleFollow).mockResolvedValue("done");
   vi.mocked(useContactsOf).mockReturnValue(null);
-  vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [], articles: [] });
+  vi.mocked(useProfileFeed).mockReturnValue({
+    loading: false,
+    posts: [],
+    media: [],
+    articles: [],
+    refresh: vi.fn(),
+  });
   vi.mocked(useFollowers).mockReturnValue({
     followers: null,
     hasMore: false,
@@ -117,6 +124,7 @@ beforeEach(() => {
   vi.mocked(reportUser).mockReset();
   vi.mocked(reportUser).mockResolvedValue(undefined);
   useMute.setState({ matcher: EMPTY_MUTE_MATCHER, list: null });
+  useToast.setState({ queue: [] });
   mockViewport(400);
 });
 
@@ -194,7 +202,7 @@ describe("レイアウト", () => {
   });
 
   it("expanded: 左ペインに「プロフィール」とヘッダカード、タブと投稿はその外", () => {
-    mockViewport(1200);
+    mockViewport(1400);
     alice();
     renderScreen();
     const side = screen.getByRole("complementary", { name: "プロフィール詳細" });
@@ -226,8 +234,7 @@ describe("ヘッダカード", () => {
     expect(dialog.querySelector("img")?.getAttribute("src")).toBe(BANNER);
   });
 
-  it("名前は h2、NIP-05 の文字、npub は先頭 20 + … + 末尾 6。コピーすると 1.5 秒だけ知らせる", async () => {
-    vi.useFakeTimers();
+  it("名前は h2、NIP-05 の文字、npub は先頭 20 + … + 末尾 6。コピーするとトーストで知らせる（P6）", async () => {
     alice({ nip05: "alice@example.com" });
     renderScreen();
 
@@ -240,12 +247,7 @@ describe("ヘッダカード", () => {
       fireEvent.click(screen.getByRole("button", { name: "npub をコピー" }));
     });
     expect(writeText).toHaveBeenCalledWith(npub);
-    expect(screen.getByRole("status")).toHaveTextContent("npub をコピーしました");
-
-    act(() => vi.advanceTimersByTime(1_499));
-    expect(screen.getByRole("status")).toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(1));
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(useToast.getState().queue).toEqual(["npub をコピーしました"]);
   });
 
   it("⋯ メニュー: nprofile（リレーは kind:10002 の先頭 3 件）と njump のリンクをコピーする", async () => {
@@ -269,13 +271,13 @@ describe("ヘッダカード", () => {
       pubkey: them,
       relays: ["wss://relay.one", "wss://relay.two", "wss://relay.three"],
     });
-    expect(screen.getByRole("status")).toHaveTextContent("nprofile をコピーしました");
+    expect(useToast.getState().queue).toEqual(["nprofile をコピーしました"]);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "メニュー" }));
     await user.click(screen.getByRole("menuitem", { name: "リンクをコピー（njump）" }));
     expect(writeText).toHaveBeenLastCalledWith(`https://njump.me/${nprofile}`);
-    expect(screen.getByRole("status")).toHaveTextContent("リンクをコピーしました");
+    expect(useToast.getState().queue).toEqual(["nprofile をコピーしました", "リンクをコピーしました"]);
   });
 
   it("自己紹介の URL・#タグ・メンションはリンク（画像 URL もリンクのまま）、lud16 と website", () => {
@@ -326,6 +328,27 @@ describe("ヘッダカード", () => {
     renderScreen(me);
     expect(screen.getByText("⚡ me@getalby.com")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "⚡ me@getalby.com" })).not.toBeInTheDocument();
+  });
+
+  it("他人で lud16 があれば ⋯ の左に丸い ⚡ ボタンを出す（#592。ネイティブ ProfileScreen.kt:715-719）", async () => {
+    const user = userEvent.setup();
+    alice({ lud16: "alice@getalby.com" });
+    renderScreen();
+    await user.click(screen.getByRole("button", { name: "Zap" }));
+    const dialog = screen.getByRole("dialog", { name: "⚡ Zap" });
+    expect(within(dialog).getByText("送信先: alice@getalby.com")).toBeInTheDocument();
+  });
+
+  it("lud16 が無ければ丸い ⚡ ボタンを出さない（#592）", () => {
+    alice();
+    renderScreen();
+    expect(screen.queryByRole("button", { name: "Zap" })).not.toBeInTheDocument();
+  });
+
+  it("自分のプロフィールでは lud16 があっても丸い ⚡ ボタンを出さない（#592）", () => {
+    addProfile(meKey, { name: "Me", lud16: "me@getalby.com" });
+    renderScreen(me);
+    expect(screen.queryByRole("button", { name: "Zap" })).not.toBeInTheDocument();
   });
 
   it("使用リレー: 押すと URL（wss:// と末尾 / 無し）と read / write。kind:10002 が無ければ出さない", async () => {
@@ -457,6 +480,7 @@ describe("タブ", () => {
       posts: [photo, repost, text],
       media: [photo],
       articles: [],
+      refresh: vi.fn(),
     });
     renderScreen();
 
@@ -506,6 +530,7 @@ describe("タブ", () => {
       posts: [],
       media: [],
       articles: [newer, older],
+      refresh: vi.fn(),
     });
     renderScreen();
 
@@ -524,7 +549,13 @@ describe("タブ", () => {
   it("記事が 0 件なら「まだ記事がありません」", async () => {
     const user = userEvent.setup();
     alice();
-    vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [], articles: [] });
+    vi.mocked(useProfileFeed).mockReturnValue({
+      loading: false,
+      posts: [],
+      media: [],
+      articles: [],
+      refresh: vi.fn(),
+    });
     renderScreen();
 
     await user.click(screen.getByRole("tab", { name: "記事" }));
@@ -533,12 +564,24 @@ describe("タブ", () => {
 
   it("空なら「まだ投稿がありません」、読み込み中は「読み込み中…」", () => {
     alice();
-    vi.mocked(useProfileFeed).mockReturnValue({ loading: true, posts: [], media: [], articles: [] });
+    vi.mocked(useProfileFeed).mockReturnValue({
+      loading: true,
+      posts: [],
+      media: [],
+      articles: [],
+      refresh: vi.fn(),
+    });
     const { unmount } = renderScreen();
     expect(screen.getByText("読み込み中…")).toBeInTheDocument();
     unmount();
 
-    vi.mocked(useProfileFeed).mockReturnValue({ loading: false, posts: [], media: [], articles: [] });
+    vi.mocked(useProfileFeed).mockReturnValue({
+      loading: false,
+      posts: [],
+      media: [],
+      articles: [],
+      refresh: vi.fn(),
+    });
     renderScreen();
     expect(screen.getByText("まだ投稿がありません")).toBeInTheDocument();
   });
@@ -560,6 +603,7 @@ describe("固定投稿（#531。その人の kind:10001）", () => {
       posts: [text],
       media: [photo],
       articles: [],
+      refresh: vi.fn(),
     });
     renderScreen();
 
@@ -656,15 +700,15 @@ describe("ミュート / 通報", () => {
     expect(screen.getByText("ミュート中")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "メニュー" }));
     expect(screen.getByRole("menuitem", { name: "ミュートを解除" })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "このユーザーをミュート" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "ミュート" })).not.toBeInTheDocument();
   });
 
-  it("「このユーザーをミュート」は確認してから muteUser を呼ぶ", async () => {
+  it("「ミュート」は確認してから muteUser を呼ぶ（ネイティブと同じ文言。P3）", async () => {
     const user = userEvent.setup();
     alice();
     renderScreen();
     await user.click(screen.getByRole("button", { name: "メニュー" }));
-    await user.click(screen.getByRole("menuitem", { name: "このユーザーをミュート" }));
+    await user.click(screen.getByRole("menuitem", { name: "ミュート" }));
     expect(vi.mocked(muteUser)).not.toHaveBeenCalled();
     const dialog = screen.getByRole("dialog", { name: "このユーザーをミュートしますか？" });
     await user.click(within(dialog).getByRole("button", { name: "ミュート" }));
@@ -683,12 +727,12 @@ describe("ミュート / 通報", () => {
     expect(vi.mocked(unmuteUser)).toHaveBeenCalledWith(me, them);
   });
 
-  it("「ユーザーを通報」は理由を選ぶと reportUser を呼ぶ（e タグの無い通報。中身は reactions.test.ts）", async () => {
+  it("「通報」は理由を選ぶと reportUser を呼ぶ（e タグの無い通報。中身は reactions.test.ts。ネイティブと同じ文言。P3）", async () => {
     const user = userEvent.setup();
     alice();
     renderScreen();
     await user.click(screen.getByRole("button", { name: "メニュー" }));
-    await user.click(screen.getByRole("menuitem", { name: "ユーザーを通報" }));
+    await user.click(screen.getByRole("menuitem", { name: "通報" }));
     const dialog = screen.getByRole("dialog", { name: "このユーザーを通報" });
     await user.click(within(dialog).getByRole("button", { name: "スパム" }));
     expect(vi.mocked(reportUser)).toHaveBeenCalledWith(them, "spam");
@@ -700,7 +744,7 @@ describe("ミュート / 通報", () => {
     renderScreen(me);
     await user.click(screen.getByRole("button", { name: "メニュー" }));
     expect(screen.queryByRole("menuitem", { name: /ミュート/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: "ユーザーを通報" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "通報" })).not.toBeInTheDocument();
   });
 });
 
@@ -805,6 +849,7 @@ describe("タブ・スクロール位置の復元（#401 #540）", () => {
       posts: [],
       media: [note(themKey, "写真 https://img.test/p.jpg", 1_000)],
       articles: [],
+      refresh: vi.fn(),
     });
     renderScreen();
 

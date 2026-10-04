@@ -1,5 +1,6 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import type { ReactNode } from "react";
+import { useT } from "../../i18n";
 import { retryUnsentNow, useIsUnsent } from "../../nostr/publish";
 import { useSession } from "../../signer/session";
 import { ReplyIcon } from "../../ui/icons";
@@ -43,20 +44,37 @@ export function ActionButton({
 }
 
 /**
- * 投稿の下の行（NoteItem から呼ぶ唯一の入口）: 自分の未送信なら「未送信」→ アクション行（返信 + children）。
- * children は #459 が リポスト / ♡ / 絵文字 / ⋯ を入れる。
+ * 投稿の下の行（NoteItem から呼ぶ唯一の入口）: 自分の未送信なら「未送信」→ アクション行（返信 + children + more）。
+ * children は #459 が リポスト / ♡ / 絵文字 を入れる。
+ * [#683] 返信〜children（Zap まで）は .primaryActions に包んで行の幅に均等配置し、⋯（more）は
+ * その外側に置いて行の右端に固定する（NoteActionButtons の NoteMoreMenu を渡す）。
  */
-export function NoteFooter({ event, children }: { event: NostrEvent; children?: ReactNode }) {
+export function NoteFooter({
+  event,
+  more,
+  children,
+}: {
+  event: NostrEvent;
+  more?: ReactNode;
+  children?: ReactNode;
+}) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const unsent = useIsUnsent(event.id);
   return (
     <div className={styles.footer}>
       {event.pubkey === me && unsent && <UnsentChip eventId={event.id} />}
-      <fieldset aria-label="操作" className={styles.actions}>
-        <ActionButton label="返信" onClick={() => openCompose({ mode: "reply", target: event })}>
-          <ReplyIcon />
-        </ActionButton>
-        {children}
+      <fieldset aria-label={t("web_note_actions_label")} className={styles.actions}>
+        <div className={styles.primaryActions}>
+          <ActionButton
+            label={t("compose_reply")}
+            onClick={() => openCompose({ mode: "reply", target: event })}
+          >
+            <ReplyIcon />
+          </ActionButton>
+          {children}
+        </div>
+        {more}
       </fieldset>
     </div>
   );
@@ -64,22 +82,23 @@ export function NoteFooter({ event, children }: { event: NostrEvent; children?: 
 
 /** 「未送信」（ネイティブ UnsentChip）。押すと「再送」「下書きに戻す」 */
 function UnsentChip({ eventId }: { eventId: string }) {
+  const t = useT();
   return (
     <MenuButton
-      label="未送信"
+      label={t("unsent_label")}
       triggerClassName={styles.unsent}
       entries={[
-        { type: "item", label: "再送", onSelect: () => retryUnsentNow(eventId) },
+        { type: "item", label: t("unsent_retry"), onSelect: () => retryUnsentNow(eventId) },
         {
           type: "item",
-          label: "下書きに戻す",
+          label: t("unsent_to_draft"),
           onSelect: () => {
-            if (unsentToDraft(eventId)) showToast("下書きに戻しました");
+            if (unsentToDraft(eventId)) showToast(t("unsent_moved_to_draft"));
           },
         },
       ]}
     >
-      未送信
+      {t("unsent_label")}
     </MenuButton>
   );
 }

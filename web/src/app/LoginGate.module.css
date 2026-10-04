@@ -7,6 +7,13 @@
   gap: var(--sp-3);
 }
 
+/* ネイティブ AppMark 56dp（L5） */
+.logo {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--r-md);
+}
+
 .title {
   margin: 0;
   font-size: var(--type-display);
@@ -25,8 +32,8 @@
   border: none;
   border-radius: var(--r-md);
   background: var(--accent);
-  /* on-accent の文字色（designs/index.html のボタンと同じ） */
-  color: #fff;
+  /* [#673] アクセント地の上の文字色（ダークではほぼ白地に固定 #fff が乗り不可視だった） */
+  color: var(--on-accent);
   font: inherit;
   font-size: var(--type-body);
   font-weight: var(--w-strong);

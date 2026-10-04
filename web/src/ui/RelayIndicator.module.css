@@ -14,8 +14,10 @@
   cursor: pointer;
 }
 
-.indicator:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .indicator:hover {
+    background: var(--surface-3);
+  }
 }
 
 .indicator[data-orientation="vertical"] {

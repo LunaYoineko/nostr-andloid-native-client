@@ -1,10 +1,11 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { type DragEvent, type FormEvent, useId, useMemo, useState } from "react";
-import { relativeTime } from "../../lib/time";
+import { t, useT } from "../../i18n";
+import { formatAbsoluteTime } from "../../lib/time";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
-import { InfoDialog } from "../../ui/InfoDialog";
+import { ModalSheet } from "../../ui/ModalSheet";
 import { showToast } from "../../ui/toast";
 import {
   loadUsedHashtagsDetailed,
@@ -14,6 +15,7 @@ import {
   type UsedHashtag,
 } from "../compose/storage";
 import styles from "../settings/SettingsSections.module.css";
+import ownStyles from "./HashtagManager.module.css";
 import {
   normalizeHashtag,
   PinnedHashtagsError,
@@ -26,13 +28,13 @@ function failureMessage(e: unknown): string {
   if (e instanceof PinnedHashtagsError) {
     switch (e.reason) {
       case "no-pinned-list":
-        return "最新のピン留めを取得できなかったため、保存しませんでした。接続を確認してもう一度お試しください";
+        return t("web_hashtags_no_base");
       case "stale":
-        return "ピン留めが更新されていたため、保存しませんでした。最新の内容を表示したので、確認してもう一度編集してください";
+        return t("web_hashtags_stale");
     }
   }
   // ネイティブ hashtags_save_failed
-  return "ピン留めを保存できませんでした";
+  return t("hashtags_save_failed");
 }
 
 /**
@@ -41,18 +43,20 @@ function failureMessage(e: unknown): string {
  * 「保存」で kind:30015（d=pinned）を再発行する。使ったことのあるタグの削除は端末ローカルで発行しない。
  */
 export function HashtagManager({ onDismiss }: { onDismiss(): void }) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   if (!me) {
     return (
-      <InfoDialog title="ハッシュタグの整理" onDismiss={onDismiss}>
-        <p className={styles.desc}>ピン留めを管理するにはログインしてください。</p>
-      </InfoDialog>
+      <ModalSheet title={t("hashtags_manage_title")} onDismiss={onDismiss}>
+        <p className={styles.desc}>{t("hashtags_unavailable")}</p>
+      </ModalSheet>
     );
   }
   return <Manager me={me} onDismiss={onDismiss} />;
 }
 
 function Manager({ me, onDismiss }: { me: string; onDismiss(): void }) {
+  const t = useT();
   const latest = use$(() => eventStore.replaceable({ kind: 30015, pubkey: me, identifier: "pinned" }), [me]);
   const current = useMemo(() => pinnedHashtagsFrom(latest), [latest]);
   const [draft, setDraft] = useState<string[] | null>(null);
@@ -70,7 +74,7 @@ function Manager({ me, onDismiss }: { me: string; onDismiss(): void }) {
   }
 
   function removePinned(tag: string) {
-    edit(list.filter((t) => t !== tag));
+    edit(list.filter((other) => other !== tag));
   }
 
   function movePinned(from: number, to: number) {
@@ -93,7 +97,7 @@ function Manager({ me, onDismiss }: { me: string; onDismiss(): void }) {
   function deleteUsed(tag: string) {
     removeUsedHashtag(tag);
     setUsedList((u) => u.filter((x) => x.tag !== tag));
-    showToast("履歴から削除しました");
+    showToast(t("hashtags_used_deleted"));
   }
 
   async function save() {
@@ -101,7 +105,7 @@ function Manager({ me, onDismiss }: { me: string; onDismiss(): void }) {
     try {
       await publishPinnedHashtags(me, list, draft === null ? (latest?.id ?? null) : basedOnId);
       setDraft(null);
-      showToast("ピン留めを保存しました");
+      showToast(t("hashtags_saved"));
     } catch (e) {
       // 最新版と食い違っていたら下書きを捨てて最新の内容を出し直す
       if (e instanceof PinnedHashtagsError && e.reason === "stale") setDraft(null);
@@ -121,82 +125,80 @@ function Manager({ me, onDismiss }: { me: string; onDismiss(): void }) {
 
   return (
     <>
-      <InfoDialog
-        title="ハッシュタグの整理"
-        action={{
-          label: saving ? "保存中…" : "保存",
-          onClick: () => void save(),
-          disabled: !dirty || saving,
-        }}
-        onDismiss={attemptDismiss}
-      >
-        <p className={styles.desc}>
-          ピン留めしたタグ（NIP-51
-          kind:30015）は投稿画面とハッシュタグカラム作成のチップに常に表示され、端末をまたいで同期されます。使ったことのあるタグはこの端末で記憶され、#
-          入力時の候補になります。
-        </p>
-        <section className={styles.block} aria-label="ピン留め">
-          <h3 className={styles.caption}>ピン留め</h3>
-          <p className={styles.desc}>長押ししてドラッグで並べ替え。ここでの順番がチップの順番になります。</p>
-          {list.length === 0 ? (
-            <p className={styles.desc}>
-              ピン留めはまだありません。下から追加するか、使ったことのあるタグをピン留めしてください。
-            </p>
-          ) : (
-            <ol className={styles.relays} aria-label="ピン留めの一覧">
-              {list.map((tag, i) => (
-                <PinnedRow
-                  key={tag}
-                  tag={tag}
-                  index={i}
-                  total={list.length}
-                  onMoveUp={() => movePinned(i, i - 1)}
-                  onMoveDown={() => movePinned(i, i + 1)}
-                  onDropFrom={(from) => movePinned(from, i)}
-                  onRemove={() => removePinned(tag)}
-                />
-              ))}
-            </ol>
-          )}
-          <AddPinnedForm list={list} onAdd={(tag) => edit([...list, tag])} />
-        </section>
-        <section className={styles.block} aria-label="使ったことのあるタグ">
-          <h3 className={styles.caption}>使ったことのあるタグ</h3>
-          <input
-            className={styles.input}
-            type="text"
-            autoCapitalize="off"
-            autoCorrect="off"
-            spellCheck={false}
-            placeholder="絞り込み"
-            aria-label="使ったことのあるタグを絞り込み"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          {usedList.length === 0 ? (
-            <p className={styles.desc}>まだ使ったタグがありません。</p>
-          ) : filtered.length === 0 ? (
-            <p className={styles.desc}>一致するタグがありません。</p>
-          ) : (
-            <ul className={styles.relays} aria-label="使ったことのあるタグの一覧">
-              {filtered.map((u) => (
-                <UsedRow
-                  key={u.tag}
-                  entry={u}
-                  pinned={list.includes(u.tag)}
-                  onPin={() => pinUsed(u.tag)}
-                  onDelete={() => deleteUsed(u.tag)}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
-      </InfoDialog>
+      <ModalSheet title={t("hashtags_manage_title")} onDismiss={attemptDismiss}>
+        <div className={ownStyles.body}>
+          {/* hashtags_note は設定 > ハッシュタグ側だけに出す（ネイティブと同じ。H1） */}
+          <section className={styles.block} aria-label={t("hashtags_pinned_section")}>
+            <h3 className={styles.caption}>{t("hashtags_pinned_section")}</h3>
+            <p className={styles.desc}>{t("hashtags_pinned_hint")}</p>
+            {list.length === 0 ? (
+              <p className={styles.desc}>{t("hashtags_pinned_empty")}</p>
+            ) : (
+              <ol className={styles.relays} aria-label={t("web_hashtags_pinned_list_label")}>
+                {list.map((tag, i) => (
+                  <PinnedRow
+                    key={tag}
+                    tag={tag}
+                    index={i}
+                    total={list.length}
+                    onMoveUp={() => movePinned(i, i - 1)}
+                    onMoveDown={() => movePinned(i, i + 1)}
+                    onDropFrom={(from) => movePinned(from, i)}
+                    onRemove={() => removePinned(tag)}
+                  />
+                ))}
+              </ol>
+            )}
+            <AddPinnedForm list={list} onAdd={(tag) => edit([...list, tag])} />
+          </section>
+          <section className={styles.block} aria-label={t("hashtags_used_section")}>
+            <h3 className={styles.caption}>{t("hashtags_used_section")}</h3>
+            <input
+              className={styles.input}
+              type="text"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              placeholder={t("hashtags_used_filter_hint")}
+              aria-label={t("web_hashtags_used_filter_label")}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            {usedList.length === 0 ? (
+              <p className={styles.desc}>{t("hashtags_used_empty")}</p>
+            ) : filtered.length === 0 ? (
+              <p className={styles.desc}>{t("hashtags_used_none_match")}</p>
+            ) : (
+              <ul className={styles.relays} aria-label={t("web_hashtags_used_list_label")}>
+                {filtered.map((u) => (
+                  <UsedRow
+                    key={u.tag}
+                    entry={u}
+                    pinned={list.includes(u.tag)}
+                    onPin={() => pinUsed(u.tag)}
+                    onDelete={() => deleteUsed(u.tag)}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+        <div className={ownStyles.footer}>
+          <button
+            type="button"
+            className={ownStyles.save}
+            disabled={!dirty || saving}
+            onClick={() => void save()}
+          >
+            {saving ? t("common_saving") : t("common_save")}
+          </button>
+        </div>
+      </ModalSheet>
       {confirmClose && (
         <ConfirmDialog
-          title="変更を破棄しますか？"
-          text="ピン留めの変更はまだ保存されていません。"
-          confirmLabel="破棄する"
+          title={t("hashtags_discard_title")}
+          text={t("hashtags_discard_text")}
+          confirmLabel={t("hashtags_discard_confirm")}
           destructive
           onConfirm={onDismiss}
           onDismiss={() => setConfirmClose(false)}
@@ -224,6 +226,7 @@ function PinnedRow({
   onDropFrom(from: number): void;
   onRemove(): void;
 }) {
+  const t = useT();
   function onDragStart(e: DragEvent<HTMLLIElement>) {
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", String(index));
@@ -244,7 +247,7 @@ function PinnedRow({
       <button
         type="button"
         className={styles.textButton}
-        aria-label={`#${tag} を上へ移動`}
+        aria-label={t("web_hashtags_move_up", tag)}
         disabled={index === 0}
         onClick={onMoveUp}
       >
@@ -253,20 +256,26 @@ function PinnedRow({
       <button
         type="button"
         className={styles.textButton}
-        aria-label={`#${tag} を下へ移動`}
+        aria-label={t("web_hashtags_move_down", tag)}
         disabled={index === total - 1}
         onClick={onMoveDown}
       >
         ↓
       </button>
-      <button type="button" className={styles.textButton} aria-label={`#${tag} を外す`} onClick={onRemove}>
-        外す
+      <button
+        type="button"
+        className={styles.textButton}
+        aria-label={t("web_hashtags_remove_label", tag)}
+        onClick={onRemove}
+      >
+        {t("web_hashtags_remove")}
       </button>
     </li>
   );
 }
 
 function AddPinnedForm({ list, onAdd }: { list: readonly string[]; onAdd(tag: string): void }) {
+  const t = useT();
   const inputId = useId();
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -276,12 +285,12 @@ function AddPinnedForm({ list, onAdd }: { list: readonly string[]; onAdd(tag: st
     const tag = normalizeHashtag(value);
     if (!tag) {
       // ネイティブ hashtags_add_invalid
-      setError("タグに使えるのは文字・数字・_ だけです。");
+      setError(t("hashtags_add_invalid"));
       return;
     }
     if (list.includes(tag)) {
       // ネイティブ hashtags_add_duplicate
-      setError("そのタグはすでにピン留めされています。");
+      setError(t("hashtags_add_duplicate"));
       return;
     }
     if (list.length >= PINNED_MAX) {
@@ -296,7 +305,7 @@ function AddPinnedForm({ list, onAdd }: { list: readonly string[]; onAdd(tag: st
   return (
     <form className={styles.row} onSubmit={submit}>
       <label htmlFor={inputId} className="srOnly">
-        タグを追加
+        {t("web_hashtags_add_label")}
       </label>
       <input
         id={inputId}
@@ -305,7 +314,7 @@ function AddPinnedForm({ list, onAdd }: { list: readonly string[]; onAdd(tag: st
         autoCapitalize="off"
         autoCorrect="off"
         spellCheck={false}
-        placeholder="タグを追加（例: nostr）"
+        placeholder={t("hashtags_add_hint")}
         value={value}
         onChange={(e) => {
           setValue(e.target.value);
@@ -313,7 +322,7 @@ function AddPinnedForm({ list, onAdd }: { list: readonly string[]; onAdd(tag: st
         }}
       />
       <button type="submit" className={styles.ghost} disabled={value.trim() === ""}>
-        追加
+        {t("common_add")}
       </button>
       {error && (
         <p className={styles.error} role="alert">
@@ -335,25 +344,28 @@ function UsedRow({
   onPin(): void;
   onDelete(): void;
 }) {
+  const t = useT();
   return (
     <li className={styles.relay}>
       <span className={styles.relayUrl}>{`#${entry.tag}`}</span>
-      <span className={styles.relayMeta}>{`最終使用 ${relativeTime(entry.lastUsed)}`}</span>
+      <span className={styles.relayMeta}>
+        {t("hashtags_last_used_fmt", formatAbsoluteTime(entry.lastUsed))}
+      </span>
       {pinned ? (
         // ネイティブ hashtags_pinned_badge
-        <span className={styles.relayMeta}>ピン留め中</span>
+        <span className={styles.relayMeta}>{t("hashtags_pinned_badge")}</span>
       ) : (
         <button type="button" className={styles.textButton} onClick={onPin}>
-          ピン留め
+          {t("tag_pin")}
         </button>
       )}
       <button
         type="button"
         className={styles.textButton}
-        aria-label={`#${entry.tag} を履歴から削除`}
+        aria-label={t("web_hashtags_used_delete_label", entry.tag)}
         onClick={onDelete}
       >
-        履歴から削除
+        {t("hashtags_used_delete")}
       </button>
     </li>
   );

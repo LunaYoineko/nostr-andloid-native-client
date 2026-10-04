@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../../i18n";
 import { isDataSaver, markProxyBlocked, originOf, proxied } from "../../lib/imageProxy";
 import type { MediaItem } from "../../lib/media";
 import { BlurhashCanvas } from "./BlurhashCanvas";
@@ -30,6 +31,7 @@ type Props = {
  * データセーバー中はアニメーション（GIF / アニメ WebP）を先頭フレームだけにする。
  */
 export function Thumb({ item, proxyWidth, index, total, onOpen, className }: Props) {
+  const t = useT();
   const [src, setSrc] = useState<string | null>(() =>
     /^https?:\/\//i.test(item.url) ? proxied(item.url, proxyWidth, 75, !isDataSaver()) : null,
   );
@@ -47,8 +49,8 @@ export function Thumb({ item, proxyWidth, index, total, onOpen, className }: Pro
     <button
       type="button"
       className={className ? `${styles.thumb} ${className}` : styles.thumb}
-      aria-label={`画像 ${index + 1} / ${total} を拡大`}
-      title={failed && !item.blurhash ? "画像を読み込めませんでした" : undefined}
+      aria-label={t("web_thumb_open", index + 1, total)}
+      title={failed && !item.blurhash ? t("img_load_failed") : undefined}
       onClick={() => onOpen(index)}
     >
       {item.blurhash && (

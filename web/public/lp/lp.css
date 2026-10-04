@@ -1,0 +1,577 @@
+/*
+ * LP（/ と /about）のスタイル。CSP の script-src 'self' には触らないが、旧 docs/index.html の
+ * inline \3c style> をそのまま外部ファイルへ出しただけ（#647）。内容は変えていない。
+ */
+#lp {
+  color-scheme: dark;
+
+  /* アプリの darkPalette をそのまま使う（Color.kt） */
+  --bg: #0c0c10;
+  --surface: #15151c;
+  --surface2: #1d1d26;
+  --surface3: #262631;
+  --border: #2c2c38;
+  --border-strong: #3a3a48;
+  --text: #ecedf1;
+  --text2: #bebfc9;
+  --text3: #90919e;
+
+  --sans:
+    system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+#lp * {
+  box-sizing: border-box;
+}
+#lp {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  #lp {
+    scroll-behavior: auto;
+  }
+}
+
+#lp {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+#lp a {
+  color: var(--text);
+}
+#lp a:focus-visible,
+#lp button:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
+}
+#lp code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+
+#lp .shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ---------- ヘッダ ---------- */
+#lp header.top {
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgba(12, 12, 16, 0.82);
+  backdrop-filter: blur(12px);
+}
+#lp .top .shell {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 60px;
+}
+#lp .wordmark {
+  font-family: var(--mono);
+  font-size: 15px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-decoration: none;
+  font-weight: 500;
+}
+#lp .top nav {
+  margin-left: auto;
+  display: flex;
+  gap: 22px;
+}
+#lp .top nav a {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+  text-decoration: none;
+}
+#lp .top nav a:hover {
+  color: var(--text);
+}
+@media (max-width: 620px) {
+  #lp .top nav a.hide-s {
+    display: none;
+  }
+}
+
+/* ---------- ヒーロー ---------- */
+#lp .hero {
+  padding: 84px 0 0;
+}
+#lp .hero h1 {
+  font-family: var(--mono);
+  font-size: clamp(38px, 8vw, 76px);
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+  font-weight: 500;
+  margin: 0;
+  text-wrap: balance;
+}
+#lp .hero .thesis {
+  font-size: clamp(17px, 2.2vw, 21px);
+  color: var(--text2);
+  max-width: 34ch;
+  margin: 22px 0 0;
+  text-wrap: balance;
+}
+#lp .hero .sub {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--text3);
+  margin-top: 18px;
+}
+#lp .cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 30px;
+}
+#lp .btn {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  padding: 11px 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  color: var(--text);
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+#lp .btn:hover {
+  border-color: var(--text3);
+  background: var(--surface2);
+}
+#lp .btn.primary {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+  font-weight: 600;
+}
+#lp .btn.primary:hover {
+  background: #fff;
+  border-color: #fff;
+}
+
+/* ---------- デッキ（ヒーローの本体） ---------- */
+#lp .deck-frame {
+  margin-top: 64px;
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+#lp .deck-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--text3);
+  padding: 14px 0;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+#lp .deck-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+#lp .deck {
+  display: flex;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 3px 3px 0 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+#lp .col {
+  background: var(--surface);
+  min-width: 268px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+#lp .col-head {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+#lp .col-head .ic {
+  width: 16px;
+  height: 16px;
+  color: var(--text2);
+  flex: none;
+}
+#lp .col-head b {
+  font-size: 13px;
+  font-weight: 620;
+}
+#lp .col-head span {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 0.05em;
+  margin-left: auto;
+}
+#lp .post {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 9px;
+}
+#lp .post:last-child {
+  border-bottom: 0;
+}
+#lp .av {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--surface3);
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+}
+#lp .av.sm {
+  width: 16px;
+  height: 16px;
+  font-size: 8px;
+}
+#lp .post-body {
+  min-width: 0;
+  flex: 1;
+}
+#lp .post-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+}
+#lp .post-meta b {
+  font-size: 12.5px;
+  font-weight: 620;
+}
+#lp .post-meta i {
+  font-style: normal;
+  color: var(--text3);
+  font-family: var(--mono);
+  font-size: 10px;
+  margin-left: auto;
+}
+#lp .post p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.5;
+}
+#lp .ctx {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text3);
+  margin-bottom: 4px;
+}
+#lp .ctx svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+#lp .ctx span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#lp .acts {
+  display: flex;
+  gap: 16px;
+  margin-top: 9px;
+  color: var(--text3);
+}
+#lp .acts svg {
+  width: 14px;
+  height: 14px;
+}
+#lp .chat-line {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+#lp .chat-line:last-child {
+  border-bottom: 0;
+}
+#lp .bubble {
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+#lp .chat-name {
+  font-size: 11px;
+  color: var(--text2);
+  font-weight: 620;
+  margin-bottom: 2px;
+}
+
+/* ---------- セクション共通 ---------- */
+#lp section {
+  padding: 88px 0;
+}
+#lp .sec-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+#lp h2 {
+  font-size: clamp(24px, 3.4vw, 32px);
+  letter-spacing: -0.02em;
+  font-weight: 620;
+  margin: 12px 0 0;
+  text-wrap: balance;
+}
+#lp .sec-lede {
+  color: var(--text2);
+  max-width: 58ch;
+  margin-top: 14px;
+  font-size: 16px;
+}
+
+/* 特徴＝カラム構造で見せる（デッキの反復） */
+#lp .features {
+  margin-top: 44px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+#lp .feat {
+  background: var(--bg);
+  padding: 26px 22px 30px;
+}
+#lp .feat .n {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--text3);
+}
+#lp .feat h3 {
+  font-size: 16px;
+  font-weight: 640;
+  margin: 12px 0 8px;
+  letter-spacing: -0.01em;
+}
+#lp .feat p {
+  margin: 0;
+  color: var(--text2);
+  font-size: 14px;
+  line-height: 1.7;
+}
+#lp .feat kbd {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--surface2);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 1px 6px;
+  color: var(--text);
+}
+
+/* テーマストアへの導線 = ここだけ色が出る */
+#lp .themes-teaser {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 34px 28px;
+  margin-top: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  align-items: center;
+  justify-content: space-between;
+}
+#lp .swatches {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+#lp .sw {
+  width: 62px;
+  height: 62px;
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+#lp .sw i {
+  font-style: normal;
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  display: block;
+  margin-top: 5px;
+}
+
+/* NIP 一覧 */
+#lp .nips {
+  margin-top: 40px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+#lp .nips span {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.03em;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--text2);
+}
+#lp .nips span b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* 入手 */
+#lp .dl {
+  margin-top: 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+#lp .dl-item {
+  background: var(--bg);
+  padding: 24px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+#lp .dl-item .plat {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+#lp .dl-item strong {
+  font-size: 15.5px;
+  font-weight: 620;
+}
+#lp .dl-item p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--text2);
+  flex: 1;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: .dl-item と .top は別要素で重ならない（見た目に影響しない） */
+#lp .dl-item a {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--text);
+}
+#lp .state {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  padding: 1px 6px;
+  color: var(--text3);
+  align-self: flex-start;
+}
+
+/* ---------- Web 版の導線（#467・#647） ---------- */
+/* <html class="signed-in"> は React（app/lpVisibility.ts）がログイン状態を見て付け外しする */
+#lp .top .app-open {
+  display: none;
+  padding: 7px 14px;
+  font-size: 12px;
+}
+.signed-in #lp .top .app-open {
+  display: inline-block;
+}
+#lp .when-in {
+  display: none;
+}
+.signed-in #lp .when-in {
+  display: inline;
+}
+.signed-in #lp .when-out {
+  display: none;
+}
+@media (max-width: 620px) {
+  /* スマホ幅ではヘッダ 1 行に収めるため、ログイン済みのときはナビを隠してボタンだけにする */
+  .signed-in #lp .top nav {
+    display: none;
+  }
+  .signed-in #lp .top .app-open {
+    margin-left: auto;
+  }
+}
+/* 入手節の Web 版カードは 1 行を占有する（4 枚目が 3 列グリッドの 2 行目に 1 枚だけ落ちて空きマスが出るのを避ける） */
+#lp .dl-item.wide {
+  grid-column: 1 / -1;
+}
+#lp .dl-item.wide p {
+  max-width: 62ch;
+}
+
+#lp footer {
+  border-top: 1px solid var(--border);
+  padding: 40px 0 60px;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: footer と .top は別要素で重ならない（見た目に影響しない） */
+#lp footer .shell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 32px;
+  align-items: baseline;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: footer と .top は別要素で重ならない（見た目に影響しない） */
+#lp footer a {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text3);
+  text-decoration: none;
+}
+/* biome-ignore lint/style/noDescendingSpecificity: footer と .top は別要素で重ならない（見た目に影響しない） */
+#lp footer a:hover {
+  color: var(--text);
+}
+#lp footer .copy {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  margin-left: auto;
+  letter-spacing: 0.05em;
+}

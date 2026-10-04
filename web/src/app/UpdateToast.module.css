@@ -1,13 +1,14 @@
+/* main（AppShell の .content）内の absolute（#595。Toaster.module.css と同じ置き方。
+   Compact の下部ナビは .content の外なので、fixed のときと違って被らない） */
 .toast {
-  position: fixed;
+  position: absolute;
   left: 50%;
-  bottom: calc(var(--sp-4) + env(safe-area-inset-bottom));
+  bottom: var(--sp-4);
   transform: translateX(-50%);
-  /* tokens.css に重なり順の定義がまだ無いので、画面上の他要素より手前に出す値を直に置く */
-  z-index: 1000;
+  z-index: 2;
   box-sizing: border-box;
   width: max-content;
-  max-width: calc(100vw - var(--sp-4) * 2);
+  max-width: calc(100% - var(--sp-4) * 2);
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -36,8 +37,8 @@
 .reload {
   border: none;
   background: var(--accent);
-  /* on-accent の文字色（designs/index.html のボタンと同じ） */
-  color: #fff;
+  /* [#673] アクセント地の上の文字色（ダークではほぼ白地に固定 #fff が乗り不可視だった） */
+  color: var(--on-accent);
   font-weight: var(--w-strong);
 }
 
@@ -47,6 +48,8 @@
   color: var(--text-2);
 }
 
-.close:hover {
-  background: var(--surface-3);
+@media (hover: hover) {
+  .close:hover {
+    background: var(--surface-3);
+  }
 }

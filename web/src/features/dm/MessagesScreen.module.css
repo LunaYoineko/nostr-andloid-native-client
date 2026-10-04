@@ -17,7 +17,7 @@
   flex: none;
   width: 320px;
   height: 100%;
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--bg);
 }
 
 .detailPane {
@@ -99,7 +99,7 @@
   padding: 1px var(--sp-1);
   border-radius: var(--r-full);
   background: var(--accent);
-  color: var(--bg);
+  color: var(--on-accent);
   font-size: var(--type-micro);
   font-weight: var(--w-name);
   line-height: 16px;

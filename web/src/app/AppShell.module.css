@@ -1,8 +1,12 @@
-/* 上・左右のシステムバーはルートで確保し、下は Compact = 下部ナビ / Expanded = 本体が確保する（ネイティブと同じ） */
+/*
+ * 上・左右のシステムバーはルートで確保し、下は Compact = 下部ナビ / Expanded = 本体が確保する（ネイティブと同じ）。
+ * 高さは visualViewport.height（--shell-vvh。#594）に追従し、ソフトキーボードで縮んだ分だけ骨格ごと収める。
+ * visualViewport が無い環境（デスクトップ・jsdom 等）は今までどおり 100dvh。
+ */
 .shell {
   box-sizing: border-box;
   display: flex;
-  height: 100dvh;
+  height: var(--shell-vvh, 100dvh);
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px);
   background: var(--bg);
 }
@@ -11,7 +15,7 @@
   flex-direction: column;
 }
 
-/* [#540] rail は 440〜599px（内容は Compact のまま、ナビだけレール）。下部ナビが無いのは expanded と同じ */
+/* [#661] rail は 3 カラム入らない幅（内容は compact と同じ 1 カラム、ナビだけレール）。下部ナビが無いのは expanded と同じ */
 .shell[data-layout="expanded"],
 .shell[data-layout="rail"] {
   flex-direction: row;
@@ -26,6 +30,13 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+/* [#670] rail では 1 カラムが画面幅いっぱいに伸びて 1 行が長くなりすぎるので、最大幅を抑えてレールの右の中央に置く
+   （タブ列・ページャ・詳細画面・FAB を含む内容領域ごと）。compact / expanded は変えない */
+.shell[data-layout="rail"] .content {
+  max-width: var(--single-col-max);
+  margin-inline: auto;
 }
 
 .base {

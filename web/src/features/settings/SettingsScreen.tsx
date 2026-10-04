@@ -1,11 +1,12 @@
 import { type ReactNode, useId } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router";
+import { useT } from "../../i18n";
 import { hrefForProfile } from "../../lib/content/labels";
 import { useSession } from "../../signer/session";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { useLayoutMode } from "../../ui/useLayoutMode";
-import { ThemeStoreSection } from "../theme/ThemeStoreSection";
 import { WalletSection } from "../wallet/WalletSection";
+import { AboutSection } from "./AboutSection";
 import { AccountSection, AccountSummary } from "./AccountSection";
 import { BookmarksSection } from "./BookmarksSection";
 import { DataSection } from "./DataSection";
@@ -17,6 +18,7 @@ import { HashtagSection } from "./HashtagSection";
 import { MediaSection } from "./MediaSection";
 import { MuteSection } from "./MuteSection";
 import { ProfileEditSection } from "./ProfileEditSection";
+import { ReactionSection } from "./ReactionSection";
 import { RelaySection } from "./RelaySection";
 import styles from "./SettingsScreen.module.css";
 import {
@@ -38,7 +40,8 @@ function openedFromList(state: unknown): boolean {
 
 /**
  * 設定（ネイティブ SettingsScreen + TwoPane）。URL は /settings/:section?。
- * Expanded = 左に項目の一覧・右に内容（未選択ならアカウント）、Compact = 一覧 → 内容（「←」で一覧へ）。
+ * Expanded = 左に項目の一覧・右に内容（未選択ならアカウント）、Compact/Rail = 一覧 → 内容（「←」で一覧へ。
+ * [#661] Rail は内容が Compact と同じ 1 ペイン）。
  */
 export function SettingsScreen() {
   const mode = useLayoutMode();
@@ -61,7 +64,7 @@ export function SettingsScreen() {
       return;
     }
     if (id === selected?.id) return;
-    if (mode === "compact") void navigate(`/settings/${id}`, { state: { [FROM_LIST]: true } });
+    if (mode !== "expanded") void navigate(`/settings/${id}`, { state: { [FROM_LIST]: true } });
     else void navigate(`/settings/${id}`, { replace: true });
   }
 
@@ -73,7 +76,7 @@ export function SettingsScreen() {
   const renamed = renamedSectionId(param);
   if (renamed) return <Navigate to={`/settings/${renamed}`} replace state={location.state} />;
 
-  if (mode === "compact") {
+  if (mode !== "expanded") {
     return (
       <div className={styles.single}>
         {selected ? (
@@ -96,13 +99,14 @@ export function SettingsScreen() {
 
 /** 項目の一覧（ネイティブ SettingsMenu。グループ見出し + 行） */
 function SectionList({ selectedId, onSelect }: { selectedId: string | null; onSelect(id: string): void }) {
+  const t = useT();
   return (
     <div className={styles.list}>
-      <ScreenHeader title="設定" />
+      <ScreenHeader title={t("settings_title")} />
       <AccountSummary onOpen={() => onSelect("account")} />
-      <nav className={styles.groups} aria-label="設定の項目">
+      <nav className={styles.groups} aria-label={t("web_settings_nav_label")}>
         {SETTINGS_GROUPS.map((group) => (
-          <SectionGroup key={group.title} title={group.title}>
+          <SectionGroup key={group.title()} title={group.title()}>
             {group.sections.map((section) => (
               <li key={section.id}>
                 <button
@@ -111,8 +115,10 @@ function SectionList({ selectedId, onSelect }: { selectedId: string | null; onSe
                   aria-current={section.id === selectedId ? "page" : undefined}
                   onClick={() => onSelect(section.id)}
                 >
-                  <span className={styles.rowLabel}>{section.label}</span>
-                  {!section.ready && <span className={styles.badge}>準備中</span>}
+                  <span className={styles.rowLabel}>{section.label()}</span>
+                  {!section.ready && (
+                    <span className={styles.badge}>{t("web_settings_coming_soon_badge")}</span>
+                  )}
                 </button>
               </li>
             ))}
@@ -138,11 +144,11 @@ function SectionGroup({ title, children }: { title: string; children: ReactNode 
 /** 項目の内容。Compact は「←」つきのヘッダ、Expanded は見出しだけ */
 function SectionPane({ section, onBack }: { section: SettingsSection; onBack?: () => void }) {
   return (
-    <section className={styles.pane} aria-label={section.label}>
+    <section className={styles.pane} aria-label={section.label()}>
       {onBack ? (
-        <ScreenHeader title={section.label} onBack={onBack} />
+        <ScreenHeader title={section.label()} onBack={onBack} />
       ) : (
-        <h2 className={styles.paneTitle}>{section.label}</h2>
+        <h2 className={styles.paneTitle}>{section.label()}</h2>
       )}
       <div className={styles.body}>
         <SectionBody id={section.id} />
@@ -152,7 +158,10 @@ function SectionPane({ section, onBack }: { section: SettingsSection; onBack?: (
 }
 
 function SectionBody({ id }: { id: string }) {
+  const t = useT();
   switch (id) {
+    case "reaction":
+      return <ReactionSection />;
     case "favs":
       return <FavsSection />;
     case "bookmarks":
@@ -177,11 +186,11 @@ function SectionBody({ id }: { id: string }) {
       return <WalletSection />;
     case "display":
       return <DisplaySection />;
-    case "theme-store":
-      return <ThemeStoreSection />;
     case "data":
       return <DataSection />;
+    case "about":
+      return <AboutSection />;
     default:
-      return <p className={styles.comingSoon}>この項目は準備中です</p>;
+      return <p className={styles.comingSoon}>{t("web_settings_coming_soon")}</p>;
   }
 }

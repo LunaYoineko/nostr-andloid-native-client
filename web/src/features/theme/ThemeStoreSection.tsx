@@ -1,5 +1,6 @@
 import { use$ } from "applesauce-react/hooks/use-$";
 import { useMemo, useState } from "react";
+import { t, useT } from "../../i18n";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { eventStore } from "../../nostr/store";
 import { useSession } from "../../signer/session";
@@ -8,10 +9,10 @@ import { showToast } from "../../ui/toast";
 import { followsFromContacts } from "../profile/contacts";
 import settingsStyles from "../settings/SettingsSections.module.css";
 import type { CustomColors } from "./customPalette";
-import { ThemeSwatch, ThemeUndoBar } from "./ThemeSettings";
+import { ThemeSwatch } from "./ThemeSettings";
 import styles from "./ThemeStoreSection.module.css";
 import { decodeThemeCode, encodeThemeCode, type ThemeEntry } from "./themeEntry";
-import { applyCustomColors, useThemePrefs } from "./themePrefs";
+import { useThemePrefs } from "./themePrefs";
 import {
   filterThemeEntries,
   requestDeleteTheme,
@@ -22,15 +23,15 @@ import {
   useThemeStoreEntries,
 } from "./themeStore";
 
-const SCOPE_OPTIONS: readonly { value: ThemeStoreScope; label: string }[] = [
-  { value: "all", label: "すべて" },
-  { value: "following", label: "フォロー中" },
-  { value: "mine", label: "自分" },
+const scopeOptions = (): readonly { value: ThemeStoreScope; label: string }[] => [
+  { value: "all", label: t("theme_scope_all") },
+  { value: "following", label: t("theme_scope_following") },
+  { value: "mine", label: t("theme_scope_mine") },
 ];
 
-const SORT_OPTIONS: readonly { value: ThemeStoreSort; label: string }[] = [
-  { value: "newest", label: "新着" },
-  { value: "name", label: "名前" },
+const sortOptions = (): readonly { value: ThemeStoreSort; label: string }[] => [
+  { value: "newest", label: t("theme_sort_newest") },
+  { value: "name", label: t("theme_sort_name") },
 ];
 
 function sameColors(a: CustomColors, b: CustomColors): boolean {
@@ -38,14 +39,24 @@ function sameColors(a: CustomColors, b: CustomColors): boolean {
 }
 
 /**
- * テーマストア（#539。設定「テーマストア」）。他の人が公開したテーマ（NIP-78 kind:30078 +
- * t=nostrism-theme）を検索・プレビュー無しでそのまま適用でき、共有コードのコピー・取り込みもできる。
- * 適用は #464 の applyCustomColors（取り消しバー付き）をそのまま使う。
+ * テーマストア（#539。#587 でテーマ編集モーダルの「ストア」タブへ）。他の人が公開したテーマ
+ * （NIP-78 kind:30078 + t=nostrism-theme）を検索し、共有コードのコピー・取り込みもできる。
+ * 行タップ・コード取り込みは呼び出し元（ThemeEditModal）の下書き（プレビュー）へ反映するだけで、
+ * 適用は #464 の applyCustomColors（取り消しバー付き）をモーダルの「適用」ボタンが行う。
  */
-export function ThemeStoreSection() {
+export function ThemeStoreSection({
+  draft,
+  onSelect,
+}: {
+  /** 現在の下書き（プレビュー中の配色）。共有コードのコピーはこれを書き出す */
+  draft: CustomColors;
+  /** 行タップ・コード取り込みで下書きへ反映する */
+  onSelect(colors: CustomColors, name: string | null): void;
+}) {
+  const t = useT();
   const me = useSession((s) => s.pubkey);
   const { loading, entries } = useThemeStoreEntries();
-  const custom = useThemePrefs((s) => s.custom);
+  const current = useThemePrefs((s) => s.custom);
   const contacts = use$(() => (me ? eventStore.replaceable({ kind: 3, pubkey: me }) : undefined), [me]);
   const follows = useMemo(() => new Set(followsFromContacts(contacts)), [contacts]);
 
@@ -67,18 +78,18 @@ export function ThemeStoreSection() {
     if (!target) return;
     setDeleteTarget(null);
     const ok = await requestDeleteTheme(target);
-    showToast(ok ? "削除リクエストを送信しました。" : "削除リクエストを送信できませんでした。");
+    showToast(ok ? t("web_theme_delete_sent") : t("web_theme_delete_failed"));
   }
 
   async function copyCode() {
-    const code = encodeThemeCode({ name: "MyTheme", colors: custom });
+    const code = encodeThemeCode({ name: "MyTheme", colors: draft });
     try {
       await navigator.clipboard.writeText(code);
     } catch {
-      showToast("コピーできませんでした。");
+      showToast(t("web_theme_copy_failed"));
       return;
     }
-    showToast("この配色をコピーしました。");
+    showToast(t("web_theme_code_copied"));
   }
 
   async function pasteCode() {
@@ -93,34 +104,31 @@ export function ThemeStoreSection() {
   function importCode() {
     const decoded = decodeThemeCode(code);
     if (!decoded) {
-      showToast("共有コードの形式が正しくありません。");
+      showToast(t("theme_code_invalid"));
       return;
     }
-    applyCustomColors(decoded.colors, decoded.name);
+    onSelect(decoded.colors, decoded.name);
     setCode("");
   }
 
   return (
     <div className={settingsStyles.block}>
-      <ThemeUndoBar />
-      <p className={settingsStyles.desc}>
-        他の人が公開したテーマ（NIP-78）。タップで適用します（すぐに反映し、取り消しバーで元に戻せます）。
-      </p>
+      <p className={settingsStyles.desc}>{t("theme_store_desc")}</p>
       <label className="srOnly" htmlFor="theme-store-search">
-        テーマ名・作者名で検索
+        {t("theme_search_hint")}
       </label>
       <input
         id="theme-store-search"
         className={settingsStyles.input}
         type="text"
-        placeholder="テーマ名・作者名で検索"
+        placeholder={t("theme_search_hint")}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
       <fieldset className={styles.fieldset}>
-        <legend className={settingsStyles.caption}>範囲</legend>
+        <legend className={settingsStyles.caption}>{t("web_theme_store_scope_label")}</legend>
         <div className={settingsStyles.choices}>
-          {SCOPE_OPTIONS.map((o) => (
+          {scopeOptions().map((o) => (
             <button
               key={o.value}
               type="button"
@@ -134,9 +142,9 @@ export function ThemeStoreSection() {
         </div>
       </fieldset>
       <fieldset className={styles.fieldset}>
-        <legend className={settingsStyles.caption}>並び</legend>
+        <legend className={settingsStyles.caption}>{t("theme_sort_label")}</legend>
         <div className={settingsStyles.choices}>
-          {SORT_OPTIONS.map((o) => (
+          {sortOptions().map((o) => (
             <button
               key={o.value}
               type="button"
@@ -150,37 +158,34 @@ export function ThemeStoreSection() {
         </div>
       </fieldset>
       {entries.length >= THEME_LIST_CAP && (
-        <p className={settingsStyles.desc}>{`最大 ${THEME_LIST_CAP} 件まで表示します。`}</p>
+        <p className={settingsStyles.desc}>{t("theme_list_capped", THEME_LIST_CAP)}</p>
       )}
 
       {entries.length === 0 ? (
-        <p className={settingsStyles.desc}>
-          {loading
-            ? "テーマを取得中…"
-            : "まだテーマが見つかりません。「テーマ」の「テーマストアに公開」から自分のテーマを公開するか、下の共有コードから取り込めます。"}
-        </p>
+        <p className={settingsStyles.desc}>{loading ? t("theme_loading") : t("theme_store_empty")}</p>
       ) : shown.length === 0 ? (
-        <p className={settingsStyles.desc}>条件に合うテーマがありません。</p>
+        <p className={settingsStyles.desc}>{t("theme_search_no_match")}</p>
       ) : (
-        <ul className={styles.list} aria-label="テーマストアの一覧">
+        <ul className={styles.list} aria-label={t("web_theme_store_list_label")}>
           {shown.map((entry) => (
             <ThemeStoreRow
               key={`${entry.author}:${entry.dTag}`}
               entry={entry}
-              applied={sameColors(entry.colors, custom)}
-              onApply={() => applyCustomColors(entry.colors, entry.name)}
+              applied={sameColors(entry.colors, current)}
+              selected={sameColors(entry.colors, draft)}
+              onSelect={() => onSelect(entry.colors, entry.name)}
               onDelete={me && entry.author === me ? () => setDeleteTarget(entry) : null}
             />
           ))}
         </ul>
       )}
 
-      <h3 className={settingsStyles.caption}>共有コード</h3>
+      <h3 className={settingsStyles.caption}>{t("theme_share_section")}</h3>
       <div className={settingsStyles.row}>
         <input
           className={settingsStyles.input}
           type="text"
-          placeholder="共有コード"
+          placeholder={t("theme_share_section")}
           value={code}
           onChange={(e) => setCode(e.target.value)}
         />
@@ -190,25 +195,25 @@ export function ThemeStoreSection() {
           disabled={code.trim() === ""}
           onClick={importCode}
         >
-          取り込む
+          {t("theme_code_import")}
         </button>
       </div>
       <div className={settingsStyles.row}>
         {canPaste && (
           <button type="button" className={settingsStyles.ghost} onClick={() => void pasteCode()}>
-            貼り付け
+            {t("theme_code_paste")}
           </button>
         )}
         <button type="button" className={settingsStyles.ghost} onClick={() => void copyCode()}>
-          この配色をコピー
+          {t("theme_code_copy")}
         </button>
       </div>
 
       {deleteTarget && (
         <ConfirmDialog
-          title="このテーマの削除をリクエストしますか？"
-          text="削除イベント(kind:5)を発行します。リレーが応じるとは限らず、すでに適用した人の手元には残ります。この端末からは消えます。"
-          confirmLabel="削除をリクエスト"
+          title={t("theme_delete_title")}
+          text={t("theme_delete_text")}
+          confirmLabel={t("theme_delete")}
           destructive
           onConfirm={() => void confirmDelete()}
           onDismiss={() => setDeleteTarget(null)}
@@ -218,33 +223,43 @@ export function ThemeStoreSection() {
   );
 }
 
-/** ストア一覧の1行。ミニカード（ThemeSwatch）+ 名前・作者。タップで適用、自分のテーマは削除できる */
+/**
+ * ストア一覧の1行。ミニカード（ThemeSwatch）+ 名前・作者。[#587] タップは下書きへの取り込み（プレビュー）。
+ * 適用中・プレビュー中を右端に表示する（ネイティブ ThemeStoreRow と同じ）。自分のテーマは削除できる
+ */
 function ThemeStoreRow({
   entry,
   applied,
-  onApply,
+  selected,
+  onSelect,
   onDelete,
 }: {
   entry: ThemeEntry;
   applied: boolean;
-  onApply(): void;
+  selected: boolean;
+  onSelect(): void;
   onDelete: (() => void) | null;
 }) {
+  const t = useT();
   const profile = useProfile(entry.author);
   const author = displayName(profile, entry.author, "npub");
   return (
     <li className={styles.row}>
-      <button type="button" className={styles.rowButton} onClick={onApply}>
+      <button type="button" className={styles.rowButton} onClick={onSelect}>
         <ThemeSwatch colors={entry.colors} />
         <span className={styles.info}>
           <span className={styles.name}>{entry.name}</span>
           <span className={settingsStyles.relayMeta}>{author}</span>
         </span>
-        {applied && <span className={styles.badge}>適用中</span>}
+        {applied ? (
+          <span className={styles.badge}>{t("theme_in_use")}</span>
+        ) : selected ? (
+          <span className={styles.badge}>{t("theme_previewing")}</span>
+        ) : null}
       </button>
       {onDelete && (
         <button type="button" className={settingsStyles.textButton} onClick={onDelete}>
-          削除をリクエスト
+          {t("note_request_delete")}
         </button>
       )}
     </li>

@@ -2,54 +2,56 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-// アプリは /app/ 配下で配信する。dist/ の残り（LP・メタファイル）は scripts/assemble-dist.mjs が組み立てる。
+// アプリは / 配下で配信する（#647。/app は 301 で / へ引き継ぐだけの旧パス）。
+// dist/ の残り（LP 以外の docs・メタファイル）は scripts/assemble-dist.mjs が組み立てる。
 export default defineConfig({
-  base: "/app/",
+  base: "/",
   plugins: [
     react(),
-    // SW と manifest は dist/app/ に出る（scope /app/ なので LP 等には効かない）。
     // injectRegister: null = 登録用の inline script を注入しない（CSP の script-src 'self'）。登録は UpdateToast の useRegisterSW
     VitePWA({
       registerType: "prompt",
       injectRegister: null,
       includeAssets: ["icons/*.png"],
       manifest: {
-        id: "/app/",
+        id: "/",
         name: "Nostrism",
         short_name: "Nostrism",
-        description: "デッキ型の Nostr クライアント（Web 版）",
-        start_url: "/app/",
-        scope: "/app/",
+        description: "A deck-style Nostr client: timelines, hashtags, notifications and chat side by side.",
+        start_url: "/",
+        scope: "/",
         display: "standalone",
         background_color: "#0C0C10",
         theme_color: "#0C0C10",
-        lang: "ja",
+        lang: "en",
+        dir: "ltr",
         // public/icons/ は scripts/make-icons.mjs（npm run icons）で生成してコミットする
         icons: [
-          { src: "/app/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-          { src: "/app/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-          { src: "/app/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
-        // 他アプリの共有シートから開く（#541）。/app/share が title・text・url を下書きにして投稿シートを開く
+        // 他アプリの共有シートから開く（#541）。/share が title・text・url を下書きにして投稿シートを開く
         share_target: {
-          action: "/app/share",
+          action: "/share",
           method: "GET",
           params: { title: "title", text: "text", url: "url" },
         },
         // web+nostr: リンクをこのアプリで開く（#541。登録は設定「データ・キャッシュ」の registerProtocolHandler）
-        protocol_handlers: [{ protocol: "web+nostr", url: "/app/open?uri=%s" }],
+        protocol_handlers: [{ protocol: "web+nostr", url: "/open?uri=%s" }],
       },
       workbox: {
-        navigateFallback: "/app/index.html",
-        navigateFallbackAllowlist: [/^\/app\//],
+        navigateFallback: "/index.html",
+        // /api/* とドキュメント拡張子付きの静的ページ（privacy-policy.html 等）は SW のフォールバックにしない
+        navigateFallbackDenylist: [/^\/api\//, /\.[a-z0-9]+$/i],
         globPatterns: ["**/*.{js,css,html,png,svg,woff2,webmanifest}"],
         runtimeCaching: [],
       },
     }),
   ],
   build: {
-    outDir: "dist/app",
-    // dist/app だけを消す（dist/ 直下の LP 等は assemble-dist.mjs が上書きコピーする）
+    // LP（index.html）もここに出るので dist/ 直下がそのまま配信ルート。docs の残りは assemble-dist.mjs が上書きコピーする
+    outDir: "dist",
     emptyOutDir: true,
   },
   server: {

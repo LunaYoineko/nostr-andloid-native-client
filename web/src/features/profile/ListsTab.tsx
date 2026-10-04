@@ -1,5 +1,6 @@
 import type { EventPointer } from "applesauce-core/helpers/pointers";
 import { useState } from "react";
+import { useT } from "../../i18n";
 import { buildListColumn } from "../../lib/columns";
 import { proxied } from "../../lib/imageProxy";
 import { unixNow } from "../../lib/time";
@@ -22,11 +23,12 @@ export const LIST_NOTES_SHOWN = 30;
  * 対象の投稿（イベント id）。a タグ（記事等）は件数には数えるが、記事タブが無いのでここでは出さない（#534）。
  */
 export function ListsTab({ pubkey }: { pubkey: string }) {
+  const t = useT();
   const { loading, sets } = useProfileLists(pubkey);
   return (
     <div role="tabpanel" id="profile-tabpanel" className={styles.own}>
       {sets.length === 0 ? (
-        <p className={styles.empty}>{loading ? "読み込み中…" : "公開されているリストはありません"}</p>
+        <p className={styles.empty}>{loading ? t("loading") : t("profile_no_lists")}</p>
       ) : (
         <ul className={styles.list}>
           {sets.map((set) => (
@@ -39,6 +41,7 @@ export function ListsTab({ pubkey }: { pubkey: string }) {
 }
 
 function ListSetRow({ set }: { set: Nip51Set }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const address = nip51SetAddress(set);
   return (
@@ -47,7 +50,7 @@ function ListSetRow({ set }: { set: Nip51Set }) {
         {set.image && <img className={styles.image} src={proxied(set.image, 80)} alt="" />}
         <span className={styles.texts}>
           <span className={styles.title}>{set.title}</span>
-          <span className={styles.count}>{`${nip51SetCount(set)} 件`}</span>
+          <span className={styles.count}>{t("list_count_fmt", nip51SetCount(set))}</span>
         </span>
         <span className={styles.chevron} aria-hidden="true">
           {open ? "▾" : "▸"}
@@ -65,7 +68,7 @@ function ListSetRow({ set }: { set: Nip51Set }) {
                     useDeck.getState().openTransient(buildListColumn(set.title, set.members, unixNow()))
                   }
                 >
-                  カラムで開く
+                  {t("list_open_as_column")}
                 </button>
               )}
               {set.members.slice(0, LIST_MEMBERS_SHOWN).map((pk) => (
@@ -77,21 +80,18 @@ function ListSetRow({ set }: { set: Nip51Set }) {
               .slice(0, LIST_NOTES_SHOWN)
               .map((id) => <BookmarkedNote key={`${address}_${id}`} id={id} />)
           )}
-          {set.hasPrivate && (
-            <p className={styles.privateNote}>
-              このリストには非公開の項目があります（本人以外は読めません）。
-            </p>
-          )}
+          {set.hasPrivate && <p className={styles.privateNote}>{t("list_private_note")}</p>}
         </div>
       )}
     </li>
   );
 }
 
-/** ブックマークセットの 1 件（イベント id を解決して投稿として描く。届くまでは「読み込み中」） */
+/** ブックマークセットの 1 件（イベント id を解決して投稿として描く。届くまではネイティブと同じ md_resolving。P5） */
 function BookmarkedNote({ id }: { id: string }) {
+  const t = useT();
   const pointer: EventPointer = { id };
   const event = useEventByPointer(pointer);
-  if (!event) return <p className={styles.loading}>投稿を読み込み中…</p>;
+  if (!event) return <p className={styles.loading}>{t("md_resolving")}</p>;
   return <NoteItem event={event} />;
 }

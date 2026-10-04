@@ -2,8 +2,8 @@
 .row {
   display: flex;
   align-items: flex-start;
-  gap: var(--sp-2);
-  padding: var(--sp-3);
+  gap: var(--note-gap);
+  padding: var(--note-pad-y) var(--note-pad-x);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   cursor: pointer;
@@ -14,7 +14,7 @@
   flex: none;
   display: flex;
   justify-content: center;
-  width: 38px;
+  width: var(--avatar-size);
   padding-top: var(--sp-1);
 }
 
@@ -34,8 +34,9 @@
   color: var(--accent);
 }
 
+/* ネイティブ NotificationsScreen.kt kindTint: REPOST は Repost ではなく Boost（控えめなグリーン） */
 [data-kind="repost"] .markIcon {
-  color: var(--repost);
+  color: var(--boost);
 }
 
 [data-kind="zap"] .markIcon {
@@ -62,7 +63,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: var(--note-gap);
 }
 
 /* 返信・メンションの見出し = 対象（自分の投稿）の 1 行 */
@@ -125,4 +126,37 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/*
+ * [#674] 廃人モード: NoteItem.module.css と同じ規則。.row を grid にして .mark を 1 行目の 1 列目、
+ * .main を display: contents、見出し（.head / 返信・メンションの .snippet）を 1 行目の 2 列目、
+ * それ以外（本体）は 2 行目以降で全幅にする。
+ */
+:root[data-density="dense"] .row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: var(--note-gap);
+  row-gap: var(--note-gap);
+}
+
+:root[data-density="dense"] .mark {
+  grid-column: 1;
+  grid-row: 1;
+  padding-top: 0;
+}
+
+:root[data-density="dense"] .main {
+  display: contents;
+}
+
+:root[data-density="dense"] .main > .head,
+:root[data-density="dense"] .main > .snippet {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+:root[data-density="dense"] .main > *:not(.head):not(.snippet) {
+  grid-column: 1 / -1;
 }

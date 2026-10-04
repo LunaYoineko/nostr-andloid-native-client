@@ -1,26 +1,62 @@
 import type { ChangeEvent } from "react";
 import { useId, useState } from "react";
-import { isDataSaver, proxied, setDataSaver } from "../../lib/imageProxy";
-import { FavoriteIcon, MoodIcon, StarIcon } from "../../ui/icons";
+import { useT } from "../../i18n";
+import { type LocaleSetting, setKansaiMode, setLocaleSetting, useLocale } from "../../i18n/locale";
+import { isDataSaver, setDataSaver } from "../../lib/imageProxy";
 import { type NyanMode, setNyanMode, useNyanMode } from "../../ui/nyan";
-import { ReactionPickerDialog } from "../actions/ReactionPickerDialog";
-import { setDefaultReaction, useDefaultReaction } from "../actions/reactionPrefs";
 import { type EmbedPrefs, setEmbedPref, useEmbedPrefs } from "../linkcard/embedPrefs";
 import { ThemeSettings } from "../theme/ThemeSettings";
+import { setDensity, useThemePrefs } from "../theme/themePrefs";
 import styles from "./SettingsSections.module.css";
 
-/** 表示（テーマ・文字サイズ・太字（#464）、にゃんモード、既定リアクション、埋め込み表示、データセーバー） */
+/**
+ * 表示（先頭に言語（#542, Web 追加）。以降はネイティブ設定 > 表示と同じ順: テーマ・種別の視覚表示・表示サイズ・文字サイズ・太字（#464。
+ * ここまでは ThemeSettings）→ にゃんモード → うにゅうと握手（関西弁、Web 追加）→ 廃人モード（#674, Web 追加）→ 埋め込み表示 →
+ * データセーバー（Web 追加、末尾のまま #587）。
+ * 「デフォルトのリアクション」はネイティブと同じく独立セクション（ReactionSection）に戻した。
+ */
 export function DisplaySection() {
   return (
     <>
+      <LanguageBlock />
       <div className={styles.block}>
         <ThemeSettings />
       </div>
       <NyanModeBlock />
-      <DefaultReactionBlock />
+      <KansaiBlock />
+      <DensityBlock />
       <EmbedPrefsBlock />
       <DataSaverBlock />
     </>
+  );
+}
+
+/**
+ * [#542] 言語（自動 / 日本語 / English）。端末ごとの設定で NIP-78 の同期には入れない。
+ * 「日本語」「English」のラベルはどの言語でも同じ表記（辞書の ja / en に同じ値）。
+ */
+function LanguageBlock() {
+  const t = useT();
+  const setting = useLocale((s) => s.setting);
+  const choice = (value: LocaleSetting, label: string) => (
+    <button
+      type="button"
+      className={styles.choice}
+      aria-pressed={setting === value}
+      onClick={() => setLocaleSetting(value)}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>{t("web_language_title")}</h3>
+      <div className={styles.choices}>
+        {choice("auto", t("web_language_auto"))}
+        {choice("ja", t("web_language_ja"))}
+        {choice("en", t("web_language_en"))}
+      </div>
+    </div>
   );
 }
 
@@ -29,6 +65,7 @@ export function DisplaySection() {
  * 表示だけの猫化モード。localStorage のみで NIP-78 の同期には入れない。
  */
 function NyanModeBlock() {
+  const t = useT();
   const mode = useNyanMode((s) => s.mode);
   const choice = (value: NyanMode, label: string) => (
     <button
@@ -42,84 +79,66 @@ function NyanModeBlock() {
   );
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>にゃにゃにゃウイルス</h3>
-      <p className={styles.desc}>
-        お遊びの猫化モード。アバターに猫耳が生え、本文の「な」が「にゃ」に化けます。この端末の表示だけの演出で、実際の投稿内容は変わりません。
-      </p>
+      <h3 className={styles.caption}>{t("nyan_mode_title")}</h3>
+      <p className={styles.desc}>{t("nyan_mode_desc")}</p>
       <div className={styles.choices}>
-        {choice("off", "オフ")}
-        {choice("self", "自分のみ")}
-        {choice("all", "全員")}
+        {choice("off", t("nyan_mode_off"))}
+        {choice("self", t("nyan_mode_self"))}
+        {choice("all", t("nyan_mode_all"))}
       </div>
     </div>
   );
 }
 
 /**
- * 既定リアクション（ネイティブ ReactionSettings）。ハート / スター / その他の絵文字（ピッカーで選ぶ）。
- * ♡ ボタンが送る内容と形が変わる（#459 の reactionPrefs）。
+ * 「うにゅうと握手」（関西弁 UI。#710）。UI の文言だけを関西弁にする演出で、localStorage のみ（NIP-78 の同期には入れない）。
+ * 解決後の言語が en のときは効かないので無効にする（見出し・チェックボックスは ja と ja-kansai で同一の文字列）。
  */
-function DefaultReactionBlock() {
-  const content = useDefaultReaction((s) => s.content);
-  const image = useDefaultReaction((s) => s.image);
-  const [picking, setPicking] = useState(false);
-  const isHeart = content === "+" || content === "❤️";
-  const isStar = content === "⭐" || content === "★";
-  const isOther = !isHeart && !isStar;
-
+function KansaiBlock() {
+  const t = useT();
+  const id = useId();
+  const kansai = useLocale((s) => s.kansai);
+  const english = useLocale((s) => s.resolved === "en");
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>デフォルトのリアクション</h3>
-      <p className={styles.desc}>
-        各投稿のリアクションボタンの形を選べます。押すとこの内容で送信されます（絵文字ピッカーからは別の絵文字も付けられます）。
-      </p>
-      <div className={styles.choices}>
-        <button
-          type="button"
-          className={styles.choice}
-          aria-pressed={isHeart}
-          onClick={() => setDefaultReaction("+", null)}
-        >
-          <FavoriteIcon className={styles.choiceIcon} />
-          ハート
-        </button>
-        <button
-          type="button"
-          className={styles.choice}
-          aria-pressed={isStar}
-          onClick={() => setDefaultReaction("⭐", null)}
-        >
-          <StarIcon className={styles.choiceIcon} />
-          スター
-        </button>
-        <button
-          type="button"
-          className={styles.choice}
-          aria-pressed={isOther}
-          onClick={() => setPicking(true)}
-        >
-          {isOther && image ? (
-            <img
-              className={styles.choiceEmoji}
-              src={proxied(image, 64, 75, true)}
-              alt={content}
-              decoding="async"
-              referrerPolicy="no-referrer"
-            />
-          ) : isOther ? (
-            <span aria-hidden="true">{content}</span>
-          ) : (
-            <MoodIcon className={styles.choiceIcon} />
-          )}
-          その他の絵文字
-        </button>
-      </div>
-      {picking && (
-        <ReactionPickerDialog
-          onPick={(picked, imageUrl) => setDefaultReaction(picked, imageUrl)}
-          onClose={() => setPicking(false)}
+      <h3 className={styles.caption}>{t("web_kansai_title")}</h3>
+      <p className={styles.desc}>{t("web_kansai_desc")}</p>
+      <label className={styles.check} htmlFor={id}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={kansai}
+          disabled={english}
+          onChange={(e) => setKansaiMode(e.target.checked)}
         />
-      )}
+        {t("web_kansai_toggle")}
+      </label>
+      {english && <p className={styles.desc}>{t("web_kansai_ja_only")}</p>}
+    </div>
+  );
+}
+
+/**
+ * [#674] 廃人モード。情報量を詰め込む高密度の表示モード。localStorage のみで NIP-78 の同期には入れない
+ * （settingsSync.ts のホワイトリストに追加していない）。
+ */
+function DensityBlock() {
+  const t = useT();
+  const id = useId();
+  const density = useThemePrefs((s) => s.density);
+  return (
+    <div className={styles.block}>
+      <h3 className={styles.caption}>{t("dense_mode_title")}</h3>
+      <p className={styles.desc}>{t("dense_mode_desc")}</p>
+      <label className={styles.check} htmlFor={id}>
+        <input
+          id={id}
+          type="checkbox"
+          checked={density === "dense"}
+          onChange={(e) => setDensity(e.target.checked ? "dense" : "normal")}
+        />
+        {t("dense_mode_toggle")}
+      </label>
     </div>
   );
 }
@@ -154,6 +173,7 @@ function EmbedToggle({
  * 6 項目、既定はすべて ON。ogp が OFF の間は ogpImages を無効にする（ON にしても効かないため）。
  */
 function EmbedPrefsBlock() {
+  const t = useT();
   const prefs = useEmbedPrefs();
   const set =
     <K extends keyof EmbedPrefs>(key: K) =>
@@ -162,22 +182,20 @@ function EmbedPrefsBlock() {
 
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>リンクの埋め込み表示</h3>
-      <p className={styles.desc}>
-        本文中のリンクをカードやサムネイルで表示します。通信量が気になる場合はオフにできます。
-      </p>
-      <EmbedToggle label="動画（mp4 等）をインライン再生" checked={prefs.video} onChange={set("video")} />
-      <EmbedToggle label="YouTube のサムネイルを表示" checked={prefs.youtube} onChange={set("youtube")} />
-      <EmbedToggle label="Spotify のカードを表示" checked={prefs.spotify} onChange={set("spotify")} />
-      <EmbedToggle label="その他リンクの OGP カードを表示" checked={prefs.ogp} onChange={set("ogp")} />
+      <h3 className={styles.caption}>{t("embed_section")}</h3>
+      <p className={styles.desc}>{t("embed_section_desc")}</p>
+      <EmbedToggle label={t("embed_video")} checked={prefs.video} onChange={set("video")} />
+      <EmbedToggle label={t("embed_youtube")} checked={prefs.youtube} onChange={set("youtube")} />
+      <EmbedToggle label={t("embed_spotify")} checked={prefs.spotify} onChange={set("spotify")} />
+      <EmbedToggle label={t("embed_ogp")} checked={prefs.ogp} onChange={set("ogp")} />
       <EmbedToggle
-        label="OGP カードの画像を読み込む"
+        label={t("embed_ogp_images")}
         checked={prefs.ogpImages}
         disabled={!prefs.ogp}
         onChange={set("ogpImages")}
       />
       <EmbedToggle
-        label="カードを出したリンクのURLを本文から隠す"
+        label={t("embed_hide_carded_urls")}
         checked={prefs.hideCardedUrls}
         onChange={set("hideCardedUrls")}
       />
@@ -187,14 +205,13 @@ function EmbedPrefsBlock() {
 
 /** データセーバー（画像のプロキシを縮小・低画質にする。imageProxy の setDataSaver） */
 function DataSaverBlock() {
+  const t = useT();
   const id = useId();
   const [on, setOn] = useState(isDataSaver);
   return (
     <div className={styles.block}>
-      <h3 className={styles.caption}>データセーバー</h3>
-      <p className={styles.desc}>
-        オンの間は画像を小さく・低画質で読み込み、通信量を抑えます。再読み込みやブラウザのデータセーバー設定の変更で、ブラウザの設定に戻ります。
-      </p>
+      <h3 className={styles.caption}>{t("web_display_datasaver_title")}</h3>
+      <p className={styles.desc}>{t("web_display_datasaver_desc")}</p>
       <label className={styles.check} htmlFor={id}>
         <input
           id={id}
@@ -205,7 +222,7 @@ function DataSaverBlock() {
             setOn(e.target.checked);
           }}
         />
-        データセーバーを使う
+        {t("web_display_datasaver_toggle")}
       </label>
     </div>
   );

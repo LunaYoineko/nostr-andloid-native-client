@@ -5,10 +5,13 @@
   background: var(--bg);
 }
 
+/* .pane の行方向の唯一の子（.pane の主軸）。min-width の既定 auto だと中身の最小幅ぶん
+   .pane からはみ出し、通知一覧などの横スクロールの原因になる（#645） */
 .inner {
   display: flex;
   flex-direction: column;
   width: 100%;
+  min-width: 0;
   height: 100%;
 }
 

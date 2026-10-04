@@ -1,4 +1,5 @@
 import { Virtuoso } from "react-virtuoso";
+import { useT } from "../../i18n";
 import { useNotesByIds } from "../lists/notesByIds";
 import { useBookmarkedIds } from "../lists/ownLists";
 import { NoteItem } from "../timeline/NoteItem";
@@ -10,24 +11,25 @@ import styles from "./BookmarksSection.module.css";
  * （ownLists.ts の startOwnLists）張ったままなので、ここでは購読しない。
  */
 export function BookmarksSection() {
+  const t = useT();
   const ids = useBookmarkedIds();
   const notes = useNotesByIds(ids);
 
   if (ids.length === 0) {
     return (
       <>
-        <p className={styles.empty}>ブックマークはまだありません。</p>
-        <p className={styles.hint}>各投稿の ⋯ メニュー →「ブックマーク」で追加できます。</p>
+        <p className={styles.empty}>{t("bookmarks_empty")}</p>
+        <p className={styles.hint}>{t("bookmarks_hint")}</p>
       </>
     );
   }
   if (notes.length === 0) {
-    return <p className={styles.empty}>{`リレーから取得中…（${ids.length}件）`}</p>;
+    return <p className={styles.empty}>{t("bookmarks_loading_fmt", ids.length)}</p>;
   }
   return (
     <Virtuoso
       className={styles.list}
-      aria-label="ブックマーク"
+      aria-label={t("section_bookmarks")}
       data={notes}
       computeItemKey={(_, note) => note.id}
       itemContent={(_, note) => <NoteItem event={note} />}

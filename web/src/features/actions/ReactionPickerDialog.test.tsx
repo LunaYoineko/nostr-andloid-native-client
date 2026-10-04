@@ -10,6 +10,13 @@ import { renderWithRouter } from "../../test/renderWithRouter";
 import { ReactionPickerDialog } from "./ReactionPickerDialog";
 import { RECENT_EMOJIS_KEY } from "./reactionPrefs";
 
+// 全絵文字（emojibase-data）の読み込みは #684 の別テスト（emojiCatalog.test.ts）で見る。ここでは厳選リストの
+// フォールバックのまま固定して、タブ・検索・選択の挙動だけを検証する（解決しない Promise = 読み込み中のまま）
+vi.mock("./emojiCatalog", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./emojiCatalog")>()),
+  loadEmojiCatalog: vi.fn(() => new Promise(() => {})),
+}));
+
 let meKey: Uint8Array;
 
 beforeAll(() => {
@@ -48,11 +55,14 @@ function sectionTitles(): string[] {
   return screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent ?? "");
 }
 
-it("検索なしは「最近」→「カスタム絵文字」→ Unicode のカテゴリ", () => {
+it("検索なしは「最近」→「カスタム絵文字」→ カテゴリタブ（先頭タブのグリッド）", () => {
   open();
-  expect(sectionTitles()).toEqual([
-    "最近",
-    "カスタム絵文字",
+  expect(sectionTitles()).toEqual(["最近", "カスタム絵文字", "表情"]);
+  expect(
+    within(screen.getByRole("region", { name: "最近" })).getByRole("button", { name: "🔥" }),
+  ).toBeVisible();
+  const tabs = screen.getAllByRole("tab");
+  expect(tabs.map((t) => t.textContent)).toEqual([
     "表情",
     "手・ジェスチャー",
     "ハート・感情",
@@ -60,9 +70,23 @@ it("検索なしは「最近」→「カスタム絵文字」→ Unicode のカ�
     "食べ物・飲み物",
     "アクティビティ・記号",
   ]);
+  expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+});
+
+it("タブを切り替えると、そのカテゴリのグリッドに変わる", async () => {
+  const user = userEvent.setup();
+  open();
   expect(
-    within(screen.getByRole("region", { name: "最近" })).getByRole("button", { name: "🔥" }),
+    within(screen.getByRole("region", { name: "表情" })).getByRole("button", { name: "😄" }),
   ).toBeVisible();
+
+  await user.click(screen.getByRole("tab", { name: "動物・自然" }));
+  expect(screen.queryByRole("region", { name: "表情" })).toBeNull();
+  expect(
+    within(screen.getByRole("region", { name: "動物・自然" })).getByRole("button", { name: "🐶" }),
+  ).toBeVisible();
+  expect(screen.getByRole("tab", { name: "動物・自然" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByRole("tab", { name: "表情" })).toHaveAttribute("aria-selected", "false");
 });
 
 it("検索すると「カスタム」「絵文字」に絞る。無ければ「一致する絵文字がありません」", async () => {

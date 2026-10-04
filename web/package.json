@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:functions": "vitest run -c vitest.functions.config.ts",
     "lint": "biome check .",
+    "check": "biome check . && node scripts/check-i18n.mjs",
     "format": "biome format --write .",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.functions.json --noEmit"
   },
@@ -45,6 +46,7 @@
     "applesauce-signers": "^6.2.2",
     "blurhash": "^2.0.5",
     "dexie": "^4.4.6",
+    "emojibase-data": "^17.0.0",
     "nostr-tools": "~2.19",
     "react-router": "^8.4.0",
     "react-virtuoso": "^4.18.15",

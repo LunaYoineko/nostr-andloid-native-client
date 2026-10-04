@@ -1,5 +1,6 @@
 import { neventEncode, noteEncode } from "nostr-tools/nip19";
 import type { NostrEvent } from "nostr-tools/pure";
+import { t } from "../../i18n";
 import { extractMedia } from "../../lib/media";
 import { showToast } from "../../ui/toast";
 import { relayHintForEvent } from "../compose/relayHints";
@@ -48,8 +49,8 @@ export function noteLinksOf(event: NostrEvent): { note1: string; nevent: string;
 export async function copyText(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
-    showToast("コピーしました");
+    showToast(t("copied"));
   } catch {
-    showToast("コピーできませんでした");
+    showToast(t("web_copy_failed"));
   }
 }

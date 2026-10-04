@@ -3,7 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { EMPTY, throwError } from "rxjs";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { requestOnce, resetRelays } from "../../nostr/pool";
+import {
+  applyOwnRelayList,
+  loadRelayTable,
+  relayRows,
+  requestOnce,
+  resetRelays,
+  unloadRelayTable,
+  useRelays,
+} from "../../nostr/pool";
 import { publishEvent } from "../../nostr/publish";
 import { AUTH_POLICY_KEY, setAuthPolicy } from "../../nostr/relayAuth";
 import { eventStore } from "../../nostr/store";
@@ -29,11 +37,17 @@ beforeAll(() => {
   installDialogPolyfill();
 });
 
+let meKey: Uint8Array;
+let me: string;
+
 beforeEach(() => {
   // 既定リレー（en-US）= relay.damus.io / nos.lol の read + write で始まる
   localStorage.clear();
   resetRelays();
-  useSession.setState({ status: "in", method: "nip07", pubkey: getPublicKey(generateSecretKey()) });
+  meKey = generateSecretKey();
+  me = getPublicKey(meKey);
+  useSession.setState({ status: "in", method: "nip07", pubkey: me });
+  loadRelayTable(me);
   vi.mocked(requestOnce).mockReset();
   vi.mocked(publishEvent).mockClear();
   useToast.setState({ queue: [] });
@@ -41,13 +55,14 @@ beforeEach(() => {
 
 afterEach(() => {
   useSession.setState({ status: "loading", method: null, pubkey: null });
+  unloadRelayTable();
   resetRelays();
 });
 
 function rows() {
   return within(screen.getByRole("list", { name: "リレーの一覧" }))
     .getAllByRole("listitem")
-    .map((li) => li.textContent?.replace(/ReadWrite削除$/, ""));
+    .map((li) => li.textContent?.replace(/(NIP-65|手動|既定)ReadWrite削除$/, ""));
 }
 
 async function addRelay(value: string) {
@@ -66,7 +81,8 @@ async function save() {
 it("wss:// だけ追加でき、削除・Read / Write の切り替えをして保存すると kind:10002 を発行する", async () => {
   vi.mocked(requestOnce).mockReturnValue(EMPTY);
   renderWithRouter(<RelaySection />);
-  expect(rows()).toEqual(["relay.damus.io", "nos.lol"]);
+  // 一覧は既定 → 手動 → NIP-65、URL 昇順（ネイティブ allRelays と同じ）
+  expect(rows()).toEqual(["nos.lol", "relay.damus.io"]);
 
   await addRelay("https://not-a-relay.example");
   expect(screen.getByRole("alert")).toHaveTextContent("wss:// で始まるリレーの URL を入力してください");
@@ -74,10 +90,20 @@ it("wss:// だけ追加でき、削除・Read / Write の切り替えをして�
   expect(screen.getByRole("alert")).toHaveTextContent("このリレーは追加済みです");
   await addRelay("wss://new.example");
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  expect(rows()).toEqual(["relay.damus.io", "nos.lol", "new.example"]);
+  expect(rows()).toEqual(["nos.lol", "relay.damus.io", "new.example"]);
+  // 保存の前から接続先（リレー表）へ即反映している（#585）
+  expect(relayRows()).toContainEqual({
+    url: "wss://new.example/",
+    read: true,
+    write: true,
+    source: "manual",
+  });
+  expect(useRelays.getState().read).toContain("wss://new.example/");
 
   await userEvent.click(screen.getByRole("button", { name: "nos.lol を削除" }));
+  expect(useRelays.getState().read).not.toContain("wss://nos.lol/");
   await userEvent.click(screen.getByRole("checkbox", { name: "relay.damus.io の Write" }));
+  expect(useRelays.getState().write).not.toContain("wss://relay.damus.io/");
   expect(rows()).toEqual(["relay.damus.io", "new.example"]);
 
   await save();
@@ -93,6 +119,29 @@ it("wss:// だけ追加でき、削除・Read / Write の切り替えをして�
   expect(useToast.getState().queue).toEqual(["リレーリストを公開しました"]);
 });
 
+it("各行に source（NIP-65 / 手動 / 既定）のヒントを出す", async () => {
+  vi.mocked(requestOnce).mockReturnValue(EMPTY);
+  // read:false なので既定は外れず残る（既定・NIP-65 の両方のヒントを 1 画面で確かめられる）
+  applyOwnRelayList(me, [{ url: "wss://mine.example/", read: false, write: true }]);
+  renderWithRouter(<RelaySection />);
+
+  const list = screen.getByRole("list", { name: "リレーの一覧" });
+  const nip65Row = within(list)
+    .getAllByRole("listitem")
+    .find((li) => li.textContent?.includes("mine.example"));
+  expect(nip65Row?.textContent).toContain("NIP-65");
+  const defaultRow = within(list)
+    .getAllByRole("listitem")
+    .find((li) => li.textContent?.includes("relay.damus.io"));
+  expect(defaultRow?.textContent).toContain("既定");
+
+  await addRelay("wss://added.example");
+  const manualRow = within(screen.getByRole("list", { name: "リレーの一覧" }))
+    .getAllByRole("listitem")
+    .find((li) => li.textContent?.includes("added.example"));
+  expect(manualRow?.textContent).toContain("手動");
+});
+
 it("保存の直前の取り直しでどのリレーからも応答が無ければ発行しない", async () => {
   vi.mocked(requestOnce).mockReturnValue(throwError(() => new Error("timeout")));
   renderWithRouter(<RelaySection />);
@@ -104,8 +153,8 @@ it("保存の直前の取り直しでどのリレーからも応答が無けれ�
   expect(useToast.getState().queue).toEqual([
     "最新のリレーリストを取得できなかったため、公開しませんでした。接続を確認してもう一度お試しください",
   ]);
-  // 下書きは残る
-  expect(rows()).toEqual(["relay.damus.io", "nos.lol", "new.example"]);
+  // 追加は保存の可否に関わらず既に反映済みなので残る
+  expect(rows()).toEqual(["nos.lol", "relay.damus.io", "new.example"]);
 });
 
 it("Read も Write も無ければ保存できない", async () => {
@@ -133,10 +182,8 @@ it("AUTH（NIP-42）への応答は 3 択で、既定は DM/自分のリレー�
 });
 
 describe("候補から追加（おすすめ）", () => {
-  it("開くとフォロー中の kind:10002 を集計して多い順に件数つきで出し、押すと下書きに read + write で入る（発行しない）", async () => {
+  it("開くとフォロー中の kind:10002 を集計して多い順に件数つきで出し、押すと即座に接続先へ入る（発行しない）", async () => {
     vi.mocked(requestOnce).mockReturnValue(EMPTY);
-    const meKey = generateSecretKey();
-    useSession.setState({ status: "in", method: "nip07", pubkey: getPublicKey(meKey) });
     const followKeys = [generateSecretKey(), generateSecretKey(), generateSecretKey()];
     eventStore.add(
       finalizeEvent(
@@ -170,9 +217,11 @@ describe("候補から追加（おすすめ）", () => {
     expect(screen.getByText("フォロー中でよく使われているリレー")).toBeInTheDocument();
 
     await userEvent.click(within(recs).getByRole("button", { name: "second.example を追加（2人）" }));
-    expect(rows()).toEqual(["relay.damus.io", "nos.lol", "second.example"]);
+    expect(rows()).toEqual(["nos.lol", "relay.damus.io", "second.example"]);
     expect(screen.getByRole("checkbox", { name: "second.example の Read" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "second.example の Write" })).toBeChecked();
+    // 接続先へ即反映する（保存前）
+    expect(useRelays.getState().read).toContain("wss://second.example/");
     // 足したものは候補から消える
     expect(
       within(recs)
@@ -185,7 +234,7 @@ describe("候補から追加（おすすめ）", () => {
     expect(screen.queryByRole("list", { name: "おすすめのリレー" })).toBeNull();
   });
 
-  it("集計できない（フォローが無い）ときは定番の候補を出し、押すと下書きに入る（発行しない）", async () => {
+  it("集計できない（フォローが無い）ときは定番の候補を出し、押すと即座に足す（発行しない）", async () => {
     vi.mocked(requestOnce).mockReturnValue(EMPTY);
     renderWithRouter(<RelaySection />);
 
@@ -203,7 +252,7 @@ describe("候補から追加（おすすめ）", () => {
     expect(screen.getByRole("button", { name: "nostr.wine を追加（有料）" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "yabu.me を追加" }));
-    expect(rows()).toEqual(["relay.damus.io", "nos.lol", "yabu.me"]);
+    expect(rows()).toEqual(["nos.lol", "relay.damus.io", "yabu.me"]);
     expect(vi.mocked(publishEvent)).not.toHaveBeenCalled();
   });
 });

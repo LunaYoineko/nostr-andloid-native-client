@@ -1,8 +1,11 @@
 import { type UIEvent, useEffect, useRef, useState } from "react";
+import { useT } from "../../i18n";
 import { displayName, useProfile } from "../../nostr/loaders";
 import { useSession } from "../../signer/session";
+import { PullToRefreshIndicator } from "../../ui/PullToRefreshIndicator";
 import { ScreenHeader } from "../../ui/ScreenHeader";
 import { useLayoutMode } from "../../ui/useLayoutMode";
+import { usePullToRefresh } from "../../ui/usePullToRefresh";
 import { useFollows } from "../deck/useFollows";
 import { FollowersList } from "./FollowersList";
 import { FollowingList } from "./FollowingList";
@@ -48,7 +51,8 @@ function readProfilePosition(): { tab: ProfileTab; scrollY: number } {
 
 /**
  * プロフィール画面（ネイティブ ProfileScreen）。
- * Compact = 上バー（← + 名前）→ ヘッダカード → 張り付くタブ → 投稿 を 1 つの縦スクロールで。
+ * Compact/Rail = 上バー（← + 名前）→ ヘッダカード → 張り付くタブ → 投稿 を 1 つの縦スクロールで
+ * （[#661] Rail は Compact と同じ 1 ペイン）。
  * Expanded = 左 340px（上バー「プロフィール」+ ヘッダカード）｜右（タブ + 投稿）。
  * 「フォロー中」の件数を押すと一覧に、「フォロワーを確認」を押すとフォロワー一覧に置き換わる（← で戻る）。
  */
@@ -61,6 +65,7 @@ export function ProfileScreen({
   relayHints: readonly string[];
   onBack: () => void;
 }) {
+  const t = useT();
   const mode = useLayoutMode();
   const me = useSession((s) => s.pubkey);
   const isMe = me === pubkey;
@@ -70,7 +75,7 @@ export function ProfileScreen({
   const followingList = (isMe ? myFollows : theirFollows) ?? NO_PUBKEYS;
   const following = myFollows?.includes(pubkey) ?? false;
   const followsMe = !isMe && me !== null && (theirFollows?.includes(me) ?? false);
-  const { loading, posts, media, articles } = useProfileFeed(pubkey, relayHints);
+  const { loading, posts, media, articles, refresh } = useProfileFeed(pubkey, relayHints);
   const pinnedPosts = usePinnedPosts(pubkey);
   const followers = useFollowers(pubkey);
   const [initialPosition] = useState(readProfilePosition);
@@ -79,13 +84,19 @@ export function ProfileScreen({
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const scrollYRef = useRef(initialPosition.scrollY);
   const scrollFrame = useRef<number | null>(null);
+  // 引っ張って更新（#601）。Compact/Rail の .scroll だけ（Expanded は Virtuoso が別にスクロールする）
+  const {
+    ref: pullRef,
+    progress: pullProgress,
+    refreshing: pullRefreshing,
+  } = usePullToRefresh(mode !== "expanded" ? refresh : undefined);
 
   function setTab(t: ProfileTab) {
     setTabState(t);
     saveProfilePosition(t, scrollYRef.current);
   }
 
-  // [#401][#540] Compact の縦スクロール（.scroll）の位置を復元・追従する。Expanded は Virtuoso が
+  // [#401][#540] Compact/Rail の縦スクロール（.scroll）の位置を復元・追従する。Expanded は Virtuoso が
   // 独自にスクロールするコンテナを持つため対象外（タブの復元だけ効く）。マウント直後に一度だけ。
   // biome-ignore lint/correctness/useExhaustiveDependencies: 初回復元だけが目的（以後は自然なスクロールに任せる）
   useEffect(() => {
@@ -146,11 +157,19 @@ export function ProfileScreen({
     return <ProfilePostList events={events} loading={loading} pinned={pinned} scrollParent={scrollParent} />;
   }
 
-  if (mode === "compact") {
+  if (mode !== "expanded") {
     return (
       <div className={styles.screen} data-layout="compact">
         <ScreenHeader title={displayName(profile, pubkey)} onBack={onBack} />
-        <div className={styles.scroll} ref={setScrollEl} onScroll={onScroll}>
+        <div
+          className={styles.scroll}
+          ref={(el) => {
+            setScrollEl(el);
+            pullRef(el);
+          }}
+          onScroll={onScroll}
+        >
+          <PullToRefreshIndicator progress={pullProgress} refreshing={pullRefreshing} />
           {header}
           <ProfileTabs tab={tab} onChange={setTab} sticky />
           {tab === "lists" ? tabPanel() : scrollEl && tabPanel(scrollEl)}
@@ -161,8 +180,8 @@ export function ProfileScreen({
 
   return (
     <div className={styles.screen} data-layout="expanded">
-      <aside className={styles.side} aria-label="プロフィール詳細">
-        <ScreenHeader title="プロフィール" onBack={onBack} />
+      <aside className={styles.side} aria-label={t("web_profile_side_label")}>
+        <ScreenHeader title={t("profile_section")} onBack={onBack} />
         <hr className={styles.divider} />
         {header}
       </aside>

@@ -2,6 +2,8 @@ import { getSeenRelays } from "applesauce-core/helpers/relays";
 import type { NostrEvent } from "nostr-tools/pure";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import { useT } from "../../i18n";
+import { formatDateTimeLocal } from "../../i18n/format";
 import { avatarInitial, avatarShade } from "../../lib/avatar";
 import { hrefForEvent, hrefForProfile } from "../../lib/content/labels";
 import { isBlankContent, parseNoteContent, withoutLinks, withoutMention } from "../../lib/content/parse";
@@ -12,7 +14,7 @@ import { relativeTime } from "../../lib/time";
 import { displayName, pictureOf, useEventByPointer, useProfile, useRepostedEvent } from "../../nostr/loaders";
 import { CatEars } from "../../ui/CatEars";
 import { useNyanApplies } from "../../ui/nyan";
-import { NoteActionButtons } from "../actions/NoteActionButtons";
+import { NoteActionButtons, NoteMoreMenu } from "../actions/NoteActionButtons";
 import { ArticleCards } from "../article/ArticleCard";
 import { NoteFooter } from "../compose/NoteFooter";
 import { LinkCards } from "../linkcard/LinkCard";
@@ -122,6 +124,7 @@ function PostItem({
 }
 
 function RepostItem({ repost, openable }: { repost: NostrEvent; openable: boolean }) {
+  const t = useT();
   const original = useRepostedEvent(repost);
   const ref = useRef<HTMLElement>(null);
   // 開く先は元投稿（未解決の間は開かない）
@@ -148,7 +151,7 @@ function RepostItem({ repost, openable }: { repost: NostrEvent; openable: boolea
       {original ? (
         <NoteBody event={original} threadHref={href} />
       ) : (
-        <p className={styles.missing}>元の投稿を読み込み中…</p>
+        <p className={styles.missing}>{t("web_note_loading_original")}</p>
       )}
     </article>
   );
@@ -238,7 +241,7 @@ function NoteBody({
               <ArticleCards content={event.content} />
             </>
           )}
-          <NoteFooter event={event}>
+          <NoteFooter event={event} more={<NoteMoreMenu event={event} />}>
             <NoteActionButtons event={event} />
           </NoteFooter>
         </div>
@@ -249,15 +252,20 @@ function NoteBody({
 
 /**
  * ⋯「翻訳」の結果（本文の下に別ブロック。#541。ネイティブ NoteItem.kt と同じ置き場所）。
- * 取得中はキャプションだけ出し、隠している間（visible: false）は取得済みでも何も描かない。
+ * キャプションは常に「翻訳」、取得中はその横にスピナーを出す（ネイティブと同じ。N5）。
+ * 隠している間（visible: false）は取得済みでも何も描かない。
  */
 function TranslationBlock({ eventId }: { eventId: string }) {
+  const t = useT();
   const entry = useTranslation(eventId);
   const pending = useTranslationPending(eventId);
   if (!pending && !entry?.visible) return null;
   return (
     <div className={styles.translation}>
-      <p className={styles.translationCaption}>{pending ? "翻訳中…" : "翻訳"}</p>
+      <p className={styles.translationCaption}>
+        {t("note_translation_caption")}
+        {pending && <span className={styles.translationSpinner} aria-hidden="true" />}
+      </p>
       {entry?.visible && <p className={styles.translationText}>{entry.text}</p>}
     </div>
   );
@@ -268,11 +276,14 @@ function TranslationBlock({ eventId }: { eventId: string }) {
  * （行には出さない = ネイティブと同じ）。
  */
 function RelativeTime({ createdAt, client }: { createdAt: number; client: string | null }) {
+  const t = useT();
   const now = useNow();
   const date = new Date(createdAt * 1000);
   // created_at は任意の数値なので、Date の範囲外なら属性を付けない（toISOString が例外を投げる）
   const valid = Number.isFinite(date.getTime());
-  const title = valid ? `${date.toLocaleString()}${client ? ` · ${client} から投稿` : ""}` : undefined;
+  const title = valid
+    ? `${formatDateTimeLocal(date)}${client ? ` · ${t("note_posted_via_fmt", client)}` : ""}`
+    : undefined;
   return (
     <time className={styles.time} dateTime={valid ? date.toISOString() : undefined} title={title}>
       {relativeTime(createdAt, now)}

@@ -1,5 +1,6 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
+import { t, useT } from "../../i18n";
 import { currentSigner } from "../../signer/session";
 import { CloseIcon } from "../../ui/icons";
 import { showToast } from "../../ui/toast";
@@ -17,9 +18,6 @@ import {
   useOwnChannelMeta,
 } from "./channelEdit";
 import { type Channel, upsertLocalChannel } from "./channels";
-
-const UPLOAD_FAILED = "画像をアップロードできませんでした。設定 → メディアサーバーを確認してください。";
-const CREATE_FAILED = "作成できませんでした。ログイン/署名の状態を確認して、もう一度お試しください。";
 
 type Draft = { basedOnId: string | null; fields: ChannelFields };
 
@@ -48,12 +46,12 @@ function metaFieldsOf(
 /** 保存の失敗の文言（編集。#478 と同じ理由。ProfileEditSection と同じ言い回し） */
 function failureMessage(e: unknown): string {
   if (e instanceof ChannelEditError && e.reason === "unreachable") {
-    return "最新のスレッド情報を取得できなかったため、保存しませんでした。接続を確認してもう一度お試しください";
+    return t("web_channel_no_base");
   }
   if (e instanceof ChannelEditError && e.reason === "stale") {
-    return "別の端末でスレッドが更新されています。開き直してから編集してください";
+    return t("web_channel_stale");
   }
-  return "保存できませんでした。ログイン/署名の状態を確認して、もう一度お試しください。";
+  return t("web_channel_save_failed");
 }
 
 /**
@@ -75,6 +73,7 @@ export function ChannelEditDialog({
   onDone(channel: Channel): void;
   onDismiss(): void;
 }) {
+  const t = useT();
   const isEdit = channel !== null;
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -132,7 +131,7 @@ export function ChannelEditDialog({
     const signal = controller.current?.signal;
     const signer = currentSigner();
     if (!signer || !file.type.startsWith("image/")) {
-      showToast(UPLOAD_FAILED);
+      showToast(t("channel_icon_upload_failed"));
       return;
     }
     // 選んだ時点の版で編集を始める（アップロード中に届いた版で上書きしない）
@@ -143,9 +142,9 @@ export function ChannelEditDialog({
       const result = await uploadMedia(processed, uploadServers(mediaServer), signer, signal);
       if (signal?.aborted) return;
       if (result) edit({ picture: result.url });
-      else showToast(UPLOAD_FAILED);
+      else showToast(t("channel_icon_upload_failed"));
     } catch {
-      if (!signal?.aborted) showToast(UPLOAD_FAILED);
+      if (!signal?.aborted) showToast(t("channel_icon_upload_failed"));
     } finally {
       if (!signal?.aborted) setUploading(false);
     }
@@ -192,7 +191,7 @@ export function ChannelEditDialog({
         onDone(created);
       }
     } catch (err) {
-      showToast(isEdit ? failureMessage(err) : CREATE_FAILED);
+      showToast(isEdit ? failureMessage(err) : t("web_channel_create_failed"));
     } finally {
       setSaving(false);
     }
@@ -213,26 +212,22 @@ export function ChannelEditDialog({
     >
       <div className={styles.head}>
         <h2 id={titleId} className={styles.title}>
-          {isEdit ? "スレッドを編集" : "スレッドを作成"}
+          {isEdit ? t("channel_edit_title") : t("channel_create_title")}
         </h2>
-        <button type="button" className={styles.close} aria-label="閉じる" onClick={onDismiss}>
+        <button type="button" className={styles.close} aria-label={t("common_close")} onClick={onDismiss}>
           <CloseIcon className={styles.closeIcon} />
         </button>
       </div>
-      {!isEdit && (
-        <p className={styles.note}>
-          パブリックチャットのスレッド（NIP-28）を作成します。誰でも参加できます。
-        </p>
-      )}
+      {!isEdit && <p className={styles.note}>{t("channel_create_note")}</p>}
       {isEdit && !loaded && (
         <p className={styles.note} role="status">
-          読み込み中…
+          {t("loading")}
         </p>
       )}
       <form className={styles.form} onSubmit={submit}>
         <div className={styles.field}>
           <label htmlFor={nameId} className={styles.label}>
-            スレッド名
+            {t("channel_field_name")}
           </label>
           <input
             id={nameId}
@@ -245,7 +240,7 @@ export function ChannelEditDialog({
         </div>
         <div className={styles.field}>
           <label htmlFor={aboutId} className={styles.label}>
-            説明（任意）
+            {t("channel_field_about")}
           </label>
           <textarea
             id={aboutId}
@@ -258,7 +253,7 @@ export function ChannelEditDialog({
         </div>
         <div className={styles.field}>
           <label htmlFor={pictureId} className={styles.label}>
-            画像URL（任意）
+            {t("channel_field_picture")}
           </label>
           <div className={styles.iconRow}>
             <ChannelIcon key={fields.picture} name={fields.name} url={fields.picture || null} />
@@ -281,13 +276,13 @@ export function ChannelEditDialog({
               disabled={disabled || uploading}
               onClick={() => fileInput.current?.click()}
             >
-              {uploading ? "アップロード中…" : "選択"}
+              {uploading ? t("web_channel_icon_uploading") : t("channel_icon_pick")}
             </button>
             {fields.picture !== "" && !uploading && (
               <button
                 type="button"
                 className={styles.clear}
-                aria-label="画像を外す"
+                aria-label={t("channel_icon_clear")}
                 disabled={disabled}
                 onClick={() => edit({ picture: "" })}
               >
@@ -299,7 +294,7 @@ export function ChannelEditDialog({
               type="file"
               accept="image/*"
               hidden
-              aria-label="画像のファイル"
+              aria-label={t("web_channel_icon_file")}
               onChange={(e) => {
                 const input = e.currentTarget;
                 const file = input.files?.[0];
@@ -311,10 +306,10 @@ export function ChannelEditDialog({
         </div>
         <div className={styles.footer}>
           <button type="button" className={styles.textButton} onClick={onDismiss}>
-            キャンセル
+            {t("common_cancel")}
           </button>
           <button type="submit" className={styles.primary} disabled={!canSubmit}>
-            {saving ? "保存中…" : isEdit ? "保存" : "作成"}
+            {saving ? t("common_saving") : isEdit ? t("channel_edit_submit") : t("channel_create_submit")}
           </button>
         </div>
       </form>

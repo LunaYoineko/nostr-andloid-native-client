@@ -1,6 +1,7 @@
 import { nprofileEncode } from "nostr-tools/nip19";
 import { useEffect, useRef, useState } from "react";
 import { useCloseMenuOnBack } from "../../app/history";
+import { t, useT } from "../../i18n";
 import { relayHintsOf } from "../../nostr/outbox";
 import { ConfirmDialog } from "../../ui/ConfirmDialog";
 import { Icon } from "../../ui/icons";
@@ -13,12 +14,12 @@ import styles from "./ProfileHeaderCard.module.css";
 /** ミュート・解除の失敗の文言（ネイティブ note_mute_locked。NoteActionButtons と同じ） */
 function muteFailureMessage(e: unknown): string {
   if (e instanceof MuteListError && e.reason === "no-mute-list") {
-    return "最新のミュートリストを取得できなかったため、変更しませんでした。接続を確認してもう一度お試しください";
+    return t("web_mute_no_base");
   }
   if (e instanceof MuteListError && e.reason === "no-cipher") {
-    return "この署名方式は暗号化に対応していないため、非公開でミュートできません（公開では追加しません）";
+    return t("web_mute_no_cipher");
   }
-  return "ミュートリストが変更できません（ロック中の可能性）";
+  return t("note_mute_locked");
 }
 
 /**
@@ -38,6 +39,7 @@ export function ProfileMenu({
   muted: boolean;
   onCopied: (message: string) => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<"mute" | "report" | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -71,7 +73,7 @@ export function ProfileMenu({
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      onCopied("コピーできませんでした");
+      onCopied(t("web_copy_failed"));
       return;
     }
     onCopied(message);
@@ -81,7 +83,7 @@ export function ProfileMenu({
     if (!me) return;
     const run = action === "mute" ? muteUser(me, pubkey) : unmuteUser(me, pubkey);
     run.then(
-      () => showToast(action === "mute" ? "ミュートしました" : "ミュートを解除しました"),
+      () => showToast(action === "mute" ? t("muted_toast") : t("note_unmuted_toast")),
       (e) => showToast(muteFailureMessage(e)),
     );
   }
@@ -89,8 +91,8 @@ export function ProfileMenu({
   function report(type: string) {
     setDialog(null);
     reportUser(pubkey, type).then(
-      () => showToast("通報しました"),
-      (e) => console.warn("[profile] 通報に失敗", e),
+      () => showToast(t("reported_toast")),
+      (e) => console.warn(`[profile] ${t("web_log_profile_report_failed")}`, e),
     );
   }
 
@@ -100,7 +102,7 @@ export function ProfileMenu({
         ref={button}
         type="button"
         className={styles.circle}
-        aria-label="メニュー"
+        aria-label={t("menu")}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
@@ -108,22 +110,22 @@ export function ProfileMenu({
         <Icon name="moreHoriz" size="md" />
       </button>
       {open && (
-        <div role="menu" aria-label="メニュー" className={styles.menu}>
+        <div role="menu" aria-label={t("menu")} className={styles.menu}>
           <button
             type="button"
             role="menuitem"
             className={styles.menuItem}
-            onClick={() => copy(nprofile(), "nprofile をコピーしました")}
+            onClick={() => copy(nprofile(), t("nprofile_copied"))}
           >
-            nprofile をコピー
+            {t("copy_nprofile")}
           </button>
           <button
             type="button"
             role="menuitem"
             className={styles.menuItem}
-            onClick={() => copy(`https://njump.me/${nprofile()}`, "リンクをコピーしました")}
+            onClick={() => copy(`https://njump.me/${nprofile()}`, t("link_copied"))}
           >
-            リンクをコピー（njump）
+            {t("note_copy_link")}
           </button>
           {me !== null && (
             <>
@@ -136,7 +138,7 @@ export function ProfileMenu({
                   setDialog("mute");
                 }}
               >
-                {muted ? "ミュートを解除" : "このユーザーをミュート"}
+                {muted ? t("note_unmute_user") : t("mute_confirm")}
               </button>
               <button
                 type="button"
@@ -147,7 +149,7 @@ export function ProfileMenu({
                   setDialog("report");
                 }}
               >
-                ユーザーを通報
+                {t("note_report")}
               </button>
             </>
           )}
@@ -156,9 +158,9 @@ export function ProfileMenu({
       {dialog === "mute" &&
         (muted ? (
           <ConfirmDialog
-            title="ミュートを解除しますか？"
-            text="このユーザーの投稿が再びタイムラインに表示されるようになります。"
-            confirmLabel="解除する"
+            title={t("unmute_confirm_title")}
+            text={t("web_profile_unmute_text")}
+            confirmLabel={t("lift_confirm")}
             onConfirm={() => {
               setDialog(null);
               mute("unmute");
@@ -167,9 +169,9 @@ export function ProfileMenu({
           />
         ) : (
           <ConfirmDialog
-            title="このユーザーをミュートしますか？"
-            text="このユーザーの投稿がタイムラインに表示されなくなります。ミュートは非公開（NIP-51）で保存されます。"
-            confirmLabel="ミュート"
+            title={t("mute_confirm_title")}
+            text={t("mute_confirm_text2")}
+            confirmLabel={t("mute_confirm")}
             destructive
             onConfirm={() => {
               setDialog(null);
@@ -179,7 +181,7 @@ export function ProfileMenu({
           />
         ))}
       {dialog === "report" && (
-        <ReportDialog title="このユーザーを通報" onPick={report} onDismiss={() => setDialog(null)} />
+        <ReportDialog title={t("report_user_title")} onPick={report} onDismiss={() => setDialog(null)} />
       )}
     </div>
   );
