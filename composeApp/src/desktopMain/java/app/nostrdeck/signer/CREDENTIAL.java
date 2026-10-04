@@ -1,7 +1,7 @@
 package app.nostrdeck.signer;
 
 import com.sun.jna.*;
-import com.sun.jna.platform.win32.WinNT.FILETIME;
+import app.nostrdeck.signer.WinFileTime;
 import java.util.Arrays;
 import java.util.List;
 
@@ -14,7 +14,7 @@ public class CREDENTIAL extends Structure {
     public int Type;
     public WString TargetName; // LPWSTR
     public WString Comment; // LPWSTR
-    public FILETIME LastWritten;
+    public WinFileTime LastWritten;
     public int CredentialBlobSize;
     public Pointer CredentialBlob; // PBYTE
     public int Persist;

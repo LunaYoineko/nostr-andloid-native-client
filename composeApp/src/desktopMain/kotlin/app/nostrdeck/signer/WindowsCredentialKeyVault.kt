@@ -3,6 +3,7 @@ package app.nostrdeck.signer
 import app.nostrdeck.crypto.hexToBytes
 import app.nostrdeck.crypto.secureRandomBytes
 import app.nostrdeck.crypto.toHex
+import app.nostrdeck.signer.WinFileTime
 import com.sun.jna.*
 import com.sun.jna.ptr.PointerByReference
 import com.sun.jna.platform.win32.Kernel32Util
@@ -70,7 +71,7 @@ class WindowsCredentialKeyVault(
             Persist = CRED_PERSIST_LOCAL_MACHINE // この PC のこのユーザーの以後のログオンセッションで有効
             AttributeCount = 0
             Attributes = Pointer.NULL
-            LastWritten = FILETIME()
+            LastWritten = WinFileTime()
         }
 
         val result = advapi32.CredWriteW(cred, 0)
