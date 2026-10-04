@@ -3,6 +3,7 @@ package app.nostrdeck.signer
 import app.nostrdeck.crypto.hexToBytes
 import app.nostrdeck.crypto.secureRandomBytes
 import app.nostrdeck.crypto.toHex
+import java.util.concurrent.TimeUnit
 
 /**
  * [#218] Linux libsecret (Secret Service API) に nsec を保管する KeyVault。
@@ -11,7 +12,6 @@ import app.nostrdeck.crypto.toHex
  * `secret-tool` CLI を使用（DBus 経由で安全に保管）。
  */
 class LinuxSecretKeyVault(
-    private val schema: String = "org.freedesktop.Secret.Generic",
     private val attributes: Map<String, String> = mapOf(
         "application" to "Nostrism",
         "key-type" to "nostr-nsec",
@@ -20,8 +20,13 @@ class LinuxSecretKeyVault(
 
     private fun run(vararg args: String): Pair<Int, String> {
         val p = ProcessBuilder(*args).redirectErrorStream(true).start()
+        // タイムアウトを設定（5秒）
+        if (!p.waitFor(5, TimeUnit.SECONDS)) {
+            p.destroyForcibly()
+            return -1 to "timeout"
+        }
         val out = p.inputStream.readBytes().decodeToString().trim()
-        return p.waitFor() to out
+        return p.exitValue() to out
     }
 
     private val attrArgs: List<String> = attributes.flatMap { (k, v) -> listOf(k, v) }
@@ -29,7 +34,11 @@ class LinuxSecretKeyVault(
     /** Secret Service から鍵（hex 64桁）を取得。無ければ null。 */
     private fun readHex(): String? {
         val (code, out) = run("secret-tool", "lookup", *attrArgs.toTypedArray())
-        return out.takeIf { code == 0 && it.length == 64 }
+        if (code != 0) {
+            // Secret Service が利用不可、または鍵が見つからない
+            return null
+        }
+        return out.takeIf { it.length == 64 }
     }
 
     override fun hasKey(): Boolean = readHex() != null
@@ -46,8 +55,12 @@ class LinuxSecretKeyVault(
         val p = ProcessBuilder("secret-tool", "store", "--label=Nostrism nsec", *attrArgs.toTypedArray())
             .redirectErrorStream(true).start()
         p.outputStream.use { it.write(hex.encodeToByteArray()) }
+        if (!p.waitFor(5, TimeUnit.SECONDS)) {
+            p.destroyForcibly()
+            throw IllegalStateException("secret-tool store timeout")
+        }
         val out = p.inputStream.readBytes().decodeToString().trim()
-        require(p.waitFor() == 0) { "secret-tool store failed: $out" }
+        require(p.exitValue() == 0) { "secret-tool store failed: $out" }
     }
 
     override fun generate(): ByteArray {

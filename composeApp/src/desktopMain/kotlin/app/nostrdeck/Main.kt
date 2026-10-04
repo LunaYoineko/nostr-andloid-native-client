@@ -86,11 +86,16 @@ private fun buildKeyVault(): KeyVault {
 
     if (legacy.exists() && legacy.length() == 32L) {
         runCatching {
-            if (!vault.hasKey()) vault.importPrivateKey(legacy.readBytes())
-            if (vault.privateKey().contentEquals(legacy.readBytes())) {
+            // 移行はプラットフォーム標準のキーストア（Windows/Mac/Linux secret-tool）を使用している場合のみ実行
+            // ファイル保管（DesktopKeyVault）へのフォールバック時は移行しない（key.bin が唯一の鍵になるため）
+            val isPlatformKeystore = vault !is DesktopKeyVault
+            if (isPlatformKeystore && !vault.hasKey()) {
+                vault.importPrivateKey(legacy.readBytes())
+            }
+            if (isPlatformKeystore && vault.privateKey().contentEquals(legacy.readBytes())) {
                 legacy.delete()
                 println("Nostrism [#221] key migrated to platform keystore; plaintext key.bin removed")
-            } else {
+            } else if (isPlatformKeystore) {
                 println("Nostrism [#221] Keystore already holds a different key; key.bin left in place")
             }
         }.onFailure { println("Nostrism [#221] keystore migration failed: $it") }

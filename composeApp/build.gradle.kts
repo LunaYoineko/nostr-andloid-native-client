@@ -41,7 +41,7 @@ kotlin {
 
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
-        compilerOptions { jvmTarget.set(JvmTarget.JVM_21) }
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
     }
 
     // expect/actual class は Beta 警告が出る。意図的な利用なので抑制。
@@ -58,7 +58,7 @@ kotlin {
     // [#218] Desktop(Mac/JVM) ターゲット。commonMain の Compose デッキ UI をそのまま動かす。
     jvm("desktop") {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
-        compilerOptions { jvmTarget.set(JvmTarget.JVM_21) }
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
     }
 
     sourceSets {
@@ -194,6 +194,11 @@ fun resizePng(inputPath: String, width: Int, height: Int): ByteArray {
     val baos = ByteArrayOutputStream()
     ImageIO.write(buffered, "PNG", baos)
     return baos.toByteArray()
+}
+
+// Java コンパイルタスクの JVM ターゲットを 17 に固定（Gradle デーモンが JDK 21 でもバイトコードは 17）
+tasks.withType<JavaCompile>().configureEach {
+    options.release = 17
 }
 
 // [#218] Compose Desktop 配布設定。各ターゲット別のネイティブ配布形式を指定。
