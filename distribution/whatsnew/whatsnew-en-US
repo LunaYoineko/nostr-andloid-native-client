@@ -1,6 +1,1 @@
-- New "Dense mode" in Settings > Appearance: tighter gaps, padding and rows to show more at once
-- Fixed follow and mute lists sometimes being wiped or losing details added by other apps
-- DM replies now show the quoted message to the recipient too
-- Fixed DMs sometimes being missed while the app was in the background
-- Profile columns now work when you enter an npub
-- Fixed compressed videos sometimes turning 4:3
+- New "Handshake with Unyu" in Settings > Appearance: shows the UI text in Kansai dialect (Japanese UI only; a display-only gimmick on this device that never changes your posts)
