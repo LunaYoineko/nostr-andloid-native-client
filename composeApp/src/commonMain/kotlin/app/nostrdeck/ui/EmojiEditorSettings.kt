@@ -38,7 +38,7 @@ import nostr_deck_client.composeapp.generated.resources.emoji_save_failed
 import nostr_deck_client.composeapp.generated.resources.emoji_saved
 import nostr_deck_client.composeapp.generated.resources.emoji_shortcode_hint
 import nostr_deck_client.composeapp.generated.resources.emoji_url_hint
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * [#287] カスタム絵文字エディタ（NIP-51 kind:10030 の emoji タグを編集）。

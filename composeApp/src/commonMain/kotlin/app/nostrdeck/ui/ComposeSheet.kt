@@ -87,8 +87,8 @@ import app.nostrdeck.model.Profile
 import app.nostrdeck.theme.DeckColors
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.stringResource
-import org.jetbrains.compose.resources.getString
+import app.nostrdeck.i18n.stringResource
+import app.nostrdeck.i18n.getString
 import app.nostrdeck.theme.DeckDimens
 import app.nostrdeck.theme.DeckSpace
 import app.nostrdeck.theme.DeckRadius

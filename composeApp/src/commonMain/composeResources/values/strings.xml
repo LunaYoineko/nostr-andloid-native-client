@@ -703,6 +703,11 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="nyan_mode_off">Off</string>
     <string name="nyan_mode_self">Me only</string>
     <string name="nyan_mode_all">Everyone</string>
+    <!-- [#710] うにゅうと握手（関西弁 UI。Web の web_kansai_* と同じ文言） -->
+    <string name="kansai_title">Handshake with Unyu</string>
+    <string name="kansai_desc">Shows the UI text in Kansai dialect. A display-only gimmick on this device; your actual posts do not change.</string>
+    <string name="kansai_toggle">Shake hands with Unyu</string>
+    <string name="kansai_ja_only">Available only when the UI language is Japanese</string>
     <!-- [#675] 廃人モード（Web #674 と同じ文言） -->
     <string name="dense_mode_title">Dense mode</string>
     <string name="dense_mode_desc">Tightens column gaps, padding and row height to fit more on screen</string>

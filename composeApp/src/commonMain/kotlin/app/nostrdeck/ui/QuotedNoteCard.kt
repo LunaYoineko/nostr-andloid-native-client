@@ -1,7 +1,7 @@
 package app.nostrdeck.ui
 
 import androidx.compose.foundation.background
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 import nostr_deck_client.composeapp.generated.resources.media_video_badge
 import nostr_deck_client.composeapp.generated.resources.Res
 import androidx.compose.material3.Icon

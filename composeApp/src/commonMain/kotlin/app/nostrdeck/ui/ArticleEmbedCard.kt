@@ -42,7 +42,7 @@ import nostr_deck_client.composeapp.generated.resources.article_title
 import nostr_deck_client.composeapp.generated.resources.article_untitled
 import nostr_deck_client.composeapp.generated.resources.md_naddr_failed
 import nostr_deck_client.composeapp.generated.resources.md_resolving
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * 本文中の naddr1（先頭に nostr: が付く場合あり）を抽出する。重複除去し最大数を制限。

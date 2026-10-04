@@ -36,7 +36,7 @@ import app.nostrdeck.theme.DeckWeight
 import kotlinx.coroutines.delay
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * [#364] 開発者モード: 接続・通信量・生きてる REQ のモニタ。

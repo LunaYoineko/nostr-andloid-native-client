@@ -2,7 +2,7 @@ package app.nostrdeck.ui
 import app.nostrdeck.model.ImageCompressionPrefs
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 import org.jetbrains.compose.resources.StringResource
 
 /**
