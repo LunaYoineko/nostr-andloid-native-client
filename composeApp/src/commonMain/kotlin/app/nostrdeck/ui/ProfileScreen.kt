@@ -77,8 +77,8 @@ import nostr_deck_client.composeapp.generated.resources.*
 import nostr_deck_client.composeapp.generated.resources.tab_media
 import nostr_deck_client.composeapp.generated.resources.tab_posts
 import org.jetbrains.compose.resources.StringResource
-import org.jetbrains.compose.resources.getString
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.getString
+import app.nostrdeck.i18n.stringResource
 import app.nostrdeck.theme.DeckColors
 import app.nostrdeck.theme.DeckDimens
 import app.nostrdeck.theme.DeckSpace

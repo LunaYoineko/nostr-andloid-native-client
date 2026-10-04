@@ -57,7 +57,7 @@ import app.nostrdeck.theme.DeckWeight
 import kotlinx.coroutines.launch
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * [#393] ハッシュタグ整理画面（全画面モーダル）。入口は投稿画面の「整理…」と設定 > ハッシュタグ。

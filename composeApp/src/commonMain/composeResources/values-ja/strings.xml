@@ -699,6 +699,11 @@
     <string name="nyan_mode_off">オフ</string>
     <string name="nyan_mode_self">自分のみ</string>
     <string name="nyan_mode_all">全員</string>
+    <!-- [#710] うにゅうと握手（関西弁 UI。Web の web_kansai_* と同じ文言。関西弁の辞書には入れない＝見出しは ja と同じ） -->
+    <string name="kansai_title">うにゅうと握手</string>
+    <string name="kansai_desc">UI の文言の表示が関西弁になります。この端末の表示だけの演出で、実際の投稿内容は変わりません。</string>
+    <string name="kansai_toggle">うにゅうと握手する</string>
+    <string name="kansai_ja_only">日本語表示のときだけ使えます</string>
     <!-- [#675] 廃人モード（Web #674 と同じ文言） -->
     <string name="dense_mode_title">廃人モード</string>
     <string name="dense_mode_desc">カラムの間隔・余白・行の高さを詰めて情報量を増やします</string>

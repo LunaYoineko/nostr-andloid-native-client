@@ -27,7 +27,7 @@ import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.comment_root_kind_fmt
 import nostr_deck_client.composeapp.generated.resources.comment_root_loading
 import nostr_deck_client.composeapp.generated.resources.comment_root_url_fmt
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * [#380] NIP-22 コメントスレッドの「根のカード」。

@@ -50,7 +50,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import app.nostrdeck.state.DeckState
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 import app.nostrdeck.state.NavDest
 import app.nostrdeck.theme.DeckColors
 import app.nostrdeck.theme.DeckDimens

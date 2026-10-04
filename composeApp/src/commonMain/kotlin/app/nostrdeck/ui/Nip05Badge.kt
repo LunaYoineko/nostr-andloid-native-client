@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import app.nostrdeck.theme.DeckColors
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.*
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 import app.nostrdeck.theme.DeckSpace
 
 /** NIP-05 検証の状態。CHECKING=確認中、VERIFIED=一致(OK)、INVALID=不一致/取得失敗(異常)。 */

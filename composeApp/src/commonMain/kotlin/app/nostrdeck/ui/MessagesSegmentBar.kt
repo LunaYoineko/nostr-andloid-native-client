@@ -35,7 +35,7 @@ import app.nostrdeck.theme.DeckWeight
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.seg_chat
 import nostr_deck_client.composeapp.generated.resources.seg_dm
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * [#422] メッセージ画面の上部「DM | チャット」切り替え。一覧ペインの先頭に置く。

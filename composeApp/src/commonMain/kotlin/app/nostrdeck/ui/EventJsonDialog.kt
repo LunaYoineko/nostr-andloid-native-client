@@ -49,7 +49,7 @@ import nostr_deck_client.composeapp.generated.resources.json_dialog_title
 import nostr_deck_client.composeapp.generated.resources.json_loading
 import nostr_deck_client.composeapp.generated.resources.json_refs
 import nostr_deck_client.composeapp.generated.resources.note_copy_text
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * [#351] 開発者モード: イベントの生 JSON を表示するダイアログ。

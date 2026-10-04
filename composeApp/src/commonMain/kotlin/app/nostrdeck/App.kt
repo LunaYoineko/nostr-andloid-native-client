@@ -28,6 +28,7 @@ import app.nostrdeck.model.ThemeMode
 import app.nostrdeck.model.UiScale
 import app.nostrdeck.theme.DeckWeight
 import app.nostrdeck.theme.DeckDensity
+import app.nostrdeck.i18n.Dialect
 import app.nostrdeck.data.SampleData
 import app.nostrdeck.signer.SignerProvider
 import app.nostrdeck.state.DeckState
@@ -105,17 +106,17 @@ fun App(
         }
         // [#423] 送信の受理を確認できなかったことを知らせる（投稿・リアクション等。間引きは Repository 側）。
         val toast = app.nostrdeck.ui.rememberToaster()
-        val unconfirmedMsg = org.jetbrains.compose.resources.stringResource(
+        val unconfirmedMsg = app.nostrdeck.i18n.stringResource(
             nostr_deck_client.composeapp.generated.resources.Res.string.publish_unconfirmed,
         )
         LaunchedEffect(repository) {
             repository?.publishUnconfirmedFlow()?.collect { toast(unconfirmedMsg) }
         }
         // [#478] 自分のリスト（フォロー・ミュート等）の編集を止めた理由。どの画面から操作しても同じ文言で知らせる。
-        val ownListUnreachableMsg = org.jetbrains.compose.resources.stringResource(
+        val ownListUnreachableMsg = app.nostrdeck.i18n.stringResource(
             nostr_deck_client.composeapp.generated.resources.Res.string.own_list_unreachable,
         )
-        val ownListStaleMsg = org.jetbrains.compose.resources.stringResource(
+        val ownListStaleMsg = app.nostrdeck.i18n.stringResource(
             nostr_deck_client.composeapp.generated.resources.Res.string.own_list_stale,
         )
         LaunchedEffect(repository) {
@@ -184,6 +185,16 @@ fun App(
         val denseMode by (repository?.denseModeFlow()?.collectAsState()
             ?: remember { mutableStateOf(false) })
         DeckDensity.apply(denseMode)
+        // [#710] うにゅうと握手（関西弁 UI）。Dialect も snapshot state なので apply するだけで全画面の文言に効く。
+        val kansaiMode by (repository?.kansaiModeFlow()?.collectAsState()
+            ?: remember { mutableStateOf(false) })
+        Dialect.apply(kansaiMode)
+        LaunchedEffect(Unit) {
+            // 同梱の辞書（Web と共通の ja-kansai.json）を読む。読めなくても日本語のまま動く。
+            runCatching {
+                Dialect.load(Dialect.parse(nostr_deck_client.composeapp.generated.resources.Res.readBytes(Dialect.DICT_PATH).decodeToString()))
+            }.onFailure { println("Nostrism kansai dict load failed: ${it.message}") }
+        }
         // [#378] にゃにゃにゃウイルス。Nyan は snapshot state なので apply するだけで
         // 猫耳(Avatar)とにゃいず(noteAnnotated)の両方に効く。表示専用・発行には無関係。
         val nyanMode by (repository?.nyanModeFlow()?.collectAsState()

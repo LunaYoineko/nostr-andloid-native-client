@@ -116,8 +116,8 @@ import nostr_deck_client.composeapp.generated.resources.theme_tab_customize
 import nostr_deck_client.composeapp.generated.resources.theme_tab_store
 import nostr_deck_client.composeapp.generated.resources.theme_title
 import nostr_deck_client.composeapp.generated.resources.theme_undo
-import org.jetbrains.compose.resources.stringResource
-import org.jetbrains.compose.resources.getString
+import app.nostrdeck.i18n.stringResource
+import app.nostrdeck.i18n.getString
 
 /** [#268] テーマシートの内部ページ。設定画面のどちらの導線から開いたかで初期値を変える。 */
 internal enum class ThemePage { CUSTOMIZE, STORE }

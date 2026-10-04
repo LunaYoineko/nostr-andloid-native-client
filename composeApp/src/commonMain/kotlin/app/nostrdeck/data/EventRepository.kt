@@ -403,6 +403,7 @@ class EventRepository(
         loadUiScale()
         loadBoldText()   // [#327]
         loadDenseMode()  // [#675]
+        loadKansaiMode() // [#710]
         loadNyanMode()   // [#378]
         loadDeveloperMode()   // [#351]
         loadNoteAccentStyle()
@@ -4622,6 +4623,19 @@ class EventRepository(
         boldTextState.value = q.getSetting(BOLD_TEXT_KEY).executeAsOneOrNull() == "1"
     }
 
+    // ---- [#710] うにゅうと握手（関西弁 UI。既定OFF）----
+    // 日本語表示のときだけ UI の文言を関西弁にする演出（i18n.Dialect）。Web の nostrism.kansaiMode と同じく
+    // 端末ローカル設定で、#374 の SettingsSync ホワイトリストには入れない。値も Web と同じ on/off。
+    private val kansaiModeState = MutableStateFlow(false)
+    fun kansaiModeFlow(): StateFlow<Boolean> = kansaiModeState
+    fun setKansaiMode(enabled: Boolean) {
+        kansaiModeState.value = enabled
+        putSettingAsync(KANSAI_MODE_KEY, if (enabled) "on" else "off")
+    }
+    private fun loadKansaiMode() {
+        kansaiModeState.value = q.getSetting(KANSAI_MODE_KEY).executeAsOneOrNull() == "on"
+    }
+
     // ---- [#675] 廃人モード（密度。既定OFF）----
     // カラムの間隔・余白・行の高さを詰めて情報量を増やす。Web（#674）の density と同じく
     // 端末ローカル設定で、#374 の SettingsSync ホワイトリストには入れない。値も Web と同じ normal/dense。
@@ -5521,6 +5535,7 @@ class EventRepository(
         const val DEVELOPER_MODE_KEY = "developer_mode"   // [#351]
         const val NYAN_MODE_KEY = "ui:nyan_mode"   // [#378] にゃにゃにゃウイルス（off/self/all）
         const val DENSITY_KEY = "ui:density"       // [#675] 廃人モード（normal/dense）
+        const val KANSAI_MODE_KEY = "ui:kansai_mode" // [#710] うにゅうと握手（on/off）
         const val NOTE_ACCENT_STYLE_KEY = "ui:note_accent"  // [#256][#257] 種別の視覚表示（none/line/bg）
         const val THEME_CUSTOM_BG = "ui:theme_custom_bg"         // [#258] カスタムテーマ 背景色
         const val THEME_CUSTOM_TEXT = "ui:theme_custom_text"     // [#258] カスタムテーマ 文字色

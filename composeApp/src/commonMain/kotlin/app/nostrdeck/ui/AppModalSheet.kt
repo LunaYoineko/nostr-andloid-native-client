@@ -34,7 +34,7 @@ import app.nostrdeck.theme.DeckRadius
 import app.nostrdeck.theme.DeckSpace
 import nostr_deck_client.composeapp.generated.resources.Res
 import nostr_deck_client.composeapp.generated.resources.common_close
-import org.jetbrains.compose.resources.stringResource
+import app.nostrdeck.i18n.stringResource
 
 /**
  * [#284] 設定系の全画面モーダル（Dialog ベース）。
