@@ -58,6 +58,14 @@ if [ "$SKIP_MAC" != "1" ]; then
   # JAVA_HOME を切り替えても、Gradle は起動済みの JBR(21) デーモンを使い回しうる（#438）。
   # jpackage 入りの JDK を dmg 用に明示する。
   ./gradlew :composeApp:packageDmg -q -PpackagingJavaHome="$JAVA_HOME"
+  # [#730] 同梱ランタイムに java.sql が無いと、起動時に DB を開けず落ちる（v0.6.18〜0.6.20 の dmg で実際に起きた）。
+  # build.gradle.kts の modules(...) から漏れたら、配る前にここで止める。
+  RUNTIME_RELEASE="composeApp/build/compose/binaries/main/app/Nostrism.app/Contents/runtime/Contents/Home/release"
+  if ! grep -E '^MODULES=' "$RUNTIME_RELEASE" | grep -q 'java.sql'; then
+    echo "✗ dmg の同梱ランタイムに java.sql が入っていません（SQLite ドライバを読めず起動できない）: $RUNTIME_RELEASE" >&2
+    grep -E '^MODULES=' "$RUNTIME_RELEASE" >&2
+    exit 1
+  fi
   # jpackage の制約で packageVersion は 1.0.0 固定（MAJOR>0 必須）。実バージョンはファイル名で示す。
   SRC=$(ls composeApp/build/compose/binaries/main/dmg/*.dmg | head -1)
   DMG="composeApp/build/compose/binaries/main/dmg/Nostrism-$NAME-macos.dmg"
