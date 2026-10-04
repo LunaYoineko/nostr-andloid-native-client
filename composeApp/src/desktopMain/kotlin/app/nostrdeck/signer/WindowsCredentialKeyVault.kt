@@ -3,11 +3,12 @@ package app.nostrdeck.signer
 import app.nostrdeck.crypto.hexToBytes
 import app.nostrdeck.crypto.secureRandomBytes
 import app.nostrdeck.crypto.toHex
-import app.nostrdeck.signer.WinFileTime
-import com.sun.jna.*
-import com.sun.jna.ptr.PointerByReference
-import com.sun.jna.platform.win32.Kernel32Util
+import com.sun.jna.Memory
 import com.sun.jna.Native
+import com.sun.jna.Pointer
+import com.sun.jna.WString
+import com.sun.jna.platform.win32.Kernel32Util
+import com.sun.jna.ptr.PointerByReference
 import java.nio.charset.StandardCharsets
 
 /**
@@ -44,7 +45,8 @@ class WindowsCredentialKeyVault(
             if (blobSize != 64) return null // 64 hex chars = 32 bytes
 
             val blob = ByteArray(blobSize)
-            cred.CredentialBlob.read(0, blob, 0, blobSize)
+            val blobPtr = cred.CredentialBlob ?: return null
+            blobPtr.read(0, blob, 0, blobSize)
             return String(blob, StandardCharsets.UTF_8).takeIf { it.length == 64 }
         } finally {
             advapi32.CredFree(pCred.value)

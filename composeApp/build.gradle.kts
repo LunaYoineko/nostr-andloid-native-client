@@ -196,11 +196,6 @@ fun resizePng(inputPath: String, width: Int, height: Int): ByteArray {
     return baos.toByteArray()
 }
 
-// Java コンパイルタスクの JVM ターゲットを 17 に固定（Gradle デーモンが JDK 21 でもバイトコードは 17）
-tasks.withType<JavaCompile>().configureEach {
-    options.release = 17
-}
-
 // [#218] Compose Desktop 配布設定。各ターゲット別のネイティブ配布形式を指定。
 // Windows: MSI, Linux: DEB/RPM, macOS: DMG
 compose.desktop {

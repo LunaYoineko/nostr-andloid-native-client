@@ -51,8 +51,7 @@ private fun isSecretToolAvailable(): Boolean = isCommandAvailable("secret-tool")
 /**
  * [#221] 鍵保管の選択。macOS は Keychain（security CLI）、Windows は Credential Manager（ネイティブ API）、
  * Linux は libsecret（secret-tool）。それ以外の OS は従来のファイル保管。
- * 旧・平文ファイル(key.bin)が残っていれば各ストアへ移行し、移行を確認してから平文を消す。
- * secret-tool / security が無い環境では自動でファイル保管へフォールバック。
+ * secret-tool / security が無い・動いていない環境では自動でファイル保管へフォールバック。
  */
 private fun buildKeyVault(): KeyVault {
     val osName = System.getProperty("os.name").orEmpty().lowercase()
@@ -69,14 +68,15 @@ private fun buildKeyVault(): KeyVault {
             println("Nostrism [#221] using Windows Credential Manager (native API)")
             WindowsCredentialKeyVault()
         }
+        // hasKey() は「鍵が無い」ことにしか反応しないので健全性判定に使えない。
+        // Secret Service に到達できるかどうかは isAvailable() で見る（キーリングロック中/D-Bus 不通も落ちる）。
         isLinux -> if (isSecretToolAvailable()) {
             val candidate = LinuxSecretKeyVault()
-            val usable = runCatching { candidate.hasKey(); true }.isSuccess
-            if (usable) {
+            if (candidate.isAvailable()) {
                 println("Nostrism [#221] using Linux secret-tool")
                 candidate
             } else {
-                println("Nostrism [#221] secret service not available, using file vault"); DesktopKeyVault(legacy)
+                println("Nostrism [#221] secret service not reachable, using file vault"); DesktopKeyVault(legacy)
             }
         } else {
             println("Nostrism [#221] secret-tool not found, using file vault (sudo apt install libsecret-tools)"); DesktopKeyVault(legacy)
@@ -84,19 +84,16 @@ private fun buildKeyVault(): KeyVault {
         else -> DesktopKeyVault(legacy)
     }
 
-    if (legacy.exists() && legacy.length() == 32L) {
+    // 旧・平文ファイル(key.bin)からの移行。
+    // DesktopKeyVault は key.bin そのものなので、ここでは絶対に消さない（唯一の鍵が消える）。
+    if (vault !is DesktopKeyVault && legacy.exists() && legacy.length() == 32L) {
         runCatching {
-            // 移行はプラットフォーム標準のキーストア（Windows/Mac/Linux secret-tool）を使用している場合のみ実行
-            // ファイル保管（DesktopKeyVault）へのフォールバック時は移行しない（key.bin が唯一の鍵になるため）
-            val isPlatformKeystore = vault !is DesktopKeyVault
-            if (isPlatformKeystore && !vault.hasKey()) {
-                vault.importPrivateKey(legacy.readBytes())
-            }
-            if (isPlatformKeystore && vault.privateKey().contentEquals(legacy.readBytes())) {
+            if (!vault.hasKey()) vault.importPrivateKey(legacy.readBytes())
+            if (vault.privateKey().contentEquals(legacy.readBytes())) {
                 legacy.delete()
                 println("Nostrism [#221] key migrated to platform keystore; plaintext key.bin removed")
-            } else if (isPlatformKeystore) {
-                println("Nostrism [#221] Keystore already holds a different key; key.bin left in place")
+            } else {
+                println("Nostrism [#221] keystore already holds a different key; key.bin left in place")
             }
         }.onFailure { println("Nostrism [#221] keystore migration failed: $it") }
     }
