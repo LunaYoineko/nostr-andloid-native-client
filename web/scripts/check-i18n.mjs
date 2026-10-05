@@ -16,7 +16,14 @@ const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
  *  - ui/nyan.ts: 「にゃいず」の置換規則（表示文言ではなく、日本語の文字そのものを置換する処理）
  *  - features/linkcard/xPost.ts: X が返す日本語の題名（「Xユーザーの…さん」）・削除済みの文を読み取る規則（表示文言ではない）
  */
-const EXCLUDED = [/\.test\.tsx?$/, /^i18n\//, /^test\//, /(^|\/)emojiCatalog\.ts$/, /^ui\/nyan\.ts$/, /^features\/linkcard\/xPost\.ts$/];
+const EXCLUDED = [
+  /\.test\.tsx?$/,
+  /^i18n\//,
+  /^test\//,
+  /(^|\/)emojiCatalog\.ts$/,
+  /^ui\/nyan\.ts$/,
+  /^features\/linkcard\/xPost\.ts$/,
+];
 
 function* walk(dir) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
