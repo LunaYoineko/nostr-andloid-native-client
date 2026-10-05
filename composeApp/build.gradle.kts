@@ -1,7 +1,13 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import java.awt.Image
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.Properties
+import javax.imageio.ImageIO
 
 // リリース署名の資格情報は keystore.properties（.gitignore 済み）から読む。無ければ未署名。
 val keystorePropsFile = rootProject.file("keystore.properties")
@@ -32,6 +38,7 @@ plugins {
 }
 
 kotlin {
+
     androidTarget {
         @OptIn(ExperimentalKotlinGradlePluginApi::class)
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
@@ -107,6 +114,9 @@ kotlin {
                 implementation(libs.sqldelight.sqlite.driver)
                 implementation(libs.secp256k1.jni.jvm)
                 implementation(libs.kotlinx.coroutines.swing)   // Dispatchers.Main（Compose Desktop）
+                // [#218] JNA for Windows Credential Manager native API
+                implementation(libs.jna)
+                implementation(libs.jna.platform)
             }
         }
         commonTest.dependencies {
@@ -115,7 +125,79 @@ kotlin {
     }
 }
 
-// [#218] Compose Desktop 配布設定。`./gradlew :composeApp:run` で起動、packageDmg で .dmg。
+// [#218] Windows .ico をソース PNG (icon-512.png) から自動生成するタスク
+// Linux/macOS/Android と同じアイコンを Windows でも使うため
+tasks.register("generateWindowsIco") {
+    val sourcePng = rootProject.file("docs/store/icon-512.png")
+    val targetIco = rootProject.file("docs/store/icon.ico")
+    doLast {
+        if (!sourcePng.exists()) {
+            throw GradleException("Source PNG not found: $sourcePng")
+        }
+        // Java でマルチ解像度 .ico を生成
+        val sizes = intArrayOf(16, 24, 32, 48, 64, 128, 256)
+        val buf = ByteArrayOutputStream()
+        
+        // ICO header
+        buf.write(shortToBytes(0)) // reserved
+        buf.write(shortToBytes(1)) // type: 1 = ICO
+        buf.write(shortToBytes(sizes.size)) // count
+        
+        val imageData = mutableListOf<ByteArray>()
+        var offset = 6 + sizes.size * 16 // header + directory entries
+        
+        for (size in sizes) {
+            val resized = resizePng(sourcePng.absolutePath, size, size)
+            imageData.add(resized)
+            // Directory entry
+            buf.write(size) // width (0 = 256)
+            buf.write(size) // height (0 = 256)
+            buf.write(0) // color count
+            buf.write(0) // reserved
+            buf.write(shortToBytes(1)) // color planes
+            buf.write(shortToBytes(32)) // bits per pixel
+            buf.write(intToBytes(resized.size)) // size in bytes
+            buf.write(intToBytes(offset)) // offset
+            offset += resized.size
+        }
+        
+        // Write image data
+        for (data in imageData) {
+            buf.write(data)
+        }
+        
+        targetIco.parentFile.mkdirs()
+        targetIco.writeBytes(buf.toByteArray())
+        println("Generated $targetIco from $sourcePng (${sizes.size} resolutions)")
+    }
+}
+
+fun shortToBytes(value: Int): ByteArray = byteArrayOf(
+    (value and 0xFF).toByte(),
+    ((value shr 8) and 0xFF).toByte()
+)
+
+fun intToBytes(value: Int): ByteArray = byteArrayOf(
+    (value and 0xFF).toByte(),
+    ((value shr 8) and 0xFF).toByte(),
+    ((value shr 16) and 0xFF).toByte(),
+    ((value shr 24) and 0xFF).toByte()
+)
+
+fun resizePng(inputPath: String, width: Int, height: Int): ByteArray {
+    val img = ImageIO.read(File(inputPath))
+    val buffered = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+    val g = buffered.createGraphics()
+    g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
+    g.drawImage(img, 0, 0, width, height, null)
+    g.dispose()
+    val baos = ByteArrayOutputStream()
+    ImageIO.write(buffered, "PNG", baos)
+    return baos.toByteArray()
+}
+
+// [#218] Compose Desktop 配布設定。各ターゲット別のネイティブ配布形式を指定。
+// Windows: MSI, Linux: DEB/RPM, macOS: DMG
 compose.desktop {
     application {
         mainClass = "app.nostrdeck.MainKt"
@@ -124,9 +206,28 @@ compose.desktop {
         // JBR のデーモンに当たると packageDmg が落ちる。scripts/release-github.sh が明示的に渡す。
         (findProperty("packagingJavaHome") as String?)?.let { javaHome = it }
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg)
+            targetFormats(TargetFormat.Msi, TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.Dmg)
             packageName = "Nostrism"
             packageVersion = "1.0.0"
+            description = "Nostr Decentralized Client"
+            vendor = "Nostrism"
+            copyright = "Copyright 2025 Nostrism"
+            // [#sql] JDBC/SQLDelight は java.sql が必要。jpackage の runtime はデフォルトで含まない
+            modules("java.sql", "java.naming", "jdk.unsupported")
+            linux {
+                debMaintainer = "Nostrism <noreply@nostrism.example>"
+                menuGroup = "Network;Chat;"
+                iconFile.set(rootProject.file("docs/store/icon-512.png"))
+            }
+            macOS {
+                bundleID = "net.shino3.nostrism"
+                iconFile.set(rootProject.file("docs/store/icon.icns"))
+            }
+            windows {
+                menuGroup = "Nostrism"
+                upgradeUuid = "e8f5b9c2-3d4a-4f7e-8b1c-2d5e6f7a8b9c"
+                iconFile.set(rootProject.file("docs/store/icon.ico"))
+            }
         }
     }
 }

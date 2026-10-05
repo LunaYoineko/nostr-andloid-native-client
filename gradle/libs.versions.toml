@@ -25,6 +25,8 @@ kotlinx-serialization = "1.9.0"
 # [#268] skydoves カラーピッカー（CMP: android/ios/desktop 対応）。
 # 1.2.0 は Kotlin 2.4.0 製 klib（ABI 2.4.0）で、Kotlin 2.3.20 からは consume 不可のため 1.1.2 に固定。
 colorpicker = "1.1.2"
+# [#218] JNA for Windows Credential Manager native API
+jna = "5.14.0"
 
 # Android SDK
 android-compileSdk = "36"
@@ -72,6 +74,9 @@ multiplatform-settings = { module = "com.russhwolf:multiplatform-settings", vers
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "kotlinx-coroutines" }   # [#218] Desktop の Dispatchers.Main
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+# [#218] JNA for Windows Credential Manager native API
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
 
 [plugins]
 multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
