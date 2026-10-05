@@ -63,36 +63,90 @@ Desktop の依存（secp256k1-kmp-jni-jvm 0.17 以降）が JVM 21 を要求す�
 ```bash
 # JDK が PATH に無い場合は Android Studio 同梱の JBR(21) を使う:
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+```
 
-# Android（wrapper はコミット済み）
-./gradlew :composeApp:assembleDebug
-#   端末/エミュレータへ: ./gradlew :composeApp:installDebug
-#   出力: composeApp/build/outputs/apk/debug/composeApp-debug.apk
+### Gradle タスク一覧
 
-# iOS … iosApp/ に Xcode プロジェクトあり（要 Xcode）
-./gradlew :composeApp:compileKotlinIosSimulatorArm64
-#   TestFlight 配信: iosApp/scripts/testflight.sh（docs/RELEASING.md 参照）
+#### コンパイル・テスト
 
-# macOS（Compose Desktop）
-./gradlew :composeApp:run
-#   dmg: scripts/release-github.sh（jpackage には Temurin JDK 21 が必要）
+| コマンド | 内容 |
+|----------|------|
+| `./gradlew :composeApp:compileDebugKotlinAndroid` | Android をコンパイル |
+| `./gradlew :composeApp:compileKotlinIosArm64` | iOS 実機向け klibrary |
+| `./gradlew :composeApp:compileKotlinIosSimulatorArm64` | iOS シミュレータ向け klibrary |
+| `./gradlew :composeApp:compileKotlinDesktop` | Desktop(JVM) をコンパイル |
+| `./gradlew :composeApp:desktopTest` | Desktop のユニットテストを実行 |
+| `./gradlew :composeApp:desktopMainClasses` | Desktop の class まで生成（Java ソース無し＝高速） |
 
-# Desktop のネイティブパッケージ → GitHub Releases
+#### Android
+
+| コマンド | 出力 / 内容 |
+|----------|-------------|
+| `./gradlew :composeApp:assembleDebug` | `composeApp/build/outputs/apk/debug/composeApp-debug.apk` |
+| `./gradlew :composeApp:assembleRelease` | release APK（署名は `keystore.properties` が必要） |
+| `./gradlew :composeApp:installDebug` | 接続中の端末/エミュレータへインストール |
+
+#### Desktop（Compose Desktop）
+
+| コマンド | 出力 / 内容 |
+|----------|-------------|
+| `./gradlew :composeApp:run` | そのまま起動（開発時に使用） |
+| `./gradlew :composeApp:packageUberJarForCurrentOS` | **汎用 JAR**（`java -jar` で起動。依存込み） |
+| `./gradlew :composeApp:packageMsi` | **Windows MSI** → `build/compose/binaries/main/msi/` |
+| `./gradlew :composeApp:packageDeb` | **Linux DEB** → `build/compose/binaries/main/deb/`（要 `fakeroot`） |
+| `./gradlew :composeApp:packageRpm` | **Linux RPM** → `build/compose/binaries/main/rpm/`（要 `rpm`） |
+| `./gradlew :composeApp:packageDmg` | **macOS dmg** → `build/compose/binaries/main/dmg/` |
+| `./gradlew :composeApp:createDistributable` | jpackage で配布物一式を生成（`package*` より軽い） |
+
+#### iOS
+
+| コマンド | 内容 |
+|----------|------|
+| `./gradlew :composeApp:compileKotlinIosSimulatorArm64` | 要 Xcode。`iosApp/` にプロジェクトあり |
+| TestFlight 配信 | `iosApp/scripts/testflight.sh`（`docs/RELEASING.md` 参照） |
+
+#### 補助
+
+| コマンド | 内容 |
+|----------|------|
+| `./gradlew :composeApp:generateWindowsIco` | `docs/store/icon-512.png` からマルチ解像度 `.ico` を生成 |
+| `./gradlew :composeApp:clean` | `composeApp/build` を削除 |
+
+> ネイティブパッケージ（`packageMsi` / `packageDeb` / `packageRpm` / `packageDmg`）は
+> **生成できるプラットフォームで実行**する必要がある（MSI は Windows 上、DEB/RPM は Linux 上でのみ）。
+> また jpackage を含むフル JDK 21 が必要（`JAVA_HOME` を明示的に渡す）：
+> `./gradlew :composeApp:packageMsi -PpackagingJavaHome="$JAVA_HOME"`
+
+### リリース配布
+
+```bash
+# Desktop パッケージを GitHub Releases へ
 scripts/release-desktop.sh                        # 実行プラットフォームに合った配布物をビルドして Release へ
 TARGETS=windows scripts/release-desktop.sh        # Windows MSI
-TARGETS=linux   scripts/release-desktop.sh        # Linux DEB + RPM（fakeroot / rpm が必要: apt install fakeroot rpm）
+TARGETS=linux   scripts/release-desktop.sh        # Linux DEB + RPM（fakeroot / rpm が必要）
 TARGETS=mac     scripts/release-desktop.sh        # macOS dmg
-TARGETS=jar     scripts/release-desktop.sh        # 汎用 JAR（java -jar で起動）
+TARGETS=jar     scripts/release-desktop.sh        # 汎用 JAR
 DRY_RUN=1       scripts/release-desktop.sh        # ビルドのみ（Release を作らない）
-#   各ターゲットは生成できるプラットフォームで実行する（MSI は Windows、DEB/RPM は Linux 上でのみ）。
 
 # Windows（PowerShell 版。.sh を実行できない環境向け）
 .\scripts\release-desktop.ps1                    # Windows MSI + 汎用 JAR
 .\scripts\release-desktop.ps1 -Targets windows   # Windows MSI のみ
 .\scripts\release-desktop.ps1 -Targets jar       # 汎用 JAR のみ
-.\scripts\release-desktop.ps1 -DryRun            # ビルドのみ（Release を作らない）
+.\scripts\release-desktop.ps1 -DryRun            # ビルドのみ
 
-# 全ターゲットの検証（変更時はこれを通す）
+# Android APK + macOS dmg
+scripts/release-github.sh
+```
+
+> リリーススクリプトは **HEAD がバージョンタグ上**である必要があります
+> （`git tag vX.Y.Z && git push origin desktop`）。未タグ時は警告して停止する
+> （`-DryRun` ならタグ無しでも通る）。
+
+### 全ターゲットの検証
+
+変更時はこれを通す：
+
+```bash
 ./gradlew :composeApp:compileDebugKotlinAndroid \
   :composeApp:compileKotlinIosSimulatorArm64 :composeApp:compileKotlinIosArm64 \
   :composeApp:compileKotlinDesktop :composeApp:desktopTest
