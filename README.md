@@ -77,6 +77,15 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 ./gradlew :composeApp:run
 #   dmg: scripts/release-github.sh（jpackage には Temurin JDK 21 が必要）
 
+# Desktop のネイティブパッケージ → GitHub Releases
+scripts/release-desktop.sh                        # 実行プラットフォームに合った配布物をビルドして Release へ
+TARGETS=windows scripts/release-desktop.sh        # Windows MSI
+TARGETS=linux   scripts/release-desktop.sh        # Linux DEB + RPM（fakeroot / rpm が必要: apt install fakeroot rpm）
+TARGETS=mac     scripts/release-desktop.sh        # macOS dmg
+TARGETS=jar     scripts/release-desktop.sh        # 汎用 JAR（java -jar で起動）
+DRY_RUN=1       scripts/release-desktop.sh        # ビルドのみ（Release を作らない）
+#   各ターゲットは生成できるプラットフォームで実行する（MSI は Windows、DEB/RPM は Linux 上でのみ）。
+
 # 全ターゲットの検証（変更時はこれを通す）
 ./gradlew :composeApp:compileDebugKotlinAndroid \
   :composeApp:compileKotlinIosSimulatorArm64 :composeApp:compileKotlinIosArm64 \
@@ -115,7 +124,7 @@ composeApp/src/
 nostr-core/     … プロトコル層の共有モジュール（NostrEvent / Embed / Blurhash …）
 iosApp/         … Xcode プロジェクト + scripts/testflight.sh
 docs/           … 公開サイト（Cloudflare Pages）+ RELEASING.md + ストア資材
-scripts/        … version.sh（バージョン導出）/ release-github.sh / release-info.sh
+scripts/        … version.sh（バージョン導出）/ release-github.sh（APK+dmg）/ release-desktop.sh（Desktop）/ release-info.sh
 distribution/   … Play 配信用の whatsnew
 ```
 
