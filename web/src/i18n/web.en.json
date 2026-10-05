@@ -207,6 +207,7 @@
   "web_profile_unmute_text": "This user’s posts will appear in your timeline again.",
   "web_quote_loading": "Loading the quoted post…",
   "web_quote_open": "Open the quoted post",
+  "web_reaction_sent_fmt": "Reacted with %1$s",
   "web_relay_connection_label": "Relay connections %1$d/%2$d",
   "web_relays_no_base": "Couldn’t fetch the latest relay list, so nothing was published. Check your connection and try again",
   "web_relays_publish_text": "Signs your current Read / Write settings as kind:10002 and sends it to your Write relays and indexers. This is published to the network.",

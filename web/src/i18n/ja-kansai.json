@@ -314,5 +314,6 @@
   "md_resolving": "参照を解決してるとこ…",
   "comment_root_loading": "コメント対象を取ってるとこ…",
   "conn_monitor_open": "接続と通信量を見る",
-  "web_connection_pill_label": "リレーにつないでるとこ"
+  "web_connection_pill_label": "リレーにつないでるとこ",
+  "web_reaction_sent_fmt": "%1$s でリアクションしといたで"
 }
