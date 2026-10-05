@@ -445,3 +445,39 @@ export function BoltIcon(props: MaterialIconProps) {
     />
   );
 }
+
+export function RotateLeftIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M7.11 8.53 5.7 7.11A7.9 7.9 0 0 0 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07a7.9 7.9 0 0 0 1.61 3.89l1.43-1.43A5.9 5.9 0 0 1 6.09 13zm1.01 5.32c1.14.89 2.52 1.5 3.9 1.61v-2.02a5.9 5.9 0 0 1-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"
+    />
+  );
+}
+
+export function RotateRightIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M15.55 5.55 11 1v3.07a8 8 0 0 0 0 15.86v-2.02a6 6 0 0 1 0-11.82V10l4.55-4.45zM19.93 11a7.9 7.9 0 0 0-1.62-3.89l-1.42 1.42a5.94 5.94 0 0 1 1.02 2.47h2.02zM13 17.9v2.02a7.92 7.92 0 0 0 3.9-1.61l-1.44-1.44c-.75.54-1.59.89-2.46 1.03zm3.89-2.42 1.42 1.41A7.9 7.9 0 0 0 19.93 13h-2.02a5.9 5.9 0 0 1-1.02 2.48z"
+    />
+  );
+}
+
+export function FlipIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M15 21h2v-2h-2v2zm4-12h2V7h-2v2zM3 5v14c0 1.1.9 2 2 2h4v-2H5V5h4V3H5c-1.1 0-2 .9-2 2zm16-2v2h2c0-1.1-.9-2-2-2zm-8 20h2V1h-2v22zm8-6h2v-2h-2v2zM15 5h2V3h-2v2zm4 8h2v-2h-2v2zm0 8c1.1 0 2-.9 2-2h-2v2z"
+    />
+  );
+}
+
+export function RestoreIcon(props: MaterialIconProps) {
+  return (
+    <MaterialIcon
+      {...props}
+      path="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"
+    />
+  );
+}
