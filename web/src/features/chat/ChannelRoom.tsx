@@ -474,7 +474,10 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
         <ReactionPickerDialog
           target={message}
           onPick={(c, url) =>
-            void publishReaction(message, c, url).catch(warn(t("web_log_chat_react_failed")))
+            void publishReaction(message, c, url).then(
+              () => showToast(t("web_reaction_sent_fmt", c)),
+              warn(t("web_log_chat_react_failed")),
+            )
           }
           onClose={() => setDialog(null)}
         />

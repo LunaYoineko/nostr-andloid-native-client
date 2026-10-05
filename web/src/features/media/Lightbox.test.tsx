@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, expect, it, vi } from "vitest";
 import type { MediaItem } from "../../lib/media";
 import { useToast } from "../../ui/toast";
-import { Lightbox } from "./Lightbox";
+import { Lightbox, type LightboxEdit } from "./Lightbox";
 import styles from "./Lightbox.module.css";
 
 beforeAll(() => {
@@ -356,4 +356,49 @@ it("画像を保存: 読めなければ「保存に失敗しました」を出�
     "href",
     "https://i.test/1.jpg",
   );
+});
+
+function renderEditable(edit: Partial<LightboxEdit> = {}) {
+  const onAction = vi.fn();
+  const full: LightboxEdit = { canEdit: () => true, isEdited: () => false, onAction, ...edit };
+  render(<Lightbox items={ITEMS} index={1} onClose={vi.fn()} edit={full} />);
+  return { onAction };
+}
+
+it("編集メニュー: 添付のときだけ出る。投稿の画像（edit なし）には出ない", () => {
+  renderLightbox();
+  expect(screen.queryByRole("toolbar")).toBeNull();
+  expect(screen.getByRole("button", { name: "画像を保存" })).toBeInTheDocument();
+});
+
+it("編集メニュー: 4 つの操作が表示中の画像の番号で呼ばれる。コピー・保存・新しいタブは出さない", async () => {
+  const { onAction } = renderEditable({ isEdited: () => true });
+  const toolbar = screen.getByRole("toolbar", { name: "画像の向きを編集" });
+  expect(toolbar).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "右に回転" }));
+  await userEvent.click(screen.getByRole("button", { name: "左に回転" }));
+  await userEvent.click(screen.getByRole("button", { name: "左右反転" }));
+  await userEvent.click(screen.getByRole("button", { name: "元に戻す" }));
+  expect(onAction.mock.calls).toEqual([
+    [1, "rotateRight"],
+    [1, "rotateLeft"],
+    [1, "flip"],
+    [1, "reset"],
+  ]);
+  expect(screen.queryByRole("button", { name: "画像を保存" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "新しいタブで開く" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "URL をコピー" })).toBeNull();
+});
+
+it("編集メニュー: 編集していなければ「元に戻す」は押せない", async () => {
+  const { onAction } = renderEditable();
+  const reset = screen.getByRole("button", { name: "元に戻す" });
+  expect(reset).toHaveAttribute("aria-disabled", "true");
+  await userEvent.click(reset);
+  expect(onAction).not.toHaveBeenCalled();
+});
+
+it("編集メニュー: 編集できない画像（GIF 等）では出さない", () => {
+  renderEditable({ canEdit: () => false });
+  expect(screen.queryByRole("toolbar")).toBeNull();
 });

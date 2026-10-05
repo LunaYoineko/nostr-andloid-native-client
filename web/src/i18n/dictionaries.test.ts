@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import jaKansai from "./ja-kansai.json";
 import nativeEn from "./native.en.json";
@@ -9,6 +11,20 @@ type Dict = Readonly<Record<string, string>>;
 
 const JA: Dict = { ...nativeJa, ...webJa };
 const EN: Dict = { ...nativeEn, ...webEn };
+
+/** ネイティブ（Compose）の日本語リソース。ja-kansai はネイティブにしか無いキーも持つ（#727）ので、ここも基準にする */
+const NATIVE_XML = readFileSync(
+  resolve(process.cwd(), "../composeApp/src/commonMain/composeResources/values-ja/strings.xml"),
+  "utf8",
+);
+const XML_JA: Dict = Object.fromEntries(
+  [...NATIVE_XML.matchAll(/<string name="([^"]+)"[^>]*>([\s\S]*?)<\/string>/g)].map((m) => [
+    m[1] ?? "",
+    m[2] ?? "",
+  ]),
+);
+/** ja-kansai の基準: Web の ja 辞書 ∪ strings.xml（同じキーは Web の値を優先） */
+const BASE: Dict = { ...XML_JA, ...JA };
 
 /** `%1$s` / `%2$d` / `%s` / `%%` の並び（順序は言語で変わるので並べ替えて比べる） */
 function placeholders(value: string): string {
@@ -27,15 +43,16 @@ describe("辞書の整合（ja / en / ja-kansai）", () => {
     expect(mismatched).toEqual([]);
   });
 
-  it("ja-kansai に ja に無いキーは無い（孤児なし）", () => {
-    const orphans = Object.keys(jaKansai).filter((k) => !(k in JA));
+  it("ja-kansai に、ja（Web）にも strings.xml（ネイティブ）にも無いキーは無い（孤児なし）", () => {
+    expect(Object.keys(XML_JA).length).toBeGreaterThan(500);
+    const orphans = Object.keys(jaKansai).filter((k) => !(k in BASE));
     expect(orphans).toEqual([]);
   });
 
-  it("ja-kansai のプレースホルダは ja と個数・種類が同じ", () => {
+  it("ja-kansai のプレースホルダは ja（ネイティブ由来は strings.xml）と個数・種類が同じ", () => {
     const kansai: Dict = jaKansai;
     const mismatched = Object.keys(kansai).filter(
-      (k) => placeholders(kansai[k] ?? "") !== placeholders(JA[k] ?? ""),
+      (k) => placeholders(kansai[k] ?? "") !== placeholders(BASE[k] ?? ""),
     );
     expect(mismatched).toEqual([]);
   });
