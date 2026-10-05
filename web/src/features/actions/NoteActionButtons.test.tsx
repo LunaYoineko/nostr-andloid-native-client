@@ -241,6 +241,62 @@ it("「絵文字でリアクション」→ ピッカーで 😄 → kind:7", as
   expect(screen.queryByRole("dialog", { name: "リアクション" })).toBeNull();
 });
 
+describe("ピッカーからのリアクションのトースト", () => {
+  it("Unicode 絵文字を選ぶと「😄 でリアクションしました」", async () => {
+    const user = userEvent.setup();
+    renderRow(post());
+    await user.click(button("絵文字でリアクション"));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "リアクション" })).getByRole("button", { name: "😄" }),
+    );
+    await waitFor(() => expect(useToast.getState().queue).toEqual(["😄 でリアクションしました"]));
+  });
+
+  it("カスタム絵文字は :name: で出る", async () => {
+    const user = userEvent.setup();
+    act(() => {
+      eventStore.add(
+        finalizeEvent(
+          {
+            kind: 10030,
+            created_at: unixNow(),
+            tags: [["emoji", "blobcat", "https://example.com/b.png"]],
+            content: "",
+          },
+          meKey,
+        ),
+      );
+    });
+    renderRow(post());
+    await user.click(button("絵文字でリアクション"));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "リアクション" })).getByRole("button", { name: ":blobcat:" }),
+    );
+    await waitFor(() => expect(useToast.getState().queue).toEqual([":blobcat: でリアクションしました"]));
+  });
+
+  it("♡ では出ない", async () => {
+    const user = userEvent.setup();
+    renderRow(post());
+    await user.click(button("リアクション"));
+    await waitFor(() => expect(publishEvent).toHaveBeenCalled());
+    expect(useToast.getState().queue).toEqual([]);
+  });
+
+  it("送信に失敗したら出ない", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(publishEvent).mockRejectedValue(new Error("fail"));
+    renderRow(post());
+    await user.click(button("絵文字でリアクション"));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "リアクション" })).getByRole("button", { name: "😄" }),
+    );
+    await waitFor(() => expect(publishEvent).toHaveBeenCalled());
+    expect(useToast.getState().queue).toEqual([]);
+  });
+});
+
 describe("⚡ Zap", () => {
   /** 作者の kind:0（lud16 は任意）をストアに入れる */
   function addProfile(key: Uint8Array, lud16?: string) {
