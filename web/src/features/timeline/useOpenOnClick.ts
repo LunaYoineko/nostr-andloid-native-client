@@ -1,9 +1,9 @@
 import { type RefObject, useEffect } from "react";
 import { useNavigate } from "react-router";
 
-/** 押したときに自分の動作を持つ要素（ここを押したときはノートを開かない） */
+/** 押したときに自分の動作を持つ要素（ここを押したときはノートを開かない）。data-no-open は自前で開閉するカード（X の投稿カード） */
 const INTERACTIVE =
-  "a, button, input, textarea, select, label, summary, video, audio, iframe, dialog, [role='button'], [role='menu'], [contenteditable]";
+  "a, button, input, textarea, select, label, summary, video, audio, iframe, dialog, [role='button'], [role='menu'], [contenteditable], [data-no-open]";
 
 /**
  * 要素全体のクリックで href へ移動する（ネイティブの NoteItem.kt の clickable = スレッドを開く）。

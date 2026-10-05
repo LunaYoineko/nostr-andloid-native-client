@@ -4,6 +4,8 @@ import { useEmbedPrefs } from "./embedPrefs";
 import styles from "./LinkCard.module.css";
 import type { OgpData } from "./ogpParser";
 import type { LinkCardState } from "./useLinkCards";
+import { XPostEmbed } from "./XPostCard";
+import { xPostFrom } from "./xPost";
 
 /** サムネのプロキシ幅（ネイティブ LinkEmbeds.kt OgpEmbed。表示 88px の 3.5 倍でも足りる幅） */
 const THUMB_PROXY_WIDTH = 300;
@@ -74,6 +76,7 @@ function LinkCardPlaceholder({ url }: { url: string }) {
 /**
  * 投稿のリンクカードの列（NoteItem のメディアの下）。取得中は枠だけ、取れなかった（null）ものは出さない
  * （本文のリンクがそのまま残る）。出すものが無ければ何も描かない。
+ * X の投稿 URL で本文が取れたものは、リンクカードではなく X の投稿カード（#744）。本文が無い・削除済みは従来のカード。
  */
 export function LinkCards({ cards }: { cards: LinkCardState[] }) {
   const ogpImages = useEmbedPrefs((s) => s.ogpImages);
@@ -81,13 +84,15 @@ export function LinkCards({ cards }: { cards: LinkCardState[] }) {
   if (visible.length === 0) return null;
   return (
     <div className={styles.cards}>
-      {visible.map(({ url, kind, ogp }) =>
-        ogp ? (
-          <LinkCard key={url} url={url} ogp={ogp} kind={kind} ogpImages={ogpImages} />
+      {visible.map(({ url, kind, ogp }) => {
+        if (!ogp) return <LinkCardPlaceholder key={url} url={url} />;
+        const post = kind === "ogp" ? xPostFrom(url, ogp) : null;
+        return post ? (
+          <XPostEmbed key={url} post={post} ogpImages={ogpImages} />
         ) : (
-          <LinkCardPlaceholder key={url} url={url} />
-        ),
-      )}
+          <LinkCard key={url} url={url} ogp={ogp} kind={kind} ogpImages={ogpImages} />
+        );
+      })}
     </div>
   );
 }

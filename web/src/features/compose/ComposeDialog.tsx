@@ -30,13 +30,17 @@ import { useVisualViewportHeight } from "../../ui/useVisualViewportHeight";
 import { EmojiInsertButton } from "../actions/EmojiInsertButton";
 import { openHashtagManager } from "../hashtags/hashtagManagerStore";
 import { pinLimitMessage, togglePinnedHashtag } from "../hashtags/pinnedHashtags";
+import { type EditAction, Lightbox } from "../media/Lightbox";
 import { NoteContent } from "../timeline/NoteContent";
 import { Avatar } from "../timeline/NoteItem";
 import {
   type Attachment,
   createAttachment,
+  editAttachment,
   humanSize,
+  isEditable,
   reprocessImages,
+  shownUrl,
   uploadAttachments,
 } from "./attachments";
 import {
@@ -63,6 +67,7 @@ import {
 import { type ComposeRequest, closeCompose } from "./composeStore";
 import { type CustomEmoji, useCustomEmojis } from "./customEmojis";
 import { type ImageResolution, maxDimFor, resolutions, useImageCompression } from "./imageCompression";
+import { flippedHorizontally, isEdited, NO_EDIT, rotatedLeft, rotatedRight } from "./imageEdit";
 import { uploadServers, useMediaServer } from "./mediaServer";
 import { ProfileAvatar } from "./ProfileAvatar";
 import { storeRelayHints } from "./relayHints";
@@ -136,6 +141,10 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
   const [processedSizes, setProcessedSizes] = useState<ReadonlyMap<string, number>>(() => new Map());
   /** アップロードの完了数（失敗も数える） */
   const [uploadDone, setUploadDone] = useState(0);
+  /** 向きを編集できる画像添付の id（GIF・アニメーション WebP・読めない画像は入らない） */
+  const [editableIds, setEditableIds] = useState<ReadonlySet<string>>(() => new Set());
+  /** ライトボックスで開いている添付の id */
+  const [lightboxId, setLightboxId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const mediaServer = useMediaServer((s) => s.server);
   /** まだ revoke していないプレビューの blob: URL（閉じたときにまとめて revoke する） */
@@ -221,15 +230,66 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
       void attachment.processed.then((p) =>
         setProcessedSizes((sizes) => new Map(sizes).set(attachment.id, p.blob.size)),
       );
+      void isEditable(attachment).then((ok) => {
+        if (ok) setEditableIds((ids) => new Set(ids).add(attachment.id));
+      });
     }
     setAttachments((list) => [...list, ...added]);
     return true;
   }
 
   function removeAttachment(target: Attachment) {
-    URL.revokeObjectURL(target.preview);
-    previews.current.delete(target.preview);
+    for (const url of [target.preview, target.edited]) {
+      if (!url) continue;
+      URL.revokeObjectURL(url);
+      previews.current.delete(url);
+    }
     setAttachments((list) => list.filter((a) => a.id !== target.id));
+  }
+
+  /**
+   * ライトボックスの編集（回転・左右反転・元に戻す）。その添付だけ送信用の画像を作り直し（dim・blurhash も取り直す）、
+   * できたらプレビュー（サムネイルとライトボックス）を差し替える。作り直しを重ねたら最後に始めた結果だけを使う。
+   */
+  function editImage(id: string, action: EditAction) {
+    if (sending) return;
+    const current = attachmentsRef.current.find((a) => a.id === id);
+    if (current?.kind !== "image") return;
+    const edit =
+      action === "reset"
+        ? NO_EDIT
+        : action === "rotateLeft"
+          ? rotatedLeft(current.edit)
+          : action === "rotateRight"
+            ? rotatedRight(current.edit)
+            : flippedHorizontally(current.edit);
+    const next = editAttachment(
+      current,
+      edit,
+      maxDimFor(resolution, compressionPrefs),
+      compressionPrefs.quality,
+    );
+    attachmentsRef.current = attachmentsRef.current.map((a) => (a.id === id ? next : a));
+    setAttachments((list) => list.map((a) => (a.id === id ? next : a)));
+    setProcessedSizes((sizes) => {
+      const cleared = new Map(sizes);
+      cleared.delete(id);
+      return cleared;
+    });
+    void next.processed.then((p) => {
+      const latest = attachmentsRef.current.find((a) => a.id === id);
+      if (!latest || latest.processed !== next.processed) return;
+      setProcessedSizes((sizes) => new Map(sizes).set(id, p.blob.size));
+      const edited = isEdited(edit) ? URL.createObjectURL(p.blob) : undefined;
+      if (edited) previews.current.add(edited);
+      const stale = latest.edited;
+      attachmentsRef.current = attachmentsRef.current.map((a) => (a.id === id ? { ...a, edited } : a));
+      setAttachments((list) => list.map((a) => (a.id === id ? { ...a, edited } : a)));
+      if (stale) {
+        URL.revokeObjectURL(stale);
+        previews.current.delete(stale);
+      }
+    });
   }
 
   // 閉じたらプレビューの blob: URL を解放する
@@ -470,7 +530,10 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
         setThread({ segs: [...pending.slice(0, currentPos), ...pending.slice(currentPos + 1)], edit: 0 });
         update({ text: newBody, cursor: newBody.length }, true);
         if (media.length > 0 && !mediaPending) {
-          for (const a of list) URL.revokeObjectURL(a.preview);
+          for (const a of list) {
+            URL.revokeObjectURL(a.preview);
+            if (a.edited) URL.revokeObjectURL(a.edited);
+          }
           previews.current.clear();
           setAttachments([]);
           setProcessedSizes(new Map());
@@ -662,6 +725,16 @@ export function ComposeDialog({ request }: { request: ComposeRequest }) {
                 processedSizes={processedSizes}
                 removable={!sending}
                 onRemove={removeAttachment}
+                onOpen={(a) => setLightboxId(a.id)}
+              />
+            )}
+            {lightboxId !== null && (
+              <AttachmentLightbox
+                attachments={attachments}
+                id={lightboxId}
+                editableIds={editableIds}
+                onEdit={editImage}
+                onClose={() => setLightboxId(null)}
               />
             )}
             {attachments.some((a) => a.kind === "image") && (
@@ -815,11 +888,13 @@ function AttachmentList({
   processedSizes,
   removable,
   onRemove,
+  onOpen,
 }: {
   attachments: readonly Attachment[];
   processedSizes: ReadonlyMap<string, number>;
   removable: boolean;
   onRemove(attachment: Attachment): void;
+  onOpen(attachment: Attachment): void;
 }) {
   const t = useT();
   const ordered = [
@@ -841,12 +916,19 @@ function AttachmentList({
           <li key={a.id} className={styles.attachment}>
             <div className={styles.thumb}>
               {a.kind === "image" ? (
-                <img
-                  className={styles.thumbMedia}
-                  src={a.preview}
-                  alt={t("compose_attachment")}
-                  decoding="async"
-                />
+                <button
+                  type="button"
+                  className={styles.thumbOpen}
+                  aria-label={t("web_compose_attachment_open")}
+                  onClick={() => onOpen(a)}
+                >
+                  <img
+                    className={styles.thumbMedia}
+                    src={shownUrl(a)}
+                    alt={t("compose_attachment")}
+                    decoding="async"
+                  />
+                </button>
               ) : (
                 <>
                   <video
@@ -876,6 +958,42 @@ function AttachmentList({
         );
       })}
     </ul>
+  );
+}
+
+/** 添付の画像をライトボックスで開く（複数枚なら前後に移れる。編集メニューは編集できる画像だけ） */
+function AttachmentLightbox({
+  attachments,
+  id,
+  editableIds,
+  onEdit,
+  onClose,
+}: {
+  attachments: readonly Attachment[];
+  id: string;
+  editableIds: ReadonlySet<string>;
+  onEdit(id: string, action: EditAction): void;
+  onClose(): void;
+}) {
+  const images = attachments.filter((a) => a.kind === "image");
+  const index = Math.max(
+    0,
+    images.findIndex((a) => a.id === id),
+  );
+  return (
+    <Lightbox
+      items={images.map((a) => ({ url: shownUrl(a) }))}
+      index={index}
+      onClose={onClose}
+      edit={{
+        canEdit: (i) => editableIds.has(images[i]?.id ?? ""),
+        isEdited: (i) => isEdited(images[i]?.edit ?? NO_EDIT),
+        onAction: (i, action) => {
+          const target = images[i];
+          if (target) onEdit(target.id, action);
+        },
+      }}
+    />
   );
 }
 

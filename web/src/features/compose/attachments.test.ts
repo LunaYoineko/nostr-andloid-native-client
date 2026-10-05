@@ -9,6 +9,7 @@ import {
   UploadFailedError,
   uploadAttachments,
 } from "./attachments";
+import { NO_EDIT } from "./imageEdit";
 import { uploadMedia } from "./nip96";
 import type { ProcessedMedia } from "./processMedia";
 
@@ -29,7 +30,14 @@ function attachment(i: number, kind: "image" | "video" = "image"): Attachment {
   const name = `${kind}-${i}`;
   const file = new File([name], name, { type: kind === "image" ? "image/png" : "video/mp4" });
   const processed: ProcessedMedia = { blob: file, mime: file.type, name };
-  return { id: name, kind, file, preview: `blob:${name}`, processed: Promise.resolve(processed) };
+  return {
+    id: name,
+    kind,
+    file,
+    preview: `blob:${name}`,
+    edit: NO_EDIT,
+    processed: Promise.resolve(processed),
+  };
 }
 
 describe("humanSize", () => {

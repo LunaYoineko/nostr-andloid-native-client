@@ -16,7 +16,11 @@ import {
   CloseIcon,
   ContentCopyIcon,
   DownloadIcon,
+  FlipIcon,
   OpenInNewIcon,
+  RestoreIcon,
+  RotateLeftIcon,
+  RotateRightIcon,
 } from "../../ui/icons";
 import { showToast } from "../../ui/toast";
 import styles from "./Lightbox.module.css";
@@ -33,7 +37,22 @@ const MAX_SCALE = 5;
 /** ダブルクリック / ダブルタップの拡大率（NoteImages.kt の scale = 2.5f） */
 const DOUBLE_TAP_SCALE = 2.5;
 
-type Props = { items: MediaItem[]; index: number; onClose: () => void };
+/** 添付（投稿前）の向きの編集。どれも「今見えている向き」に効く（ネイティブ #739 のツールバーと同じ 4 つ） */
+export type EditAction = "rotateLeft" | "rotateRight" | "flip" | "reset";
+
+/**
+ * 投稿前の添付を開くときだけ渡す。ツールバーを出し、コピー / 保存 / 新しいタブで開くは出さない
+ * （編集した画像は端末に保存しない。blob: URL を渡しても意味がない）。
+ */
+export type LightboxEdit = {
+  /** その画像を編集できるか（GIF・アニメーション WebP は不可。false ならツールバーを出さない） */
+  canEdit(index: number): boolean;
+  /** 編集済みか（false なら「元に戻す」は押せない） */
+  isEdited(index: number): boolean;
+  onAction(index: number, action: EditAction): void;
+};
+
+type Props = { items: MediaItem[]; index: number; onClose: () => void; edit?: LightboxEdit };
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -62,7 +81,7 @@ function filenameOf(url: string): string {
  * 前後は ← → / Home / End・横スワイプ（等倍のみ）・左右のボタン（端で止まる）。
  * 2 本指のピンチで 1〜5 倍、ダブルクリック / ダブルタップで 2.5 倍。拡大中は 1 本指のスクロールでパンする。
  */
-export function Lightbox({ items, index: initialIndex, onClose }: Props) {
+export function Lightbox({ items, index: initialIndex, onClose, edit }: Props) {
   const t = useT();
   const last = items.length - 1;
   const [index, setIndex] = useState(() => Math.min(Math.max(initialIndex, 0), last));
@@ -333,29 +352,61 @@ export function Lightbox({ items, index: initialIndex, onClose }: Props) {
           </button>
         </>
       )}
+      {edit?.canEdit(index) && (
+        <div className={styles.toolbar} role="toolbar" aria-label={t("web_img_edit")}>
+          <button type="button" className={styles.tool} onClick={() => edit.onAction(index, "rotateLeft")}>
+            <RotateLeftIcon className={styles.icon} />
+            {t("web_img_rotate_left")}
+          </button>
+          <button type="button" className={styles.tool} onClick={() => edit.onAction(index, "rotateRight")}>
+            <RotateRightIcon className={styles.icon} />
+            {t("web_img_rotate_right")}
+          </button>
+          <button type="button" className={styles.tool} onClick={() => edit.onAction(index, "flip")}>
+            <FlipIcon className={styles.icon} />
+            {t("web_img_flip_horizontal")}
+          </button>
+          {/* 編集していないときは押しても何も起きない。aria-disabled にしてフォーカスを外さない */}
+          <button
+            type="button"
+            className={styles.tool}
+            aria-disabled={!edit.isEdited(index) || undefined}
+            onClick={() => {
+              if (edit.isEdited(index)) edit.onAction(index, "reset");
+            }}
+          >
+            <RestoreIcon className={styles.icon} />
+            {t("web_img_edit_reset")}
+          </button>
+        </div>
+      )}
       <div className={styles.actions}>
-        {/* コピーできたら 1.5 秒だけアイコンを「コピーしました」の文字に替える */}
-        <button
-          type="button"
-          className={copied ? `${styles.control} ${styles.labeled}` : styles.control}
-          aria-label={copied ? t("copied") : t("web_lightbox_copy_url")}
-          onClick={copyUrl}
-        >
-          {copied ? t("copied") : <ContentCopyIcon className={styles.icon} />}
-        </button>
-        {/* ネイティブの「画像を保存」（img_save）。読めなければ失敗のトーストを出し、下の「新しいタブで開く」を使ってもらう */}
-        <button type="button" className={styles.control} aria-label={t("img_save")} onClick={saveImage}>
-          <DownloadIcon className={styles.icon} />
-        </button>
-        <a
-          className={styles.control}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer nofollow ugc"
-          aria-label={t("web_lightbox_open_new_tab")}
-        >
-          <OpenInNewIcon className={styles.icon} />
-        </a>
+        {!edit && (
+          <>
+            {/* コピーできたら 1.5 秒だけアイコンを「コピーしました」の文字に替える */}
+            <button
+              type="button"
+              className={copied ? `${styles.control} ${styles.labeled}` : styles.control}
+              aria-label={copied ? t("copied") : t("web_lightbox_copy_url")}
+              onClick={copyUrl}
+            >
+              {copied ? t("copied") : <ContentCopyIcon className={styles.icon} />}
+            </button>
+            {/* ネイティブの「画像を保存」（img_save）。読めなければ失敗のトーストを出し、下の「新しいタブで開く」を使ってもらう */}
+            <button type="button" className={styles.control} aria-label={t("img_save")} onClick={saveImage}>
+              <DownloadIcon className={styles.icon} />
+            </button>
+            <a
+              className={styles.control}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer nofollow ugc"
+              aria-label={t("web_lightbox_open_new_tab")}
+            >
+              <OpenInNewIcon className={styles.icon} />
+            </a>
+          </>
+        )}
         <button
           ref={closeRef}
           type="button"

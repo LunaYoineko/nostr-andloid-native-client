@@ -1,1 +1,5 @@
-- New "Handshake with Unyu" in Settings > Appearance: shows the UI text in Kansai dialect (Japanese UI only; a display-only gimmick on this device that never changes your posts)
+- Reacting with an emoji from the picker now shows "Reacted with …", so you can tell custom emoji reactions went through
+- X (Twitter) post links now show the post itself (avatar, name, date, text and photo) instead of a link card
+- You can now rotate and flip attached images before posting (tap the thumbnail)
+- "Handshake with Unyu" now covers more of the UI (accounts, relays, DMs, Zaps, notifications and more)
+- Fixed some photos being posted in the wrong orientation

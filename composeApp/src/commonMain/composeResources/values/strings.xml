@@ -151,6 +151,8 @@
     <string name="embed_spotify">Show Spotify cards</string>
     <string name="embed_ogp">Show preview cards for other links</string>
     <string name="embed_ogp_images">Load images in preview cards</string>
+    <!-- [#733] X の投稿カード -->
+    <string name="xpost_open">Open on X</string>
 
     <!-- Profile tabs -->
     <string name="tab_posts">Posts</string>
@@ -305,6 +307,8 @@
     <string name="reaction_default_desc">Choose the shape of the reaction button on posts; pressing it sends this. (You can always pick other emoji from the emoji picker.)</string>
     <string name="reaction_heart">Heart</string>
     <string name="reaction_star">Star</string>
+    <!-- [#732] 絵文字ピッカーからリアクションを送ったときのトースト -->
+    <string name="reaction_sent_fmt">Reacted with %1$s</string>
     <string name="reaction_other">Other emoji</string>
     <string name="settings_unavailable">Settings are unavailable</string>
     <string name="sync_title">Relay sync</string>
@@ -517,6 +521,10 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="img_load_failed">Couldn't load the image</string>
     <string name="img_save_failed">Save failed</string>
     <string name="img_save">Save image</string>
+    <string name="img_rotate_left">Rotate left</string>
+    <string name="img_rotate_right">Rotate right</string>
+    <string name="img_flip_horizontal">Flip</string>
+    <string name="img_edit_reset">Reset</string>
     <string name="img_copy_url">Copy URL</string>
     <string name="img_url_copied">URL copied</string>
     <string name="show_more">Show more</string>

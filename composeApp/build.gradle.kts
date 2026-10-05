@@ -212,8 +212,10 @@ compose.desktop {
             description = "Nostr Decentralized Client"
             vendor = "Nostrism"
             copyright = "Copyright 2025 Nostrism"
-            // [#sql] JDBC/SQLDelight は java.sql が必要。jpackage の runtime はデフォルトで含まない
-            modules("java.sql", "java.naming", "jdk.unsupported")
+            // [#730] jlink が同梱するモジュール。Compose Desktop はここに書いたものしか入れない（依存からの自動検出はしない）。
+            // java.sql が無いと SQLDelight の JDBC ドライバ（org.sqlite.JDBC: java.sql.Driver）を読めず、起動時に DB を開けない。
+            // 一覧は `./gradlew :composeApp:suggestRuntimeModules`（jdeps）の結果 + java.naming（#729 で追加）。依存を足したら再実行して揃える。
+            modules("java.instrument", "java.management", "java.naming", "java.sql", "jdk.unsupported")
             linux {
                 debMaintainer = "Nostrism <noreply@nostrism.example>"
                 menuGroup = "Network;Chat;"

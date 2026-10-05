@@ -1,7 +1,9 @@
 import type { Signer } from "../../nostr/signer";
 import type { PostMedia } from "./buildPost";
+import { type ImageEdit, NO_EDIT } from "./imageEdit";
 import { type UploadResult, uploadMedia } from "./nip96";
 import {
+  keepOriginal,
   type MediaKind,
   mediaKindOfFile,
   type ProcessedMedia,
@@ -19,6 +21,10 @@ export type Attachment = {
   file: File;
   /** プレビューの blob: URL（外す・閉じるときに revokeObjectURL） */
   preview: string;
+  /** 向きの編集（回転・左右反転）。画像だけ。送信するのはこの向きで焼き込んだ画像 */
+  edit: ImageEdit;
+  /** 編集した画像のプレビューの blob: URL（編集していなければ無い。外す・閉じるときに revokeObjectURL） */
+  edited?: string;
   /** 圧縮の結果。選んだ時点で始める（アップロードは送信時）。失敗しても元のファイルで resolve する */
   processed: Promise<ProcessedMedia>;
 };
@@ -35,6 +41,7 @@ export function createAttachment(file: File): Attachment | null {
     kind,
     file,
     preview: URL.createObjectURL(file),
+    edit: NO_EDIT,
     processed: kind === "image" ? processImage(file) : Promise.resolve(processVideo(file)),
   };
 }
@@ -46,8 +53,29 @@ export function reprocessImages(
   quality: number,
 ): Attachment[] {
   return list.map((a) =>
-    a.kind === "image" ? { ...a, processed: processImage(a.file, maxDim, quality) } : a,
+    a.kind === "image" ? { ...a, processed: processImage(a.file, maxDim, quality, a.edit) } : a,
   );
+}
+
+/** 画面に出す URL（編集していれば編集後のプレビュー） */
+export function shownUrl(a: Attachment): string {
+  return a.edited ?? a.preview;
+}
+
+/** 向きを編集できる添付か（画像で、ブラウザが読めて、GIF・アニメーション WebP ではない） */
+export async function isEditable(a: Attachment): Promise<boolean> {
+  if (a.kind !== "image" || (await keepOriginal(a.file))) return false;
+  return (await a.processed).dim !== undefined;
+}
+
+/** 向きを変えて、その添付だけ作り直す（解像度を変えたときと同じ流れ） */
+export function editAttachment(
+  a: Attachment,
+  edit: ImageEdit,
+  maxDim: number | null,
+  quality: number,
+): Attachment {
+  return { ...a, edit, processed: processImage(a.file, maxDim, quality, edit) };
 }
 
 /** バイト数を 1.5MB / 293KB / 512B のように（ネイティブ ComposeSheet の humanSize。切り捨て） */

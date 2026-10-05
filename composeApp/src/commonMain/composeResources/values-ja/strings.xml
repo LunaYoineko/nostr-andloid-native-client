@@ -147,6 +147,8 @@
     <string name="embed_spotify">Spotify のカードを表示</string>
     <string name="embed_ogp">その他リンクの OGP カードを表示</string>
     <string name="embed_ogp_images">OGP カードの画像を読み込む</string>
+    <!-- [#733] X の投稿カード -->
+    <string name="xpost_open">X で開く</string>
 
     <!-- Profile tabs -->
     <string name="tab_posts">投稿</string>
@@ -301,6 +303,8 @@
     <string name="reaction_default_desc">各投稿のリアクションボタンの形を選べます。押すとこの内容で送信されます。（絵文字ピッカーからは別の絵文字を何度でも付けられます）</string>
     <string name="reaction_heart">ハート</string>
     <string name="reaction_star">スター</string>
+    <!-- [#732] 絵文字ピッカーからリアクションを送ったときのトースト -->
+    <string name="reaction_sent_fmt">%1$s でリアクションしました</string>
     <string name="reaction_other">その他の絵文字</string>
     <string name="settings_unavailable">設定を利用できません</string>
     <string name="sync_title">リレー同期</string>
@@ -513,6 +517,10 @@
     <string name="img_load_failed">画像を読み込めませんでした</string>
     <string name="img_save_failed">保存に失敗しました</string>
     <string name="img_save">画像を保存</string>
+    <string name="img_rotate_left">左に回転</string>
+    <string name="img_rotate_right">右に回転</string>
+    <string name="img_flip_horizontal">左右反転</string>
+    <string name="img_edit_reset">元に戻す</string>
     <string name="img_copy_url">URLをコピー</string>
     <string name="img_url_copied">URLをコピーしました</string>
     <string name="show_more">もっと見る</string>

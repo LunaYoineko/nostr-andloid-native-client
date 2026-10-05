@@ -1,0 +1,114 @@
+/* X の埋め込みに寄せた投稿カード（#744。ネイティブ LinkEmbeds.kt の XPostEmbed）。枠は OGP カードと同じ */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.avatar {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: var(--w-strong);
+}
+
+.who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--type-sub);
+  font-weight: var(--w-strong);
+}
+
+.meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-3);
+  font-size: var(--type-label);
+}
+
+.logo {
+  flex: none;
+  align-self: flex-start;
+  width: 18px;
+  height: 18px;
+  color: var(--text);
+}
+
+/* カードのタップは本文の button が受ける（キーボード用）。見た目は地の文 */
+.textButton {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: inherit;
+}
+
+/* 通常の文字サイズで 4 行まで。タップで全文 */
+.text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: var(--type-body);
+}
+
+.text.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.photo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+}
+
+.open {
+  align-self: flex-start;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  text-decoration: none;
+}
+
+.open:hover {
+  text-decoration: underline;
+}
