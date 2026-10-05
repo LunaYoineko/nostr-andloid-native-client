@@ -130,3 +130,45 @@
 .next {
   right: calc(var(--sp-3) + env(safe-area-inset-right, 0px));
 }
+
+/* 添付の編集ツールバー（ネイティブ #739: 下部に「左に回転 / 右に回転 / 左右反転 / 元に戻す」）。狭い幅では折り返す */
+.toolbar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) calc(var(--sp-3) + env(safe-area-inset-right, 0px))
+    calc(var(--sp-3) + env(safe-area-inset-bottom, 0px)) calc(var(--sp-3) + env(safe-area-inset-left, 0px));
+  pointer-events: none;
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  min-height: var(--touch-sm);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-family: inherit;
+  font-size: var(--type-sub);
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.tool[aria-disabled="true"] {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tool .icon {
+  width: 20px;
+  height: 20px;
+}

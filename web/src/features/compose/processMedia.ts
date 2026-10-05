@@ -1,4 +1,5 @@
 import { encode } from "blurhash";
+import { editTransform, type ImageEdit, isEdited, NO_EDIT, orientedSize } from "./imageEdit";
 import type { UploadFile } from "./nip96";
 
 /**
@@ -40,7 +41,7 @@ async function isAnimatedWebp(file: Blob): Promise<boolean> {
 }
 
 /** 圧縮しない画像（GIF・アニメーション WebP。再エンコードで動きが消える） */
-async function keepOriginal(file: File): Promise<boolean> {
+export async function keepOriginal(file: File): Promise<boolean> {
   if (file.type === "image/gif") return true;
   if (file.type === "image/webp") return isAnimatedWebp(file);
   return false;
@@ -66,14 +67,16 @@ async function encodeCanvas(canvas: HTMLCanvasElement, quality: number): Promise
 }
 
 /** 縮小した画像から blurhash を計算する（縦長は 3×4、横長は 4×3 の成分）。失敗は undefined */
-function blurhashOf(bitmap: ImageBitmap): string | undefined {
+function blurhashOf(bitmap: ImageBitmap, edit: ImageEdit): string | undefined {
   try {
     const scale = Math.min(1, BLURHASH_DIM / Math.max(bitmap.width, bitmap.height));
-    const w = Math.max(1, Math.round(bitmap.width * scale));
-    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const dw = Math.max(1, Math.round(bitmap.width * scale));
+    const dh = Math.max(1, Math.round(bitmap.height * scale));
+    const { width: w, height: h, matrix } = editTransform(dw, dh, edit);
     const ctx = canvasOf(w, h).getContext("2d");
     if (!ctx) return undefined;
-    ctx.drawImage(bitmap, 0, 0, w, h);
+    ctx.setTransform(...matrix);
+    ctx.drawImage(bitmap, -dw / 2, -dh / 2, dw, dh);
     const { data } = ctx.getImageData(0, 0, w, h);
     return w >= h ? encode(data, w, h, 4, 3) : encode(data, w, h, 3, 4);
   } catch {
@@ -89,12 +92,15 @@ function blurhashOf(bitmap: ImageBitmap): string | undefined {
  * EXIF の向きは画素へ焼き込む（createImageBitmap の imageOrientation: "from-image"。再エンコードで EXIF は消える）。
  * GIF・アニメーション WebP は圧縮しない（再エンコードで動きが消えるため。EXIF は元々持たない形式）。
  * 読めない形式（ブラウザが対応していない HEIC 等）や失敗時は元のまま返す。
+ * edit（回転・左右反転）は EXIF の向きを直した後に重ねて画素へ焼き込む。寸法・blurhash も編集後のもの。
+ * GIF・アニメーション WebP は編集も効かない（元のまま）。
  * 寸法・blurhash は読めた画像なら付ける（imeta 用。maxDim が null でも付ける）。
  */
 export async function processImage(
   file: File,
   maxDim: number | null = IMAGE_MAX_DIM,
   quality = IMAGE_QUALITY,
+  edit: ImageEdit = NO_EDIT,
 ): Promise<ProcessedMedia> {
   const original: ProcessedMedia = {
     blob: file,
@@ -109,18 +115,23 @@ export async function processImage(
   }
   try {
     const dim = { w: bitmap.width, h: bitmap.height };
-    const blurhash = blurhashOf(bitmap);
-    const withMeta: ProcessedMedia = { ...original, dim, blurhash };
-    if (dim.w <= 0 || dim.h <= 0 || (await keepOriginal(file))) return withMeta;
+    if (dim.w <= 0 || dim.h <= 0 || (await keepOriginal(file))) {
+      return { ...original, dim, blurhash: blurhashOf(bitmap, NO_EDIT) };
+    }
+    const applied = isEdited(edit) ? edit : NO_EDIT;
+    const blurhash = blurhashOf(bitmap, applied);
+    const withMeta: ProcessedMedia = { ...original, dim: orientedSize(dim.w, dim.h, applied), blurhash };
 
     const scale = maxDim === null ? 1 : Math.min(1, maxDim / Math.max(dim.w, dim.h));
-    const w = Math.max(1, Math.round(dim.w * scale));
-    const h = Math.max(1, Math.round(dim.h * scale));
+    const dw = Math.max(1, Math.round(dim.w * scale));
+    const dh = Math.max(1, Math.round(dim.h * scale));
+    const { width: w, height: h, matrix } = editTransform(dw, dh, applied);
     const canvas = canvasOf(w, h);
     const ctx = canvas.getContext("2d");
     if (!ctx) return withMeta;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(bitmap, 0, 0, w, h);
+    ctx.setTransform(...matrix);
+    ctx.drawImage(bitmap, -dw / 2, -dh / 2, dw, dh);
     const encoded = await encodeCanvas(canvas, quality / 100);
     if (!encoded) return withMeta;
     const ext = encoded.type === "image/webp" ? "webp" : "jpg";

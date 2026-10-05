@@ -680,6 +680,118 @@ describe("添付（画像・動画）", () => {
     expect(screen.getByRole("button", { name: "送信" })).toBeDisabled();
   });
 
+  describe("向きの編集", () => {
+    const bitmap = { width: 600, height: 800, close: vi.fn() };
+
+    beforeEach(() => {
+      // jsdom には createImageBitmap と canvas の描画が無い
+      vi.stubGlobal(
+        "createImageBitmap",
+        vi.fn(async () => bitmap),
+      );
+      vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => {
+        return {
+          setTransform: vi.fn(),
+          drawImage: vi.fn(),
+          getImageData: (_x: number, _y: number, w: number, h: number) => ({
+            data: new Uint8ClampedArray(w * h * 4).fill(128),
+          }),
+        } as unknown as CanvasRenderingContext2D;
+      });
+      vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation((callback, type) => {
+        callback(new Blob(["encoded"], { type: type ?? "image/png" }));
+      });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("サムネイルをクリックするとライトボックスで開く。複数枚なら前後に移れる", async () => {
+      const user = userEvent.setup();
+      renderWithRouter(<Harness />);
+      open({ mode: "new" });
+      await user.upload(fileInput(), [png("a.png"), png("b.png")]);
+      const list = screen.getByRole("list", { name: "添付" });
+      expect(screen.queryByRole("dialog", { name: "画像" })).toBeNull();
+
+      await user.click(within(list).getAllByRole("button", { name: "添付画像を開く" })[1]);
+
+      const lightbox = screen.getByRole("dialog", { name: "画像" });
+      expect(lightbox.querySelector("img")).toHaveAttribute("src", "blob:test/2");
+      expect(within(lightbox).getByText("2 / 2")).toBeInTheDocument();
+      await user.click(within(lightbox).getByRole("button", { name: "前の画像" }));
+      expect(lightbox.querySelector("img")).toHaveAttribute("src", "blob:test/1");
+      // 編集メニューは添付のとき（読めて、GIF ではない）に出る
+      expect(await within(lightbox).findByRole("toolbar", { name: "画像の向きを編集" })).toBeInTheDocument();
+    });
+
+    it("編集するとその添付だけ加工し直し、サムネイルとライトボックスが編集後の画像に替わる。元に戻すで戻る", async () => {
+      const user = userEvent.setup();
+      renderWithRouter(<Harness />);
+      open({ mode: "new" });
+      await user.upload(fileInput(), [png("a.png"), png("b.png")]);
+      const list = screen.getByRole("list", { name: "添付" });
+      const thumbs = () => within(list).getAllByRole("img", { name: "添付画像" });
+      expect(thumbs().map((i) => i.getAttribute("src"))).toEqual(["blob:test/1", "blob:test/2"]);
+
+      await user.click(within(list).getAllByRole("button", { name: "添付画像を開く" })[0]);
+      const lightbox = screen.getByRole("dialog", { name: "画像" });
+      await user.click(await within(lightbox).findByRole("button", { name: "右に回転" }));
+
+      // 作り直した画像（3 つ目の blob: URL）に替わる。もう片方は変わらない
+      await waitFor(() =>
+        expect(thumbs().map((i) => i.getAttribute("src"))).toEqual(["blob:test/3", "blob:test/2"]),
+      );
+      expect(lightbox.querySelector("img")).toHaveAttribute("src", "blob:test/3");
+      // 古いプレビュー（元のまま）は外すときに解放する。編集後のものを差し替えるときに解放するのは編集後だけ
+      expect(revoked).toEqual([]);
+
+      await user.click(within(lightbox).getByRole("button", { name: "左右反転" }));
+      await waitFor(() => expect(thumbs()[0]).toHaveAttribute("src", "blob:test/4"));
+      expect(revoked).toEqual(["blob:test/3"]);
+
+      await user.click(within(lightbox).getByRole("button", { name: "元に戻す" }));
+      await waitFor(() => expect(thumbs()[0]).toHaveAttribute("src", "blob:test/1"));
+      expect(revoked).toEqual(["blob:test/3", "blob:test/4"]);
+    });
+
+    it("編集した向きで画像を上げる（dim は編集後の寸法）", async () => {
+      const user = userEvent.setup();
+      renderWithRouter(<Harness />);
+      open({ mode: "new" });
+      await user.upload(fileInput(), png());
+      const list = screen.getByRole("list", { name: "添付" });
+      await user.click(within(list).getByRole("button", { name: "添付画像を開く" }));
+      const lightbox = screen.getByRole("dialog", { name: "画像" });
+      await user.click(await within(lightbox).findByRole("button", { name: "右に回転" }));
+      await waitFor(() => expect(within(list).getByRole("img")).toHaveAttribute("src", "blob:test/2"));
+      await user.click(within(lightbox).getByRole("button", { name: "閉じる" }));
+      expect(screen.queryByRole("dialog", { name: "画像" })).toBeNull();
+
+      await user.click(screen.getByRole("button", { name: "送信" }));
+      await waitFor(() => expect(publishEvent).toHaveBeenCalledTimes(1));
+      // サーバーが dim を返さない場合の手元の値を見るのは toPostMedia の責務。ここでは作り直した画像を上げたこと
+      const upload = fetchMock.mock.calls[1];
+      const form = upload[1]?.body as FormData;
+      expect((form.get("file") as File).size).toBe("encoded".length);
+    });
+
+    it("GIF は編集メニューを出さない（ライトボックスで見ることはできる）", async () => {
+      const user = userEvent.setup();
+      renderWithRouter(<Harness />);
+      open({ mode: "new" });
+      await user.upload(fileInput(), new File(["GIF89a"], "a.gif", { type: "image/gif" }));
+      const list = screen.getByRole("list", { name: "添付" });
+      // 圧縮の結果が揃うまで待つ（編集できるかはそこで決まる）
+      await waitFor(() => expect(within(list).getByText(/B$/)).toBeInTheDocument());
+      await user.click(within(list).getByRole("button", { name: "添付画像を開く" }));
+      const lightbox = screen.getByRole("dialog", { name: "画像" });
+      expect(lightbox.querySelector("img")).toHaveAttribute("src", "blob:test/1");
+      expect(within(lightbox).queryByRole("toolbar")).toBeNull();
+    });
+  });
+
   it("送信で NIP-96 へアップロードし、本文の後ろに URL・tags の末尾に imeta を入れて発行する", async () => {
     const user = userEvent.setup();
     renderWithRouter(<Harness />);

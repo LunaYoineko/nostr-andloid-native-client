@@ -7,6 +7,9 @@ import { IMAGE_MAX_DIM, mediaKindOfFile, processImage, processVideo } from "./pr
 type Size = { width: number; height: number };
 
 const canvases: Size[] = [];
+/** canvas ごとの setTransform の引数と drawImage の引数 */
+const transforms: number[][] = [];
+const draws: number[][] = [];
 const toBlobCalls: { type: string | undefined; quality: unknown }[] = [];
 /** toBlob が返す MIME（WebP を書けないブラウザは PNG を返す） */
 let encodeAs: (type: string | undefined) => string;
@@ -20,13 +23,16 @@ function stubBitmap(width: number, height: number) {
 
 beforeEach(() => {
   canvases.length = 0;
+  transforms.length = 0;
+  draws.length = 0;
   toBlobCalls.length = 0;
   encodeAs = (type) => type ?? "image/png";
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function (this: HTMLCanvasElement) {
     canvases.push({ width: this.width, height: this.height });
     return {
       imageSmoothingQuality: "low",
-      drawImage: vi.fn(),
+      setTransform: (...m: number[]) => transforms.push(m),
+      drawImage: (_bitmap: unknown, ...rest: number[]) => draws.push(rest),
       getImageData: (_x: number, _y: number, w: number, h: number) => ({
         data: new Uint8ClampedArray(w * h * 4).fill(128),
       }),
@@ -102,6 +108,61 @@ describe("processImage", () => {
     // 静止画の WebP（Animation ビットなし）は圧縮する
     const still = file([webpHeader(0x10)], "still.webp", "image/webp");
     expect((await processImage(still)).blob).not.toBe(still);
+  });
+
+  it("右に 90° 回すと canvas の縦横を入れ替え、dim も編集後の寸法になる。変換は反転 → 回転の順", async () => {
+    stubBitmap(600, 800);
+    const out = await processImage(file(["x"], "a.png", "image/png"), IMAGE_MAX_DIM, 85, {
+      rotation: 90,
+      flip: false,
+    });
+    // 書き出す canvas（最後。blurhash 用の縮小 canvas はその前）
+    expect(canvases.at(-1)).toEqual({ width: 800, height: 600 });
+    expect(out.dim).toEqual({ w: 800, h: 600 });
+    expect(transforms.at(-1)).toEqual([0, 1, -1, 0, 400, 300]);
+    expect(draws.at(-1)).toEqual([-300, -400, 600, 800]);
+  });
+
+  it("縮小と一緒に編集する: 4000x3000 を左右反転 + 270° → 900x1200", async () => {
+    stubBitmap(4000, 3000);
+    const out = await processImage(file(["x"], "a.jpg", "image/jpeg"), IMAGE_MAX_DIM, 85, {
+      rotation: 270,
+      flip: true,
+    });
+    expect(out.dim).toEqual({ w: 900, h: 1200 });
+    expect(canvases.at(-1)).toEqual({ width: 900, height: 1200 });
+    expect(draws.at(-1)).toEqual([-600, -450, 1200, 900]);
+  });
+
+  it("180° は寸法が変わらない。解像度「高」でも編集したら原寸のまま再エンコードする", async () => {
+    stubBitmap(3000, 2000);
+    const out = await processImage(file(["x"], "a.jpg", "image/jpeg"), null, 95, {
+      rotation: 180,
+      flip: false,
+    });
+    expect(out.dim).toEqual({ w: 3000, h: 2000 });
+    expect(out.blob.type).toBe("image/webp");
+    expect(toBlobCalls[0]).toEqual({ type: "image/webp", quality: 0.95 });
+  });
+
+  it("編集は blurhash の元画像にも効く（縦長にすると 3×4 の成分）", async () => {
+    stubBitmap(800, 600);
+    const plain = await processImage(file(["x"], "a.png", "image/png"));
+    const turned = await processImage(file(["x"], "a.png", "image/png"), IMAGE_MAX_DIM, 85, {
+      rotation: 90,
+      flip: false,
+    });
+    // 成分数は blurhash の先頭 1 文字（(x-1) + (y-1) * 9）。横長 4×3 と縦長 3×4 で変わる
+    expect(plain.blurhash?.[0]).not.toBe(turned.blurhash?.[0]);
+  });
+
+  it("GIF・アニメーション WebP は編集しても元のまま（寸法も変えない）", async () => {
+    stubBitmap(320, 240);
+    const gif = file(["GIF89a"], "anim.gif", "image/gif");
+    const out = await processImage(gif, IMAGE_MAX_DIM, 85, { rotation: 90, flip: true });
+    expect(out.blob).toBe(gif);
+    expect(out.dim).toEqual({ w: 320, h: 240 });
+    expect(toBlobCalls).toEqual([]);
   });
 
   it("解像度「低」は長辺 640px へ縮める", async () => {
