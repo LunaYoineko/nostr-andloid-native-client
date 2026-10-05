@@ -1,0 +1,30 @@
+# 改行コードの明示制御。
+
+# core.autocrlf=true の Windows でも、シェルスクリプトが CRLF に変換されると
+# Linux / macOS で `bad interpreter: /usr/bin/env bash^M` 実行不能になる。
+# 実行スクリプトは LF に固定する。
+*.sh text eol=lf
+gradlew text eol=lf
+
+# gradlew.bat は Windows 用なので CRLF のままにする（既定の text eol=lf を上書き）。
+gradlew.bat text eol=crlf
+
+# PowerShell: Windows PowerShell 5.1 は BOM なし UTF-8 を誤読するため BOM 付きで保存する。
+# git は BOM（EF BB BF）を内容の一部として保持し、除去しないので text のままでよい。
+*.ps1 text eol=crlf
+
+# バイナリ（画像・アイコン・署名済み成果物等）は差分・変換の対象にしない
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.jar binary
+*.msi binary
+*.deb binary
+*.rpm binary
+*.dmg binary
+*.keystore binary
+*.jks binary

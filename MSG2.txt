@@ -1,0 +1,12 @@
+fix: .gitattributes を追加し、シェルスクリプトの CRLF 化を防止
+
+core.autocrlf=true の Windows でチェックアウトすると *.sh が CRLF に変換され、
+Linux / macOS で `bad interpreter: /usr/bin/env bash^M` により実行不能になる。
+scripts/release-desktop.sh は実際に working tree で CRLF になっていたため、
+LF に正規化して再コミットする。
+
+- *.sh / gradlew … text eol=lf（実行スクリプトは LF 固定）
+- gradlew.bat / *.ps1 … text eol=crlf
+- 画像・アイコン・署名済み成果物 … binary
+
+.bmp 等の未使用拡張子は除外。
