@@ -86,6 +86,12 @@ TARGETS=jar     scripts/release-desktop.sh        # 汎用 JAR（java -jar で�
 DRY_RUN=1       scripts/release-desktop.sh        # ビルドのみ（Release を作らない）
 #   各ターゲットは生成できるプラットフォームで実行する（MSI は Windows、DEB/RPM は Linux 上でのみ）。
 
+# Windows（PowerShell 版。.sh を実行できない環境向け）
+.\scripts\release-desktop.ps1                    # Windows MSI + 汎用 JAR
+.\scripts\release-desktop.ps1 -Targets windows   # Windows MSI のみ
+.\scripts\release-desktop.ps1 -Targets jar       # 汎用 JAR のみ
+.\scripts\release-desktop.ps1 -DryRun            # ビルドのみ（Release を作らない）
+
 # 全ターゲットの検証（変更時はこれを通す）
 ./gradlew :composeApp:compileDebugKotlinAndroid \
   :composeApp:compileKotlinIosSimulatorArm64 :composeApp:compileKotlinIosArm64 \
@@ -124,7 +130,7 @@ composeApp/src/
 nostr-core/     … プロトコル層の共有モジュール（NostrEvent / Embed / Blurhash …）
 iosApp/         … Xcode プロジェクト + scripts/testflight.sh
 docs/           … 公開サイト（Cloudflare Pages）+ RELEASING.md + ストア資材
-scripts/        … version.sh（バージョン導出）/ release-github.sh（APK+dmg）/ release-desktop.sh（Desktop）/ release-info.sh
+scripts/        … version.sh（バージョン導出）/ release-github.sh（APK+dmg）/ release-desktop.{sh,ps1}（Desktop）/ release-info.sh
 distribution/   … Play 配信用の whatsnew
 ```
 
