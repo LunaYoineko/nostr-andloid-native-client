@@ -186,7 +186,12 @@ function EmojiReactionButton({ event }: { event: NostrEvent }) {
       {open && (
         <ReactionPickerDialog
           target={event}
-          onPick={(c, url) => void publishReaction(event, c, url).catch(warn(t("web_log_react_failed")))}
+          onPick={(c, url) =>
+            void publishReaction(event, c, url).then(
+              () => showToast(t("web_reaction_sent_fmt", c)),
+              warn(t("web_log_react_failed")),
+            )
+          }
           onClose={() => setOpen(false)}
         />
       )}

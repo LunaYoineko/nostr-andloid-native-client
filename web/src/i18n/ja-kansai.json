@@ -431,5 +431,6 @@
   "hashtags_note": "ピン留めしたタグ（NIP-51 kind:30015）は、投稿画面とハッシュタグカラム作成のチップにずっと出て、端末をまたいで同期されるで。使ったことのあるタグはこの端末で覚えてて、# を入れたときの候補になるわ。",
   "hashtags_open_manager": "ハッシュタグの整理画面を開くで",
   "hashtags_last_used_fmt": "最後に使ったのは %1$s",
-  "hashtags_used_delete": "履歴から消す"
+  "hashtags_used_delete": "履歴から消す",
+  "web_reaction_sent_fmt": "%1$s でリアクションしといたで"
 }
