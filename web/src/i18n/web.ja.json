@@ -322,6 +322,7 @@
   "web_wallet_hint": "接続文字列はウォレット側（Alby Hub、Coinos など）で発行できます。secret はこのブラウザ内に暗号化して保存されます。ログアウトすると消えます。",
   "web_wallet_uri_label": "NWC の接続文字列",
   "web_youtube_play": "YouTube を再生",
+  "web_x_post_open": "X で開く",
   "web_zap_amount": "金額",
   "web_zap_invoice_label": "Zap の invoice（%1$d sats）",
   "web_zap_pay_confirm_text": "%1$s に ⚡ %2$d sats を送金します。よろしいですか？"

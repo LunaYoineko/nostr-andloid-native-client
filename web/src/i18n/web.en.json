@@ -322,6 +322,7 @@
   "web_wallet_hint": "You can issue a connection string in your wallet (Alby Hub, Coinos, etc.). The secret is encrypted and stored in this browser. It’s removed when you log out.",
   "web_wallet_uri_label": "NWC connection string",
   "web_youtube_play": "Play YouTube",
+  "web_x_post_open": "Open on X",
   "web_zap_amount": "Amount",
   "web_zap_invoice_label": "Zap invoice (%1$d sats)",
   "web_zap_pay_confirm_text": "Send ⚡ %2$d sats to %1$s. Continue?"
