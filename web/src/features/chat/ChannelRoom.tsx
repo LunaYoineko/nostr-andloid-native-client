@@ -34,6 +34,7 @@ import { MenuButton, type MenuEntry } from "../../ui/MenuButton";
 import { showToast } from "../../ui/toast";
 import { useVisualViewportHeight } from "../../ui/useVisualViewportHeight";
 import { copyText, plainTextOf } from "../actions/noteLinks";
+import { reactionSentMessage, saveMadeEmoji } from "../actions/pickedReaction";
 import { ReactionPickerDialog } from "../actions/ReactionPickerDialog";
 import { ReportDialog } from "../actions/ReportDialog";
 import { useDefaultReaction } from "../actions/reactionPrefs";
@@ -68,6 +69,7 @@ const CONTINUATION_SEC = 300;
  * screen = メッセージ画面: 最新が下（column-reverse。DOM は新しい順）・下端に常設の入力欄。
  * column = デッキのカラム: 最新が上・入力欄は置かず「✏️ メッセージを書く」でモーダル（ネイティブ deckMode）。
  * 吹き出しは全員左寄せ（自分も左。ネイティブ mineOnRight=false）。ミュートした人・ワードの発言は出さない（revealMuted なら出す）。
+ * [#798] highlightMessageId（本文の kind:42 へのリンクから開いたとき）は、届いたらその位置まで送って短く強調する。
  */
 export function ChannelRoom({
   channelId,
@@ -75,12 +77,14 @@ export function ChannelRoom({
   mode,
   header,
   revealMuted = false,
+  highlightMessageId = null,
 }: {
   channelId: string;
   title: string;
   mode: "screen" | "column";
   header: ReactNode;
   revealMuted?: boolean;
+  highlightMessageId?: string | null;
 }) {
   const t = useT();
   const me = useSession((s) => s.pubkey);
@@ -99,6 +103,21 @@ export function ChannelRoom({
   }
 
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+
+  // [#798] 強調する発言。届いたらその位置へ送り、そこで強調を点ける（CSS のアニメーションで消える）。
+  // 最初の EOSE までは後から届く発言で位置がずれるので、読み込みが終わったところでもう 1 度だけ送る
+  const hasTarget = highlightMessageId !== null && byId.has(highlightMessageId);
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const jumped = useRef({ any: false, loaded: false });
+  useLayoutEffect(() => {
+    if (!hasTarget || highlightMessageId === null) return;
+    if (loading ? jumped.current.any : jumped.current.loaded) return;
+    jumped.current = { any: true, loaded: !loading };
+    scroller.current
+      ?.querySelector(`[data-message-id="${highlightMessageId}"]`)
+      ?.scrollIntoView?.({ block: "center" });
+    setFlashId(highlightMessageId);
+  }, [hasTarget, loading, highlightMessageId]);
 
   function reply(message: NostrEvent) {
     setReplyTo(message);
@@ -121,6 +140,7 @@ export function ChannelRoom({
         continuation={continuation}
         parent={parentId === null ? undefined : byId.get(parentId)}
         reactions={reactions.get(message.id)}
+        highlighted={message.id === flashId}
         onReply={() => reply(message)}
       />
     );
@@ -228,6 +248,7 @@ function MessageRow({
   continuation,
   parent,
   reactions,
+  highlighted,
   onReply,
 }: {
   message: NostrEvent;
@@ -235,6 +256,7 @@ function MessageRow({
   continuation: boolean;
   parent: NostrEvent | undefined;
   reactions: ReactionGroup[] | undefined;
+  highlighted: boolean;
   onReply(): void;
 }) {
   const t = useT();
@@ -246,7 +268,12 @@ function MessageRow({
   const hasMedia = media.images.length + media.videos.length + media.youtube.length > 0;
   const unsent = useIsUnsent(message.id);
   return (
-    <article className={styles.message} data-continuation={continuation || undefined}>
+    <article
+      className={styles.message}
+      data-message-id={message.id}
+      data-continuation={continuation || undefined}
+      data-highlight={highlighted || undefined}
+    >
       <span className={styles.avatarSlot}>
         {!continuation && (
           <Avatar key={picture} url={picture} size="md" seed={name} pubkey={message.pubkey} />
@@ -432,7 +459,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
         data-shape={isStar ? "star" : "heart"}
         onClick={() => {
           if (reacted) setDialog("unreact");
-          else reactWithDefault(message).catch(warn(t("web_log_chat_react_failed")));
+          else reactWithDefault(message).catch(warn("Failed to react"));
         }}
       >
         <Glyph className={styles.actionIcon} />
@@ -440,7 +467,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       <button
         type="button"
         className={styles.action}
-        aria-label={t("web_chat_react_emoji")}
+        aria-label={t("web_emoji_reaction")}
         onClick={() => setDialog("picker")}
       >
         <AddReactionIcon className={styles.actionIcon} />
@@ -456,7 +483,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
           <BoltIcon className={styles.actionIcon} />
         </button>
       )}
-      <MenuButton label={t("web_chat_more_actions")} triggerClassName={styles.action} entries={entries}>
+      <MenuButton label={t("web_more_actions")} triggerClassName={styles.action} entries={entries}>
         <MoreHorizIcon className={styles.actionIcon} />
       </MenuButton>
       {dialog === "zap" && (
@@ -473,11 +500,11 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
       {dialog === "picker" && (
         <ReactionPickerDialog
           target={message}
-          onPick={(c, url) =>
-            void publishReaction(message, c, url).then(
-              () => showToast(t("web_reaction_sent_fmt", c)),
-              warn(t("web_log_chat_react_failed")),
-            )
+          onPick={(c, url, made) =>
+            void publishReaction(message, c, url)
+              .then(() => showToast(reactionSentMessage(c, made)), warn("Failed to react"))
+              // [#768] 「自分の絵文字リストにも保存」は送信の後に（成否はリアクションとは別のトースト）
+              .then(() => saveMadeEmoji(c, url, made))
           }
           onClose={() => setDialog(null)}
         />
@@ -490,7 +517,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
           destructive
           onConfirm={() => {
             setDialog(null);
-            reactWithDefault(message).catch(warn(t("web_log_chat_unreact_failed")));
+            reactWithDefault(message).catch(warn("Failed to undo the reaction"));
           }}
           onDismiss={() => setDialog(null)}
         />
@@ -512,7 +539,7 @@ function MessageActions({ message, mine, onReply }: { message: NostrEvent; mine:
         <ReportDialog
           onPick={(type) => {
             setDialog(null);
-            reportNote(message, type).catch(warn(t("web_log_chat_report_failed")));
+            reportNote(message, type).catch(warn("Failed to report"));
           }}
           onDismiss={() => setDialog(null)}
         />

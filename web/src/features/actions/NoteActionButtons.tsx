@@ -37,6 +37,7 @@ import { formatSats } from "../zap/zapTotals";
 import { moreMenuEntries } from "./moreMenu";
 import styles from "./NoteActionButtons.module.css";
 import { copyText, hasBodyText, noteLinksOf, plainTextOf } from "./noteLinks";
+import { reactionSentMessage, saveMadeEmoji } from "./pickedReaction";
 import { ReactionPickerDialog } from "./ReactionPickerDialog";
 import { ReportDialog } from "./ReportDialog";
 import { useDefaultReaction } from "./reactionPrefs";
@@ -92,7 +93,7 @@ function RepostButton({ event }: { event: NostrEvent }) {
         {
           type: "item",
           label: t("note_repost"),
-          onSelect: () => void publishRepost(event).catch(warn(t("web_log_repost_failed"))),
+          onSelect: () => void publishRepost(event).catch(warn("Failed to repost")),
         },
         {
           type: "item",
@@ -142,7 +143,7 @@ function DefaultReactionButton({ event }: { event: NostrEvent }) {
     if (pending) return;
     setPending(true);
     reactWithDefault(event).catch((e) => {
-      warn(t("web_log_react_failed"))(e);
+      warn("Failed to react")(e);
       setPending(false);
     });
   }
@@ -165,7 +166,7 @@ function DefaultReactionButton({ event }: { event: NostrEvent }) {
           destructive
           onConfirm={() => {
             setConfirming(false);
-            reactWithDefault(event).catch(warn(t("web_log_unreact_failed")));
+            reactWithDefault(event).catch(warn("Failed to undo the reaction"));
           }}
           onDismiss={() => setConfirming(false)}
         />
@@ -180,17 +181,17 @@ function EmojiReactionButton({ event }: { event: NostrEvent }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <ActionButton label={t("web_note_emoji_reaction")} onClick={() => setOpen(true)}>
+      <ActionButton label={t("web_emoji_reaction")} onClick={() => setOpen(true)}>
         <AddReactionIcon />
       </ActionButton>
       {open && (
         <ReactionPickerDialog
           target={event}
-          onPick={(c, url) =>
-            void publishReaction(event, c, url).then(
-              () => showToast(t("web_reaction_sent_fmt", c)),
-              warn(t("web_log_react_failed")),
-            )
+          onPick={(c, url, made) =>
+            void publishReaction(event, c, url)
+              .then(() => showToast(reactionSentMessage(c, made)), warn("Failed to react"))
+              // [#768] 「自分の絵文字リストにも保存」は送信の後に（成否はリアクションとは別のトースト）
+              .then(() => saveMadeEmoji(c, url, made))
           }
           onClose={() => setOpen(false)}
         />
@@ -371,7 +372,7 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
 
   return (
     <>
-      <MenuButton label={t("web_note_more_actions")} triggerClassName={ACTION_BUTTON_CLASS} entries={entries}>
+      <MenuButton label={t("web_more_actions")} triggerClassName={ACTION_BUTTON_CLASS} entries={entries}>
         <MoreHorizIcon />
       </MenuButton>
       {dialog === "unfollow" && (
@@ -419,7 +420,7 @@ export function NoteMoreMenu({ event }: { event: NostrEvent }) {
         <ReportDialog
           onPick={(type) => {
             setDialog(null);
-            reportNote(event, type).catch(warn(t("web_log_report_failed")));
+            reportNote(event, type).catch(warn("Failed to report"));
           }}
           onDismiss={() => setDialog(null)}
         />

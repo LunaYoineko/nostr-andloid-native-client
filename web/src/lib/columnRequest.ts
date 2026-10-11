@@ -1,6 +1,9 @@
 import type { Filter } from "applesauce-core/helpers/filter";
 import type { NostrEvent } from "nostr-tools/pure";
+import { rootOf } from "../features/compose/tags";
+import { isStatusVisible, STATUS_KIND, STATUS_MAX_AGE_SEC } from "../features/status/statusModel";
 import type { ColumnKind, ColumnSpec, ReqFilter } from "./columns";
+import { unixNow } from "./time";
 
 /**
  * カラム → REQ（どのリレーへ何を投げるか）と、EventStore から読む条件。
@@ -12,14 +15,21 @@ export const COLUMN_LIMIT = 100;
 /** 検索は取りこぼしが多いので多めに取る */
 export const SEARCH_FETCH_LIMIT = 300;
 export const NOTIF_FETCH_LIMIT = 200;
+/** ステータス（NIP-38）の取得上限。置き換え可能で 1 人 2 件までなので、過去読みせず 1 回で取り切る */
+export const STATUS_FETCH_LIMIT = 500;
+/** ステータスカラムで扱う種類（d タグ） */
+const STATUS_TYPES = ["general", "music"];
 /** NIP-50 検索対応リレー（接続中のリレーが未対応でも結果を取れるように） */
 export const SEARCH_RELAYS: readonly string[] = [
   "wss://relay.nostr.band",
   "wss://relay.noswhere.sh",
   "wss://search.nos.today",
 ];
-/** kind:1 本文 + kind:6/16 リポスト + kind:5 削除 + kind:1111 コメント */
-export const FOLLOWING_KINDS = [1, 6, 16, 5, 1111];
+/**
+ * kind:1 本文 + kind:6/16 リポスト + kind:5 削除 + kind:1111 コメント + kind:42 パブリックチャットの発言（#796）。
+ * ネイティブ subscribeFollowing と同じ並び
+ */
+export const FOLLOWING_KINDS = [1, 6, 16, 5, 1111, 42];
 /** 自分宛て（#p）の 投稿・リポスト・リアクション・Zap・コメント */
 export const NOTIF_REQ_KINDS = [1, 6, 16, 7, 9735, 1111];
 /** EOSE を返さない/遅いリレーだけでも「読み込み中」を出し続けない */
@@ -28,7 +38,12 @@ export const LOADING_TIMEOUT_MS = 8_000;
 export const OLDER_TIMEOUT_MS = 6_000;
 
 // kind:5 は EventStore が削除として処理するので表示の対象から外す
-const FOLLOWING_VIEW_KINDS = [1, 6, 16, 1111];
+const FOLLOWING_VIEW_KINDS = [1, 6, 16, 1111, 42];
+
+/** [#796] チャンネルの分からない発言（kind:42）は出さない（開く先が無い。ネイティブ toChatNoteUi と同じ） */
+function hasChannelIfChat(e: NostrEvent): boolean {
+  return e.kind !== 42 || rootOf(e.tags) !== null;
+}
 
 export type RequestPlan = { relays: readonly string[]; filters: Filter[] } | null;
 export type ViewPlan = { filters: Filter[]; predicate?: (e: NostrEvent) => boolean };
@@ -103,6 +118,24 @@ export function requestFor(spec: ColumnSpec, ctx: Ctx): RequestPlan {
     case "FAVS":
       if (!ctx.me) return null;
       return { relays: ctx.relays, filters: [myReactionsFilter(ctx.me)] };
+    case "STATUS": {
+      // フォロー + 自分の general / music（#767）。空なら REQ を張らない（#583 と同じ）。
+      // since は期限の無い何年も前のステータスを取りに行かないため（表示も STATUS_MAX_AGE_SEC で落とす）
+      const authors = followAuthors(ctx.follows ?? [], ctx.me);
+      if (authors.length === 0) return null;
+      return {
+        relays: ctx.relays,
+        filters: [
+          {
+            kinds: [STATUS_KIND],
+            authors,
+            "#d": STATUS_TYPES,
+            since: unixNow() - STATUS_MAX_AGE_SEC,
+            limit: STATUS_FETCH_LIMIT,
+          },
+        ],
+      };
+    }
     case "DM":
     case "THREAD":
     case "CHANNEL_LIST":
@@ -127,7 +160,7 @@ export function viewFor(spec: ColumnSpec, ctx: Ctx): ViewPlan {
       // REQ と同じ authors（#583）。空なら REQ を張らないのでストアからも読まない（手元にたまたまある他人の投稿を出さない）
       const authors = followAuthors(ctx.follows ?? [], ctx.me);
       if (authors.length === 0) return { filters: [] };
-      return { filters: [{ kinds: FOLLOWING_VIEW_KINDS, authors }] };
+      return { filters: [{ kinds: FOLLOWING_VIEW_KINDS, authors }], predicate: hasChannelIfChat };
     }
     case "NOTIFICATIONS":
       // カラムの filter.kinds（表示する種別）は見ない。全種別を出す（ネイティブの NotificationsColumn と同じ）
@@ -136,6 +169,16 @@ export function viewFor(spec: ColumnSpec, ctx: Ctx): ViewPlan {
     case "FAVS":
       if (!ctx.me) return { filters: [] };
       return myReactionsView(ctx.me);
+    case "STATUS": {
+      // REQ と同じ authors。表示条件（空・期限切れ・古すぎる期限なし）は読むたびに今の時刻で見る。
+      // 時間が経って切れたものはカラムが共有の時計で落とす
+      const authors = followAuthors(ctx.follows ?? [], ctx.me);
+      if (authors.length === 0) return { filters: [] };
+      return {
+        filters: [{ kinds: [STATUS_KIND], authors, "#d": STATUS_TYPES }],
+        predicate: (e) => isStatusVisible(e, null, unixNow()),
+      };
+    }
     case "HASHTAG":
       // 表示は先頭のタグを小文字にして t タグで読む（ネイティブ feedByHashtag。REQ はタグをそのまま送る）
       if (f.hashtags.length > 0) return { filters: [{ kinds: [1], "#t": [f.hashtags[0].toLowerCase()] }] };
@@ -218,6 +261,7 @@ export function outboxAuthorsFor(spec: ColumnSpec): string[] | null {
     case "FOLLOWING":
     case "NOTIFICATIONS":
     case "FAVS":
+    case "STATUS":
     case "DM":
     case "THREAD":
     case "CHANNEL_LIST":

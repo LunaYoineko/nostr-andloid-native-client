@@ -93,6 +93,17 @@ it("左端のカラムのメニューでは「左へ移動」が押せない", a
   expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 });
 
+it("[#819] メニューに「更新」は無い（引っ張って更新で足りる）。一時カラムの「固定する」は残す", async () => {
+  const user = userEvent.setup();
+  const temporary: ColumnSpec = { ...DEFAULT_COLUMNS[1], id: "c_temp", pinned: false };
+  useDeck.setState({ columns: [...DEFAULT_COLUMNS, temporary], widths: {} });
+  renderWithRouter(<DeckColumn spec={temporary} showHeader />);
+  await user.click(screen.getByRole("button", { name: "カラムメニュー" }));
+
+  expect(screen.queryByRole("menuitem", { name: "更新" })).not.toBeInTheDocument();
+  expect(screen.getByRole("menuitem", { name: "固定する" })).toBeInTheDocument();
+});
+
 /** DM カラムを / に描き、/messages/:peer へ移れるルータ */
 function renderDmColumn(spec: ColumnSpec) {
   const router = createMemoryRouter([
@@ -174,7 +185,7 @@ it("⋯ の「ミュートを表示 / 隠す」でカラムの設定を切り替
   expect(screen.queryByRole("menuitem", { name: "ミュートを表示" })).not.toBeInTheDocument();
 });
 
-it("⋯ の「タイムラインに混ぜる表示」: フォロー中カラムだけ 5 つのトグルを出し、押してもメニューは開いたまま。保存して再描画で戻す（#522）", async () => {
+it("⋯ の「タイムラインに混ぜる表示」: フォロー中カラムだけ 6 つのトグルを出し、押してもメニューは開いたまま。保存して再描画で戻す（#522 / #796）", async () => {
   const user = userEvent.setup();
   const [following, hashtag, notif] = DEFAULT_COLUMNS;
   useDeck.setState({ feedCatHidden: {} });
@@ -190,19 +201,21 @@ it("⋯ の「タイムラインに混ぜる表示」: フォロー中カラム�
     "自分へのリポスト",
     "自分がしたリアクション",
     "未読のメッセージ",
+    "パブリックチャットの発言",
   ]);
-  // 既定は全部表示
+  // 既定は全部表示（[#796] パブリックチャットの発言も）
   for (const t of toggles) expect(t).toHaveAttribute("aria-checked", "true");
 
   await user.click(screen.getByRole("menuitemcheckbox", { name: "自分へのリアクション" }));
   await user.click(screen.getByRole("menuitemcheckbox", { name: "未読のメッセージ" }));
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "パブリックチャットの発言" }));
   expect(screen.getByRole("menu")).toBeInTheDocument();
   expect(screen.getByRole("menuitemcheckbox", { name: "自分へのリアクション" })).toHaveAttribute(
     "aria-checked",
     "false",
   );
   expect(JSON.parse(localStorage.getItem(FEED_CAT_HIDDEN_KEY) ?? "null")).toEqual({
-    c_following: ["REACTIONS", "DMS"],
+    c_following: ["REACTIONS", "DMS", "CHAT"],
   });
 
   // 保存値から読み直して描き直しても隠したまま
@@ -215,11 +228,13 @@ it("⋯ の「タイムラインに混ぜる表示」: フォロー中カラム�
     screen.getByRole("menuitemcheckbox", { name }).getAttribute("aria-checked");
   expect(checked("自分へのリアクション")).toBe("false");
   expect(checked("未読のメッセージ")).toBe("false");
+  expect(checked("パブリックチャットの発言")).toBe("false");
   expect(checked("自分へのリポスト")).toBe("true");
 
   // もう一度押すと表示に戻り、隠すものが無くなったカラムはキーごと消す
   await user.click(screen.getByRole("menuitemcheckbox", { name: "自分へのリアクション" }));
   await user.click(screen.getByRole("menuitemcheckbox", { name: "未読のメッセージ" }));
+  await user.click(screen.getByRole("menuitemcheckbox", { name: "パブリックチャットの発言" }));
   expect(JSON.parse(localStorage.getItem(FEED_CAT_HIDDEN_KEY) ?? "null")).toEqual({});
   second.unmount();
 

@@ -193,6 +193,39 @@ it("setFeedCatHidden: カラムごとに保存し、空になったカラムは�
   expect(loadFeedCatHidden()).toEqual({});
   localStorage.setItem(FEED_CAT_HIDDEN_KEY, '{"c_a":["DMS","ZAPS",1],"c_b":[],"c_c":"DMS"}');
   expect(loadFeedCatHidden()).toEqual({ c_a: ["DMS"] });
+  // [#796] パブリックチャットの発言（ネイティブ FeedNoticeCategory.CHAT と同じ名前）。並びは ⋯ の順
+  useDeck.getState().setFeedCatHidden("c_following", "CHAT", true);
+  useDeck.getState().setFeedCatHidden("c_following", "DMS", true);
+  expect(localStorage.getItem(FEED_CAT_HIDDEN_KEY)).toBe('{"c_following":["DMS","CHAT"]}');
+  expect(loadFeedCatHidden()).toEqual({ c_following: ["DMS", "CHAT"] });
+});
+
+it("setStatusType: カラムごとに保存し、すべて（null）はキーを消す。再読み込み後も残り、カラムを消すと設定も消す。壊れた保存値は捨てる（#767）", async () => {
+  const first = await freshDeck();
+  const status = buildColumn("STATUS", {}, new Set(), 100);
+  if (!status) throw new Error("buildColumn returned null");
+  first.useDeck.getState().addColumn(status);
+  expect(first.statusTypeOf(first.useDeck.getState(), status.id)).toBeNull();
+
+  first.useDeck.getState().setStatusType(status.id, "music");
+  expect(first.statusTypeOf(first.useDeck.getState(), status.id)).toBe("music");
+  expect(localStorage.getItem(first.STATUS_TYPE_KEY)).toBe('{"col_status_100":"music"}');
+  first.useDeck.getState().setStatusType(status.id, null);
+  expect(localStorage.getItem(first.STATUS_TYPE_KEY)).toBe("{}");
+  first.useDeck.getState().setStatusType(status.id, "general");
+
+  // 再読み込み（モジュールを読み直す。保存は消さない）
+  vi.resetModules();
+  const second = await import("./deck");
+  expect(second.statusTypeOf(second.useDeck.getState(), status.id)).toBe("general");
+  second.useDeck.getState().removeColumn(status.id);
+  expect(second.useDeck.getState().statusType).toEqual({});
+  expect(localStorage.getItem(second.STATUS_TYPE_KEY)).toBe("{}");
+
+  localStorage.setItem(second.STATUS_TYPE_KEY, "{broken");
+  expect(second.loadStatusType()).toEqual({});
+  localStorage.setItem(second.STATUS_TYPE_KEY, '{"x":"presence","y":"music","z":1,"w":"general"}');
+  expect(second.loadStatusType()).toEqual({ y: "music", w: "general" });
 });
 
 it("applyPinnedColumns: 固定カラムを置き換え、開いている一時カラムは残す", async () => {

@@ -4,6 +4,7 @@ import {
   buildColumn,
   buildListColumn,
   type ColumnSpec,
+  columnLabel,
   columnSubtitleFor,
   DEFAULT_COLUMNS,
   decodeDeckColumns,
@@ -143,6 +144,57 @@ describe("buildColumn", () => {
     expect(encodeDeckColumns([spec])).toBe(
       '[{"id":"col_dm_100","title":"DM","subtitle":"NIP-17","kind":"DM","renderer":"FEED","filter":{"kinds":[14]}}]',
     );
+  });
+
+  it('STATUS は追加一覧の末尾。{"kinds":[30315]} で保存・同期し、読むと同じカラムに戻る（#767）', () => {
+    expect(TEMPLATES.at(-1)).toEqual({ template: "STATUS", config: "NONE", iconKind: "STATUS" });
+
+    const spec = build("STATUS", {}, new Set(), 1791283000);
+    const json = encodeDeckColumns([spec]);
+    expect(json).toBe(
+      '[{"id":"col_status_1791283000","title":"ステータス","subtitle":"NIP-38","kind":"STATUS","renderer":"FEED","filter":{"kinds":[30315]}}]',
+    );
+    expect(decodeDeckColumns(json)).toEqual([spec]);
+    expect(columnSubtitleFor(spec)).toBe("NIP-38");
+    expect(columnLabel(spec)).toBe("ステータス");
+    // 種類の切替は ⋯ の「表示」なので、フィルターの編集は無い
+    expect(editTemplate(spec)).toBeNull();
+  });
+});
+
+describe("buildColumn CHANNEL_LIST（#799）", () => {
+  it("パブリックチャット画面の一覧と同じ形のカラムを作り、同期の JSON がネイティブと同じになる", () => {
+    const spec = build("CHANNEL_LIST", {}, NONE, 1791283000);
+    expect(spec).toEqual({
+      id: "col_channel_list_1791283000",
+      title: "パブリックチャット",
+      subtitle: "NIP-28 · channels",
+      kind: "CHANNEL_LIST",
+      renderer: "CHANNEL_LIST",
+      filter: { ...defaultFilter(), kinds: [40, 41] },
+      pinned: true,
+      order: 0,
+    });
+    expect(encodeReqFilter(spec.filter)).toBe('{"kinds":[40,41]}');
+    const json = encodeDeckColumns([spec]);
+    expect(json).toBe(
+      '[{"id":"col_channel_list_1791283000","title":"パブリックチャット","subtitle":"NIP-28 · channels","kind":"CHANNEL_LIST","renderer":"CHANNEL_LIST","filter":{"kinds":[40,41]}}]',
+    );
+    expect(decodeDeckColumns(json)).toEqual([spec]);
+    // タイトルは正準キー（表示は nav_public_chat）
+    expect(columnLabel(spec)).toBe("パブリックチャット");
+  });
+
+  it("設定なしで追加でき、ふぁぼ欄とステータスの間に並ぶ（ネイティブ ColumnTemplate.entries と同じ順）", () => {
+    const templates = TEMPLATES.map((t) => t.template);
+    expect(templates.indexOf("CHANNEL_LIST")).toBe(templates.indexOf("FAVS") + 1);
+    expect(templates.indexOf("CHANNEL_LIST")).toBe(templates.indexOf("STATUS") - 1);
+    expect(TEMPLATES.find((t) => t.template === "CHANNEL_LIST")).toEqual({
+      template: "CHANNEL_LIST",
+      config: "NONE",
+      iconKind: "CHANNEL_LIST",
+    });
+    expect(editTemplate(build("CHANNEL_LIST", {}, NONE, 100))).toBeNull();
   });
 });
 

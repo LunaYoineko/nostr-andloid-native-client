@@ -4,6 +4,11 @@ import nostr_deck_client.composeapp.generated.resources.publish_unconfirmed
 import nostr_deck_client.composeapp.generated.resources.own_list_stale
 import nostr_deck_client.composeapp.generated.resources.own_list_unreachable
 import nostr_deck_client.composeapp.generated.resources.reaction_sent_fmt
+import nostr_deck_client.composeapp.generated.resources.emoji_save_failed
+import nostr_deck_client.composeapp.generated.resources.emoji_saved
+import nostr_deck_client.composeapp.generated.resources.emoji_no_base
+import nostr_deck_client.composeapp.generated.resources.picker_make_save_duplicate
+import nostr_deck_client.composeapp.generated.resources.reaction_sent_made
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,7 +50,12 @@ import app.nostrdeck.ui.LocalRepository
 import app.nostrdeck.ui.LoginGate
 import app.nostrdeck.ui.NoteNav
 import app.nostrdeck.ui.Nyan
+import app.nostrdeck.state.DetailRoute
+import app.nostrdeck.state.EventLink
+import app.nostrdeck.state.resolveEventLinkRoute
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -77,13 +87,19 @@ fun App(
         // 本文メンション(@npub…)解決用の pubkey→name マップを供給（実データ時のみ）。
         val names by (repository?.profileNames()?.collectAsState(emptyMap<String, String>())
             ?: remember { mutableStateOf(emptyMap<String, String>()) })
-        // 本文リンクのタップ遷移: @→プロフィール / #→ハッシュタグカラム / note・nevent→スレッド。
+        // 本文リンクのタップ遷移: @→プロフィール / #→ハッシュタグカラム / note・nevent→スレッド
+        // （[#791] パブリックチャットの kind:40/42 はルームを重ねる）。
         val navScope = rememberCoroutineScope()
         val noteNav = remember(state, repository) {
+            // [#791] 開き先の判定中（取得待ち）に別のリンクを押したら前の判定は捨てる（後から古いほうが開かないように）。
+            var pendingEventLink: Job? = null
             NoteNav(
                 onMention = { hex -> state.openProfile(hex) },
                 onHashtag = { tag -> state.openHashtag(tag) },
-                onEvent = { id -> state.openThreadDetail(id) },
+                onEventLink = { link ->
+                    pendingEventLink?.cancel()
+                    pendingEventLink = navScope.launch { openEventLink(state, repository, link) }
+                },
                 // naddr は kind+著者+dTag から実イベント id を解決してスレッドを開く（Markdown 記事と同じ経路）。
                 onAddr = { addr ->
                     navScope.launch {
@@ -115,8 +131,29 @@ fun App(
         }
         // [#732] 絵文字ピッカーからリアクションを送ったことを知らせる（投稿の行には出さない方針）。
         LaunchedEffect(repository) {
-            repository?.reactionSentFlow()?.collect { emoji ->
-                toast(app.nostrdeck.i18n.getString(nostr_deck_client.composeapp.generated.resources.Res.string.reaction_sent_fmt, emoji))
+            repository?.reactionSentFlow()?.collect { sent ->
+                val r = nostr_deck_client.composeapp.generated.resources.Res.string
+                // [#775] 作った絵文字で名前が自動（nostrism_…）のときは、名前を出しても意味をなさないので「作った絵文字で」。
+                toast(
+                    if (sent.made) app.nostrdeck.i18n.getString(r.reaction_sent_made)
+                    else app.nostrdeck.i18n.getString(r.reaction_sent_fmt, sent.emoji),
+                )
+            }
+        }
+        // [#775] ピッカーで作った絵文字を「自分の絵文字リストにも保存」した結果（リアクションの成否とは別に知らせる）。
+        LaunchedEffect(repository) {
+            repository?.madeEmojiSavedFlow()?.collect { result ->
+                val r = nostr_deck_client.composeapp.generated.resources.Res.string
+                toast(
+                    app.nostrdeck.i18n.getString(
+                        when (result) {
+                            app.nostrdeck.data.EventRepository.EmojiAppend.SAVED -> r.emoji_saved
+                            app.nostrdeck.data.EventRepository.EmojiAppend.DUPLICATE -> r.picker_make_save_duplicate
+                            app.nostrdeck.data.EventRepository.EmojiAppend.UNREACHABLE -> r.emoji_no_base
+                            app.nostrdeck.data.EventRepository.EmojiAppend.FAILED -> r.emoji_save_failed
+                        },
+                    ),
+                )
             }
         }
         // [#478] 自分のリスト（フォロー・ミュート等）の編集を止めた理由。どの画面から操作しても同じ文言で知らせる。
@@ -240,4 +277,21 @@ fun App(
             }
         }
     }
+}
+
+/**
+ * [#791] 本文の note・nevent を開く。kind:40/42（パブリックチャット）ならルームを重ね、それ以外はスレッド。
+ * kind は nevent → 手元のイベント → 手元のチャンネル一覧 → 取得（最大 6 秒）の順で決める（[resolveEventLinkRoute]）。
+ * 取得しても分からなければスレッド（従来どおり）。
+ */
+private suspend fun openEventLink(state: DeckState, repo: EventRepository?, link: EventLink) {
+    val route = resolveEventLinkRoute(
+        link,
+        local = { id -> repo?.eventByIdFlow(id)?.first() },
+        isKnownChannel = { id -> repo?.channelsFlow()?.first()?.any { it.id == id } == true },
+        fetch = { id, relays -> repo?.fetchEvent(id, relays) },
+    )
+    // スレッドで開くときもリレーヒントは取得に使う（スレッド表示は ids で取り直すがヒントを知らない）。
+    if (route is DetailRoute.ThreadView && link.relays.isNotEmpty()) repo?.requestEvent(link.id, link.relays)
+    state.openDetail(route)
 }

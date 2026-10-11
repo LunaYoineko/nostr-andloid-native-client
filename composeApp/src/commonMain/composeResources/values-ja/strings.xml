@@ -6,17 +6,14 @@
     <string name="nav_public_chat">パブリックチャット</string>
     <string name="nav_notifications">通知</string>
     <string name="nav_dm">DM</string>
-    <string name="nav_messages">メッセージ</string>
-    <string name="seg_dm">DM</string>
-    <string name="seg_chat">チャット</string>
+    <!-- [#794] 自分のアイコンのメニュー: リレーの接続状態（接続数 / 全体） -->
+    <string name="account_menu_relays_fmt">%1$d / %2$d 接続中</string>
     <string name="nav_add_column">カラム追加</string>
     <string name="settings_title">設定</string>
 
     <!-- Settings: groups -->
-    <string name="group_quick_access">よく使う</string>
-    <string name="group_customize">カスタマイズ</string>
-    <string name="group_connection">接続・アカウント</string>
-    <string name="group_system">システム</string>
+    <string name="group_nostr">Nostr の設定</string>
+    <string name="group_app">アプリの設定</string>
 
     <!-- Settings: sections / tiles -->
     <string name="section_account">プロフィール編集</string>
@@ -180,6 +177,22 @@
     <string name="tpl_hashtag_hint">タグ（# は不要）</string>
     <string name="tpl_favs">ふぁぼ欄</string>
     <string name="tpl_favs_hint">自分がリアクションした投稿</string>
+    <string name="tpl_status">ステータス</string>
+    <string name="tpl_status_hint">フォロー中の人の Now Playing とひとこと</string>
+    <string name="tpl_channel_list_hint">パブリックチャットのスレッド一覧（NIP-28）</string>
+    <string name="status_type_general">ステータス</string>
+    <string name="status_type_music">Now Playing</string>
+    <string name="status_filter">表示</string>
+    <string name="status_filter_all">すべて</string>
+    <string name="status_empty">いまステータスを出している人はいません</string>
+    <string name="status_empty_music">いま Now Playing を出している人はいません</string>
+    <string name="status_expires_soon">まもなく終了</string>
+    <string name="status_expires_min">残り %1$d 分</string>
+    <string name="status_expires_hour">残り %1$d 時間</string>
+    <string name="status_expires_at">%1$s まで</string>
+    <string name="status_ref_post">投稿を見る</string>
+    <string name="status_ref_article">記事を見る</string>
+    <string name="status_ref_open">開く</string>
     <string name="sub_my_reactions">自分のリアクション</string>
     <string name="notif_mention">メンション</string>
     <string name="notif_reaction">リアクション</string>
@@ -204,6 +217,9 @@
     <string name="cat_reposts_of_me">自分へのリポスト</string>
     <string name="cat_my_reactions">自分がしたリアクション</string>
     <string name="cat_dms">未読のメッセージ</string>
+    <string name="cat_public_chat">パブリックチャットの発言</string>
+    <string name="feed_chat_in_channel_fmt">#%1$s で発言</string>
+    <string name="feed_chat_in_channel_unknown">チャットで発言</string>
     <string name="col_width">カラム幅</string>
     <string name="width_narrow">狭</string>
     <string name="width_default">標準</string>
@@ -305,6 +321,36 @@
     <string name="reaction_star">スター</string>
     <!-- [#732] 絵文字ピッカーからリアクションを送ったときのトースト -->
     <string name="reaction_sent_fmt">%1$s でリアクションしました</string>
+    <string name="reaction_sent_made">作った絵文字でリアクションしました</string>
+    <string name="picker_make">絵文字を作る</string>
+    <string name="picker_make_react">この絵文字でリアクション</string>
+    <string name="picker_make_save">自分の絵文字リストにも保存</string>
+    <string name="picker_make_shortcode_label">ショートコード（任意）</string>
+    <string name="picker_make_shortcode_hint">空なら自動で名前を付けます</string>
+    <string name="picker_make_save_duplicate">同じショートコードの絵文字がリストにあるため、保存しませんでした</string>
+    <string name="emoji_shortcode_invalid">ショートコードは英数字と _ - だけ使えます</string>
+    <string name="emoji_no_base">最新の絵文字リストを取得できなかったため、公開しませんでした。接続を確認してもう一度お試しください</string>
+    <string name="emoji_add_by_url">URL で追加</string>
+    <string name="emoji_add_by_maker">文字から作る</string>
+    <string name="emoji_maker_text_label">テキスト</string>
+    <string name="emoji_maker_text_hint">文字を入力（改行で複数行）</string>
+    <string name="emoji_maker_limit">4 行・1 行 10 文字まで</string>
+    <string name="emoji_maker_font_label">フォント</string>
+    <string name="emoji_maker_color_label">文字色</string>
+    <string name="emoji_maker_stroke_enable">縁取り</string>
+    <string name="emoji_maker_stroke_color_label">縁取りの色</string>
+    <string name="emoji_maker_hex_hint">16進（例: ff0000）</string>
+    <string name="emoji_maker_preview_label">プレビュー</string>
+    <string name="emoji_maker_preview_light">明るい背景</string>
+    <string name="emoji_maker_preview_dark">暗い背景</string>
+    <string name="emoji_maker_note">入力した文字は画像の URL として Nostrism のサーバーへ送られます。絵文字を使うと、その URL は誰でも見られます。</string>
+    <string name="emoji_maker_error_invalid_text">使えない制御文字が含まれています</string>
+    <string name="emoji_maker_error_invalid_color">文字色は16進（例: ff0000）で指定してください</string>
+    <string name="emoji_maker_error_invalid_stroke">縁取りの色は16進（例: ffffff）で指定してください</string>
+    <string name="emoji_maker_error_unsupported_char">「%1$s」はこのフォントで描けません</string>
+    <string name="emoji_maker_error_font_unavailable">フォントを読み込めませんでした。しばらくしてからもう一度お試しください</string>
+    <string name="emoji_maker_error_network">画像を取得できませんでした。接続を確認してください</string>
+    <string name="emoji_maker_error_unknown">画像を作れませんでした。しばらくしてからもう一度お試しください</string>
     <string name="reaction_other">その他の絵文字</string>
     <string name="settings_unavailable">設定を利用できません</string>
     <string name="sync_title">リレー同期</string>
@@ -448,6 +494,7 @@
     <string name="compose_posting">投稿中…</string>
     <string name="compose_attach_image">画像を添付</string>
     <string name="compose_attach_video">動画を添付</string>
+    <string name="compose_paste_image_failed">クリップボードの画像を読み込めませんでした</string>
     <string name="compose_insert_emoji">絵文字を挿入</string>
     <string name="compose_sensitive_on">センシティブ: ON</string>
     <string name="compose_sensitive">センシティブ指定</string>
@@ -609,6 +656,7 @@
     <string name="load_more">さらに読み込む</string>
     <string name="thread_title">スレッド</string>
     <string name="chat_select_channel">チャンネルを選択</string>
+    <string name="chat_room_unnamed">パブリックチャット</string>
     <string name="chat_loading_channel">チャンネルを読み込み中…</string>
     <string name="chat_write_message">✏️ メッセージを書く</string>
     <string name="chat_reply">リプライ</string>

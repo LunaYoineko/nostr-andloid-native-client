@@ -26,6 +26,11 @@ enum class KbAction { OPEN, REPLY, REPOST, REACT, BOOKMARK }
 sealed interface DetailRoute {
     data class ProfileView(val pubkey: String) : DetailRoute
     data class ThreadView(val eventId: String) : DetailRoute
+    /**
+     * [#791] パブリックチャット（NIP-28）のルーム。本文の kind:40/42 へのリンクから重ねる（タブは移らない）。
+     * [messageId] があれば（kind:42 へのリンク）、その発言の位置まで送って強調する。
+     */
+    data class ChannelRoomView(val channelId: String, val messageId: String? = null) : DetailRoute
 }
 
 /**
@@ -51,12 +56,61 @@ class DeckState(
     private fun persistPinned() = onPinnedChanged?.invoke(columns.filter { it.pinned })
 
     /** レール/下タブの選択中宛先。 */
-    var navDest by mutableStateOf(NavDest.HOME)
+    var navDest: NavDest
+        get() = navDestState
+        set(value) {
+            // [#806] 設定から離れたら、アイコンのメニューから開いたセクションの戻り先は忘れる。
+            if (value != NavDest.SETTINGS) settingsReturn = null
+            navDestState = value
+        }
+    private var navDestState by mutableStateOf(NavDest.HOME)
 
     // 各 list-detail 宛先で選択中の項目（右ペイン）。Compact では null=一覧 / 非null=詳細。
     var publicChatRoom by mutableStateOf<String?>(null)   // 選択中チャンネル id
     var dmThread by mutableStateOf<String?>(null)         // 選択中の相手 pubkey
     var settingsSection by mutableStateOf<String?>(null)  // 選択中の設定セクション
+
+    /**
+     * [#806] アイコンのメニューから設定のセクション（[section]）を開く前の画面。
+     * 宛先・重ねていた詳細・表示中のカラム（Compact のホーム）を覚えて、そのセクションを閉じたらここへ戻す。
+     */
+    private data class SettingsReturn(
+        val section: String,
+        val dest: NavDest,
+        val details: List<DetailRoute>,
+        val columnId: String?,
+    )
+    private var settingsReturn: SettingsReturn? = null
+
+    /**
+     * [#806] アイコンのメニューから設定のセクション（ミュート・リレー等。設定の一覧には並ばない）を直接開く。
+     * 設定の外から開いたときは開く前の画面を覚え、[closeSettingsSection] でそこへ戻す。
+     * 設定の中から開き直したときは、最初に覚えた戻り先のまま（設定の一覧から入っていたなら一覧へ戻る）。
+     */
+    fun openSettingsSection(id: String) {
+        settingsReturn = if (navDest != NavDest.SETTINGS) {
+            SettingsReturn(id, navDest, detailStack.toList(), visibleColumnId)
+        } else {
+            settingsReturn?.copy(section = id)
+        }
+        clearDetail()
+        settingsSection = id
+        navDest = NavDest.SETTINGS
+    }
+
+    /**
+     * 設定のセクションを閉じる（Compact の ← / システムバック）。設定の一覧から開いたセクションは一覧へ戻る。
+     * [#806] アイコンのメニューから開いたセクションは、メニューを開く前の画面へ戻る。
+     */
+    fun closeSettingsSection() {
+        val back = settingsReturn?.takeIf { it.section == settingsSection }
+        settingsSection = null
+        if (back == null) return
+        // ホームはカラムの位置まで戻す（ホームを離れている間に Pager が作り直されて先頭へ戻っているため）。
+        val column = back.columnId?.takeIf { id -> back.dest == NavDest.HOME && columns.any { it.id == id } }
+        if (column != null) jumpTo(column) else navDest = back.dest
+        detailStack.addAll(back.details)
+    }
 
     /** レールアイコン/タブから要求されたジャンプ先カラム id（消費後に null へ）。 */
     var jumpTarget by mutableStateOf<String?>(null)
@@ -79,24 +133,12 @@ class DeckState(
     }
 
     /**
-     * [#422] メッセージ画面（DM とパブリックチャットを統合）で最後に選んだ側。
-     * 未読の DM が無いときに「メッセージ」を開いた際の初期表示に使う。
+     * [#794] 「パブリックチャット」ナビのタップ。常にチャンネル一覧へ。
+     * #422 の「メッセージ」（DM とチャットを切り替えでまとめた画面）はやめ、DM は自分のアイコンのメニューから開く。
      */
-    var messagesSegment by mutableStateOf(NavDest.DM)
-
-    /** [#422] 「メッセージ」ナビの選択状態（DM・チャットのどちらを開いていても点灯）。 */
-    val messagesActive: Boolean get() = navDest == NavDest.DM || navDest == NavDest.CHANNELS
-
-    /** [#422] 「メッセージ」ナビのタップ。未読の DM があれば DM、無ければ最後に使った側を開く。 */
-    fun openMessages(dmUnread: Int) {
+    fun openPublicChat() {
         clearDetail()
-        navDest = if (dmUnread > 0) NavDest.DM else messagesSegment
-    }
-
-    /** [#422] メッセージ画面の「DM | チャット」切り替え。 */
-    fun switchMessages(dest: NavDest) {
-        messagesSegment = dest
-        navDest = dest
+        navDest = NavDest.CHANNELS
     }
 
     /** [#405] 通知カラム（あれば）。「通知」ナビのジャンプ先。 */
@@ -218,6 +260,20 @@ class DeckState(
     fun openThreadDetail(eventId: String) {
         if ((detailStack.lastOrNull() as? DetailRoute.ThreadView)?.eventId == eventId) return
         detailStack.add(DetailRoute.ThreadView(eventId))
+    }
+
+    /** [#791] パブリックチャットのルームを全幅で重ねる（同じルート＝同じルーム・同じ発言が末尾なら何もしない）。 */
+    fun openChannelRoom(channelId: String, messageId: String? = null) {
+        val route = DetailRoute.ChannelRoomView(channelId, messageId)
+        if (detailStack.lastOrNull() == route) return
+        detailStack.add(route)
+    }
+
+    /** [#791] 判定済みの詳細ルートを開く（本文リンクの開き先の判定結果をそのまま渡す）。 */
+    fun openDetail(route: DetailRoute) = when (route) {
+        is DetailRoute.ProfileView -> openProfile(route.pubkey)
+        is DetailRoute.ThreadView -> openThreadDetail(route.eventId)
+        is DetailRoute.ChannelRoomView -> openChannelRoom(route.channelId, route.messageId)
     }
 
     /** 詳細ルートを1つ閉じる。閉じたら true（戻る操作で消費）。 */

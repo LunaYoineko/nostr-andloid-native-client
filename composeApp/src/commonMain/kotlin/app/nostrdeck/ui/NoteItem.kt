@@ -100,6 +100,8 @@ fun NoteItem(
     onAuthorClick: ((String) -> Unit)? = null,
     // [#14] キーボードショートカットで選択中のとき、背景を強調＋左にアクセントバーを描く。
     selected: Boolean = false,
+    // [#793] パブリックチャットの発言（note.chatChannel あり）の「#チャンネル名 で発言」行のタップ。チャンネル id を渡す。
+    onChannelClick: ((channelId: String) -> Unit)? = null,
 ) {
   val repo = LocalRepository.current
   val scope = rememberCoroutineScope()
@@ -175,6 +177,18 @@ fun NoteItem(
   Column(rootModifier) {
     note.repostedBy?.let {  // [M8-repost][#254] 🔁 (アバター) 名前
         RepostHeader(it, Modifier.padding(start = DeckSpace.Md, top = DeckSpace.Sm))
+    }
+    // [#793] パブリックチャットの発言は、どのチャンネルでの発言かを返信元と同じ体裁の1行で上に出す
+    // （# が印になるので ◁ は付けない）。名前（kind:40）が届くまでは仮の文言。タップでルームを開く。
+    note.chatChannel?.let { ch ->
+        ReplyContextLine(
+            name = null,
+            content = ch.name?.let { stringResource(Res.string.feed_chat_in_channel_fmt, it) }
+                ?: stringResource(Res.string.feed_chat_in_channel_unknown),
+            showIcon = false,
+            onClick = onChannelClick?.let { open -> { open(ch.id) } },
+            modifier = Modifier.padding(start = DeckSpace.Md, end = DeckSpace.Md, top = DeckSpace.Sm),
+        )
     }
     // [#254] 返信(NIP-10)の返信元は**アバター/名前の上**に1行プレビュー（◁ 名前: 本文…）。
     // 「◁ 返信元の内容」→「(アイコン) 名前…」の順に読めるようにする。リポストヘッダと同じ位置。
@@ -601,6 +615,7 @@ fun NoteItem(
           onPick = { content, imageUrl -> scope.launch { repo?.publishReaction(note.event, content, imageUrl, announce = true) } },   // [#732]
           onDismiss = { showReactionPicker = false },
           targetNote = note,
+          onMake = { made -> scope.launch { repo?.publishMadeReaction(note.event, made) } },   // [#775]
       )
   }
 
@@ -782,11 +797,12 @@ private fun NoteMetaLine(note: NoteUi, authorTap: Modifier, modifier: Modifier =
             )
         }
         Spacer(Modifier.width(DeckSpace.Sm))
-        HintText(relativeTime(note.event.createdAt))
+        HintText(noteRelativeTime(note.event.createdAt))
     }
 }
 
-private fun relativeTime(createdAt: Long): String {
+/** 投稿の相対時刻（now / 12s / 5m / 3h / 2d / 1w）。[#772] ステータスのカードも同じ表記を使う。 */
+internal fun noteRelativeTime(createdAt: Long): String {
     val diff = currentUnixTime() - createdAt
     return when {
         diff < 10 -> "now"

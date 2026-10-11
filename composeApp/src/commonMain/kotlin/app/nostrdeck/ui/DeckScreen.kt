@@ -1,5 +1,6 @@
 package app.nostrdeck.ui
 
+import app.nostrdeck.model.UserStatuses
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
@@ -440,6 +441,7 @@ fun rememberColumnMenuActions(spec: ColumnSpec, state: DeckState): ColumnMenuAct
     val filtersMuted = spec.renderer == ColumnRenderer.FEED || spec.renderer == ColumnRenderer.THREAD
     // フォロー中カラムだけ「タイムラインに混ぜる表示」カテゴリのトグルを出す。
     val isFollowing = spec.kind == ColumnKind.FOLLOWING
+    val isStatus = spec.kind == ColumnKind.STATUS
     val hiddenCategories = if (isFollowing && repoForMenu != null)
         repoForMenu.columnHiddenCategoriesFlow().collectAsState().value[spec.id].orEmpty() else emptySet()
     val index = state.columns.indexOfFirst { it.id == spec.id }
@@ -459,6 +461,9 @@ fun rememberColumnMenuActions(spec: ColumnSpec, state: DeckState): ColumnMenuAct
             ({ cat: FeedNoticeCategory -> repoForMenu.setColumnCategoryHidden(spec.id, cat, cat !in hiddenCategories) }) else null,
         columnWidth = if (repoForMenu != null) (repoForMenu.columnWidthsFlow().collectAsState().value[spec.id] ?: "M") else null,
         onSetWidth = if (repoForMenu != null) ({ s: String -> repoForMenu.setColumnWidth(spec.id, s) }) else null,
+        // [#772] ステータスカラムだけ「表示」（すべて / Now Playing / ステータス）を出す。
+        statusType = if (isStatus && repoForMenu != null) repoForMenu.columnStatusTypesFlow().collectAsState().value[spec.id] else null,
+        onSetStatusType = if (isStatus && repoForMenu != null) ({ t: UserStatuses.Type? -> repoForMenu.setColumnStatusType(spec.id, t) }) else null,
     )
 }
 
@@ -485,6 +490,7 @@ private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyList
             // 素の FEED では永久に空になり、以前はここが仮データに落ちていた。
             val isDm = spec.kind == ColumnKind.DM
             val isFavs = repo != null && spec.kind == ColumnKind.FAVS  // [#12] ふぁぼ欄
+            val isStatus = repo != null && spec.kind == ColumnKind.STATUS  // [#772] NIP-38 ステータス
             val live = repo != null && spec.kind in LIVE_FEED_KINDS
             val profilePubkey = spec.filter.authors.firstOrNull()
             if (live) {
@@ -502,41 +508,51 @@ private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyList
                     }
                 }
             }
+            if (isStatus) {
+                DisposableEffect(spec.id) {
+                    repo!!.subscribeStatuses(spec.id)
+                    onDispose { repo.unsubscribeColumn(spec.id) }
+                }
+            }
             val openProfile: (String) -> Unit = { pk -> state.openProfile(pk) }
             // ノートタップは新カラムではなく全幅オーバーレイ（最大幅制限）でスレッドを開く。
             val openThread: (NoteUi) -> Unit = { note -> state.openThreadDetail(note.event.id) }
             val doReply: (NoteUi) -> Unit = { note -> state.replyTo = note.event; state.showCompose = true }
             val doQuote: (NoteUi) -> Unit = { note -> state.quoting = note.event; state.showCompose = true }
             when {
+                isStatus -> StatusColumn(
+                    spec, modifier, listState, menu = menu,
+                    onAuthorClick = openProfile,
+                    onRefresh = { repo!!.refreshStatuses(spec.id) },
+                )
                 isFollowingFeed -> {
                     // [M10] 投稿＋自分宛のリアクション/リポスト通知を混在表示。
                     val all = remember(spec.id) { repo!!.followingFeedMixed() }.collectAsState().value
                     val entries = all.filterNot {
                         // メニューで非表示にした通知系カテゴリを除外。
-                        val cat = when (it) {
-                            is FeedEntry.Notice -> when (it.notif.kind) {
-                                NotificationKind.REACTION -> FeedNoticeCategory.REACTIONS
-                                NotificationKind.REPLY, NotificationKind.MENTION -> FeedNoticeCategory.REPLIES
-                                NotificationKind.REPOST -> FeedNoticeCategory.REPOSTS
-                                NotificationKind.DM -> FeedNoticeCategory.DMS  // [#419]
-                                else -> null
-                            }
-                            is FeedEntry.MyReaction -> FeedNoticeCategory.MY_REACTIONS
-                            is FeedEntry.Post -> null
-                        }
+                        // [#793] 対応表は feedNoticeCategoryOf（パブリックチャットの発言 → CHAT を足した）。
+                        val cat = app.nostrdeck.model.feedNoticeCategoryOf(it)
                         if (cat != null && cat in hiddenCategories) return@filterNot true
                         if (revealed) return@filterNot false
                         when (it) {
+                            // [#793] チャットの発言も投稿と同じ判定（Post で流れてくる）。
                             is FeedEntry.Post -> matcher.muted(it.note)
                             is FeedEntry.Notice -> matcher.muted(it.notif)
                             is FeedEntry.MyReaction -> matcher.muted(it.target)
                         }
                     }
+                    // [#793] チャットの発言の行き先（そのチャンネルのルーム）。今は通知のチャット行と同じく
+                    // 「パブリックチャット」の画面へ移ってルームを選ぶ。
+                    // [#793] 「#チャンネル名 で発言」の行・本文・返信のタップ: ルームを詳細オーバーレイで重ねる（#791 と同じ経路）。
+                    val openChannel: (String) -> Unit = { channelId -> state.openChannelRoom(channelId) }
                     SubscribeZaps(repo, spec.id, entries.filterIsInstance<FeedEntry.Post>().map { it.note.event.id })
                     val selIdx = kbColumnSelection(
                         state, spec.id, entries.size, listState,
                         resolve = { i -> feedEntryNote(entries.getOrNull(i)) },
-                        onOpen = openThread, onReply = doReply, onRepost = doQuote,
+                        // [#793] キー操作でも、チャットの発言はタップと同じくルームを開く（開く・返信）。
+                        onOpen = { n -> val ch = n.chatChannel; if (ch != null) openChannel(ch.id) else openThread(n) },
+                        onReply = { n -> val ch = n.chatChannel; if (ch != null) openChannel(ch.id) else doReply(n) },
+                        onRepost = doQuote,
                     )
                     FollowingFeedColumn(
                         spec, entries, modifier, listState, menu = menu,
@@ -544,6 +560,7 @@ private fun RenderColumn(spec: ColumnSpec, state: DeckState, listState: LazyList
                         onNoticeClick = { n -> openNotificationTarget(state, n) },  // [#419]
                         onRefresh = { repo!!.refreshFollowing(spec.id) },  // [#53] プルリフレッシュ
                         selectedIndex = selIdx,
+                        onChannelClick = openChannel,  // [#793]
                     )
                 }
                 isNotifications -> {

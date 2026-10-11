@@ -24,6 +24,9 @@ import io.ktor.client.request.prepareGet
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
+import app.nostrdeck.model.EmojiMaker
+import app.nostrdeck.model.MadeEmoji
+import io.ktor.client.statement.readRawBytes
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.encodeURLParameter
@@ -37,6 +40,7 @@ import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import app.nostrdeck.ui.extractMedia
+import app.nostrdeck.model.UserStatuses
 import app.nostrdeck.model.ChannelMessage
 import app.nostrdeck.model.ColumnKind
 import app.nostrdeck.model.ColumnRenderer
@@ -227,6 +231,8 @@ class EventRepository(
     private var myPubkey: String? = null
     /** [M8-counts] 自分の公開鍵を Flow でも公開（♡/リポスト済み判定が鍵切替に追従するため）。 */
     private val myPubkeyFlow = MutableStateFlow<String?>(null)
+    /** [#772] ログイン中の公開鍵（ステータスのミュート判定で自分を除くため）。 */
+    fun myPubkeyState(): StateFlow<String?> = myPubkeyFlow.asStateFlow()
 
     /** 自分の全 kind:7 行（note_id / content / tags_json）。♡状態と自分リアクション表示の元。 */
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -369,10 +375,12 @@ class EventRepository(
         scope.launch {
             q.allRelays().asFlow().mapToList(Dispatchers.Default).collect { rows ->
                 // [#50] 常設接続すべき集合＝read 有効なリスト由来リレー。N/M 表示の分母もこれ。
-                listRelays = rows.filter { it.read != 0L }.map { normalizeRelayUrl(it.url) }.toSet()
+                val read = rows.filter { it.read != 0L }.map { normalizeRelayUrl(it.url) }.toSet()
+                listRelays = read
                 rows.forEach { if (it.read != 0L) ensureRelay(it.url) }
                 // リストが変わったらステータス表示を更新（外れたリレーは一覧から消す）。
-                withContext(relayDispatcher) { refreshRelayConns() }
+                // カラムの購読（読み込みリレーだけに張る分）も新しい読み込みリレーへ張り替える。
+                withContext(relayDispatcher) { retargetReadSubs(read); refreshRelayConns() }
             }
         }
         // [M11] 既定のメディアサーバ(NIP-96)を投入（既にあれば触らない）。
@@ -394,6 +402,8 @@ class EventRepository(
         loadHiddenCategories()
         // [#10] カラム別の幅を KV から復元。
         loadColumnWidths()
+        // [#772] ステータスカラムの「表示」を KV から復元。
+        loadColumnStatusTypes()
         // [#27] 検索履歴を KV から復元。
         loadSearchHistory()
         // リンク埋め込み設定（OGP/YouTube/Spotify）を KV から復元。
@@ -445,7 +455,7 @@ class EventRepository(
             subscribeAll("dm4_in", Filter(kinds = listOf(4), pTags = listOf(me)))
             subscribeAll("dm4_out", Filter(kinds = listOf(4), authors = listOf(me)))
             // [M16] 自分のリアクション(kind:7)を購読し、宛先ノートと共に TL へ混ぜる。
-            subscribeAll("myreactions", Filter(kinds = listOf(7), authors = listOf(me), limit = 100))
+            subscribeRead("myreactions", Filter(kinds = listOf(7), authors = listOf(me), limit = 100))
         }
     }
 
@@ -504,8 +514,7 @@ class EventRepository(
             }
             // 限定なし(subTargets 無)のサブ、または新リレーが対象集合に含まれるサブだけ張り直す。
             activeSubs.forEach { (subId, filters) ->
-                val t = subTargets[subId]
-                if (t == null || key in t) client.subscribe(subId, *filters.toTypedArray())
+                if (RelayRouting.sendsTo(key, subTargets[subId])) client.subscribe(subId, *filters.toTypedArray())
             }
         }
     }
@@ -647,10 +656,48 @@ class EventRepository(
         }
     }
 
+    /**
+     * 自分の読み込みリレーだけへ張る購読の subId（カラムのタイムライン用。Web の `ctx.relays` と同じ送り先）。
+     * relayDispatcher 上でだけ触る。
+     */
+    private val readSubs = mutableSetOf<String>()
+
+    /**
+     * カラムのタイムラインの購読。**自分の読み込みリレーだけ**へ張る（Web と同じ）。
+     * [subscribeAll] は接続中の全リレー（検索用・チャンネル・DM・アウトボックス・インデクサなど一時的に繋いだものも含む）へ
+     * 張り、後から繋いだリレーにも張り直すため、拾う範囲が使い方で変わって Web と件数がずれていた。
+     * 読み込みリレーが変わったら [retargetReadSubs] が張り替える。読み込みリレーがまだ分からない間（起動直後）は張らず、
+     * 分かった時点で張る（全リレーへは広げない）。
+     */
+    private fun subscribeRead(subId: String, vararg filters: Filter) {
+        val list = filters.toList()
+        scope.launch(relayDispatcher) {
+            val targets = listRelays
+            activeSubs[subId] = list
+            subTargets[subId] = targets
+            readSubs += subId
+            relays.filterKeys { it in targets }.values.forEach { it.subscribe(subId, *list.toTypedArray()) }
+        }
+    }
+
+    /** 読み込みリレーが変わったとき（relayDispatcher 上）。外れたリレーでは CLOSE し、加わったリレーへ REQ を送る。 */
+    private fun retargetReadSubs(read: Set<String>) {
+        readSubs.forEach { subId ->
+            val filters = activeSubs[subId] ?: return@forEach
+            val old = subTargets[subId].orEmpty()
+            if (old == read) return@forEach
+            subTargets[subId] = read
+            val (close, open) = RelayRouting.retarget(old, read)
+            close.forEach { relays[it]?.unsubscribe(subId) }
+            open.forEach { url -> relays[url]?.subscribe(subId, *filters.toTypedArray()) }
+        }
+    }
+
     private fun unsubscribeAll(subId: String) {
         scope.launch(relayDispatcher) {
             activeSubs.remove(subId)
             subTargets.remove(subId)
+            readSubs.remove(subId)
             relays.values.forEach { it.unsubscribe(subId) }
         }
     }
@@ -766,12 +813,14 @@ class EventRepository(
             subscribeAll("dm_inbox", Filter(kinds = listOf(1059), pTags = listOf(me)))
             subscribeAll("dm4_in", Filter(kinds = listOf(4), pTags = listOf(me)))
             subscribeAll("dm4_out", Filter(kinds = listOf(4), authors = listOf(me)))
-            subscribeAll("myreactions", Filter(kinds = listOf(7), authors = listOf(me), limit = 100))
+            subscribeRead("myreactions", Filter(kinds = listOf(7), authors = listOf(me), limit = 100))
 
             // 開いているカラムの REQ を張り直して取りこぼしを防ぐ（relayDispatcher で直列化）。
             withContext(relayDispatcher) {
+                // 配信先を限定した購読（読み込みリレーだけ・検索・チャンネル等）は、その対象のリレーにだけ張り直す。
                 activeSubs.forEach { (subId, filters) ->
-                    relays.values.forEach { it.subscribe(subId, *filters.toTypedArray()) }
+                    val t = subTargets[subId]
+                    relays.filterKeys { RelayRouting.sendsTo(it, t) }.values.forEach { it.subscribe(subId, *filters.toTypedArray()) }
                 }
             }
         }
@@ -801,8 +850,10 @@ class EventRepository(
                 subscribeOwnLists(me)
             }
             withContext(relayDispatcher) {
+                // 配信先を限定した購読（読み込みリレーだけ・検索・チャンネル等）は、その対象のリレーにだけ張り直す。
                 activeSubs.forEach { (subId, filters) ->
-                    relays.values.forEach { it.subscribe(subId, *filters.toTypedArray()) }
+                    val t = subTargets[subId]
+                    relays.filterKeys { RelayRouting.sendsTo(it, t) }.values.forEach { it.subscribe(subId, *filters.toTypedArray()) }
                 }
             }
         }
@@ -1050,7 +1101,7 @@ class EventRepository(
             filter.relays.isNotEmpty() -> subscribeTargeted(columnId, filter.relays.toSet(), proto)
             // [#209] プロフィール/指定npub（少数著者）は著者の書き込みリレー(NIP-65)からも取得（アウトボックス）。
             filter.authors.isNotEmpty() && filter.authors.size <= 3 -> subscribeAuthorOutbox(columnId, filter, proto)
-            else -> subscribeAll(columnId, proto)
+            else -> subscribeRead(columnId, proto)
         }
     }
 
@@ -1061,7 +1112,7 @@ class EventRepository(
      * 取りこぼし（中間抜け）が減る。追加購読はカラム ID に紐づけ、カラム閉時にまとめて CLOSE する。
      */
     private fun subscribeAuthorOutbox(columnId: String, filter: ReqFilter, proto: Filter) {
-        subscribeAll(columnId, proto)   // 自分のリレーで即購読
+        subscribeRead(columnId, proto)   // 自分の読み込みリレーで即購読
         // [#388-review] 10002 待ちのジョブをカラム id で記録し、unsubscribeColumn で取り消す。
         // これが無いと、閉じた後に最大10秒遅れて「~outbox」購読が張られて漏れる。
         outboxJobs.remove(columnId)?.cancel()
@@ -1134,7 +1185,7 @@ class EventRepository(
             )
             !filter.search.isNullOrBlank() -> subscribeTargeted(subId, SEARCH_RELAYS.toSet(), filter.toProtocol(limit = SEARCH_FETCH_LIMIT).copy(until = untilSec))
             filter.relays.isNotEmpty() -> subscribeTargeted(subId, filter.relays.toSet(), proto)
-            else -> subscribeAll(subId, proto)
+            else -> subscribeRead(subId, proto)
         }
         scope.launch { delay(6000); unsubscribeAll(subId); openColumns.remove(subId) }
     }
@@ -1181,11 +1232,59 @@ class EventRepository(
                     // [#319] kind:5 削除リクエストも取る。これが無いと、別端末で消した自分の投稿が
                     // こちらに残り続ける（フォロー先が消したものも同じ）。件数は少なく負荷にならない。
                     // [#380] kind:1111 NIP-22 コメントも流す（ルート文脈の1行プレビュー付きで表示）。
-                    subscribeAll(columnId, Filter(kinds = listOf(1, 6, 16, 5, 1111), authors = withMe, limit = 100))
+                    // [#793] kind:42 パブリックチャットの発言も流す（「#チャンネル名 で発言」の1行付きで表示）。
+                    subscribeRead(columnId, Filter(kinds = listOf(1, 6, 16, 5, 1111, 42), authors = withMe, limit = 100))
                 }
             }
         }
     }
+
+    /**
+     * [#772] ステータスカラム（NIP-38）の購読。フォロー中 + 自分の general / music を、**自分の読み込みリレーだけ**に
+     * 1 回で取り切る（置き換え可能で 1 人 2 件までなので過去読みしない。期限の無い何年も前のものは since で取りに行かない）。
+     * Web と同じく読み込みリレーに限る（全リレー宛てだと、一時的に繋いだアウトボックス・チャンネル・DM のリレーにも
+     * 広がって Web と件数がずれる。[subscribeRead]）。フォローや読み込みリレーが変わったら張り直す。
+     */
+    fun subscribeStatuses(columnId: String) {
+        if (!openColumns.add(columnId)) return
+        columnLoadedState.value = columnLoadedState.value - columnId
+        scope.launch {
+            delay(8000)
+            if (columnId in openColumns) columnLoadedState.value = columnLoadedState.value + columnId
+        }
+        followingJobs[columnId] = scope.launch {
+            follows.collect { authors ->
+                val withMe = (authors + listOfNotNull(myPubkey)).distinct()
+                if (withMe.isNotEmpty()) {
+                    subscribeRead(
+                        columnId,
+                        Filter(
+                            kinds = listOf(UserStatuses.KIND), authors = withMe,
+                            dTags = UserStatuses.Type.entries.map { it.d },
+                            since = currentUnixTime() - UserStatuses.MAX_AGE_SEC,
+                            limit = UserStatuses.FETCH_LIMIT,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    /** [#772] ステータスカラムのプルリフレッシュ（REQ を張り直す）。 */
+    fun refreshStatuses(columnId: String) {
+        unsubscribeColumn(columnId)
+        subscribeStatuses(columnId)
+    }
+
+    /**
+     * [#772] フォロー中 + 自分のステータス（1 人・1 種類につき最新の 1 件）。表示条件（空・期限切れ・古すぎる）は
+     * 呼び出し側が今の時刻で見る（時間が経って切れたものを落とすため）。
+     */
+    fun statusesFlow(): Flow<List<NostrEvent>> =
+        combine(statuses, follows) { all, authors ->
+            val who = (authors + listOfNotNull(myPubkey)).toSet()
+            all.values.filter { it.pubkey in who }
+        }.flowOn(Dispatchers.Default)
 
     /**
      * [#53] カラムのプルリフレッシュ: 今の REQ を破棄して張り直す（取りこぼし解消・最新化）。
@@ -1215,21 +1314,66 @@ class EventRepository(
             else combine(
                 // [M8-repost] kind:1 + kind:6/16 リポストを含めて取得し、表示用に展開する。
                 q.feedFollowingWithReposts(authors, 0L).asFlow().mapToList(Dispatchers.Default),
+                // [#793] パブリックチャットの発言（kind:42）。件数の枠は投稿と別（Nostr.sq の feedFollowingChat）。
+                q.feedFollowingChat(authors).asFlow().mapToList(Dispatchers.Default),
                 profilesFlow,
                 noteMetaFlow,  // [M10] 自分の♡/リポスト済み状態（ボタンのハイライト用）
-            ) { rows, profiles, meta -> Triple(rows, profiles, meta) }
+                channelNamesFlow(),  // [#793] 発言先のチャンネル名（kind:40 が届けば組み直す）
+            ) { rows, chatRows, profiles, meta, channelNames -> FollowingRows(rows, chatRows, profiles, meta, channelNames) }
                 // conflate: 変換は重いので rapid な profiles/rows 更新は最新だけ処理して間引く。
                 .conflate()
-                .map { (rows, profiles, meta) ->
+                .map { (rows, chatRows, profiles, meta, channelNames) ->
                     val byPubkey = profiles.associateBy { it.pubkey }
                     // [M8-repost] リポストは元ノートに展開。メタ（反応/数/自分の状態）を表示ノートに付与。
                     // [#61] 重複排除は「完全な同一エントリ」だけを畳む。元投稿は event.id、リポストの
                     // コピーは repostId で一意化 → 元 vs リポストは別々に残り、複数人のリポストも各々残る。
-                    rows.mapNotNull { row -> toFollowingNoteUi(row, byPubkey)?.let { applyMeta(it, meta) } }
+                    val notes = rows.mapNotNull { row -> toFollowingNoteUi(row, byPubkey)?.let { applyMeta(it, meta) } }
+                    // [#793] 発言は投稿と同じ列に時刻順で混ぜる（並びはリポストと同じく「その行の時刻」）。
+                    val chats = chatRows.mapNotNull { row -> toChatNoteUi(row, byPubkey, channelNames)?.let { applyMeta(it, meta) } }
+                    (if (chats.isEmpty()) notes else (notes + chats).sortedByDescending { it.repostAt ?: it.event.createdAt })
                         .distinctBy { it.repostId ?: it.event.id }
                 // 変換（eventById 解決・集約付与）は重いので Default に載せ、UI スレッドを塞がない（ANR 対策）。
                 }.flowOn(Dispatchers.Default)
         }
+
+    /** [#793] フォロー中フィードの材料（combine は5本までなので名前付きでまとめる）。 */
+    private data class FollowingRows(
+        val rows: List<Event>,
+        val chatRows: List<Event>,
+        val profiles: List<app.nostrdeck.db.Profile>,
+        val meta: NoteMeta,
+        val channelNames: Map<String, String>,
+    )
+
+    /**
+     * [#793] チャンネル id → 名前（空の名前は除く）。発言のたびに進む最終活動時刻（touchChannelActivity）では
+     * 中身が変わらないので distinctUntilChanged で止め、フィードを組み直さない。
+     */
+    private fun channelNamesFlow(): Flow<Map<String, String>> =
+        q.channelNames().asFlow().mapToList(Dispatchers.Default)
+            .map { rows -> rows.filter { it.name.isNotBlank() }.associate { it.id to it.name } }
+            .distinctUntilChanged()
+
+    /**
+     * [#793] フォロー中のタイムラインに混ぜるパブリックチャットの発言（kind:42）。投稿と同じ NoteUi に、
+     * 発言先のチャンネル（[NoteUi.chatChannel]）と返信元（[resolveReplyParent] の 42）を載せる。
+     * チャンネルの分からない発言は出さない（開く先が無い）。名前が手元に無ければ kind:40 を id で取りに行く
+     * （届けば ingest がチャンネル一覧に入れ、[channelNamesFlow] 経由で名前が出る）。
+     */
+    private fun toChatNoteUi(
+        row: Event, byPubkey: Map<String, app.nostrdeck.db.Profile>, channelNames: Map<String, String>,
+    ): NoteUi? {
+        val tags = parseTags(row.tags_json)
+        val channelId = Nip28.channelIdOf(tags) ?: return null
+        val name = channelNames[channelId]
+        if (name == null) requestEvent(channelId, listOfNotNull(Nip28.relayHintOf(tags, channelId)))
+        val note = withQuoteAndReply(toNoteUi(row, byPubkey[row.pubkey]), row, byPubkey)
+        return note.copy(
+            chatChannel = app.nostrdeck.model.ChatChannelRef(channelId, name),
+            // 返信の発言は投稿の返信と同じ種別表示（アクセント）にする。
+            isReply = note.replyParent != null || Nip28.replyToOf(tags) != null,
+        )
+    }
 
     /**
      * 画面遷移（タブ切替・詳細表示）で都度フィードが空に戻る問題を避けるため、
@@ -1392,6 +1536,19 @@ class EventRepository(
         val picture: String?, val createdAt: Long, val lastAt: Long,
     )
 
+    /**
+     * [#793] 届いた kind:40（チャンネル作成）をチャンネル一覧（channel）へ入れる。フォロー中 TL の発言は
+     * thread.nchan.vip の一覧に無いチャンネルのものもあり、名前を出すために id で取りに行く。
+     * 一覧に名前つきで既にあれば触らない（HTTP 由来は kind:41 の編集を反映済みで、kind:40 の名前は古いことがある）。
+     * 最終活動は既存の値を残し、無ければ作成時刻（以後の発言で touchChannelActivity が進める）。
+     */
+    private fun ingestChannelCreate(e: NostrEvent) {
+        val meta = Nip28.channelMetaOf(e.content) ?: return
+        val prev = q.channelById(e.id).executeAsOneOrNull()
+        if (prev != null && prev.name.isNotBlank()) return
+        q.upsertChannel(e.id, meta.name, meta.about, meta.picture, e.createdAt, prev?.last_message_at ?: e.createdAt)
+    }
+
     /** チャンネルルーム表示時に購読開始（kind:42 #e=channelId）。チャンネルのリレーへも接続する。 */
     fun subscribeChannel(columnId: String, channelId: String) {
         if (!openColumns.add(columnId)) return
@@ -1545,7 +1702,7 @@ class EventRepository(
                 if (me != null) {
                     // 返信/メンション(1)・リポスト(6/16)・リアクション(7)・Zap受領(9735)・
                     // NIP-22 コメント(1111)[#380] を自分宛(#p)で購読（1111 は P/p 必須なので #p で拾える）。
-                    subscribeAll(columnId, Filter(kinds = listOf(1, 6, 16, 7, 9735, 1111), pTags = listOf(me), limit = 200))
+                    subscribeRead(columnId, Filter(kinds = listOf(1, 6, 16, 7, 9735, 1111), pTags = listOf(me), limit = 200))
                 }
             }
         }
@@ -2178,7 +2335,13 @@ class EventRepository(
      * [reactionSentFlow] に流し、App が「◯◯ でリアクションしました」とトーストで知らせる）。
      * ♡ボタン（既定リアクション）はボタン自体の押下表示があるので知らせない。
      */
-    suspend fun publishReaction(target: NostrEvent, emoji: String = "+", imageUrl: String? = null, announce: Boolean = false) {
+    suspend fun publishReaction(
+        target: NostrEvent,
+        emoji: String = "+",
+        imageUrl: String? = null,
+        announce: Boolean = false,
+        announceAsMade: Boolean = false,
+    ) {
         val tags = buildList {
             add(listOf("e", target.id))
             add(listOf("p", target.pubkey))
@@ -2188,12 +2351,29 @@ class EventRepository(
         }
         publishSigned(UnsignedEvent(kind = 7, content = emoji, tags = withRelayHints(tags)))
         recordUsedEmoji(emoji, imageUrl)
-        if (announce) reactionSent.tryEmit(if (emoji == "+" || emoji.isEmpty()) "❤️" else emoji)
+        if (announce) reactionSent.tryEmit(ReactionSent(if (emoji == "+" || emoji.isEmpty()) "❤️" else emoji, made = announceAsMade))
     }
 
-    /** [#732] 絵文字ピッカーからのリアクションを送れた（署名して送信キューに積んだ）ときの表示名。App がトーストに出す。 */
-    private val reactionSent = MutableSharedFlow<String>(extraBufferCapacity = 4)
-    fun reactionSentFlow(): SharedFlow<String> = reactionSent.asSharedFlow()
+    /**
+     * [#732] 絵文字ピッカーからのリアクションを送れた（署名して送信キューに積んだ）ときの表示名。App がトーストに出す。
+     * [#775] [made] = 「絵文字を作る」で作った絵文字で、名前が自動（nostrism_…）。名前が意味をなさないので「作った絵文字で」と出す。
+     */
+    data class ReactionSent(val emoji: String, val made: Boolean = false)
+    private val reactionSent = MutableSharedFlow<ReactionSent>(extraBufferCapacity = 4)
+    fun reactionSentFlow(): SharedFlow<ReactionSent> = reactionSent.asSharedFlow()
+
+    /**
+     * [#775] ピッカーの「絵文字を作る」で作った絵文字でリアクションする（NIP-25 / NIP-30: content `:shortcode:` + emoji タグ）。
+     * 絵文字リストへの登録は要らない。「自分の絵文字リストにも保存」がオンなら、送った後に足し、結果を [madeEmojiSavedFlow] に流す。
+     */
+    suspend fun publishMadeReaction(target: NostrEvent, made: MadeEmoji) {
+        publishReaction(target, ":${made.shortcode}:", made.url, announce = true, announceAsMade = made.autoName)
+        if (made.save) madeEmojiSaved.tryEmit(appendToEmojiList(CustomEmoji(made.shortcode, made.url)))
+    }
+
+    private val madeEmojiSaved = MutableSharedFlow<EmojiAppend>(extraBufferCapacity = 4)
+    /** [#775] ピッカーで作った絵文字を自分の絵文字リストに足した結果（リアクションの成否とは別に App がトーストで知らせる）。 */
+    fun madeEmojiSavedFlow(): SharedFlow<EmojiAppend> = madeEmojiSaved.asSharedFlow()
 
     /**
      * [#6] NIP-56 通報。kind:1984 で対象の投稿/ユーザーを報告する。
@@ -2947,6 +3127,50 @@ class EventRepository(
         eventRequests.trySend(id)
     }
 
+    /**
+     * [#791] イベント 1 件を取って待つ（本文リンクの kind で開き先を決めるため）。
+     * 手元（event テーブル）にあればそれを返す。無ければ接続中リレー + [hints] へ ids 指定の一時 REQ を投げ、
+     * 届くのを最大 [timeoutMs] 待つ。問い合わせた接続中のリレーがすべて EOSE を返しても届かなければ、
+     * そこで諦めて null（無いイベントのために上限まで待たせない）。
+     *
+     * kind:40（チャンネル作成）は取り込みで event テーブルに保存しないので、DB ではなく届いたイベントを
+     * 直接受け取る（[OwnRefetchCollector] の受け口を借りる）。届いたものは通常の取り込み経路にも流れる。
+     */
+    suspend fun fetchEvent(id: String, hints: List<String> = emptyList(), timeoutMs: Long = 6_000): NostrEvent? {
+        withContext(Dispatchers.Default) { q.eventById(id).executeAsOneOrNull() }?.let {
+            return NostrEvent(it.id, it.pubkey, it.kind.toInt(), it.created_at, it.content, parseTags(it.tags_json), it.sig)
+        }
+        val subId = "evone_${id.take(16)}_${Random.nextInt(1_000_000)}"
+        val collector = OwnRefetchCollector()
+        ownRefetches.update { it + (subId to collector) }
+        try {
+            // ヒントリレーへ一時接続（requestEvent と同じ規則・接続数上限つき）。EOSE を待つ数は
+            // 「いま繋がっているリレー + 今回繋ぎに行くヒント」（落ちているリレーの EOSE は来ないので数えない）。
+            val asked = withContext(relayDispatcher) {
+                var added = 0
+                for (raw in hints) {
+                    val url = normalizeRelayUrl(raw)
+                    if (!url.startsWith("wss://") && !url.startsWith("ws://")) continue
+                    if (relays.containsKey(url)) continue
+                    if (hintRelays.size >= HINT_RELAY_CAP) break
+                    if (hintRelays.add(url)) { ensureRelay(url); added++ }
+                }
+                relays.values.count { it.state.value == RelayConnState.CONNECTED } + added
+            }
+            subscribeAll(subId, Filter(ids = listOf(id), limit = 1))
+            withTimeoutOrNull(timeoutMs) {
+                combine(collector.events, collector.eose) { events, eose -> events to eose }
+                    .first { (events, eose) -> events.any { it.id == id } || (asked > 0 && eose.size >= asked) }
+            }
+        } finally {
+            ownRefetches.update { it - subId }
+            unsubscribeAll(subId)
+        }
+        return withContext(Dispatchers.Default) {
+            collector.events.value.firstOrNull { it.id == id && EventCrypto.verify(it) }
+        }
+    }
+
     private var eventReqSeq = 0
 
     private suspend fun eventBatchLoop() {
@@ -3248,6 +3472,8 @@ class EventRepository(
                 requestMentionedProfiles(e.content)
                 rootOf(e.tags)?.let { q.touchChannelActivity(e.createdAt, it, e.createdAt) }
             }
+            // [#793] NIP-28 チャンネル作成。フォロー中 TL の発言に「#名前」を出すため id で取りに行ったものを一覧へ。
+            Nip28.KIND_CHANNEL_CREATE -> ingestChannelCreate(e)
             0 -> upsertProfile(e)
             3 -> { updateFollows(e); captureContacts(e) }  // 自分のフォロー更新＋全 pubkey の集計[#96/#97/#98]
             10002 -> { captureNip65(e); if (relayListRep.accept(e, myPubkey)) applyRelayList(relayListRep.state.value) }
@@ -3260,6 +3486,7 @@ class EventRepository(
             10050 -> updateDmRelayList(e) // NIP-17 DM リレーリスト
             10030 -> updateEmojiList(e)   // NIP-51 自分の絵文字リスト
             30030 -> updateEmojiSet(e)    // NIP-51 絵文字セット（10030 の a タグ参照先）
+            UserStatuses.KIND -> captureStatus(e)   // [#772] NIP-38 ステータス（メモリだけに持つ）
             30078 -> {
                 captureSyncEvent(e) // [#374] NIP-78 アプリデータ（設定/カラム構成の手動同期用の控え）
                 // [#288] 配布テーマ（t=nostrism-theme）は **他人の分も** event テーブルへ保存する。
@@ -3347,6 +3574,35 @@ class EventRepository(
     private fun loadColumnWidths() {
         columnWidthsState.value = q.settingsByPrefix(COL_WIDTH_PREFIX).executeAsList()
             .associate { it.key.removePrefix(COL_WIDTH_PREFIX) to it.value_ }
+    }
+
+    // ---- [#772] NIP-38 ステータス（kind:30315）----
+
+    /**
+     * 「pubkey:d」→ 最新版（general / music だけ）。DB には保存しない（起動のたびにカラムの REQ で取り直す。
+     * 置き換え可能で古い版が溜まるうえ、ステータスは今のものだけ要るため）。
+     */
+    private val statuses = MutableStateFlow<Map<String, NostrEvent>>(emptyMap())
+
+    private fun captureStatus(e: NostrEvent) {
+        val type = UserStatuses.typeOf(e) ?: return
+        val key = "${e.pubkey}:${type.d}"
+        statuses.update { m -> if (UserStatuses.replaces(m[key], e)) m + (key to e) else m }
+        requestProfile(e.pubkey)
+    }
+
+    /** [#772] ステータスカラムの「表示」（カラム別。端末だけに保存し、同期しない）。無ければすべて。 */
+    private val columnStatusTypesState = MutableStateFlow<Map<String, UserStatuses.Type>>(emptyMap())
+    fun columnStatusTypesFlow(): StateFlow<Map<String, UserStatuses.Type>> = columnStatusTypesState
+    fun setColumnStatusType(columnId: String, type: UserStatuses.Type?) {
+        columnStatusTypesState.value =
+            if (type == null) columnStatusTypesState.value - columnId else columnStatusTypesState.value + (columnId to type)
+        putSettingAsync(COL_STATUS_TYPE_PREFIX + columnId, type?.d ?: "all")
+    }
+    private fun loadColumnStatusTypes() {
+        columnStatusTypesState.value = q.settingsByPrefix(COL_STATUS_TYPE_PREFIX).executeAsList()
+            .mapNotNull { row -> UserStatuses.Type.entries.firstOrNull { it.d == row.value_ }?.let { row.key.removePrefix(COL_STATUS_TYPE_PREFIX) to it } }
+            .toMap()
     }
 
     // [#27] 検索履歴（新しい順・上限30・KV 永続）。検索タブの履歴一覧に使う。
@@ -3669,6 +3925,21 @@ class EventRepository(
         val r = refreshOwn(10030) { emojiListRep.at } as? OwnRefetch.Result.Reached ?: return false
         if (OwnRefetch.isStale(r.latest, basedOnAt)) { ownListErrors.tryEmit(OwnListError.STALE); return false }
         return publishEmojiListNow(emojis)
+    }
+
+    /** [#775] 絵文字を 1 つ自分の絵文字リストに足した結果。 */
+    enum class EmojiAppend { SAVED, DUPLICATE, UNREACHABLE, FAILED }
+
+    /**
+     * [#775] 自分の絵文字リスト（kind:10030）に 1 つ足して公開する（ピッカーで作った絵文字の「保存」）。
+     * [#478] 最新版を取り直してから、その版に足す（取れなければ公開しない。他の端末で足した絵文字を消さないため）。
+     * 同じショートコードが既にあれば足さない。
+     */
+    suspend fun appendToEmojiList(emoji: CustomEmoji): EmojiAppend {
+        if (refreshOwn(10030, notify = false) { emojiListRep.at } !is OwnRefetch.Result.Reached) return EmojiAppend.UNREACHABLE
+        val current = emojiListRep.state.value
+        if (current.any { it.shortcode == emoji.shortcode }) return EmojiAppend.DUPLICATE
+        return if (publishEmojiListNow(current + emoji)) EmojiAppend.SAVED else EmojiAppend.FAILED
     }
 
     private suspend fun publishEmojiListNow(emojis: List<CustomEmoji>): Boolean = runCatching {
@@ -4238,6 +4509,8 @@ class EventRepository(
             Nip22.KIND -> Nip22.parentEventIdOf(tags)
                 ?: Nip22.rootEventIdOf(tags)
                 ?: Nip22.parentAddressOf(tags)?.let { addressToIdLocal(it) }
+            // [#793] パブリックチャットの発言は reply マーカーの e だけが返信先（root はチャンネル）。
+            Nip28.KIND_MESSAGE -> Nip28.replyToOf(tags)
             else -> null
         } ?: return null
         // 返信先 e タグの relay ヒント（3要素目）があれば取得に使う。
@@ -4740,6 +5013,33 @@ class EventRepository(
      * 削除済み・非公開は 404 で null。OGP と同じ DB キャッシュ（キー `x-oembed:<lang>:<url>`、title に日時）に
      * 同じ TTL で持ち、カードを出すたびに取りに行かない。
      */
+    /** [#775] 文字から作る絵文字の画像（プレビュー用）の取得結果。 */
+    sealed interface EmojiImage {
+        class Ok(val bytes: ByteArray) : EmojiImage
+        /** サーバーが作れなかった。[code] は応答の `error`（`unsupported_char` は描けない文字を [char] に持つ）。 */
+        data class Rejected(val code: String, val char: String? = null) : EmojiImage
+        /** 通信できなかった。 */
+        data object Failed : EmojiImage
+    }
+
+    /**
+     * [#775] 文字から作る絵文字の画像を取る（[EmojiMaker.imageUrl]。Web と同じサーバーが作り、Cloudflare にキャッシュされる）。
+     * 400 / 503 は応答の JSON の `error` を返す（作成フォームが理由を出す）。
+     */
+    suspend fun fetchEmojiImage(url: String): EmojiImage = try {
+        withContext(Dispatchers.Default) {
+            val resp = uploadHttp.get(url)
+            if (resp.status.value == 200) return@withContext EmojiImage.Ok(resp.readRawBytes())
+            val obj = runCatching { json.parseToJsonElement(resp.bodyAsText()).jsonObject }.getOrNull()
+            val code = obj?.get("error")?.jsonPrimitive?.contentOrNull ?: "unknown"
+            EmojiImage.Rejected(code, obj?.get("char")?.jsonPrimitive?.contentOrNull)
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Throwable) {
+        EmojiImage.Failed
+    }
+
     suspend fun fetchXPostDate(url: String, lang: String): String? {
         val key = "x-oembed:$lang:$url"
         ogpMutex.withLock { if (ogpCache.containsKey(key)) return ogpCache[key]?.title }
@@ -5566,6 +5866,9 @@ class EventRepository(
 
         /** [#10] カラム別の幅（"S"/"M"/"L"）の KV キー接頭辞。 */
         const val COL_WIDTH_PREFIX = "col_width:"
+
+        /** [#772] ステータスカラム別の「表示」（"all" / "music" / "general"）の KV キー接頭辞。同期しない。 */
+        const val COL_STATUS_TYPE_PREFIX = "col_status_type:"
 
         /** [#27] 検索履歴（改行区切り・新しい順）の KV キー。 */
         const val SEARCH_HISTORY = "search_history"

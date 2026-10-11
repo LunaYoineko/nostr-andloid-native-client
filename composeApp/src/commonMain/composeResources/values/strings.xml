@@ -10,17 +10,14 @@
     <string name="nav_public_chat">Public chat</string>
     <string name="nav_notifications">Notifications</string>
     <string name="nav_dm">DM</string>
-    <string name="nav_messages">Messages</string>
-    <string name="seg_dm">DM</string>
-    <string name="seg_chat">Chats</string>
+    <!-- [#794] 自分のアイコンのメニュー: リレーの接続状態（接続数 / 全体） -->
+    <string name="account_menu_relays_fmt">%1$d / %2$d connected</string>
     <string name="nav_add_column">Add column</string>
     <string name="settings_title">Settings</string>
 
     <!-- Settings: groups -->
-    <string name="group_quick_access">Quick access</string>
-    <string name="group_customize">Customize</string>
-    <string name="group_connection">Connection &amp; account</string>
-    <string name="group_system">System</string>
+    <string name="group_nostr">Nostr settings</string>
+    <string name="group_app">App settings</string>
 
     <!-- Settings: sections / tiles -->
     <string name="section_account">Edit profile</string>
@@ -184,6 +181,22 @@
     <string name="tpl_hashtag_hint">Tag (without #)</string>
     <string name="tpl_favs">Favorites</string>
     <string name="tpl_favs_hint">Posts you reacted to</string>
+    <string name="tpl_status">Statuses</string>
+    <string name="tpl_status_hint">Now Playing and statuses from people you follow</string>
+    <string name="tpl_channel_list_hint">Public chat threads (NIP-28)</string>
+    <string name="status_type_general">Status</string>
+    <string name="status_type_music">Now Playing</string>
+    <string name="status_filter">Show</string>
+    <string name="status_filter_all">All</string>
+    <string name="status_empty">No one you follow has a status right now</string>
+    <string name="status_empty_music">No one you follow is playing anything right now</string>
+    <string name="status_expires_soon">Ending soon</string>
+    <string name="status_expires_min">%1$d min left</string>
+    <string name="status_expires_hour">%1$d h left</string>
+    <string name="status_expires_at">Until %1$s</string>
+    <string name="status_ref_post">View post</string>
+    <string name="status_ref_article">View article</string>
+    <string name="status_ref_open">Open</string>
     <string name="sub_my_reactions">My reactions</string>
     <string name="notif_mention">Mentions</string>
     <string name="notif_reaction">Reactions</string>
@@ -208,6 +221,9 @@
     <string name="cat_reposts_of_me">Reposts of your posts</string>
     <string name="cat_my_reactions">Your reactions</string>
     <string name="cat_dms">Unread messages</string>
+    <string name="cat_public_chat">Public chat messages</string>
+    <string name="feed_chat_in_channel_fmt">Posted in #%1$s</string>
+    <string name="feed_chat_in_channel_unknown">Posted in a public chat</string>
     <string name="col_width">Column width</string>
     <string name="width_narrow">Narrow</string>
     <string name="width_default">Default</string>
@@ -309,6 +325,36 @@
     <string name="reaction_star">Star</string>
     <!-- [#732] 絵文字ピッカーからリアクションを送ったときのトースト -->
     <string name="reaction_sent_fmt">Reacted with %1$s</string>
+    <string name="reaction_sent_made">Reacted with your new emoji</string>
+    <string name="picker_make">Make an emoji</string>
+    <string name="picker_make_react">React with this emoji</string>
+    <string name="picker_make_save">Also save to my emoji list</string>
+    <string name="picker_make_shortcode_label">Shortcode (optional)</string>
+    <string name="picker_make_shortcode_hint">Leave empty to name it automatically</string>
+    <string name="picker_make_save_duplicate">An emoji with this shortcode is already in your list, so it wasn’t saved</string>
+    <string name="emoji_shortcode_invalid">Shortcodes can only use letters, numbers, _ and -</string>
+    <string name="emoji_no_base">Couldn’t fetch the latest emoji list, so nothing was published. Check your connection and try again</string>
+    <string name="emoji_add_by_url">Add by URL</string>
+    <string name="emoji_add_by_maker">Make from text</string>
+    <string name="emoji_maker_text_label">Text</string>
+    <string name="emoji_maker_text_hint">Type text (new line for more lines)</string>
+    <string name="emoji_maker_limit">Up to 4 lines, 10 characters per line</string>
+    <string name="emoji_maker_font_label">Font</string>
+    <string name="emoji_maker_color_label">Text color</string>
+    <string name="emoji_maker_stroke_enable">Outline</string>
+    <string name="emoji_maker_stroke_color_label">Outline color</string>
+    <string name="emoji_maker_hex_hint">Hex (e.g. ff0000)</string>
+    <string name="emoji_maker_preview_label">Preview</string>
+    <string name="emoji_maker_preview_light">Light background</string>
+    <string name="emoji_maker_preview_dark">Dark background</string>
+    <string name="emoji_maker_note">The text you enter is sent to the Nostrism server as part of the image URL. Once you use the emoji, anyone can see that URL.</string>
+    <string name="emoji_maker_error_invalid_text">The text contains control characters that can’t be used</string>
+    <string name="emoji_maker_error_invalid_color">Enter the text color in hex (e.g. ff0000)</string>
+    <string name="emoji_maker_error_invalid_stroke">Enter the outline color in hex (e.g. ffffff)</string>
+    <string name="emoji_maker_error_unsupported_char">“%1$s” can’t be drawn with this font</string>
+    <string name="emoji_maker_error_font_unavailable">Couldn’t load the font. Please try again later</string>
+    <string name="emoji_maker_error_network">Couldn’t fetch the image. Check your connection</string>
+    <string name="emoji_maker_error_unknown">Couldn’t make the image. Please try again later</string>
     <string name="reaction_other">Other emoji</string>
     <string name="settings_unavailable">Settings are unavailable</string>
     <string name="sync_title">Relay sync</string>
@@ -452,6 +498,7 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="compose_posting">Posting…</string>
     <string name="compose_attach_image">Attach image</string>
     <string name="compose_attach_video">Attach video</string>
+    <string name="compose_paste_image_failed">Couldn't read the image from the clipboard</string>
     <string name="compose_insert_emoji">Insert emoji</string>
     <string name="compose_sensitive_on">Sensitive: ON</string>
     <string name="compose_sensitive">Mark sensitive</string>
@@ -613,6 +660,7 @@ It will be removed from the list and reflected in the next published kind:10002.
     <string name="load_more">Load more</string>
     <string name="thread_title">Thread</string>
     <string name="chat_select_channel">Select a channel</string>
+    <string name="chat_room_unnamed">Public chat</string>
     <string name="chat_loading_channel">Loading channel…</string>
     <string name="chat_write_message">✏️ Write a message</string>
     <string name="chat_reply">Reply</string>

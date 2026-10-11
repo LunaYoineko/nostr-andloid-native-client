@@ -1,11 +1,11 @@
 import type { NostrEvent } from "nostr-tools/pure";
 import { useEffect } from "react";
 import { type NavigateFunction, useNavigate } from "react-router";
-import { t } from "../../i18n";
 import { repostedEventNow } from "../../nostr/loaders";
 import { useSession } from "../../signer/session";
 import { useDeck } from "../../store/deck";
 import { reactWithDefault } from "../actions/reactions";
+import { roomHrefOf } from "../chat/chatMessage";
 import { openCompose, useCompose } from "../compose/composeStore";
 import { toggleBookmark, useOwnLists } from "../lists/ownLists";
 import {
@@ -65,12 +65,12 @@ function focusSearchInput(frames = FOCUS_SEARCH_FRAMES): void {
 
 /** 発行の失敗は画面に出さない（ネイティブと同じ） */
 function warn(e: unknown) {
-  console.warn(`[keyboard] ${t("web_log_react_failed")}`, e);
+  console.warn("[keyboard] Failed to react", e);
 }
 
 /** 発行の失敗は画面に出さない（ネイティブ KbAction.BOOKMARK と同じ。トーストも出さない） */
 function warnBookmark(e: unknown) {
-  console.warn(`[keyboard] ${t("web_log_bookmark_failed")}`, e);
+  console.warn("[keyboard] Failed to bookmark", e);
 }
 
 function run(action: KeyAction, navigate: NavigateFunction): void {
@@ -124,7 +124,10 @@ function run(action: KeyAction, navigate: NavigateFunction): void {
   // r / t / f は投稿の行だけ
   const post = postOf(listOf(columnId)?.postAt(index) ?? null);
   if (!post) return;
-  if (action.type === "reply") openCompose({ mode: "reply", target: post });
+  // [#796] パブリックチャットの発言はタップと同じくルームを開く
+  const room = post.kind === 42 ? roomHrefOf(post) : null;
+  if (action.type === "reply" && room !== null) void navigate(room);
+  else if (action.type === "reply") openCompose({ mode: "reply", target: post });
   else if (action.type === "quote") openCompose({ mode: "quote", target: post });
   else if (action.type === "bookmark") {
     const me = useSession.getState().pubkey;
