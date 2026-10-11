@@ -117,6 +117,27 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 > また jpackage を含むフル JDK 21 が必要（`JAVA_HOME` を明示的に渡す）：
 > `./gradlew :composeApp:packageMsi -PpackagingJavaHome="$JAVA_HOME"`
 
+##### Linux ネイティブパッケージの前提ツール
+
+| ディストリ | DEB | RPM |
+|------------|-----|-----|
+| Debian / Ubuntu | `apt install fakeroot` | `apt install rpm` |
+| Fedora / RHEL 系 | （DEB 不要） | `dnf install rpm-build` |
+
+> RPM は jpackage が `rpmbuild` を PATH から呼び出すため、`rpm-build` パッケージの
+> 入れ忘れが起きやすい（`rpm` 本体は Fedora 標準で入っているため、`rpm` があると
+> 判定すると実際は `rpmbuild` が無くて失敗する）。RPM をビルドする前に
+> `command -v rpmbuild` で確認すること。
+
+##### WSL でビルドする場合の注意
+
+- **WSL の NTFS マウント（`/mnt/c`, `/mnt/g` など）上では `package*` は失敗する。**
+  jlink / jpackage が `legal/` 配下に特殊ファイルを作る際に `Operation not permitted` になる。
+  WSL のネイティブファイルシステム（`~` = ext4 / btrfs）上に clone してビルドする。
+- 出力先も `composeApp/build` が ext4 上にある必要がある。DrvFs 上に clone した
+  ディレクトリを `cp -r` で ext4 へ移すのは有効（前に Windows 側へ root でビルドした
+  実績がある場合は `sudo chown -R "$USER:$USER"` で所有者を戻す）。
+
 ### リリース配布
 
 ```bash

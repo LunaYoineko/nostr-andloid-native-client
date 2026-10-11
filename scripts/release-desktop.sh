@@ -87,7 +87,7 @@ fi
 
 # ---- Linux（DEB + RPM）----
 if has linux && [ "$HOST" = linux ]; then
-  # DEB は fakeroot、RPM は rpm が必要。無ければビルドをスキップして警告する。
+  # DEB は fakeroot、RPM は rpmbuild が必要。無ければビルドをスキップして警告する。
   DEB_TASKS=()
   if command -v fakeroot >/dev/null 2>&1; then
     DEB_TASKS+=(":composeApp:packageDeb")
@@ -95,11 +95,13 @@ if has linux && [ "$HOST" = linux ]; then
   else
     echo "⚠ fakeroot が無いため DEB をスキップします（apt install fakeroot）" >&2
   fi
-  if command -v rpmbuild >/dev/null 2>&1 || command -v rpm >/dev/null 2>&1; then
+  # jpackage の RPM バンドラーが実際に呼ぶのは rpmbuild だけ。rpm 本体があっても
+  # rpmbuild が無い環境（rpm-build を入れていない Fedora 等）で「有る」と判定すると失敗する。
+  if command -v rpmbuild >/dev/null 2>&1; then
     DEB_TASKS+=(":composeApp:packageRpm")
     NOTES_MD+=("- **Linux**: \`Nostrism-$NAME-linux.rpm\`（Fedora / RHEL 等の .rpm 系）")
   else
-    echo "⚠ rpm が無いため RPM をスキップします（apt install rpm）" >&2
+    echo "⚠ rpmbuild が無いため RPM をスキップします（dnf install rpm-build / apt install rpm）" >&2
   fi
   if [ ${#DEB_TASKS[@]} -gt 0 ]; then
     echo "==> Building Linux packages (version=$NAME)"
